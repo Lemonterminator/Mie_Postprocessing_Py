@@ -69,6 +69,19 @@ def _remap_frame(frame: np.ndarray, map_x: np.ndarray, map_y: np.ndarray, use_cu
         else:
             return cv2.remap(frame, map_x, map_y, interpolation=cv2.INTER_CUBIC)
 
+
+def _remap_video_cuda(video: np.ndarray, map_x: np.ndarray, map_y: np.ndarray, interpolation=cv2.INTER_CUBIC) -> np.ndarray:
+    """Remap a stack of frames on the GPU without threading."""
+    gpu_map_x = cv2.cuda_GpuMat(); gpu_map_x.upload(map_x)
+    gpu_map_y = cv2.cuda_GpuMat(); gpu_map_y.upload(map_y)
+    gpu_frame = cv2.cuda_GpuMat()
+    out_frames = []
+    for idx in range(video.shape[0]):
+        gpu_frame.upload(video[idx])
+        result = cv2.cuda.remap(gpu_frame, gpu_map_x, gpu_map_y, interpolation)
+        out_frames.append(result.download())
+    return np.stack(out_frames, axis=0)
+
 def rotate_and_crop(
     array: np.ndarray,
     angle: float,
@@ -127,17 +140,20 @@ def rotate_and_crop(
 
     if is_video:
         num_frames = array.shape[0]
-        rotated = [None] * num_frames
+        if use_cuda:
+            return _remap_video_cuda(array, map_x, map_y)
+        else:
+            rotated = [None] * num_frames
 
-        def task(idx: int):
-            return idx, _remap_frame(array[idx], map_x, map_y, use_cuda)
+            def task(idx: int):
+                return idx, _remap_frame(array[idx], map_x, map_y, use_cuda)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as exe:
-            futures = [exe.submit(task, i) for i in range(num_frames)]
-            for fut in as_completed(futures):
-                idx, out = fut.result()
-                rotated[idx] = out
-        return np.stack(rotated, axis=0)
+            with ThreadPoolExecutor(max_workers=max_workers) as exe:
+                futures = [exe.submit(task, i) for i in range(num_frames)]
+                for fut in as_completed(futures):
+                    idx, out = fut.result()
+                    rotated[idx] = out
+            return np.stack(rotated, axis=0)
     else:
         return _remap_frame(array, map_x, map_y, use_cuda)
     

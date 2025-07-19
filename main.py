@@ -9,6 +9,7 @@ import os
 import gc
 from ssim import compute_ssim_segments
 import json
+from cone_angle import *
 
 global parent_folder
 global plumes 
@@ -28,6 +29,8 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
 
 def MIE_pipeline(video, number_of_plumes, offset, centre):
     foreground = subtract_median_background(video, frame_range=slice(0, 30))
+
+
     # play_video_cv2(foreground, intv=17)
     '''
     gamma = foreground ** 2 # gamma correction
@@ -52,6 +55,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     centre_x = float(centre[0])
     centre_y = float(centre[1])
 
+    # Cone angle
+    signal_density_bins, signal, density = angle_signal_density(foreground[100], centre_x, centre_y, N_bins=360)
+
     # Generate the crop rectangle based on the plume parameters
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
 
@@ -59,6 +65,11 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) + offset
     mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
+    
+    start_time = time.time()
+    
+
+    
     segments = []
 
     # Multithreaded rotation and cropping
@@ -77,6 +88,10 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         # Sort by index to preserve order
         segments_with_idx.sort(key=lambda x: x[0])
         segments = [seg for idx, seg in segments_with_idx]
+    
+    elapsed_time = time.time() - start_time
+    print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
+    
     
     # Free intermediate arrays to reduce peak memory usage
     del foreground, gain, gamma
@@ -102,13 +117,19 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
                                        # average_segment))
 
     # ssim_matrix = await ssim_task    # this yields the ndarray of SSIM scores
-    ssim_matrix = compute_ssim_segments(segments,average_segment)
+    start_time = time.time()
+
+    ssim_matrix = compute_ssim_segments(segments,average_segment)    
+    elapsed_time = time.time() - start_time
+    print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
+
     # plt.imshow(ssim_matrix, aspect='auto')
     # plt.colorbar()
     plt.plot(ssim_matrix.transpose())
     
-    plt.show()
+    # plt.show()
 
+    '''
     labels = kmeans_label_video(video, k=3)
     print('labels shape', labels.shape)
     print('unique labels', np.unique(labels))
@@ -116,13 +137,25 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     print('playable min', playable.min(), 'max', playable.max())
     # play_video_cv2(playable)
     play_videos_side_by_side([video, playable], intv = 170)
+    '''
 
-    playable = labels_to_playable_video(labels, k=2)
-    print('playable min', playable.min(), 'max', playable.max())
+    # labels = kmeans_label_video(video, k=2)
+    # playable = labels_to_playable_video(labels, k=2)
+    # print('labels shape', labels.shape)
+    # print('unique labels', np.unique(labels))
+    # print('playable min', playable.min(), 'max', playable.max())
     # play_video_cv2(playable)
-    play_videos_side_by_side([video, playable], intv = 170)
+    # play_videos_side_by_side([video, playable], intv = 170)
 
-    1
+    start_time = time.time()
+    for segment in segments:
+        labels = kmeans_label_video(segment, k=2)
+        playable = labels_to_playable_video(labels, k=2)
+        # play_videos_side_by_side([segment, playable], intv=34)
+    
+    elapsed_time = time.time() - start_time
+    print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
+
 
 async def main():
     # parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
