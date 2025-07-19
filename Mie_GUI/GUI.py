@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, messagebox, colorchooser
 from PIL import Image, ImageTk, ImageOps
 import numpy as np
 import os
+import json
 from zoom_utils import enlarge_image
 from cine_utils import CineReader
 from circ_calculator import calc_circle
@@ -256,7 +257,10 @@ class VideoAnnotatorUI:
         ttk.Entry(ctrl, textvariable=self.coord_y, width=7).grid(row=1, column=bc+7, pady=(5,0))
 
         self.circle_btn = ttk.Button(ctrl, text="Calibration", command=self.open_circle_selector, state=tk.DISABLED)
-        self.circle_btn.grid(row=1, column=bc+10, padx=2)
+        self.circle_btn.grid(row=1, column=bc+9, padx=2)
+
+        self.save_cfg_btn = ttk.Button(ctrl, text="Save Config", command=self.save_config)
+        self.save_cfg_btn.grid(row=1, column=bc+10, padx=2)
 
 
 
@@ -376,6 +380,7 @@ class VideoAnnotatorUI:
         self.total_frames = self.reader.frame_count
         self.mask = np.zeros((self.reader.height, self.reader.width), dtype=np.uint8)
         self.current_index = 0
+        self.calib_radius = 0.0
         for w in (self.prev_btn, self.next_btn, self.confirm_btn, self.select_btn, self.export_btn, self.circle_btn):
             w.config(state=tk.NORMAL)
         self.update_image()
@@ -446,7 +451,7 @@ class VideoAnnotatorUI:
         y1 = int(np.ceil(y1s / self.zoom_factor))
 
         base_tile = self.base_rgba_pad.crop((x0, y0, x1, y1))
-        mask_pad = np.pad(self.mask, ((0, self.display_pad), (0, self.display_pad)), constant_values=0)
+        mask_pad = np.pad(self.mask, ((0, self.display_pad), (0, self.display_pad)), mode='constant', constant_values=0)
         mask_tile = mask_pad[y0:y1, x0:x1]
 
         base_tile = enlarge_image(base_tile, int(self.zoom_factor))
@@ -463,10 +468,17 @@ class VideoAnnotatorUI:
         self.canvas.create_image(x0s, y0s, anchor='nw', image=self.photo, tags='IMG')
         self.canvas.delete('CENTER')
         self.canvas.delete('PLUME')
+        self.canvas.delete('CALIBCIRCLE')
         cx = self.coord_x.get()*self.zoom_factor
         cy = self.coord_y.get()*self.zoom_factor
         r = 5
         self.canvas.create_oval(cx-r, cy-r, cx+r, cy+r, outline='yellow', width=2, tags='CENTER')
+
+        if self.calib_radius > 0:
+            rr = self.calib_radius * self.zoom_factor
+            self.canvas.create_oval(cx-rr, cy-rr, cx+rr, cy+rr,
+                                   outline='red', dash=(4,), tags='CALIBCIRCLE')
+
 
         n_plumes = int(self.num_plumes.get()) if self.num_plumes.get() > 0 else 0
         if n_plumes > 0:
@@ -555,6 +567,25 @@ class VideoAnnotatorUI:
         img = Image.fromarray((self.mask * 255).astype(np.uint8))
         img.save(os.path.splitext(file_path)[0] + '.jpg')
         messagebox.showinfo('Export', 'Mask exported')
+    
+    def save_config(self):
+        """Save plume and calibration parameters to a config JSON file."""
+        folder = filedialog.askdirectory(title='Select Folder to Save Config')
+        if not folder:
+            return
+        cfg = {
+            'plumes': int(self.num_plumes.get()),
+            'offset': float(self.plume_offset.get()),
+            'centre_x': float(self.coord_x.get()),
+            'centre_y': float(self.coord_y.get())
+        }
+        path = os.path.join(folder, 'config.json')
+        try:
+            with open(path, 'w') as f:
+                json.dump(cfg, f, indent=2)
+            messagebox.showinfo('Config', f'Configuration saved to {path}')
+        except Exception as e:
+            messagebox.showerror('Error', f'Could not save config:\n{e}')
 
 if __name__=='__main__':
     root=tk.Tk(); app=VideoAnnotatorUI(root); root.mainloop()

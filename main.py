@@ -15,7 +15,7 @@ global plumes
 global offset
 global centre
 
-parent_folder = r"C:\Users\LJI008\OneDrive - Wärtsilä Corporation\Documents\DS300_ex"
+parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
 
 # Define a semaphore with a limit on concurrent tasks
 SEMAPHORE_LIMIT = 2  # Adjust this based on your CPU capacity
@@ -164,7 +164,7 @@ async def main():
                         # print(item)
                     plumes = int(data['plumes'])
                     offset = float(data['offset'])
-                    centre = [float(data['centre_x']), float(data['centre_y'])]
+                    centre = (float(data['centre_x']), float(data['centre_y']))
 
         # print(files)
         for file in files:
