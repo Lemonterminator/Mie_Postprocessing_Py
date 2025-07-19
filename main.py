@@ -107,8 +107,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # plt.colorbar()
     plt.plot(ssim_matrix.transpose())
     
-    plt.show()
+    # plt.show()
 
+    '''
     labels = kmeans_label_video(video, k=3)
     print('labels shape', labels.shape)
     print('unique labels', np.unique(labels))
@@ -116,13 +117,21 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     print('playable min', playable.min(), 'max', playable.max())
     # play_video_cv2(playable)
     play_videos_side_by_side([video, playable], intv = 170)
+    '''
 
-    playable = labels_to_playable_video(labels, k=2)
-    print('playable min', playable.min(), 'max', playable.max())
+    # labels = kmeans_label_video(video, k=2)
+    # playable = labels_to_playable_video(labels, k=2)
+    # print('labels shape', labels.shape)
+    # print('unique labels', np.unique(labels))
+    # print('playable min', playable.min(), 'max', playable.max())
     # play_video_cv2(playable)
-    play_videos_side_by_side([video, playable], intv = 170)
+    # play_videos_side_by_side([video, playable], intv = 170)
 
-    1
+    for segment in segments:
+        labels = kmeans_label_video(segment, k=2)
+        playable = labels_to_playable_video(labels, k=2)
+        # play_videos_side_by_side([segment, playable], intv=34)
+
 
 async def main():
     # parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
@@ -164,7 +173,9 @@ async def main():
                         # print(item)
                     plumes = int(data['plumes'])
                     offset = float(data['offset'])
-                    centre = [float(data['centre_x']), float(data['centre_y'])]
+                    # use a tuple for centre coordinates so it is hashable when
+                    # passed to cached functions
+                    centre = (float(data['centre_x']), float(data['centre_y']))
 
         # print(files)
         for file in files:
