@@ -28,6 +28,9 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
     return await loop.run_in_executor(None, play_video_cv2, video, gain, binarize, thresh, intv)
 
 def MIE_pipeline(video, number_of_plumes, offset, centre):
+    # video[video<0.05]=0
+    # video_histogram_with_contour(video, bins=1000, exclude_zero=True, log=True)
+
     foreground = subtract_median_background(video, frame_range=slice(0, 30))
 
 
@@ -41,8 +44,13 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     print("Gain correction has range from %f to %f" % (gain.min(), gain.max()))
     '''
-    gain = foreground
-    gamma = foreground 
+    
+    
+    gamma = foreground**2
+    video_histogram_with_contour(gamma, bins=1000, exclude_zero=True, log=True)
+
+    gain = gamma * 5
+    video_histogram_with_contour(gain, bins=1000, exclude_zero=True, log=True) 
     
     # centre = (384.9337805142379, 382.593916979227)
     # crop = (round(centre[0]), round(centre[1]- 768/16), round(768/2), round(768/8))

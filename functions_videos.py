@@ -356,6 +356,90 @@ def imhist(image, bins=1000, log=False, exclude_zero=False):
     ax.grid(True, which='both', ls='--', alpha=0.3)
     plt.show()
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+def video_histogram_with_contour(video, bins=100, exclude_zero=False, log=False):
+    """
+    Compute per-frame histograms for a video and display both
+    a heatmap and a contour plot in a shared figure.
+
+    Parameters
+    ----------
+    video : np.ndarray
+        Grayscale video of shape (frames, height, width), values in [0, 1].
+    bins : int
+        Number of intensity bins.
+    exclude_zero : bool
+        If True, omit zero-valued pixels.
+    log : bool
+        If True, take log(1 + counts).
+    """
+    frames, h, w = video.shape
+
+    # 1) Build sample pairs (frame_idx, intensity)
+    frame_idx = np.repeat(np.arange(frames), h * w)
+    intensities = video.ravel()
+    if exclude_zero:
+        mask = (intensities != 0)
+        frame_idx = frame_idx[mask]
+        intensities = intensities[mask]
+
+    samples = np.stack((frame_idx, intensities), axis=1)
+
+    # 2) Compute the 2D histogram
+    hist, edges = np.histogramdd(
+        samples,
+        bins=(frames, bins),
+        range=((0, frames), (0.0, 1.0))
+    )
+    # edges[0] has length frames+1, edges[1] has length bins+1
+
+    if log:
+        hist = np.log1p(hist)
+
+    # 3) Compute true bin centers for both dimensions
+    frame_edges, intensity_edges = edges
+    frame_centers = (frame_edges[:-1] + frame_edges[1:]) / 2    # length = frames
+    bin_centers   = (intensity_edges[:-1] + intensity_edges[1:]) / 2  # length = bins
+
+    # 4) Build meshgrid so Z==hist has shape (frames, bins)
+    X, Y = np.meshgrid(bin_centers, frame_centers)
+
+    # 5) Plot heatmap + contour
+    fig, (ax_heat, ax_contour) = plt.subplots(
+        2, 1, figsize=(10, 8), sharex=True
+    )
+
+    # Heatmap
+    im = ax_heat.imshow(
+        hist,
+        aspect='auto',
+        origin='lower',
+        cmap='viridis',
+        extent=[0, 1, 0, frames]
+    )
+    fig.colorbar(im, ax=ax_heat, label="Log Count" if log else "Count")
+    ax_heat.set_ylabel("Frame index")
+    ax_heat.set_title("Histogram Heatmap" + (" (zeros excluded)" if exclude_zero else ""))
+
+    # Contour
+    cont = ax_contour.contourf(
+        X, Y, hist,
+        levels=15,
+        cmap='viridis'
+    )
+    fig.colorbar(cont, ax=ax_contour, label="Log Count" if log else "Count")
+    ax_contour.set_xlabel("Intensity (normalized 0→1)")
+    ax_contour.set_ylabel("Frame index")
+    ax_contour.set_title("Histogram Contour" + (" (zeros excluded)" if exclude_zero else ""))
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+
 def subtract_median_background(video, frame_range=None):
     """
     Subtract a background image from each frame of a video.
