@@ -219,13 +219,22 @@ def rotate_frame_cuda(frame, angle, stream=None):
         rotated = out_uint8 > 127
     else:
         # 对普通灰度或多通道图像
-        gpu_mat = cv2.cuda_GpuMat()
-        gpu_mat.upload(frame, stream)
-        gpu_rot = cv2.cuda.warpAffine(
-            gpu_mat, M, (w, h),
-            flags=cv2.INTER_CUBIC, stream=stream
-        )
-        rotated = gpu_rot.download(stream)
+        gpu_mat = cv2.cuda.GpuMat()
+
+        if stream is not None:
+            gpu_mat.upload(frame, stream)
+            gpu_rot = cv2.cuda.warpAffine(
+                gpu_mat, M, (w, h),
+                flags=cv2.INTER_CUBIC, stream=stream
+            )
+            rotated = gpu_rot.download(stream)
+        else:
+            gpu_mat.upload(frame)
+            gpu_rot = cv2.cuda.warpAffine(
+                gpu_mat, M, (w, h),
+                flags=cv2.INTER_CUBIC
+            )
+            rotated = gpu_rot.download()
     
     # 等待 GPU 流完成
     if stream is not None:
@@ -436,9 +445,6 @@ def video_histogram_with_contour(video, bins=100, exclude_zero=False, log=False)
 
     plt.tight_layout()
     plt.show()
-
-
-
 
 def subtract_median_background(video, frame_range=None):
     """

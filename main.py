@@ -29,11 +29,20 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
 
 def MIE_pipeline(video, number_of_plumes, offset, centre):
     # video[video<0.05]=0
-    # video_histogram_with_contour(video, bins=1000, exclude_zero=True, log=True)
+    video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
 
     foreground = subtract_median_background(video, frame_range=slice(0, 30))
 
+    centre_x = float(centre[0])
+    centre_y = float(centre[1])
 
+    # Cone angle
+    signal_density_bins, signal, density = angle_signal_density(foreground, centre_x, centre_y, N_bins=3600)
+
+    plot_angle_signal_density(signal_density_bins, signal)
+
+
+    
     # play_video_cv2(foreground, intv=17)
     '''
     gamma = foreground ** 2 # gamma correction
@@ -47,24 +56,18 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     
     
     gamma = foreground**2
-    video_histogram_with_contour(gamma, bins=1000, exclude_zero=True, log=True)
+    video_histogram_with_contour(gamma, bins=100, exclude_zero=True, log=True)
 
     gain = gamma * 5
-    video_histogram_with_contour(gain, bins=1000, exclude_zero=True, log=True) 
+    video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
     
+    gain[gain < 1.5e-2] = 0 # thresholding
+    gain[gain > 0] = 1
     # centre = (384.9337805142379, 382.593916979227)
     # crop = (round(centre[0]), round(centre[1]- 768/16), round(768/2), round(768/8))
 
     ir_ = 14
     or_ = 380
-
-    # centre_x = 384.9337805142379
-    # centre_y = 382.593916979227
-    centre_x = float(centre[0])
-    centre_y = float(centre[1])
-
-    # Cone angle
-    signal_density_bins, signal, density = angle_signal_density(foreground[100], centre_x, centre_y, N_bins=360)
 
     # Generate the crop rectangle based on the plume parameters
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
@@ -166,9 +169,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
 
 async def main():
-    # parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
-    
-    #parent_folder = r"E:\TP_example"
+
     subfolders = get_subfolder_names(parent_folder)  # Ensure get_subfolder_names is defined or imported
 
     
