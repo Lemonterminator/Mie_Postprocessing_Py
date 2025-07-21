@@ -118,46 +118,19 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
 
-    # for seg in segments:
-        # pass  # segments are already masked during rotation
-
-        # play_video_cv2(seg, intv=17)
-        # Launch SSIM computation asynchronously; results are not needed immediately
-    # loop = asyncio.get_running_loop()
-    # ssim_task = loop.create_task(asyncio.to_thread(compute_ssim_segments, segments,
-                                       # average_segment))
-
-    # ssim_matrix = await ssim_task    # this yields the ndarray of SSIM scores
+    '''
+    # SSIM 
     start_time = time.time()
-
     ssim_matrix = compute_ssim_segments(segments,average_segment)    
     elapsed_time = time.time() - start_time
     print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
 
-    # plt.imshow(ssim_matrix, aspect='auto')
-    # plt.colorbar()
     plt.plot(ssim_matrix.transpose())
-    
     # plt.show()
-
-    '''
-    labels = kmeans_label_video(video, k=3)
-    print('labels shape', labels.shape)
-    print('unique labels', np.unique(labels))
-    playable = labels_to_playable_video(labels, k=2)
-    print('playable min', playable.min(), 'max', playable.max())
-    # play_video_cv2(playable)
-    play_videos_side_by_side([video, playable], intv = 170)
     '''
 
-    # labels = kmeans_label_video(video, k=2)
-    # playable = labels_to_playable_video(labels, k=2)
-    # print('labels shape', labels.shape)
-    # print('unique labels', np.unique(labels))
-    # print('playable min', playable.min(), 'max', playable.max())
-    # play_video_cv2(playable)
-    # play_videos_side_by_side([video, playable], intv = 170)
-
+    # Kmeans 
+    '''
     start_time = time.time()
     for segment in segments:
         labels = kmeans_label_video(segment, k=2)
@@ -166,6 +139,19 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     
     elapsed_time = time.time() - start_time
     print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
+    '''
+    for segment in segments:
+        time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
+        plt.imshow(time_distance_intensity,
+                aspect="auto",
+                origin="lower",
+                cmap="viridis",
+                )
+        plt.show()
+            # Cone angle
+        signal_density_bins, signal, density = angle_signal_density(segment, 0.0, segment.shape[1]/2.0, N_bins=180)
+
+        plot_angle_signal_density(signal_density_bins, signal)
 
 
 async def main():
