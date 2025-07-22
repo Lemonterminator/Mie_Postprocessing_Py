@@ -11,6 +11,8 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from cone_angle import angle_signal_density, plot_angle_signal_density
+from functions_videos import video_histogram_with_contour
 
 class FrameSelector(tk.Toplevel):
     """Simple viewer to pick a frame from the loaded video."""
@@ -272,7 +274,7 @@ class VideoAnnotatorUI:
             ttk.Entry(ctrl, textvariable=v, width=5).grid(
                 row=2, column=lp['param_start_col']+i*2+1, pady=(5,0))
             self.vars[name.lower()] = v
-        self.confirm_btn = ttk.Button(ctrl, text="Apply", command=self.update_image, state=tk.DISABLED)
+            self.confirm_btn = ttk.Button(ctrl, text="Apply", command=lambda: self.update_image(compute_global=True), state=tk.DISABLED)
         self.confirm_btn.grid(row=2, column=lp['param_start_col']+10, padx=5, pady=(5,0))
 
 
@@ -300,8 +302,6 @@ class VideoAnnotatorUI:
         self.outer_radius = tk.IntVar(value=0)
         ttk.Entry(ctrl, textvariable=self.outer_radius, width=5).grid(row=4, column=bc+3, pady=(5,0))
         ttk.Button(ctrl, text="Add Ring", command=self.add_ring_mask).grid(row=4, column=bc+4, padx=(10,0), pady=(5,0))
-
- 
 
     def add_ring_mask(self):
         """Add a ring (or circle) mask centered at the calibration coordinate."""
@@ -335,6 +335,7 @@ class VideoAnnotatorUI:
         content.pack(fill=tk.BOTH, expand=True)
         content.rowconfigure(0, weight=1)
         content.columnconfigure(0, weight=1)
+        content.columnconfigure(1, weight=1)
 
         # Canvas with scrollbars
         cf = ttk.Frame(content)
@@ -351,13 +352,16 @@ class VideoAnnotatorUI:
 
         # Histogram panel
         hf = ttk.Frame(content)
-        hf.grid(row=0, column=1, sticky='ns', padx=5, pady=5)
+        hf.grid(row=0, column=1, sticky='nsew', padx=5, pady=5)
         hf.rowconfigure(0, weight=1)
         hf.columnconfigure(0, weight=1)
-        self.fig = Figure(figsize=(3, 3))
-        self.ax = self.fig.add_subplot(111)
+        self.fig = Figure(figsize=(4, 4))
+        self.ax_hist = self.fig.add_subplot(211)
+        self.ax_angle = self.fig.add_subplot(212)
+        self.ax_angle.set_xlim(-360, 360)
         self.canvas_hist = FigureCanvasTkAgg(self.fig, master=hf)
         self.canvas_hist.get_tk_widget().grid(row=0, column=0, sticky='nsew')
+        hf.bind('<Configure>', lambda e: self._on_hist_resize(e.width))
 
         # Canvas bindings
         self.canvas.bind('<MouseWheel>',    self._on_zoom)
@@ -383,7 +387,7 @@ class VideoAnnotatorUI:
         self.calib_radius = 0.0
         for w in (self.prev_btn, self.next_btn, self.confirm_btn, self.select_btn, self.export_btn, self.circle_btn):
             w.config(state=tk.NORMAL)
-        self.update_image()
+        self.update_image(compute_global=True)
 
     def prev_frame(self):
         if self.current_index>0:
@@ -395,7 +399,7 @@ class VideoAnnotatorUI:
             self.current_index+=1
             self.update_image()
 
-    def update_image(self):
+    def update_image(self, compute_global=False):
         frame = self.reader.read_frame(self.current_index).astype(np.float32)
         if self.mask is None or self.mask.shape != frame.shape:
             self.mask = np.zeros(frame.shape, dtype=np.uint8)
@@ -414,13 +418,58 @@ class VideoAnnotatorUI:
             fill=(0, 0, 0, 255))
         self.offset_x = 0
         self.offset_y = 0
-        self.ax.clear(); self.ax.hist(img8.ravel(),bins=256); self.ax.set_title('Processed Histogram'); self.canvas_hist.draw()
+        self.ax_hist.clear()
+        # display histogram with logarithmic y-axis for better dynamic range
+        self.ax_hist.hist(img8.ravel(), bins=256, log=True)
+        self.ax_hist.set_title('Processed Histogram')
+        self.ax_hist.set_ylabel('Count (log scale)')
+
+        cx = self.coord_x.get()
+        cy = self.coord_y.get()
+        self.ax_angle.clear()
+        if cx != 0 or cy != 0:
+            bins, sig, _ = angle_signal_density(img8, cx, cy, N_bins=90)
+            bins_ext = np.concatenate((bins - 360, bins))
+            sig_ext = np.concatenate((sig, sig))
+            # logarithmic scale requires strictly positive values
+            # sig_ext = sig_ext + 1e-9
+            # self.ax_angle.semilogy(bins_ext, sig_ext, color='green')
+            self.ax_angle.plot(bins_ext, sig_ext, color='green', alpha=0.5)
+            n_plumes = int(self.num_plumes.get()) if self.num_plumes.get() > 0 else 0
+            if n_plumes > 0:
+                step = 360.0 / n_plumes
+                offset = self.plume_offset.get() % 360.0
+                for i in range(n_plumes):
+                    ang = offset + i * step
+                    for shift in (-360, 0):
+                        if ang + shift > -180:
+                            self.ax_angle.axvline(ang + shift, color='cyan', linestyle='--')
+                        else: 
+                            self.ax_angle.axvline(ang + shift + 180, color='cyan', linestyle='--')
+        self.ax_angle.set_xlim(-180, 180)
+        # self.ax_angle.set_title('Angular Signal Density (ln scale)')
+        self.ax_angle.set_title('Angular Signal Density')
+        self.ax_angle.set_xlabel('Angle (deg)')
+        # self.ax_angle.set_ylabel('Signal (log scale)')
+        self.ax_angle.set_ylabel('Signal')
+        self.canvas_hist.draw()
+        if compute_global:
+            self._compute_global_plots()
         self._draw_scaled(); self.frame_label.config(text=f"Frame: {self.current_index+1}/{self.total_frames}")
     
     def _update_zoomed_base(self):
         """Cache a zoomed version of the base image for faster drawing."""
         if self.base_rgba is not None:
             self.scaled_base = enlarge_image(self.base_rgba_pad, int(self.zoom_factor))
+    
+    def _on_hist_resize(self, width):
+        """Resize matplotlib figure width when the side panel changes."""
+        if width <= 0:
+            return
+        w_in = width / self.fig.dpi
+        h_in = self.fig.get_size_inches()[1]
+        self.fig.set_size_inches(max(3, w_in), h_in, forward=True)
+        self.canvas_hist.draw_idle()
 
     def _draw_scaled(self):
         """Redraw the canvas showing only the visible zoomed region."""
@@ -553,7 +602,44 @@ class VideoAnnotatorUI:
     def _update_calib_button(self):
         state = tk.NORMAL if (self.total_frames and self.num_plumes.get() > 0) else tk.DISABLED
         self.circle_btn.config(state=state)
-            
+
+    def _process_frame(self, frame):
+        """Apply gain/gamma/black/white adjustments and return float frame."""
+        g, gm, bl, wh = [self.vars[k].get() for k in ('gain', 'gamma', 'black', 'white')]
+        img = frame / 4096.0 * g
+        img = np.clip(img, 0, 1)
+        if gm > 0 and gm != 1:
+            img = img ** gm
+        img8 = (img * 255).astype(np.uint8)
+        if wh > bl and bl >= 0:
+            img8 = np.clip((img8 - bl) * (255.0 / (wh - bl)), 0, 255).astype(np.uint8)
+        return img8.astype(np.float32) / 255.0
+
+    def _compute_global_plots(self):
+        """Precompute histogram and angle density for the entire video."""
+        if self.total_frames == 0:
+            return
+
+        frames = []
+        for i in range(self.total_frames):
+            f = self.reader.read_frame(i).astype(np.float32)
+            frames.append(self._process_frame(f))
+        video = np.stack(frames, axis=0)
+
+        video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
+
+        cx = self.coord_x.get()
+        cy = self.coord_y.get()
+        if cx != 0 or cy != 0:
+            bins, sig, _ = angle_signal_density(video, cx, cy, N_bins=360)
+            n_plumes = int(self.num_plumes.get()) if self.num_plumes.get() > 0 else 0
+            plume_angles = None
+            if n_plumes > 0:
+                step = 360.0 / n_plumes
+                offset = self.plume_offset.get() % 360.0
+                plume_angles = [offset + i * step for i in range(n_plumes)]
+                plot_angle_signal_density(bins, sig, log=True, plume_angles=plume_angles)
+
     def export_mask(self):
         """Save the current mask as .npy and .jpg"""
         if self.total_frames == 0:

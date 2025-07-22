@@ -94,14 +94,12 @@ def plot_angle_signal_density(bins, signal, *, log=False, plume_angles=None):
     fig.colorbar(im, ax=ax_heat, label="Log Signal" if log else "Signal")
     ax_heat.set_ylabel("Frame index")
     ax_heat.set_title("Angular Signal Density Heatmap")
-    ax_heat.set_xlim(-180, 180)
 
     cont = ax_contour.contourf(X, Y, arr_ext, levels=15, cmap="viridis")
     fig.colorbar(cont, ax=ax_contour, label="Log Signal" if log else "Signal")
     ax_contour.set_xlabel("Angle (degrees)")
     ax_contour.set_ylabel("Frame index")
     ax_contour.set_title("Angular Signal Density Contour")
-    ax_heat.set_xlim(-180, 180)
 
     if plume_angles is not None:
         for ang in plume_angles:
