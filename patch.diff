@@ -1,2 +1,50 @@
-
-     
+diff --git a/GUI.py b/GUI.py
+index f6671d6196d36dcafbc490f1f75fce13795f9957..ccff6d8b720446077b1dfbf4338f753fc6291ce3 100644
+--- a/GUI.py
++++ b/GUI.py
+@@ -1,40 +1,40 @@
+ import tkinter as tk
+ from tkinter import ttk, filedialog, messagebox, colorchooser
+ from PIL import Image, ImageTk, ImageOps
+ import numpy as np
+ import os
+ import json
+-from zoom_utils import enlarge_image
+-from cine_utils import CineReader
+-from circ_calculator import calc_circle
++from mie_postprocessing.zoom_utils import enlarge_image
++from mie_postprocessing.cine_utils import CineReader
++from mie_postprocessing.circ_calculator import calc_circle
+ import matplotlib
+ matplotlib.use('Agg')
+ from matplotlib.figure import Figure
+ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+-from cone_angle import angle_signal_density, plot_angle_signal_density
+-from functions_videos import video_histogram_with_contour
++from mie_postprocessing.cone_angle import angle_signal_density, plot_angle_signal_density
++from mie_postprocessing.functions_videos import video_histogram_with_contour
+ 
+ class FrameSelector(tk.Toplevel):
+     """Simple viewer to pick a frame from the loaded video."""
+ 
+     def __init__(self, parent):
+         super().__init__(parent.master)
+         self.parent = parent
+         self.reader = parent.reader
+         self.current_index = parent.current_index
+         self.zoom_factor = 1
+ 
+         self.title("Select Frame")
+ 
+         self._build_ui()
+         self.show_frame(self.current_index)
+ 
+     def _build_ui(self):
+         ctrl = ttk.Frame(self)
+         ctrl.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+ 
+         self.prev_btn = ttk.Button(ctrl, text="Prev", command=self.prev_frame)
+         self.prev_btn.grid(row=0, column=0, padx=2)
+         self.next_btn = ttk.Button(ctrl, text="Next", command=self.next_frame)
+         self.next_btn.grid(row=0, column=1, padx=2)
+ 

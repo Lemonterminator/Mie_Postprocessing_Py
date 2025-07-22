@@ -1,15 +1,17 @@
-from functions_videos import *
+from mie_postprocessing.functions_videos import *
+from mie_postprocessing.rotate_crop import *
+from mie_postprocessing.cone_angle import *
+from mie_postprocessing.ssim import *
+
 import matplotlib.pyplot as plt
 import subprocess
 from scipy.signal import convolve2d
 import asyncio
-from rotate_crop import *
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import gc
-from ssim import compute_ssim_segments
 import json
-from cone_angle import *
+from pathlib import Path
 
 global parent_folder
 global plumes 
@@ -17,6 +19,9 @@ global offset
 global centre
 
 parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
+
+# Directory containing mask images and numpy files
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # Define a semaphore with a limit on concurrent tasks
 SEMAPHORE_LIMIT = 2  # Adjust this based on your CPU capacity
@@ -159,17 +164,21 @@ async def main():
     subfolders = get_subfolder_names(parent_folder)  # Ensure get_subfolder_names is defined or imported
 
     
-    if os.path.exists("chamber_mask.npy"):
-        chamber_mask = np.load("chamber_mask.npy")
-    else: 
-        subprocess.run(["python", "masking.py"], check=True)
-        chamber_mask = np.load("chamber_mask.npy")
-    
-    if os.path.exists("test_mask.npy"):
-        test_mask = np.load("test_mask.npy")==0
+    chamber_mask_path = DATA_DIR / "chamber_mask.npy"
+    test_mask_path = DATA_DIR / "test_mask.npy"
+    region_unblocked_path = DATA_DIR / "region_unblocked.npy"
 
-    if os.path.exists("region_unblocked.npy"):
-        region_unblocked = np.load("region_unblocked.npy")
+    if chamber_mask_path.exists():
+        chamber_mask = np.load(chamber_mask_path)
+    else:
+        subprocess.run(["python", "masking.py"], check=True)
+        chamber_mask = np.load(chamber_mask_path)
+
+    if test_mask_path.exists():
+        test_mask = np.load(test_mask_path) == 0
+
+    if region_unblocked_path.exists():
+        region_unblocked = np.load(region_unblocked_path)
     
 
 

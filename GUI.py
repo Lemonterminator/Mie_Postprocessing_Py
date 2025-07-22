@@ -4,15 +4,20 @@ from PIL import Image, ImageTk, ImageOps
 import numpy as np
 import os
 import json
-from zoom_utils import enlarge_image
-from cine_utils import CineReader
-from circ_calculator import calc_circle
+
+from mie_postprocessing.zoom_utils import enlarge_image
+from mie_postprocessing.cine_utils import CineReader
+from mie_postprocessing.circ_calculator import calc_circle
+from mie_postprocessing.cone_angle import angle_signal_density, plot_angle_signal_density
+from mie_postprocessing.functions_videos import video_histogram_with_contour
+
+
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from cone_angle import angle_signal_density, plot_angle_signal_density
-from functions_videos import video_histogram_with_contour
+
+
 
 class FrameSelector(tk.Toplevel):
     """Simple viewer to pick a frame from the loaded video."""

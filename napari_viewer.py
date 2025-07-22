@@ -3,7 +3,9 @@ import napari
 import numpy as np
 from functions_videos import *
 from video_config import *
+from pathlib import Path
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 def main():
         
@@ -27,7 +29,7 @@ def main():
 
     play_video_cv2(strip, intv=17)
 
-    chamber_mask = np.load("chamber_mask.npy")  # Load the mask from a .npy file
+    chamber_mask = np.load(DATA_DIR / "chamber_mask.npy")  # Load the mask from a .npy file
     masked_strip = mask_video(strip, chamber_mask)
 
     viewer = napari.view_image(

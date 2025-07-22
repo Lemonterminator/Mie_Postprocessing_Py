@@ -1,14 +1,3 @@
-from functions_videos import rotate_frame
-from video_config import *
-# Replace with your cine file path
-cine_file_path = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\T5\3.cine"  
-# Choose a specific frame (for example, frame number 10)
-frame_num = 50
-gain = 10
-gamma = 0.5  # Adjust gamma correction factor as needed
-
-
-
 import os
 import concurrent.futures
 import numpy as np
@@ -200,37 +189,3 @@ def masking_gui(img, file_name):
     cv2.imwrite(file_name + ".png", (mask.astype(np.uint8) * 255))
     print(f"Mask saved as '{file_name}.npy' and '{file_name}.png'")
     return mask
-
-# Main loop to read a frame from a .cine video and use the masking GUI
-if __name__ == "__main__":
-    # Load the entire cine video
-    video = load_cine_video(cine_file_path)
-    
-
-    if frame_num >= video.shape[0]:
-        print("Frame number exceeds total frames. Using last frame instead.")
-        frame_num = video.shape[0] - 1
-    frame = video[frame_num]
-    
-    # Normalize the frame for display (scale from 0 to 255)
-    frame_norm = (frame.astype(np.float64) / np.iinfo(frame.dtype).max * 255).astype(np.uint8)
-
-    frame_RT = rotate_frame(frame_norm, rotation)
-    frame_strip = gain*frame_RT[y_start:y_end, x_start:x_end]
-    frame_strip = frame_strip**gamma/4096**gamma  # Apply gamma correction
-    
-    # Launch the interactive masking GUI using the selected frame
-    final_mask = masking_gui(frame_strip, "chamber_mask")
-    
-    # Later, load the saved mask (you can choose either method)
-    loaded_mask = np.load("chamber_mask.npy")
-    loaded_mask_png = cv2.imread("chamber_mask.png", cv2.IMREAD_GRAYSCALE) > 127
-    
-    # Apply the loaded mask to the normalized frame (using the PNG version)
-    # masked_img = cv2.bitwise_and(frame_norm, frame_norm, mask=loaded_mask_png.astype(np.uint8))
-    
-    # Display the resulting masked image
-    # plt.figure()
-    # plt.imshow(masked_img, cmap='gray')
-    # plt.title("Frame with Loaded Mask Applied")
-    # plt.show()
