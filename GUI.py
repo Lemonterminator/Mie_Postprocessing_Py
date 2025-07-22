@@ -279,7 +279,7 @@ class VideoAnnotatorUI:
             ttk.Entry(ctrl, textvariable=v, width=5).grid(
                 row=2, column=lp['param_start_col']+i*2+1, pady=(5,0))
             self.vars[name.lower()] = v
-            self.confirm_btn = ttk.Button(ctrl, text="Apply", command=lambda: self.update_image(compute_global=True), state=tk.DISABLED)
+            self.confirm_btn = ttk.Button(ctrl, text="Apply", command=lambda: self.update_image(compute_global=False), state=tk.DISABLED)
         self.confirm_btn.grid(row=2, column=lp['param_start_col']+10, padx=5, pady=(5,0))
 
 
@@ -392,7 +392,7 @@ class VideoAnnotatorUI:
         self.calib_radius = 0.0
         for w in (self.prev_btn, self.next_btn, self.confirm_btn, self.select_btn, self.export_btn, self.circle_btn):
             w.config(state=tk.NORMAL)
-        self.update_image(compute_global=True)
+        self.update_image(compute_global=False)
 
     def prev_frame(self):
         if self.current_index>0:
@@ -414,7 +414,9 @@ class VideoAnnotatorUI:
         if gm>0 and gm!=1: img=img**gm
         img8 = (img*255).astype(np.uint8)
         if wh>bl and bl>=0:
-            img8 = np.clip((img8-bl)*(255/(wh-bl)),0,255).astype(np.uint8)
+            # img8 = np.clip((img8-bl)*(255/(wh-bl)),0,255).astype(np.uint8)
+            img8[img8 < bl] = 0
+            img8[img8 > wh] = 255
         self.orig_img = Image.fromarray(img8)
         self.base_rgba = self.orig_img.convert('RGBA')
         self.base_rgba_pad = ImageOps.expand(
