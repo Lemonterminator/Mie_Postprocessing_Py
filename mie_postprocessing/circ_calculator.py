@@ -41,5 +41,15 @@ def calc_circle(*pts):
     cy = -E/2
     r  = np.sqrt(cx*cx + cy*cy - F)
 
+    angles = np.zeros(N, dtype=float)
+    for i, (x, y) in enumerate(pts):
+        angles[i] = np.arctan2(y - cy, x - cx)
+    angles = np.sort(angles)
+    angles = angles + np.pi  # shift to [0, 2π)
+    ideal_angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    offsets = angles - ideal_angles
+    average_offset = np.mean(offsets)
+    average_offset_degree = average_offset * 180 / np.pi
+
     return (cx, cy), r
 
