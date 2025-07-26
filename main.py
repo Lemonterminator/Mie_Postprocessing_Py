@@ -36,7 +36,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # video[video<0.05]=0
     video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
 
-    foreground = subtract_median_background(video, frame_range=slice(0, 30))
+    foreground, background = subtract_median_background(video, frame_range=slice(0, 30))
 
     centre_x = float(centre[0])
     centre_y = float(centre[1])

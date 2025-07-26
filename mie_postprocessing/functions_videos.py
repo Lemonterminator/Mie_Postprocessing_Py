@@ -483,7 +483,7 @@ def subtract_median_background(video, frame_range=None):
         background = np.median(video[:, :, :], axis=0)
     else:
         background = np.median(video[frame_range, :, :], axis=0) 
-    return video  - background[None, :, :]
+    return video  - background[None, :, :], background 
 
 
 def kmeans_label_video(video: np.ndarray, k: int) -> np.ndarray:
