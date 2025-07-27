@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 global parent_folder
-global plumes 
+global plumes
 global offset
 global centre
 
@@ -42,8 +42,18 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     centre_y = float(centre[1])
 
     # Cone angle
-    signal_density_bins, signal, density = angle_signal_density(foreground, centre_x, centre_y, N_bins=3600)
+    signal_density_bins, signal, density = angle_signal_density(
+        foreground, centre_x, centre_y, N_bins=3600
+    )
 
+    # Estimate optimal rotation offset using FFT of the summed angular signal
+    summed_signal = signal.sum(axis=0)
+    fft_vals = np.fft.rfft(summed_signal)
+    if number_of_plumes < len(fft_vals):
+        phase = np.angle(fft_vals[number_of_plumes])
+        offset = (-phase / number_of_plumes) * 180.0 / np.pi
+        offset %= 360.0
+        print(f"Estimated offset from FFT: {offset:.2f} degrees")
     plot_angle_signal_density(signal_density_bins, signal)
 
     signal_sum = np.sum(signal, axis=0)
@@ -85,8 +95,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # Generate the crop rectangle based on the plume parameters
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
 
-    # offset = 2
-    angles = np.linspace(0, 360, number_of_plumes, endpoint=False) + offset
+    angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
     mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
     
