@@ -168,10 +168,19 @@ class CircleSelector(tk.Toplevel):
         self.points.append((x, y))
         self._draw_points()
         if len(self.points) == self.num_points:
-            center, radius = calc_circle(*self.points)
+            center, radius, offset = calc_circle(*self.points)
             print(f"Circle radius: {radius}")
             self.parent.coord_x.set(center[0])
             self.parent.coord_y.set(center[1])
+            self.parent.calib_radius_var.set(radius)
+            try:
+                self.parent.inner_radius.set(int(round(radius)))
+            except Exception:
+                pass
+            try:
+                self.parent.plume_offset.set(offset % 360.0)
+            except Exception:
+                pass
             self.parent._draw_scaled()
             self.destroy()
 
@@ -212,6 +221,8 @@ class VideoAnnotatorUI:
         self.show_mask = tk.BooleanVar(value=True)
         self.coord_x = tk.DoubleVar(value=0.0)
         self.coord_y = tk.DoubleVar(value=0.0)
+        self.calib_radius_var = tk.DoubleVar(value=0.0)
+        self.calib_radius_var.trace_add('write', lambda *a: self._draw_scaled())
         # Processing params dictionary (gain, gamma, etc.)
         self.vars = {}
 
@@ -262,12 +273,14 @@ class VideoAnnotatorUI:
         ttk.Entry(ctrl, textvariable=self.coord_x, width=7).grid(row=1, column=bc+5, pady=(5,0))
         ttk.Label(ctrl, text="Centre Y:").grid(row=1, column=bc+6, pady=(5,0))
         ttk.Entry(ctrl, textvariable=self.coord_y, width=7).grid(row=1, column=bc+7, pady=(5,0))
+        ttk.Label(ctrl, text="Calib R:").grid(row=1, column=bc+8, pady=(5,0))
+        ttk.Entry(ctrl, textvariable=self.calib_radius_var, width=7).grid(row=1, column=bc+9, pady=(5,0))
 
         self.circle_btn = ttk.Button(ctrl, text="Calibration", command=self.open_circle_selector, state=tk.DISABLED)
-        self.circle_btn.grid(row=1, column=bc+9, padx=2)
+        self.circle_btn.grid(row=1, column=bc+10, padx=2)
 
         self.save_cfg_btn = ttk.Button(ctrl, text="Save Config", command=self.save_config)
-        self.save_cfg_btn.grid(row=1, column=bc+10, padx=2)
+        self.save_cfg_btn.grid(row=1, column=bc+11, padx=2)
 
 
 
@@ -276,6 +289,7 @@ class VideoAnnotatorUI:
             ttk.Label(ctrl, text=f"{name}:").grid(
                 row=2, column=lp['param_start_col']+i*2, pady=(5,0))
             v = tk.DoubleVar(value=1.0 if name in ("Gain","Gamma") else 0.0)
+            v = tk.DoubleVar(value=255 if name in ("White") else v.get())
             ttk.Entry(ctrl, textvariable=v, width=5).grid(
                 row=2, column=lp['param_start_col']+i*2+1, pady=(5,0))
             self.vars[name.lower()] = v
@@ -389,7 +403,7 @@ class VideoAnnotatorUI:
         self.total_frames = self.reader.frame_count
         self.mask = np.zeros((self.reader.height, self.reader.width), dtype=np.uint8)
         self.current_index = 0
-        self.calib_radius = 0.0
+        self.calib_radius_var.set(0.0)
         for w in (self.prev_btn, self.next_btn, self.confirm_btn, self.select_btn, self.export_btn, self.circle_btn):
             w.config(state=tk.NORMAL)
         self.update_image(compute_global=False)
@@ -450,9 +464,10 @@ class VideoAnnotatorUI:
                     ang = offset + i * step
                     for shift in (-360, 0):
                         if ang + shift > -180:
-                            self.ax_angle.axvline(ang + shift, color='cyan', linestyle='--')
-                        else: 
-                            self.ax_angle.axvline(ang + shift + 180, color='cyan', linestyle='--')
+                            display_ang = (ang + shift) % 360 
+                            if display_ang > 180:
+                                display_ang -= 360
+                            self.ax_angle.axvline(display_ang, color='cyan', linestyle='--')
         self.ax_angle.set_xlim(-180, 180)
         # self.ax_angle.set_title('Angular Signal Density (ln scale)')
         self.ax_angle.set_title('Angular Signal Density')
@@ -530,10 +545,12 @@ class VideoAnnotatorUI:
         r = 5
         self.canvas.create_oval(cx-r, cy-r, cx+r, cy+r, outline='yellow', width=2, tags='CENTER')
 
-        if self.calib_radius > 0:
-            rr = self.calib_radius * self.zoom_factor
+        radius = self.calib_radius_var.get()
+        if radius > 0:
+            rr = radius * self.zoom_factor
             self.canvas.create_oval(cx-rr, cy-rr, cx+rr, cy+rr,
                                    outline='red', dash=(4,), tags='CALIBCIRCLE')
+            
 
 
         n_plumes = int(self.num_plumes.get()) if self.num_plumes.get() > 0 else 0
@@ -670,7 +687,8 @@ class VideoAnnotatorUI:
             'plumes': int(self.num_plumes.get()),
             'offset': float(self.plume_offset.get()),
             'centre_x': float(self.coord_x.get()),
-            'centre_y': float(self.coord_y.get())
+            'centre_y': float(self.coord_y.get()),
+            'calib_radius': float(self.calib_radius_var.get())
         }
         path = os.path.join(folder, 'config.json')
         try:

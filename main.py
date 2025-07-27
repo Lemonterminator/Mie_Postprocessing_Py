@@ -46,6 +46,14 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     plot_angle_signal_density(signal_density_bins, signal)
 
+    signal_sum = np.sum(signal, axis=0)
+
+    plt.plot(signal_sum)
+    plt.xlabel("Angle (degrees)")
+    plt.ylabel("Signal Sum")        
+    plt.title("Signal Sum vs Angle")
+    plt.grid(True)
+    plt.show()  
 
     
     # play_video_cv2(foreground, intv=17)
@@ -146,6 +154,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
     '''
     for segment in segments:
+        play_video_cv2(segment)
         time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
         plt.imshow(time_distance_intensity,
                 aspect="auto",

@@ -13,6 +13,9 @@ def calc_circle(*pts):
     -------
     center : (cx, cy)
     radius : r
+    offset_deg : float
+        Average angular offset of the clicked points from equally
+        spaced locations in degrees.
     """
     # number of points
     N = len(pts)
@@ -47,9 +50,10 @@ def calc_circle(*pts):
     angles = np.sort(angles)
     angles = angles + np.pi  # shift to [0, 2π)
     ideal_angles = np.linspace(0, 2 * np.pi, N, endpoint=False)
-    offsets = angles - ideal_angles
+    # offsets = angles - ideal_angles
+    offsets = ideal_angles - angles
     average_offset = np.mean(offsets)
-    average_offset_degree = average_offset * 180 / np.pi
+    average_offset_degree = float(average_offset * 180.0 / np.pi)
 
-    return (cx, cy), r
+    return (cx, cy), float(r), average_offset_degree
 
