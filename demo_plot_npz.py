@@ -1,0 +1,73 @@
+from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog
+import numpy as np
+import matplotlib.pyplot as plt
+from mie_postprocessing.functions_videos import *
+from mie_postprocessing.cone_angle import plot_angle_signal_density
+
+
+def plot_npz(path: Path) -> None:
+    data = np.load(path)
+    print(f"Loaded {path}")
+    if 'average_segment' in data:
+        # plt.figure()
+        # plt.imshow(data['average_segment'], aspect='auto', origin='lower', cmap='gray')
+        # plt.title('Average Segment')
+        # plt.colorbar()
+        play_video_cv2(data['average_segment'], intv=17)
+        
+    if 'ssim' in data:
+        plt.figure()
+        plt.imshow(data['ssim'], aspect='auto', origin='lower', cmap='viridis')
+        plt.title('SSIM Matrix')
+        plt.colorbar()
+
+    for key in data.files:
+        if key.endswith('_area'):
+            plt.figure()
+            plt.plot(data[key])
+            plt.title(key)
+            plt.xlabel('Frame')
+            plt.ylabel('Area (pixels)')
+        elif key.endswith('_signal'):
+            '''
+            plt.figure()
+            plt.imshow(data[key], aspect='auto', origin='lower', cmap='viridis')
+            plt.title(key)
+            plt.colorbar()
+            '''
+            # size = data[key].shape
+            signal_density_bins = np.linspace(0, 1, 180) # Example bins, adjust as needed
+            plot_angle_signal_density(signal_density_bins, data[key])
+        elif key.endswith('_time_distance_intensity'):
+            plt.figure()
+            plt.imshow(data[key], aspect='auto', origin='lower', cmap='viridis')
+            plt.title(key)
+            plt.colorbar()
+    plt.show()
+
+
+def select_folder() -> Path | None:
+    """Open a folder selection dialog starting in the script directory."""
+    root = tk.Tk()
+    root.withdraw()
+    folder = filedialog.askdirectory(
+        title='Select Folder Containing .npz Files',
+        initialdir=Path(__file__).resolve().parent
+    )
+    root.destroy()
+    return Path(folder) if folder else None
+
+
+def main() -> None:
+    folder = select_folder()
+    if folder is None:
+        return
+
+    for file in sorted(folder.glob('*.npz')):
+        plot_npz(file)
+
+
+if __name__ == '__main__':
+    main()

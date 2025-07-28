@@ -36,7 +36,7 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
 
 def MIE_pipeline(video, number_of_plumes, offset, centre):
     # video[video<0.05]=0
-    video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
+    # video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
 
     foreground, background = subtract_median_background(video, frame_range=slice(0, hydraulic_delay))
 
@@ -188,6 +188,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         
         
         signal_density_bins, signal, density = angle_signal_density(segment, 0.0, segment.shape[1]/2.0, N_bins=180)
+        # plot_angle_signal_density(signal_density_bins, signal)
 
         segment[segment < threshold] = 0
         segment[segment > 0] = 1
@@ -198,7 +199,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         data[f'segment{i}_area'] = area
     return data
         
-        # plot_angle_signal_density(signal_density_bins, signal)
+
         
         
 
@@ -237,7 +238,10 @@ async def main():
         # Specify the directory path
         directory_path = Path(parent_folder + "\\" + subfolder)
         save_path_subfolder = Path(save_path) / subfolder
-
+        try:
+            os.mkdir(save_path_subfolder)
+        except FileExistsError:
+            print(f"Directory {save_path_subfolder} already exists. Using existing directory.")
 
         # Get a list of all files in the directory
         files = [file for file in directory_path.iterdir() if file.is_file()]
@@ -536,9 +540,9 @@ async def main():
 
                     # MIE_pipeline(mie_video, plumes, offset, centre)
                     data = MIE_pipeline(video, plumes, offset, centre)
-                    file_save_path = Path(save_path_subfolder / file.with_suffix('.npz').name)
+                    file_save_path = (save_path_subfolder / file.with_suffix('.npz').name).resolve()
                     np.savez_compressed(
-                        file.with_suffix('.npz'),
+                        file_save_path,
                         **data
                     )
                     
