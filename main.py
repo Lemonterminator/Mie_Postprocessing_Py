@@ -58,16 +58,17 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         offset = (-phase / number_of_plumes) * 180.0 / np.pi
         offset %= 360.0
         print(f"Estimated offset from FFT: {offset:.2f} degrees")
-    plot_angle_signal_density(signal_density_bins, signal)
+    # plot_angle_signal_density(signal_density_bins, signal)
 
+    '''
     signal_sum = np.sum(signal, axis=0)
-
     plt.plot(signal_sum)
     plt.xlabel("Angle (degrees)")
     plt.ylabel("Signal Sum")        
     plt.title("Signal Sum vs Angle")
     plt.grid(True)
-    plt.show()  
+    plt.show()
+    '''  
 
     
     # play_video_cv2(foreground, intv=17)
@@ -82,14 +83,14 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     '''
     
     
-    gamma = foreground**2
-    video_histogram_with_contour(gamma, bins=100, exclude_zero=True, log=True)
+    # gamma = foreground**2
+    # video_histogram_with_contour(gamma, bins=100, exclude_zero=True, log=True)
 
-    gain = gamma * 5
-    video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
+    # gain = gamma * 5
+    # video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
     
-    gain[gain < 1.5e-2] = 0 # thresholding
-    gain[gain > 0] = 1
+    # gain[gain < 1.5e-2] = 0 # thresholding
+    # gain[gain > 0] = 1
     # centre = (384.9337805142379, 382.593916979227)
     # crop = (round(centre[0]), round(centre[1]- 768/16), round(768/2), round(768/8))
 
@@ -113,7 +114,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     with ThreadPoolExecutor(max_workers=min(len(angles), os.cpu_count() or 1)) as exe:
         future_map = {
             exe.submit(
-                rotate_and_crop, gain, angle, crop, centre,
+                rotate_and_crop, video, angle, crop, centre,
                 is_video=True, mask=mask
             ): idx for idx, angle in enumerate(angles)
         }
@@ -131,7 +132,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     
     
     # Free intermediate arrays to reduce peak memory usage
-    del foreground, gain, gamma
+    # del foreground, gain, gamma
     gc.collect()
 
     '''
@@ -144,16 +145,21 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
 
-    '''
+    
     # SSIM 
     start_time = time.time()
     ssim_matrix = compute_ssim_segments(segments,average_segment)    
     elapsed_time = time.time() - start_time
     print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
 
-    plt.plot(ssim_matrix.transpose())
+    # plt.plot(ssim_matrix.transpose())
     # plt.show()
-    '''
+
+    data = {
+        "ssim": ssim_matrix,
+        'average_segment': average_segment,
+    }
+    
 
     # Kmeans 
     '''
@@ -166,8 +172,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     elapsed_time = time.time() - start_time
     print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
     '''
-    for segment in segments:
-        play_video_cv2(segment)
+    # for segment in segments:
+    for i, segment in enumerate(segments):
+        # play_video_cv2(segment)
         time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
         '''
         plt.imshow(time_distance_intensity,
@@ -177,10 +184,22 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
                 )
         plt.show()
             # Cone angle
+        '''
+        
+        
         signal_density_bins, signal, density = angle_signal_density(segment, 0.0, segment.shape[1]/2.0, N_bins=180)
 
-        plot_angle_signal_density(signal_density_bins, signal)
-        '''
+        segment[segment < threshold] = 0
+        segment[segment > 0] = 1
+        area = segment.sum(axis=(1, 2))  # Area in pixels
+
+        data[f'segment{i}_time_distance_intensity'] = time_distance_intensity
+        data[f'segment{i}_signal'] = signal
+        data[f'segment{i}_area'] = area
+    return data
+        
+        # plot_angle_signal_density(signal_density_bins, signal)
+        
         
 
 
@@ -205,14 +224,21 @@ async def main():
     if region_unblocked_path.exists():
         region_unblocked = np.load(region_unblocked_path)
     
-
+    # General folder for saving results
+    save_path = Path(parent_folder).parts[-1]
+    try:
+        os.mkdir(save_path)
+    except FileExistsError:
+        print(f"Directory {save_path} already exists. Using existing directory.") 
 
     for subfolder in subfolders:
         print(subfolder)
     
         # Specify the directory path
         directory_path = Path(parent_folder + "\\" + subfolder)
-    
+        save_path_subfolder = Path(save_path) / subfolder
+
+
         # Get a list of all files in the directory
         files = [file for file in directory_path.iterdir() if file.is_file()]
 
@@ -231,7 +257,7 @@ async def main():
         # print(files)
         for file in files:
             if file.suffix == '.cine':
-                print("Procssing:", file)
+                print("Procssing:", file.parts[-3], "/", file.parts[-2], "/", file.parts[-1])
 
                 video = load_cine_video(file).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                 frames, height, width = video.shape
@@ -505,11 +531,16 @@ async def main():
                 else:
                     
                     # gamma correcetion of video
-                    # mie_video = mask_video(video[15:150,:,:], chamber_mask)
-                    mie_video = mask_video(video, ~chamber_mask)
+                    mie_video = mask_video(video[15:150,:,:], chamber_mask)
+                    # mie_video = mask_video(video, ~chamber_mask)
 
                     # MIE_pipeline(mie_video, plumes, offset, centre)
-                    MIE_pipeline(video, plumes, offset, centre)
+                    data = MIE_pipeline(video, plumes, offset, centre)
+                    file_save_path = Path(save_path_subfolder / file.with_suffix('.npz').name)
+                    np.savez_compressed(
+                        file.with_suffix('.npz'),
+                        **data
+                    )
                     
 
 if __name__ == '__main__':
