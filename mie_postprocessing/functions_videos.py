@@ -378,8 +378,41 @@ def imhist(image, bins=1000, log=False, exclude_zero=False):
     ax.grid(True, which='both', ls='--', alpha=0.3)
     plt.show()
 
-import numpy as np
-import matplotlib.pyplot as plt
+def find_larger_than_percentile(image, percentile, bins=4096):
+    """
+    Plot histogram (and implicitly CDF via cumulated counts if desired) of image data.
+    
+    Parameters
+    ----------
+    image : array-like
+        Input image values expected in [0, 1].
+    bins : int
+        Number of histogram bins.
+    percentile : float
+        Percentile threshold (0-100) to filter pixels.
+    """
+    assert 0 <= percentile <= 100, "Percentile must be between 0 and 100."
+    # Flatten image
+    data = image.ravel()
+    pixels = data.shape[0]
+
+    hist, edges = np.histogram(data, bins=bins, range=(0, 1))
+    centers = (edges[:-1] + edges[1:]) / 2
+
+
+    acc = 0
+    target = round(percentile*pixels/100.0)
+    
+    for i in range(0, bins):
+        acc += hist[i]
+        if acc > target:
+            # print(centers[i])
+            return centers[i]
+    
+    return 1.0  # If no pixel exceeds the percentile, return max value (1.0) 
+
+
+
 
 def video_histogram_with_contour(video, bins=100, exclude_zero=False, log=False):
     """
@@ -483,7 +516,7 @@ def subtract_median_background(video, frame_range=None):
         background = np.median(video[:, :, :], axis=0)
     else:
         background = np.median(video[frame_range, :, :], axis=0) 
-    return video  - background[None, :, :]
+    return video  - background[None, :, :], background 
 
 
 def kmeans_label_video(video: np.ndarray, k: int) -> np.ndarray:

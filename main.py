@@ -17,8 +17,10 @@ global parent_folder
 global plumes
 global offset
 global centre
+global hydraulic_delay  
 
 parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
+hydraulic_delay = 20  # Hydraulic delay in frames, adjust as needed
 
 # Directory containing mask images and numpy files
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -36,7 +38,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # video[video<0.05]=0
     video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
 
-    foreground = subtract_median_background(video, frame_range=slice(0, 30))
+    foreground, background = subtract_median_background(video, frame_range=slice(0, hydraulic_delay))
+
+    threshold = find_larger_than_percentile(background, percentile=95)
 
     centre_x = float(centre[0])
     centre_y = float(centre[1])
@@ -165,6 +169,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     for segment in segments:
         play_video_cv2(segment)
         time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
+        '''
         plt.imshow(time_distance_intensity,
                 aspect="auto",
                 origin="lower",
@@ -175,6 +180,8 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         signal_density_bins, signal, density = angle_signal_density(segment, 0.0, segment.shape[1]/2.0, N_bins=180)
 
         plot_angle_signal_density(signal_density_bins, signal)
+        '''
+        
 
 
 async def main():
@@ -501,7 +508,8 @@ async def main():
                     # mie_video = mask_video(video[15:150,:,:], chamber_mask)
                     mie_video = mask_video(video, ~chamber_mask)
 
-                    MIE_pipeline(mie_video, plumes, offset, centre)
+                    # MIE_pipeline(mie_video, plumes, offset, centre)
+                    MIE_pipeline(video, plumes, offset, centre)
                     
 
 if __name__ == '__main__':
