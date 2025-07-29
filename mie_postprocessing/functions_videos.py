@@ -14,6 +14,10 @@ from skimage.morphology import disk
 import gc
 from concurrent.futures import as_completed, ThreadPoolExecutor
 import sklearn.cluster
+from scipy.signal import fftconvolve
+import cupy as cp
+import numpy as np
+from cupyx.scipy.ndimage import median_filter
 
 # -----------------------------
 # Cine video reading and playback
@@ -491,6 +495,7 @@ def video_histogram_with_contour(video, bins=100, exclude_zero=False, log=False)
 
     plt.tight_layout()
     plt.show()
+    return fig, (ax_heat, ax_contour)
 
 def subtract_median_background(video, frame_range=None):
     """
@@ -555,3 +560,240 @@ def labels_to_playable_video(labels: np.ndarray, k: int) -> np.ndarray:
     if k <= 1:
         return labels.astype(float)
     return labels.astype(float) / float(k - 1)
+
+def filter_video_fft(video: np.ndarray, kernel: np.ndarray, mode='same') -> np.ndarray:
+    """
+    Convolve each frame in `video` with `kernel` via FFT convolution,
+    in one call without an explicit Python loop.
+
+    Parameters
+    ----------
+    video : np.ndarray
+        Input video as a 3D array, shape (n_frames, H, W).
+    kernel : np.ndarray
+        2D convolution kernel, shape (kH, kW).
+    mode : {'full', 'valid', 'same'}
+        Convolution mode passed to fftconvolve.
+
+    Returns
+    -------
+    np.ndarray
+        Filtered video, same shape as input if mode='same'.
+    """
+    # fftconvolve will broadcast the first dimension (frames)
+    # but we must explicitly tell it which axes are spatial:
+    return fftconvolve(video, kernel[np.newaxis, :, :], mode=mode, axes=(1, 2))
+
+
+
+def median_filter_video_cuda(video_array: np.ndarray, M: int, N: int) -> np.ndarray:
+    """
+    Apply an M×N median filter to each frame of a (T, H, W) video array on the GPU.
+    
+    Parameters
+    ----------
+    video_array : np.ndarray
+        Input video, shape (T, H, W), dtype e.g. float32 or uint8.
+    M, N : int
+        Median filter window size in Y and X dimensions.
+    
+    Returns
+    -------
+    np.ndarray
+        Median-filtered video, same shape and dtype as input.
+    """
+    T, H, W = video_array.shape
+    # Allocate output on host
+    filtered_video = np.empty_like(video_array)
+    
+    for i in range(T):
+        # 1) Transfer single frame to GPU
+        frame_gpu = cp.asarray(video_array[i])
+        # 2) Apply median filter on GPU
+        filtered_gpu = median_filter(frame_gpu,
+                                     size=(M, N),
+                                     mode='constant',
+                                     cval=0.0)
+        # 3) Transfer result back to host
+        filtered_video[i] = cp.asnumpy(filtered_gpu)
+    
+    return filtered_video
+
+
+def medfilt(image, M, N):
+    return ndi_median_filter(image, size=(M, N), mode='constant', cval=0)
+
+def median_filter_video(video_array, M, N, max_workers=None):
+    num_frames = video_array.shape[0]
+    filtered_frames = [None] * num_frames
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {executor.submit(medfilt, video_array[i], M, N): i 
+                           for i in range(num_frames)}
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
+            try:
+                filtered_frames[idx] = future.result()
+            except Exception as exc:
+                print(f"Frame {idx} generated an exception during median filtering: {exc}")
+    return np.array(filtered_frames)
+
+def gaussian_low_pass_filter(img, cutoff):
+    rows, cols = img.shape
+    u, v = np.meshgrid(np.arange(cols), np.arange(rows))
+    u = u - cols // 2
+    v = v - rows // 2
+    H = np.exp(-(u**2 + v**2) / (2 * cutoff**2))
+    img_fft = np.fft.fft2(img.astype(np.float64))
+    img_fft_shifted = np.fft.fftshift(img_fft)
+    filtered_fft_shifted = img_fft_shifted * H
+    filtered_fft = np.fft.ifftshift(filtered_fft_shifted)
+    filtered_img = np.fft.ifft2(filtered_fft)
+    return np.abs(filtered_img)
+
+def Gaussian_LP_video(video_array, cutoff, max_workers=None):
+    num_frames = video_array.shape[0]
+    filtered_frames = [None] * num_frames
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {executor.submit(gaussian_low_pass_filter, video_array[i], cutoff): i 
+                           for i in range(num_frames)}
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
+            try:
+                filtered_frames[idx] = future.result()
+            except Exception as exc:
+                print(f"Frame {idx} generated an exception during Gaussian LP filtering: {exc}")
+    return np.array(filtered_frames)
+
+
+# -----------------------------
+# Time-Distance Map and Area Calculation
+# -----------------------------
+def calculate_TD_map(horizontal_video: np.ndarray):
+    num_frames, height, width = horizontal_video.shape
+    time_distance_map = np.zeros((width, num_frames), dtype=np.float32)
+    for n in range(num_frames):
+        time_distance_map[:, n] = np.sum(horizontal_video[n], axis=0)
+    return time_distance_map
+
+def calculate_bw_area(BW: np.ndarray):
+    num_frames, height, width = BW.shape
+    area = np.zeros(num_frames, dtype=np.float32)
+    for n in range(num_frames):
+        area[n] = np.sum(BW[n] == 255)
+    return area
+
+
+def apply_morph_open(intermediate_frame, disk_size):
+    selem = disk(disk_size)
+    opened = binary_opening(intermediate_frame, selem)
+    return opened
+
+def apply_hole_filling(opened_frame):
+    filled = binary_fill_holes(opened_frame)
+    processed_frame = (filled * 255).astype(np.uint8)
+    frame_area = np.sum(filled)
+    return processed_frame, frame_area
+
+
+
+def apply_morph_open_video(intermediate_video: np.ndarray, disk_size: int) -> np.ndarray:
+    """
+    Apply morphological opening to each frame in the video in parallel.
+    
+    Parameters:
+        intermediate_video (np.ndarray): Video after thresholding (frames, height, width).
+        disk_size (int): Radius for the disk-shaped structuring element.
+    
+    Returns:
+        np.ndarray: Video after morphological opening.
+    """
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        results = list(executor.map(
+            lambda frame: apply_morph_open(frame, disk_size),
+            intermediate_video
+        ))
+    return np.array(results)
+
+def apply_hole_filling_video(opened_video: np.ndarray):
+    """
+    Apply hole filling and compute the white pixel area for each frame in the video in parallel.
+    
+    Parameters:
+        opened_video (np.ndarray): Video after morphological opening (frames, height, width).
+    
+    Returns:
+        processed_video (np.ndarray): Video after hole filling, with values 0 or 255.
+        area (np.ndarray): Array of white pixel counts per frame.
+    """
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        results = list(executor.map(
+            lambda frame: apply_hole_filling(frame),
+            opened_video
+        ))
+    num_frames = opened_video.shape[0]
+    processed_video = np.zeros_like(opened_video, dtype=np.uint8)
+    area = np.zeros(num_frames, dtype=np.float32)
+    for i, (processed_frame, frame_area) in enumerate(results):
+        processed_video[i] = processed_frame
+        area[i] = frame_area
+    return processed_video, area
+
+    from scipy.ndimage import binary_fill_holes
+from concurrent.futures import ProcessPoolExecutor
+
+
+def _fill_frame(frame_bool):
+    filled = binary_fill_holes(frame_bool)
+    return filled
+
+
+def fill_video_holes_parallel(bw_video: np.ndarray,
+                               n_workers: int = None) -> np.ndarray:
+    """
+    Fill holes in each frame of a binary video in parallel.
+    
+    Parameters
+    ----------
+    bw_video : np.ndarray
+        Binary video data of shape (n_frames, height, width), values 0/1 or 0/255.
+    n_workers : int, optional
+        Number of worker processes to use. Defaults to os.cpu_count() if None.
+    
+    Returns
+    -------
+    np.ndarray
+        Hole‑filled binary video, same shape and dtype as input.
+    """
+    # Ensure we have boolean frames
+    # Any nonzero becomes True; zero remains False.
+    bw_bool_video = (bw_video > 0)
+    
+    
+    # Launch parallel filling
+    with ProcessPoolExecutor(max_workers=n_workers) as exe:
+        # executor.map returns in order; we collect into a list
+        filled_frames = list(exe.map(_fill_frame, bw_bool_video))
+    
+    # Stack back into a (n_frames, H, W) array
+    return np.stack(filled_frames, axis=0)
+
+
+
+
+import cupy as cp
+import cupyx.scipy.ndimage as ndi
+
+def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
+    """
+    Fill holes in each frame of a binary video on GPU via CuPy.
+    """
+    # 1. Upload to GPU and binarize
+    bw_gpu = cp.asarray(bw_video) > 0
+
+    # 2. Run hole‐filling on GPU
+    filled_gpu = ndi.binary_fill_holes(bw_gpu)
+
+    # 3. Download back to host, preserving dtype
+    return (filled_gpu.get().astype(bw_video.dtype) * 255
+            if bw_video.max() > 1
+            else filled_gpu.get().astype(bw_video.dtype))

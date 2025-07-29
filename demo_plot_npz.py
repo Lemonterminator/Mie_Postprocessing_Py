@@ -66,7 +66,13 @@ def main() -> None:
         return
 
     for file in sorted(folder.glob('*.npz')):
-        plot_npz(file)
+        # plot_npz(file)
+        data = np.load(file)
+        for key in data.files:
+            if key.endswith('_signal'):
+                angle = data[key]
+            1
+            
 
 
 if __name__ == '__main__':

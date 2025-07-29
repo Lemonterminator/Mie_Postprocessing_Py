@@ -17,16 +17,21 @@ global parent_folder
 global plumes
 global offset
 global centre
-global hydraulic_delay  
+global hydraulic_delay
+global gain 
+global gamma
 
+# Define the parent folder and other global variables
 parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
 hydraulic_delay = 20  # Hydraulic delay in frames, adjust as needed
+gain = 3 # Gain factor for video processing
+gamma = 2  # Gamma correction factor for video processing
 
 # Directory containing mask images and numpy files
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # Define a semaphore with a limit on concurrent tasks
-SEMAPHORE_LIMIT = 2  # Adjust this based on your CPU capacity
+SEMAPHORE_LIMIT = 8  # Adjust this based on your CPU capacity
 semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
 
 
@@ -35,12 +40,14 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
     return await loop.run_in_executor(None, play_video_cv2, video, gain, binarize, thresh, intv)
 
 def MIE_pipeline(video, number_of_plumes, offset, centre):
-    # video[video<0.05]=0
-    # video_histogram_with_contour(video, bins=100, exclude_zero=True, log=True)
+    SSIM = False
+
+    video *= gain  # Apply gain correction to the video
+    video = video ** gamma  # Apply gamma correction to the video
 
     foreground, background = subtract_median_background(video, frame_range=slice(0, hydraulic_delay))
 
-    threshold = find_larger_than_percentile(background, percentile=95)
+    # threshold = find_larger_than_percentile(background, percentile=95)
 
     centre_x = float(centre[0])
     centre_y = float(centre[1])
@@ -69,30 +76,14 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     plt.grid(True)
     plt.show()
     '''  
-
-    
     # play_video_cv2(foreground, intv=17)
-    '''
-    gamma = foreground ** 2 # gamma correction
-    gamma[gamma < 2e-2 ] = 0  # thresholding
-    gain = gamma * 5  # gain correction
-    gain[gain > 1] = 1  # limit gain to 1
-    # play_video_cv2(gain, intv=17)
 
-    print("Gain correction has range from %f to %f" % (gain.min(), gain.max()))
-    '''
-    
-    
     # gamma = foreground**2
-    # video_histogram_with_contour(gamma, bins=100, exclude_zero=True, log=True)
+    # fig, (heat, contour) = video_histogram_with_contour(gamma, bins=100, exclude_zero=True, log=True)
 
     # gain = gamma * 5
-    # video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
+    # fig, (heat, contour) = video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
     
-    # gain[gain < 1.5e-2] = 0 # thresholding
-    # gain[gain > 0] = 1
-    # centre = (384.9337805142379, 382.593916979227)
-    # crop = (round(centre[0]), round(centre[1]- 768/16), round(768/2), round(768/8))
 
     ir_ = 14
     or_ = 380
@@ -106,15 +97,14 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     
     start_time = time.time()
     
-
-    
     segments = []
 
     # Multithreaded rotation and cropping
     with ThreadPoolExecutor(max_workers=min(len(angles), os.cpu_count() or 1)) as exe:
         future_map = {
             exe.submit(
-                rotate_and_crop, video, angle, crop, centre,
+                # rotate_and_crop, video, angle, crop, centre,
+                rotate_and_crop, foreground, angle, crop, centre,
                 is_video=True, mask=mask
             ): idx for idx, angle in enumerate(angles)
         }
@@ -145,20 +135,18 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
 
-    
-    # SSIM 
-    start_time = time.time()
-    ssim_matrix = compute_ssim_segments(segments,average_segment)    
-    elapsed_time = time.time() - start_time
-    print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
+    if SSIM:
+        # SSIM 
+        start_time = time.time()
+        ssim_matrix = compute_ssim_segments(segments,average_segment)    
+        elapsed_time = time.time() - start_time
+        print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
 
-    # plt.plot(ssim_matrix.transpose())
-    # plt.show()
-
-    data = {
-        "ssim": ssim_matrix,
-        'average_segment': average_segment,
-    }
+        # plt.plot(ssim_matrix.transpose())
+        # plt.show()
+    if SSIM:
+        data = {"ssim": ssim_matrix}
+    data = {'average_segment': average_segment}
     
 
     # Kmeans 
@@ -172,7 +160,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     elapsed_time = time.time() - start_time
     print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
     '''
-    # for segment in segments:
+
+    # play_videos_side_by_side(tuple(segments),intv=17)
+    
     for i, segment in enumerate(segments):
         # play_video_cv2(segment)
         time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
@@ -190,13 +180,78 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         signal_density_bins, signal, density = angle_signal_density(segment, 0.0, segment.shape[1]/2.0, N_bins=180)
         # plot_angle_signal_density(signal_density_bins, signal)
 
-        segment[segment < threshold] = 0
-        segment[segment > 0] = 1
-        area = segment.sum(axis=(1, 2))  # Area in pixels
+        # segment[segment < threshold] = 0
+        # segment[segment > 0] = 1
+        # area = segment.sum(axis=(1, 2))  # Area in pixels
+
+        # play_video_cv2(segment, intv=17, gain=1, binarize=True)
+
+        
+
+
 
         data[f'segment{i}_time_distance_intensity'] = time_distance_intensity
         data[f'segment{i}_signal'] = signal
-        data[f'segment{i}_area'] = area
+
+        
+        seg_copy = segments.copy()
+        for i, segment in enumerate(seg_copy):
+            coeff=1.01
+            segment_threshold = find_larger_than_percentile(np.mean(segment[0:hydraulic_delay, :,:]), percentile=99)
+            # fig, (heat, contour) = video_histogram_with_contour(segment, bins=100, exclude_zero=True, log=True)
+            segment[segment < segment_threshold] = 0
+            segment[segment > 0] = 1
+
+            ######
+            # Idea:
+            # Try adaptive higher threshold at the beginning frames of injection
+
+            #####
+            area = segment.sum(axis=(1, 2))  # Area in pixels
+            data[f'segment{i}_area'] = area
+
+            masked = segment * segments[i]
+
+            unmasked = (1- masked)*segments[i]
+            play_videos_side_by_side((masked, unmasked), intv= 4)
+        
+
+        '''
+        start_time = time.time()
+        for segment in segments:
+            clusters = 3
+            labels = kmeans_label_video(segment, k=clusters)
+            playable = labels_to_playable_video(labels, k=clusters)
+            play_videos_side_by_side([segment, playable], intv=17)
+        
+        elapsed_time = time.time() - start_time
+        # print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
+
+        '''
+        laplacian_kernel = np.array([[0, 1, 0],
+                   [1, -4, 1],
+                   [0,  1, 0]])
+        
+        avg_kernel = 1/3.0*np.array([[1,1,1],
+                                     [1,1,1],
+                                     [1,1,1]])
+        '''
+        for i, segment in enumerate(segments):
+            med = median_filter_video_cuda(segment, 3, 3)
+            lap_vid = filter_video_fft(med, laplacian_kernel, mode='same')
+            # play_videos_side_by_side((10*lap_vid, segment), intv =17)
+            
+            # play_videos_side_by_side((10*med, segment), intv=17)
+            avg = filter_video_fft(lap_vid, avg_kernel, mode='same')
+            thres = med>0.1
+            play_videos_side_by_side((10*avg, 10*(avg+thres), 10*segment), intv =17)
+        '''
+
+
+            
+        
+
+
     return data
         
 
