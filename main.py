@@ -22,7 +22,7 @@ global gain
 global gamma
 
 # Define the parent folder and other global variables
-parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine\Interest"
+parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
 hydraulic_delay = 20  # Hydraulic delay in frames, adjust as needed
 gain = 3 # Gain factor for video processing
 gamma = 2  # Gamma correction factor for video processing
@@ -192,28 +192,23 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
         data[f'segment{i}_time_distance_intensity'] = time_distance_intensity
         data[f'segment{i}_signal'] = signal
+        ######
+        # Idea:
+        # Try adaptive higher threshold at the beginning frames of injection
+        #####
 
-        
-        seg_copy = segments.copy()
-        for i, segment in enumerate(seg_copy):
-            coeff=1.01
-            segment_threshold = find_larger_than_percentile(np.mean(segment[0:hydraulic_delay, :,:]), percentile=99)
-            # fig, (heat, contour) = video_histogram_with_contour(segment, bins=100, exclude_zero=True, log=True)
-            segment[segment < segment_threshold] = 0
-            segment[segment > 0] = 1
+        coeff=1.01
+        segment_threshold = find_larger_than_percentile(np.mean(segment[0:hydraulic_delay, :,:]), percentile=99)
+        segment[segment < segment_threshold] = 0
+        segment[segment > 0] = 1
+        area = segment.sum(axis=(1, 2))  # Area in pixels
 
-            ######
-            # Idea:
-            # Try adaptive higher threshold at the beginning frames of injection
+        data[f'segment{i}_area'] = area
 
-            #####
-            area = segment.sum(axis=(1, 2))  # Area in pixels
-            data[f'segment{i}_area'] = area
+        # masked = segment * segments[i]
 
-            masked = segment * segments[i]
-
-            unmasked = (1- masked)*segments[i]
-            play_videos_side_by_side((masked, unmasked), intv= 4)
+        # unmasked = (1- masked)*segments[i]
+        # play_videos_side_by_side((masked, unmasked), intv= 4)
         
 
         '''
@@ -228,6 +223,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         # print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
 
         '''
+        
+
+        '''
         laplacian_kernel = np.array([[0, 1, 0],
                    [1, -4, 1],
                    [0,  1, 0]])
@@ -235,7 +233,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         avg_kernel = 1/3.0*np.array([[1,1,1],
                                      [1,1,1],
                                      [1,1,1]])
-        '''
+        
         for i, segment in enumerate(segments):
             med = median_filter_video_cuda(segment, 3, 3)
             lap_vid = filter_video_fft(med, laplacian_kernel, mode='same')

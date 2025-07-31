@@ -7,6 +7,7 @@ from mie_postprocessing.functions_videos import *
 from mie_postprocessing.cone_angle import plot_angle_signal_density
 
 
+
 def plot_npz(path: Path) -> None:
     data = np.load(path)
     print(f"Loaded {path}")
@@ -69,9 +70,38 @@ def main() -> None:
         # plot_npz(file)
         data = np.load(file)
         for key in data.files:
-            if key.endswith('_signal'):
+            match key:
+            
+                case _ if key.endswith('average_segment'):
+                    # play_video_cv2(data[key], intv=17)
+                    video = data[key]
+                    bw = np.zeros(video.shape)
+                    for i in range(0, video.shape[0]):
+                        bw[i], _ = triangle_binarize(video[i])
+                    play_videos_side_by_side((video, bw))
+                case _:
+                    continue
+
+            '''
+            case _ if key.endswith('_signal'):
                 angle = data[key]
-            1
+                frames, bins = angle.shape
+                half = round(bins/2)
+                ang = np.concatenate((angle[:,half:], angle[:,0:half]), axis=1)
+            
+                bw, thres = triangle_binarize(ang)
+                cone_angle_per_frame = bw.sum(axis=1)/bins
+            case _ if key.endswith('_time_distance_intensity'):
+                penetration_2d = data[key]
+                bw, thres = triangle_binarize(penetration_2d)
+                plt.imshow(bw, origin="lower")
+            '''
+
+
+
+
+                
+
             
 
 

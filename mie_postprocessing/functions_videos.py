@@ -585,39 +585,23 @@ def filter_video_fft(video: np.ndarray, kernel: np.ndarray, mode='same') -> np.n
     return fftconvolve(video, kernel[np.newaxis, :, :], mode=mode, axes=(1, 2))
 
 
+def median_filter_video_cuda(video_array: np.ndarray, M: int, N: int, T:int=1) -> np.ndarray:
+    """
+    GPU-accelerated spatial median filter per frame: applies MxN median
+    on each (H,W) frame of video shaped (T, H, W) in one shot.
+    """
+    # Move entire video once to GPU
+    video_gpu = cp.asarray(video_array)  # shape (T, H, W)
+    # Apply median filter with no temporal smoothing: size=(1, M, N)
+    filtered_gpu = median_filter(
+        video_gpu,
+        size=(T, M, N),
+        mode='constant',
+        cval=0.0
+    )
+    # Bring result back once
+    return cp.asnumpy(filtered_gpu)
 
-def median_filter_video_cuda(video_array: np.ndarray, M: int, N: int) -> np.ndarray:
-    """
-    Apply an M×N median filter to each frame of a (T, H, W) video array on the GPU.
-    
-    Parameters
-    ----------
-    video_array : np.ndarray
-        Input video, shape (T, H, W), dtype e.g. float32 or uint8.
-    M, N : int
-        Median filter window size in Y and X dimensions.
-    
-    Returns
-    -------
-    np.ndarray
-        Median-filtered video, same shape and dtype as input.
-    """
-    T, H, W = video_array.shape
-    # Allocate output on host
-    filtered_video = np.empty_like(video_array)
-    
-    for i in range(T):
-        # 1) Transfer single frame to GPU
-        frame_gpu = cp.asarray(video_array[i])
-        # 2) Apply median filter on GPU
-        filtered_gpu = median_filter(frame_gpu,
-                                     size=(M, N),
-                                     mode='constant',
-                                     cval=0.0)
-        # 3) Transfer result back to host
-        filtered_video[i] = cp.asnumpy(filtered_gpu)
-    
-    return filtered_video
 
 
 def medfilt(image, M, N):
@@ -779,10 +763,6 @@ def fill_video_holes_parallel(bw_video: np.ndarray,
 
 
 
-
-import cupy as cp
-import cupyx.scipy.ndimage as ndi
-
 def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
     """
     Fill holes in each frame of a binary video on GPU via CuPy.
@@ -791,9 +771,40 @@ def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
     bw_gpu = cp.asarray(bw_video) > 0
 
     # 2. Run hole‐filling on GPU
-    filled_gpu = ndi.binary_fill_holes(bw_gpu)
+    # cupyx.scipy.ndimage.binary_fill_holes is not implemented and returns None.
+    # Use CPU fallback for hole filling if needed.
+    # Alternatively, use a custom GPU implementation or fallback to scipy.ndimage on CPU.
+    import scipy.ndimage
+    filled_cpu = scipy.ndimage.binary_fill_holes(cp.asnumpy(bw_gpu))
+    filled_gpu = cp.asarray(filled_cpu)
 
     # 3. Download back to host, preserving dtype
-    return (filled_gpu.get().astype(bw_video.dtype) * 255
+    return (filled_gpu.astype(bw_video.dtype) * 255
             if bw_video.max() > 1
-            else filled_gpu.get().astype(bw_video.dtype))
+            else filled_gpu.astype(bw_video.dtype))
+
+
+def triangle_binarize(ang_float32, blur=True):
+    # 1. Clean / normalize to [0,255] uint8
+    img = np.nan_to_num(ang_float32, nan=0.0)  # avoid NaNs
+    lo, hi = img.min(), img.max()
+    if hi <= lo:
+        # constant image, nothing to threshold
+        return np.zeros_like(img, dtype=np.uint8), 0.0
+
+    norm = (img - lo) / (hi - lo)           # [0,1]
+    u8 = (norm * 255).astype(np.uint8)      # to 0..255
+
+    # 2. Optional smoothing to reduce noise which can destabilize histogram peak
+    if blur:
+        u8 = cv2.GaussianBlur(u8, (5, 5), 0)
+
+    # 3. Triangle thresholding (global)
+    thresh_val, binarized = cv2.threshold(
+        u8,
+        0,                  # ignored when using OTSU / TRIANGLE flags
+        255,                # max value for binary
+        cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE
+    )
+
+    return binarized, thresh_val
