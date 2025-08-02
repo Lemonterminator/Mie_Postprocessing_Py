@@ -64,6 +64,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         phase = np.angle(fft_vals[number_of_plumes])
         offset = (-phase / number_of_plumes) * 180.0 / np.pi
         offset %= 360.0
+        offset = min(offset, (offset-360), key=abs)
         print(f"Estimated offset from FFT: {offset:.2f} degrees")
     # plot_angle_signal_density(signal_density_bins, signal)
 
