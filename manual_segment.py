@@ -5,11 +5,11 @@ import numpy as np
 import json
 import os
 import cv2
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from mie_postprocessing.cine_utils import CineReader
 from mie_postprocessing.cone_angle import angle_signal_density
 from mie_postprocessing.rotate_crop import rotate_and_crop, generate_CropRect, generate_plume_mask
-import time
+from mie_postprocessing.zoom_utils import enlarge_image
 
 class ManualSegmenter:
     """Interactive tool to create pixel-wise masks for rotated plume videos."""
@@ -25,6 +25,9 @@ class ManualSegmenter:
         self.plume_masks = []  # Per-plume, per-frame masks
         self.current_frame = 0
         self.current_plume = 0
+        self.zoom = 1
+        self.tool = 'grabcut'
+        self.brush_size = 5
 
         self.gain = tk.DoubleVar(value=1.0)
         self.gamma = tk.DoubleVar(value=1.0)
@@ -41,6 +44,8 @@ class ManualSegmenter:
         ttk.Button(top, text="Next Frame", command=self.next_frame).pack(side=tk.LEFT)
         ttk.Button(top, text="Prev Plume", command=self.prev_plume).pack(side=tk.LEFT)
         ttk.Button(top, text="Next Plume", command=self.next_plume).pack(side=tk.LEFT)
+        ttk.Button(top, text="Brush Tool", command=lambda: self.set_tool('brush')).pack(side=tk.LEFT)
+        ttk.Button(top, text="GrabCut Tool", command=lambda: self.set_tool('grabcut')).pack(side=tk.LEFT)
         ttk.Button(top, text="Save", command=self.save_current).pack(side=tk.LEFT)
 
         ttk.Label(top, text="Gain").pack(side=tk.LEFT, padx=(10,0))
@@ -50,14 +55,27 @@ class ManualSegmenter:
         ttk.Scale(top, from_=0.1, to=3, variable=self.gamma, orient=tk.HORIZONTAL,
                   command=lambda e: self.update_image()).pack(side=tk.LEFT)
 
-        self.canvas = tk.Canvas(self.master, bg='black')
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        cf = ttk.Frame(self.master)
+        cf.pack(fill=tk.BOTH, expand=True)
+        self.canvas = tk.Canvas(cf, bg='black')
+        hbar = ttk.Scrollbar(cf, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        vbar = ttk.Scrollbar(cf, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.canvas.configure(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        self.canvas.grid(row=0, column=0, sticky='nsew')
+        hbar.grid(row=1, column=0, sticky='we')
+        vbar.grid(row=0, column=1, sticky='ns')
+        cf.rowconfigure(0, weight=1)
+        cf.columnconfigure(0, weight=1)
+
         self.canvas.bind('<ButtonPress-1>', self.on_left_press)
         self.canvas.bind('<B1-Motion>', self.on_left_drag)
         self.canvas.bind('<ButtonRelease-1>', self.on_left_release)
         self.canvas.bind('<ButtonPress-3>', self.on_right_press)
         self.canvas.bind('<B3-Motion>', self.on_right_drag)
         self.canvas.bind('<ButtonRelease-3>', self.on_right_release)
+        self.canvas.bind('<MouseWheel>', self._on_zoom)
+        self.canvas.bind('<Button-4>', self._on_zoom)
+        self.canvas.bind('<Button-5>', self._on_zoom)
 
     # ---------------------------------------------------------------
     #                       Loading utilities
@@ -95,47 +113,21 @@ class ManualSegmenter:
         n_plumes = int(cfg['plumes'])
         cx = float(cfg['centre_x'])
         cy = float(cfg['centre_y'])
-        print("calcualting angular density")
         bins, sig, _ = angle_signal_density(self.video, cx, cy, N_bins=360)
         summed = sig.sum(axis=0)
         fft_vals = np.fft.rfft(summed)
         phase = np.angle(fft_vals[n_plumes]) if n_plumes < len(fft_vals) else 0.0
         offset = (-phase / n_plumes) * 180.0 / np.pi
         offset %= 360.0
-        inner = int(cfg.get('calib_radius', 0))
-        outer = int(cfg.get('outer_radius', inner * 2))
+        inner = 14 # int(cfg.get('calib_radius', 0))
+        outer = 380 # int(cfg.get('outer_radius', inner * 2))
         crop = generate_CropRect(inner, outer, n_plumes, cx, cy)
         mask = generate_plume_mask(inner, outer, crop[2], crop[3])
         angles = np.linspace(0, 360, n_plumes, endpoint=False) - offset
         self.plume_videos = []
-        print("Computing segments")
-        # for ang in angles:
-            # seg = rotate_and_crop(self.video, ang, crop, (cx, cy), is_video=True, mask=mask)
-            # self.plume_videos.append(seg)
-        # segments = []
-
-        # Multithreaded rotation and cropping
-        start_time = time.time()
-        with ThreadPoolExecutor(max_workers=min(len(angles), os.cpu_count() or 1)) as exe:
-            future_map = {
-                exe.submit(
-                    # rotate_and_crop, video, angle, crop, centre,
-                    rotate_and_crop, self.video, angle, crop, (cx, cy),
-                    is_video=True, mask=mask
-                ): idx for idx, angle in enumerate(angles)
-            }
-            segments_with_idx = []
-            for fut in as_completed(future_map):
-                idx = future_map[fut]
-                result = fut.result()
-                segments_with_idx.append((idx, result))
-            # Sort by index to preserve order
-            segments_with_idx.sort(key=lambda x: x[0])
-            self.plume_videos = [seg for idx, seg in segments_with_idx]
-            
-        elapsed_time = time.time()-start_time
-        print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
-
+        for ang in angles:
+            seg = rotate_and_crop(self.video, ang, crop, (cx, cy), is_video=True, mask=mask)
+            self.plume_videos.append(seg)
         self.plume_masks = [ [np.zeros(seg[0].shape, dtype=np.uint8) for _ in range(seg.shape[0])] for seg in self.plume_videos ]
         self.current_frame = 0
         self.current_plume = 0
@@ -187,13 +179,15 @@ class ManualSegmenter:
         frame = self.plume_videos[self.current_plume][self.current_frame]
         img8 = self.apply_gain_gamma(frame)
         self.current_img = img8
-        self.photo = ImageTk.PhotoImage(Image.fromarray(img8))
+        disp = enlarge_image(Image.fromarray(img8), int(self.zoom))
+        self.photo = ImageTk.PhotoImage(disp)
         self.canvas.create_image(0, 0, anchor='nw', image=self.photo)
+        self.canvas.config(scrollregion=(0, 0, disp.width, disp.height))
         mask = self.plume_masks[self.current_plume][self.current_frame]
         if np.any(mask):
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             for cnt in contours:
-                pts = cnt.reshape(-1, 2)
+                pts = cnt.reshape(-1, 2) * self.zoom
                 for i in range(len(pts)):
                     x1, y1 = pts[i]
                     x2, y2 = pts[(i + 1) % len(pts)]
@@ -203,29 +197,77 @@ class ManualSegmenter:
     #                       Mask editing
     # ---------------------------------------------------------------
     def on_left_press(self, event):
-        self.start_pos = (event.x, event.y)
-    def on_left_drag(self, event):
-        pass
-    def on_left_release(self, event):
         if not self.plume_videos:
             return
+        x = int(self.canvas.canvasx(event.x) / self.zoom)
+        y = int(self.canvas.canvasy(event.y) / self.zoom)
+        if self.tool == 'brush':
+            self.last_pos = (x, y)
+            mask = self.plume_masks[self.current_plume][self.current_frame]
+            cv2.circle(mask, (x, y), self.brush_size, 1, -1)
+            self.update_image()
+        else:
+            self.start_pos = (x, y)
+
+    def on_left_drag(self, event):
+        if not self.plume_videos or self.tool != 'brush':
+            return
+        x = int(self.canvas.canvasx(event.x) / self.zoom)
+        y = int(self.canvas.canvasy(event.y) / self.zoom)
+        mask = self.plume_masks[self.current_plume][self.current_frame]
+        cv2.line(mask, self.last_pos, (x, y), 1, self.brush_size * 2)
+        self.last_pos = (x, y)
+        self.update_image()
+
+    def on_left_release(self, event):
+        if not self.plume_videos or self.tool != 'grabcut':
+            return
         x0, y0 = self.start_pos
-        x1, y1 = event.x, event.y
+        x1 = int(self.canvas.canvasx(event.x) / self.zoom)
+        y1 = int(self.canvas.canvasy(event.y) / self.zoom)
         rect = (min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
         self.run_grabcut(rect, add=True)
 
     def on_right_press(self, event):
-        self.start_pos = (event.x, event.y)
-    def on_right_drag(self, event):
-        pass
-    def on_right_release(self, event):
         if not self.plume_videos:
             return
+        x = int(self.canvas.canvasx(event.x) / self.zoom)
+        y = int(self.canvas.canvasy(event.y) / self.zoom)
+        if self.tool == 'brush':
+            self.last_pos = (x, y)
+            mask = self.plume_masks[self.current_plume][self.current_frame]
+            cv2.circle(mask, (x, y), self.brush_size, 0, -1)
+            self.update_image()
+        else:
+            self.start_pos = (x, y)
+
+    def on_right_drag(self, event):
+        if not self.plume_videos or self.tool != 'brush':
+            return
+        x = int(self.canvas.canvasx(event.x) / self.zoom)
+        y = int(self.canvas.canvasy(event.y) / self.zoom)
+        mask = self.plume_masks[self.current_plume][self.current_frame]
+        cv2.line(mask, self.last_pos, (x, y), 0, self.brush_size * 2)
+        self.last_pos = (x, y)
+        self.update_image()
+
+    def on_right_release(self, event):
+        if not self.plume_videos or self.tool != 'grabcut':
+            return
         x0, y0 = self.start_pos
-        x1, y1 = event.x, event.y
+        x1 = int(self.canvas.canvasx(event.x) / self.zoom)
+        y1 = int(self.canvas.canvasy(event.y) / self.zoom)
         mask = self.plume_masks[self.current_plume][self.current_frame]
         cv2.rectangle(mask, (min(x0, x1), min(y0, y1)), (max(x0, x1), max(y0, y1)), 0, -1)
         self.update_image()
+
+    def _on_zoom(self, event):
+        direction = 1 if getattr(event, 'delta', 0) > 0 or getattr(event, 'num', None) == 4 else -1
+        self.zoom = max(1, self.zoom + direction)
+        self.update_image()
+
+    def set_tool(self, tool):
+        self.tool = tool
 
     def run_grabcut(self, rect, add=True):
         frame = self.current_img
