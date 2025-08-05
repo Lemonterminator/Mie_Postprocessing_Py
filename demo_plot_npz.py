@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 from mie_postprocessing.functions_videos import *
 from mie_postprocessing.cone_angle import plot_angle_signal_density
 from scipy import ndimage
+import pandas as pd
+
+plot_on = False
 
 def keep_largest_component(binary_mask, connectivity=2):
     """
@@ -93,7 +96,6 @@ def plot_npz(path: Path) -> None:
             plt.colorbar()
     plt.show()
 
-
 def select_folder() -> Path | None:
     """Open a folder selection dialog starting in the script directory."""
     root = tk.Tk()
@@ -105,7 +107,61 @@ def select_folder() -> Path | None:
     root.destroy()
     return Path(folder) if folder else None
 
+def extract_features_to_csv(npz_path: Path, out_csv: Path, video_id=None):
+    data = np.load(npz_path)
+    rows = []
+    # infer number of frames from any per-frame array
+    any_seg = next(k for k in data.files if k.endswith('_signal'))
+    n_frames = data[any_seg].shape[0]
+    # collect all unique segment prefixes, e.g., "segment0", "segment1", ...
+    prefixes = sorted({key.split('_', 1)[0] for key in data.files if '_' in key})
 
+
+    for prefix in prefixes:
+        # make sure required keys exist for this prefix
+        cone_angle_key = f"{prefix}_signal"
+        penetration_key = f"{prefix}_time_distance_intensity"
+        area_key = f"{prefix}_area"
+        if not (cone_angle_key in data and penetration_key in data and area_key in data):
+            continue  # skip incomplete
+
+        #   Cone Angle
+        angle = data[cone_angle_key]
+        frames, bins = angle.shape
+        half = bins // 2
+        ang = np.concatenate((angle[:, half:], angle[:, :half]), axis=1)  # wrap
+        bw_angle, _ = triangle_binarize(ang)
+        cone_angle1d = bw_angle.sum(axis=1) / bins  # normalized
+
+        #   penetration index
+        penetration_2d = data[penetration_key]
+        bw_pen, _ = triangle_binarize(penetration_2d)
+        largest = keep_largest_component(bw_pen)
+        pen1d = penetration_bw_to_index(largest).astype(float)
+        pen1d[pen1d < 0] = np.nan  # convert -1 (no signal) to NaN for ML
+
+        # area
+        area1d = data[area_key]
+
+        # Assemble rows
+        seg_id = int(''.join(filter(str.isdigit, prefix)))      # e.g., "segment3" -> 3
+        for frame in range(n_frames):
+            rows.append({
+                "video": video_id if video_id is not None else npz_path.stem,
+                "segment": seg_id,
+                "frame": frame,
+                "cone_angle": cone_angle1d[frame],
+                "penetration_index": pen1d[frame],
+                "area": area1d[frame],
+            })
+        
+        df = pd.DataFrame(rows)
+        # optional: reorder columns
+        df = df[["video", "segment", "frame", "cone_angle", "penetration_index", "area"]]
+        df.to_csv(out_csv, index=False)
+        print(f"Saved features to {out_csv}")
+
+'''
 def main() -> None:
     folder = select_folder()
     if folder is None:
@@ -119,16 +175,17 @@ def main() -> None:
             match key:
             
                 case _ if key.endswith('average_segment'):
-                    continue
-                    # play_video_cv2(data[key], intv=17)
-                    video = data[key]
-                    bw = np.zeros(video.shape)
-                    for i in range(0, video.shape[0]):
-                        bw[i], _ = triangle_binarize(video[i])
-                    play_videos_side_by_side((video, bw))
+                    if plot_on:
+                        # continue
+                        # play_video_cv2(data[key], intv=17)
+                        video = data[key]
+                        bw = np.zeros(video.shape)
+                        for i in range(0, video.shape[0]):
+                            bw[i], _ = triangle_binarize(video[i])
+                        play_videos_side_by_side((video, bw))
 
                 case _ if key.endswith('_signal'):
-                    continue
+                    # continue
                     angle = data[key]
                     frames, bins = angle.shape
                     half = round(bins/2)
@@ -137,25 +194,39 @@ def main() -> None:
                     bw, thres = triangle_binarize(ang)
                     cone_angle1d = bw.sum(axis=1)/bins
 
-                    # plt.plot(cone_angle_per_frame)
-                    # signal_density_bins = np.linspace(0, 1, 180) # Example bins, adjust as needed
-                    # plot_angle_signal_density(signal_density_bins, data[key])
+                    if plot_on:
+                        plt.plot(cone_angle1d)
+                        # signal_density_bins = np.linspace(0, 1, 180) # Example bins, adjust as needed
+                        # plot_angle_signal_density(signal_density_bins, data[key])
 
 
                 case _ if key.endswith('_time_distance_intensity'):
                     
                     penetration_2d = data[key]
                     bw, thres = triangle_binarize(penetration_2d)
-                    # plt.imshow(bw, origin="lower")
+                    if plot_on:
+                        plt.imshow(bw, origin="lower")
                     result = keep_largest_component(bw)
                     pen1d = penetration_bw_to_index(result)
+                    if plot_on:
+                        plt.plot(pen1d)
 
                 case _ if key.endswith('_area'):
                     area1d = data[key]
+                    if plot_on:
+                        plt.plot(area1d)
 
                 case _:
                     continue
+'''
+def main():
+    folder = select_folder()
+    if folder is None:
+        return
 
+    for file in sorted(folder.glob("*.npz")):
+        out_csv = file.with_name(file.stem + "_features.csv")
+        extract_features_to_csv(file, out_csv)
 
 if __name__ == '__main__':
     main()
