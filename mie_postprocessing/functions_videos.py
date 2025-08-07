@@ -15,9 +15,18 @@ import gc
 from concurrent.futures import as_completed, ThreadPoolExecutor
 import sklearn.cluster
 from scipy.signal import fftconvolve
-import cupy as cp
-import numpy as np
-from cupyx.scipy.ndimage import median_filter
+
+# Optional GPU acceleration via CuPy.
+# Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
+try:  # pragma: no cover - runtime hardware dependent
+    import cupy as cp  # type: ignore
+    from cupyx.scipy.ndimage import median_filter  # type: ignore
+    CUPY_AVAILABLE = True
+except Exception:  # ImportError, CUDA failure, etc.
+    cp = np  # type: ignore
+    from scipy.ndimage import median_filter  # type: ignore
+    cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
+    CUPY_AVAILABLE = False
 
 # -----------------------------
 # Cine video reading and playback
@@ -200,6 +209,14 @@ def is_opencv_cuda_available():
         return count > 0
     except AttributeError:
         return False
+
+
+def is_opencv_ocl_available():
+    """Check if OpenCV was built with OpenCL support."""
+    try:
+        return cv2.ocl.haveOpenCL() and cv2.ocl.useOpenCL()
+    except AttributeError:
+        return False
     
 def rotate_frame_cuda(frame, angle, stream=None):
     """
@@ -291,13 +308,49 @@ def rotate_video_cuda(video_array, angle=0, max_workers=4):
 
     return np.stack(rotated, axis=0)
 
+
+def rotate_frame_ocl(frame, angle):
+    """Rotate a single frame using OpenCL via OpenCV's UMat."""
+    h, w = frame.shape[:2]
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, angle, 1.0)
+
+    if frame.dtype == np.bool_:
+        frame_uint8 = (frame.astype(np.uint8)) * 255
+        u_src = cv2.UMat(frame_uint8)
+        u_rot = cv2.warpAffine(u_src, M, (w, h), flags=cv2.INTER_NEAREST)
+        rotated = u_rot.get() > 127
+    else:
+        u_src = cv2.UMat(frame)
+        u_rot = cv2.warpAffine(u_src, M, (w, h), flags=cv2.INTER_CUBIC)
+        rotated = u_rot.get()
+    return rotated
+
+
+def rotate_video_ocl(video_array, angle=0, max_workers=4):
+    """Rotate video frames using OpenCL (Intel/AMD GPUs)."""
+    num_frames = video_array.shape[0]
+    rotated = [None] * num_frames
+
+    def task(idx):
+        return idx, rotate_frame_ocl(video_array[idx], angle)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as exe:
+        futures = [exe.submit(task, i) for i in range(num_frames)]
+        for fut in as_completed(futures):
+            idx, out = fut.result()
+            rotated[idx] = out
+    return np.stack(rotated, axis=0)
+
 def rotate_video_auto(video_array, angle=0, max_workers=4):
     if is_opencv_cuda_available():
         print("Using CUDA for rotation.")
         return rotate_video_cuda(video_array, angle=angle, max_workers=max_workers)
-    else:
-        print("CUDA not available, falling back to CPU.")
-        return rotate_video(video_array, angle=angle, max_workers=max_workers)
+    if is_opencv_ocl_available():
+        print("Using OpenCL for rotation.")
+        return rotate_video_ocl(video_array, angle=angle, max_workers=max_workers)
+    print("CUDA/OpenCL not available, falling back to CPU.")
+    return rotate_video(video_array, angle=angle, max_workers=max_workers)
     
 # -----------------------------
 # Masking and Binarization Pipeline
@@ -611,7 +664,7 @@ def median_filter_video(video_array, M, N, max_workers=None):
     num_frames = video_array.shape[0]
     filtered_frames = [None] * num_frames
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_index = {executor.submit(medfilt, video_array[i], M, N): i 
+        future_to_index = {executor.submit(medfilt, video_array[i], M, N): i
                            for i in range(num_frames)}
         for future in as_completed(future_to_index):
             idx = future_to_index[future]
@@ -620,6 +673,21 @@ def median_filter_video(video_array, M, N, max_workers=None):
             except Exception as exc:
                 print(f"Frame {idx} generated an exception during median filtering: {exc}")
     return np.array(filtered_frames)
+
+
+def median_filter_video_auto(video_array, M, N, T=1, max_workers=None):
+    """Apply median filtering using GPU when available.
+
+    Falls back to a CPU implementation when CuPy or a GPU is not
+    present. ``T`` controls the temporal window for the GPU
+    implementation.
+    """
+    if CUPY_AVAILABLE:
+        try:
+            return median_filter_video_cuda(video_array, M, N, T=T)
+        except Exception as exc:  # pragma: no cover - runtime hardware dependent
+            print(f"GPU median filtering failed ({exc}), falling back to CPU.")
+    return median_filter_video(video_array, M, N, max_workers=max_workers)
 
 def gaussian_low_pass_filter(img, cutoff):
     rows, cols = img.shape

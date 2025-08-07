@@ -59,7 +59,7 @@ def main():
 
     video_lap = filter_video_fft(sub_bkg, lap5x5)
     video_lap= np.abs(video_lap)
-    video_lap_med = median_filter_video_cuda(video_lap, 3, 3, 3)
+    video_lap_med = median_filter_video_auto(video_lap, 3, 3, 3)
     play_videos_side_by_side((video_lap_med, video_lap, sub_bkg, video))
 
     bins, signal, density = angle_signal_density(video_lap_med, centre[0], centre[1], 3600)

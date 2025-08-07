@@ -236,7 +236,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
                                      [1,1,1]])
         
         for i, segment in enumerate(segments):
-            med = median_filter_video_cuda(segment, 3, 3)
+            med = median_filter_video_auto(segment, 3, 3)
             lap_vid = filter_video_fft(med, laplacian_kernel, mode='same')
             # play_videos_side_by_side((10*lap_vid, segment), intv =17)
             
@@ -344,9 +344,9 @@ async def main():
                     '''
                     
                     start_time = time.time()
-                    RT = rotate_video_cuda(video, rotation)
+                    RT = rotate_video_auto(video, rotation)
                     elapsed_time = time.time() - start_time
-                    print(f"Rotating video with GPU finished in {elapsed_time:.2f} seconds.")
+                    print(f"Rotating video finished in {elapsed_time:.2f} seconds.")
                     
                     
 
@@ -399,37 +399,33 @@ async def main():
                     HP_delay[1:-1, :, :] = HP_avg[0:-2, :,:]
 
                     HP_res = np.abs(HP_delay-HP_avg)
-                    # import numpy as np
-                    import cupy as cp
-                    import matplotlib.pyplot as plt
+                    # Attempt 3D FFT visualization with CuPy if available.
+                    try:
+                        import cupy as cp  # type: ignore
+                        import matplotlib.pyplot as plt
 
-                    # 2) Upload to GPU
-                    vol_gpu = cp.array(HP_res)
-                    # 3) Plan and execute 3D complex‐to‐complex FFT in place
-                    #    (cuFFT automatically picks the fastest algorithm)
-                    vol_fft = cp.fft.fftn(vol_gpu, axes=(0,1,2))
+                        vol_gpu = cp.asarray(HP_res)
+                        vol_fft = cp.fft.fftn(vol_gpu, axes=(0, 1, 2))
+                        vol_fft = cp.fft.fftshift(vol_fft, axes=(0, 1, 2))
 
-                    # 4) Shift zero‐frequency to center (optional)
-                    vol_fft = cp.fft.fftshift(vol_fft, axes=(0,1,2))
-
-                    # 5) Compute magnitude (abs) and bring back to CPU
-                    mag_gpu = cp.abs(vol_fft)
-                    mag = cp.asnumpy(mag_gpu)
-                    nx, ny, nz = HP_res.shape
-                    # 6) Visualize three orthogonal slices
-                    fig, axes = plt.subplots(1,3, figsize=(12,4))
-                    slices = [
-                        mag[nx//2, :, :],  # Y–Z at center X
-                        mag[:, ny//2, :],  # X–Z at center Y
-                        mag[:, :, nz//2],  # X–Y at center Z
-                    ]
-                    titles = ['Slice X=mid','Slice Y=mid','Slice Z=mid']
-                    for ax, slc, title in zip(axes, slices, titles):
-                        im = ax.imshow(np.log1p(slc), origin='lower')
-                        ax.set_title(title)
-                        fig.colorbar(im, ax=ax, fraction=0.046)
-                    plt.tight_layout()
-                    plt.show()
+                        mag_gpu = cp.abs(vol_fft)
+                        mag = cp.asnumpy(mag_gpu)
+                        nx, ny, nz = HP_res.shape
+                        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+                        slices = [
+                            mag[nx // 2, :, :],
+                            mag[:, ny // 2, :],
+                            mag[:, :, nz // 2],
+                        ]
+                        titles = ['Slice X=mid', 'Slice Y=mid', 'Slice Z=mid']
+                        for ax, slc, title in zip(axes, slices, titles):
+                            im = ax.imshow(np.log1p(slc), origin='lower')
+                            ax.set_title(title)
+                            fig.colorbar(im, ax=ax, fraction=0.046)
+                        plt.tight_layout()
+                        plt.show()
+                    except Exception as exc:
+                        print(f"CuPy 3D FFT visualization skipped: {exc}")
 
 
 
@@ -448,7 +444,7 @@ async def main():
                     
 
                     start_time = time.time()
-                    scalar_velocity_field_med = median_filter_video_cuda(HP_res, 5, 5)
+                    scalar_velocity_field_med = median_filter_video_auto(HP_res, 5, 5)
                     elapsed_time = time.time() - start_time
                     print(f"Medfilt with GPU finished in {elapsed_time:.2f} seconds.")
 
