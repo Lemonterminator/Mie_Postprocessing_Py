@@ -4,29 +4,17 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import cv2
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from concurrent.futures import as_completed, ProcessPoolExecutor
 import pycine.file as cine  # Ensure the pycine package is installed
-from scipy.ndimage import median_filter as ndi_median_filter
-from scipy.ndimage import generic_filter, binary_opening, binary_fill_holes
-from skimage.filters import threshold_otsu
-from skimage.morphology import disk
-import gc
-from concurrent.futures import as_completed, ThreadPoolExecutor
-import sklearn.cluster
-from scipy.signal import fftconvolve
+# from scipy.ndimage import median_filter as ndi_median_filter
+# from scipy.ndimage import generic_filter, binary_opening, binary_fill_holes
+# from skimage.filters import threshold_otsu
+# from skimage.morphology import disk
 
-# Optional GPU acceleration via CuPy.
-# Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
-try:  # pragma: no cover - runtime hardware dependent
-    import cupy as cp  # type: ignore
-    from cupyx.scipy.ndimage import median_filter  # type: ignore
-    CUPY_AVAILABLE = True
-except Exception:  # ImportError, CUDA failure, etc.
-    cp = np  # type: ignore
-    from scipy.ndimage import median_filter  # type: ignore
-    cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
-    CUPY_AVAILABLE = False
+import sklearn.cluster
+
+
 
 # -----------------------------
 # Cine video reading and playback
@@ -166,221 +154,6 @@ def play_videos_side_by_side(videos, gain=1, binarize=False, thresh=0.5, intv=17
     cv2.destroyAllWindows()
 
 
-# -----------------------------
-# Rotation and Filtering functions
-# -----------------------------
-def rotate_frame(frame, angle):
-    (h, w) = frame.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    
-    if frame.dtype == np.bool_:
-        # Convert boolean mask to uint8: True becomes 255, False becomes 0.
-        frame_uint8 = (frame.astype(np.uint8)) * 255
-        # Use INTER_NEAREST to preserve mask values.
-        rotated_uint8 = cv2.warpAffine(frame_uint8, M, (w, h), flags=cv2.INTER_NEAREST)
-        # Convert back to boolean mask.
-        rotated = rotated_uint8 > 127 
-    else:
-        rotated = cv2.warpAffine(frame, M, (w, h), flags=cv2.INTER_CUBIC)
-    
-    return rotated
-
-def rotate_video(video_array, angle=0, max_workers=None):
-    num_frames = video_array.shape[0]
-    rotated_frames = [None] * num_frames
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_index = {executor.submit(rotate_frame, video_array[i], angle): i 
-                           for i in range(num_frames)}
-        for future in as_completed(future_to_index):
-            idx = future_to_index[future]
-            try:
-                rotated_frames[idx] = future.result()
-            except Exception as exc:
-                print(f"Frame {idx} generated an exception during rotation: {exc}")
-    return np.array(rotated_frames)
-
-# -----------------------------
-# CUDA-accelerated Rotation
-# -----------------------------
-def is_opencv_cuda_available():
-    try:
-        count = cv2.cuda.getCudaEnabledDeviceCount()
-        return count > 0
-    except AttributeError:
-        return False
-
-
-def is_opencv_ocl_available():
-    """Check if OpenCV was built with OpenCL support."""
-    try:
-        return cv2.ocl.haveOpenCL() and cv2.ocl.useOpenCL()
-    except AttributeError:
-        return False
-    
-def rotate_frame_cuda(frame, angle, stream=None):
-    """
-    在 GPU 上旋转单帧图像／掩码。
-    
-    Parameters
-    ----------
-    frame : np.ndarray (H×W or H×W×C) or bool mask
-    angle : float
-    stream: cv2.cuda.Stream (optional) — 用于异步操作
-    
-    Returns
-    -------
-    rotated : 同 frame 类型
-    """
-    h, w = frame.shape[:2]
-    # 计算仿射矩阵（在 CPU 上）
-    center = (w / 2.0, h / 2.0)
-    M = cv2.getRotationMatrix2D(center, angle, 1.0).astype(np.float32)
-    
-    # 上传到 GPU
-    if frame.dtype == np.bool_:
-        # 布尔先转 uint8（0/255）
-        cpu_uint8 = (frame.astype(np.uint8)) * 255
-        gpu_mat = cv2.cuda_GpuMat()
-        gpu_mat.upload(cpu_uint8, stream)
-        # warpAffine（最近邻保留掩码边界）
-        gpu_rot = cv2.cuda.warpAffine(
-            gpu_mat, M, (w, h),
-            flags=cv2.INTER_NEAREST, stream=stream
-        )
-        # 下载并阈值回布尔
-        out_uint8 = gpu_rot.download(stream)
-        rotated = out_uint8 > 127
-    else:
-        # 对普通灰度或多通道图像
-        gpu_mat = cv2.cuda.GpuMat()
-
-        if stream is not None:
-            gpu_mat.upload(frame, stream)
-            gpu_rot = cv2.cuda.warpAffine(
-                gpu_mat, M, (w, h),
-                flags=cv2.INTER_CUBIC, stream=stream
-            )
-            rotated = gpu_rot.download(stream)
-        else:
-            gpu_mat.upload(frame)
-            gpu_rot = cv2.cuda.warpAffine(
-                gpu_mat, M, (w, h),
-                flags=cv2.INTER_CUBIC
-            )
-            rotated = gpu_rot.download()
-    
-    # 等待 GPU 流完成
-    if stream is not None:
-        stream.waitForCompletion()
-    return rotated
-
-def rotate_video_cuda(video_array, angle=0, max_workers=4):
-    """
-    并行地在 GPU 上旋转整个视频（每帧独立流）。
-    
-    Parameters
-    ----------
-    video_array : np.ndarray, shape=(N, H, W) 或 (N, H, W, C) 或 bool
-    angle : float — 旋转角度（度）
-    max_workers : int — 并行线程数（每线程管理一个 cv2.cuda.Stream）
-    
-    Returns
-    -------
-    np.ndarray — 与输入同形状、同 dtype
-    """
-    num_frames = video_array.shape[0]
-    rotated = [None] * num_frames
-
-    # 预创建若干 CUDA 流
-    streams = [cv2.cuda.Stream() for _ in range(max_workers)]
-
-    def task(idx, frame):
-        # 分配一个流（简单轮询）
-        stream = streams[idx % max_workers]
-        return idx, rotate_frame_cuda(frame, angle, stream)
-
-    with ThreadPoolExecutor(max_workers=max_workers) as exe:
-        futures = [exe.submit(task, i, video_array[i]) for i in range(num_frames)]
-        for fut in as_completed(futures):
-            idx, out = fut.result()
-            rotated[idx] = out
-
-    return np.stack(rotated, axis=0)
-
-
-def rotate_frame_ocl(frame, angle):
-    """Rotate a single frame using OpenCL via OpenCV's UMat."""
-    h, w = frame.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, angle, 1.0)
-
-    if frame.dtype == np.bool_:
-        frame_uint8 = (frame.astype(np.uint8)) * 255
-        u_src = cv2.UMat(frame_uint8)
-        u_rot = cv2.warpAffine(u_src, M, (w, h), flags=cv2.INTER_NEAREST)
-        rotated = u_rot.get() > 127
-    else:
-        u_src = cv2.UMat(frame)
-        u_rot = cv2.warpAffine(u_src, M, (w, h), flags=cv2.INTER_CUBIC)
-        rotated = u_rot.get()
-    return rotated
-
-
-def rotate_video_ocl(video_array, angle=0, max_workers=4):
-    """Rotate video frames using OpenCL (Intel/AMD GPUs)."""
-    num_frames = video_array.shape[0]
-    rotated = [None] * num_frames
-
-    def task(idx):
-        return idx, rotate_frame_ocl(video_array[idx], angle)
-
-    with ThreadPoolExecutor(max_workers=max_workers) as exe:
-        futures = [exe.submit(task, i) for i in range(num_frames)]
-        for fut in as_completed(futures):
-            idx, out = fut.result()
-            rotated[idx] = out
-    return np.stack(rotated, axis=0)
-
-def rotate_video_auto(video_array, angle=0, max_workers=4):
-    if is_opencv_cuda_available():
-        print("Using CUDA for rotation.")
-        return rotate_video_cuda(video_array, angle=angle, max_workers=max_workers)
-    if is_opencv_ocl_available():
-        print("Using OpenCL for rotation.")
-        return rotate_video_ocl(video_array, angle=angle, max_workers=max_workers)
-    print("CUDA/OpenCL not available, falling back to CPU.")
-    return rotate_video(video_array, angle=angle, max_workers=max_workers)
-    
-# -----------------------------
-# Masking and Binarization Pipeline
-# -----------------------------
-def mask_video(video: np.ndarray, chamber_mask: np.ndarray) -> np.ndarray:
-    # Ensure chamber_mask is boolean.
-    chamber_mask_bool = chamber_mask if chamber_mask.dtype == bool else (chamber_mask > 0)
-    # Use broadcasting: multiplies each frame elementwise with the mask.
-    if video.shape[1] != chamber_mask.shape[0] or video.shape[2] != chamber_mask.shape[1]:
-        chamber_mask_bool = cv2.resize(chamber_mask_bool.astype(np.uint8), (video.shape[2], video.shape[1]), interpolation=cv2.INTER_NEAREST)
-        # raise ValueError("Video dimensions and mask dimensions do not match.")
-    return video * chamber_mask_bool
-
-# -----------------------------
-# Global Threshold Binarization
-# -----------------------------
-def binarize_video_global_threshold(video, method='otsu', thresh_val=None):
-    if method == 'otsu':
-        # Compute threshold over the whole video (flattened)
-        threshold = threshold_otsu(video)
-    elif method == 'fixed':
-        if thresh_val is None:
-            raise ValueError("Provide a threshold value for 'fixed' method.")
-        threshold = thresh_val
-    else:
-        raise ValueError("Invalid method. Use 'otsu' or 'fixed'.")
-    
-    # Broadcasting applies the comparison element-wise across the entire video array.
-    binary_video = (video >= threshold).astype(np.uint8) * 255
-    return binary_video
 
 def map_video_to_range(video):
     """
@@ -467,9 +240,6 @@ def find_larger_than_percentile(image, percentile, bins=4096):
             return centers[i]
     
     return 1.0  # If no pixel exceeds the percentile, return max value (1.0) 
-
-
-
 
 def video_histogram_with_contour(video, bins=100, exclude_zero=False, log=False):
     """
@@ -576,7 +346,6 @@ def subtract_median_background(video, frame_range=None):
         background = np.median(video[frame_range, :, :], axis=0) 
     return video  - background[None, :, :], background 
 
-
 def kmeans_label_video(video: np.ndarray, k: int) -> np.ndarray:
     """Label pixels into ``k`` brightness clusters using k-means.
 
@@ -607,114 +376,11 @@ def kmeans_label_video(video: np.ndarray, k: int) -> np.ndarray:
 
     return labels.reshape(orig_shape)
 
-
 def labels_to_playable_video(labels: np.ndarray, k: int) -> np.ndarray:
     """Convert k-means labels to a float video in ``[0, 1]`` for display."""
     if k <= 1:
         return labels.astype(float)
     return labels.astype(float) / float(k - 1)
-
-def filter_video_fft(video: np.ndarray, kernel: np.ndarray, mode='same') -> np.ndarray:
-    """
-    Convolve each frame in `video` with `kernel` via FFT convolution,
-    in one call without an explicit Python loop.
-
-    Parameters
-    ----------
-    video : np.ndarray
-        Input video as a 3D array, shape (n_frames, H, W).
-    kernel : np.ndarray
-        2D convolution kernel, shape (kH, kW).
-    mode : {'full', 'valid', 'same'}
-        Convolution mode passed to fftconvolve.
-
-    Returns
-    -------
-    np.ndarray
-        Filtered video, same shape as input if mode='same'.
-    """
-    # fftconvolve will broadcast the first dimension (frames)
-    # but we must explicitly tell it which axes are spatial:
-    return fftconvolve(video, kernel[np.newaxis, :, :], mode=mode, axes=(1, 2))
-
-
-def median_filter_video_cuda(video_array: np.ndarray, M: int, N: int, T:int=1) -> np.ndarray:
-    """
-    GPU-accelerated spatial median filter per frame: applies MxN median
-    on each (H,W) frame of video shaped (T, H, W) in one shot.
-    """
-    # Move entire video once to GPU
-    video_gpu = cp.asarray(video_array)  # shape (T, H, W)
-    # Apply median filter with no temporal smoothing: size=(1, M, N)
-    filtered_gpu = median_filter(
-        video_gpu,
-        size=(T, M, N),
-        mode='constant',
-        cval=0.0
-    )
-    # Bring result back once
-    return cp.asnumpy(filtered_gpu)
-
-
-
-def medfilt(image, M, N):
-    return ndi_median_filter(image, size=(M, N), mode='constant', cval=0)
-
-def median_filter_video(video_array, M, N, max_workers=None):
-    num_frames = video_array.shape[0]
-    filtered_frames = [None] * num_frames
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_index = {executor.submit(medfilt, video_array[i], M, N): i
-                           for i in range(num_frames)}
-        for future in as_completed(future_to_index):
-            idx = future_to_index[future]
-            try:
-                filtered_frames[idx] = future.result()
-            except Exception as exc:
-                print(f"Frame {idx} generated an exception during median filtering: {exc}")
-    return np.array(filtered_frames)
-
-
-def median_filter_video_auto(video_array, M, N, T=1, max_workers=None):
-    """Apply median filtering using GPU when available.
-
-    Falls back to a CPU implementation when CuPy or a GPU is not
-    present. ``T`` controls the temporal window for the GPU
-    implementation.
-    """
-    if CUPY_AVAILABLE:
-        try:
-            return median_filter_video_cuda(video_array, M, N, T=T)
-        except Exception as exc:  # pragma: no cover - runtime hardware dependent
-            print(f"GPU median filtering failed ({exc}), falling back to CPU.")
-    return median_filter_video(video_array, M, N, max_workers=max_workers)
-
-def gaussian_low_pass_filter(img, cutoff):
-    rows, cols = img.shape
-    u, v = np.meshgrid(np.arange(cols), np.arange(rows))
-    u = u - cols // 2
-    v = v - rows // 2
-    H = np.exp(-(u**2 + v**2) / (2 * cutoff**2))
-    img_fft = np.fft.fft2(img.astype(np.float64))
-    img_fft_shifted = np.fft.fftshift(img_fft)
-    filtered_fft_shifted = img_fft_shifted * H
-    filtered_fft = np.fft.ifftshift(filtered_fft_shifted)
-    filtered_img = np.fft.ifft2(filtered_fft)
-    return np.abs(filtered_img)
-
-def Gaussian_LP_video(video_array, cutoff, max_workers=None):
-    num_frames = video_array.shape[0]
-    filtered_frames = [None] * num_frames
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_index = {executor.submit(gaussian_low_pass_filter, video_array[i], cutoff): i 
-                           for i in range(num_frames)}
-        for future in as_completed(future_to_index):
-            idx = future_to_index[future]
-            try:
-                filtered_frames[idx] = future.result()
-            except Exception as exc:
-                print(f"Frame {idx} generated an exception during Gaussian LP filtering: {exc}")
-    return np.array(filtered_frames)
 
 
 # -----------------------------
@@ -726,153 +392,3 @@ def calculate_TD_map(horizontal_video: np.ndarray):
     for n in range(num_frames):
         time_distance_map[:, n] = np.sum(horizontal_video[n], axis=0)
     return time_distance_map
-
-def calculate_bw_area(BW: np.ndarray):
-    num_frames, height, width = BW.shape
-    area = np.zeros(num_frames, dtype=np.float32)
-    for n in range(num_frames):
-        area[n] = np.sum(BW[n] == 255)
-    return area
-
-
-def apply_morph_open(intermediate_frame, disk_size):
-    selem = disk(disk_size)
-    opened = binary_opening(intermediate_frame, selem)
-    return opened
-
-def apply_hole_filling(opened_frame):
-    filled = binary_fill_holes(opened_frame)
-    processed_frame = (filled * 255).astype(np.uint8)
-    frame_area = np.sum(filled)
-    return processed_frame, frame_area
-
-
-
-def apply_morph_open_video(intermediate_video: np.ndarray, disk_size: int) -> np.ndarray:
-    """
-    Apply morphological opening to each frame in the video in parallel.
-    
-    Parameters:
-        intermediate_video (np.ndarray): Video after thresholding (frames, height, width).
-        disk_size (int): Radius for the disk-shaped structuring element.
-    
-    Returns:
-        np.ndarray: Video after morphological opening.
-    """
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        results = list(executor.map(
-            lambda frame: apply_morph_open(frame, disk_size),
-            intermediate_video
-        ))
-    return np.array(results)
-
-def apply_hole_filling_video(opened_video: np.ndarray):
-    """
-    Apply hole filling and compute the white pixel area for each frame in the video in parallel.
-    
-    Parameters:
-        opened_video (np.ndarray): Video after morphological opening (frames, height, width).
-    
-    Returns:
-        processed_video (np.ndarray): Video after hole filling, with values 0 or 255.
-        area (np.ndarray): Array of white pixel counts per frame.
-    """
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        results = list(executor.map(
-            lambda frame: apply_hole_filling(frame),
-            opened_video
-        ))
-    num_frames = opened_video.shape[0]
-    processed_video = np.zeros_like(opened_video, dtype=np.uint8)
-    area = np.zeros(num_frames, dtype=np.float32)
-    for i, (processed_frame, frame_area) in enumerate(results):
-        processed_video[i] = processed_frame
-        area[i] = frame_area
-    return processed_video, area
-
-    from scipy.ndimage import binary_fill_holes
-from concurrent.futures import ProcessPoolExecutor
-
-
-def _fill_frame(frame_bool):
-    filled = binary_fill_holes(frame_bool)
-    return filled
-
-
-def fill_video_holes_parallel(bw_video: np.ndarray,
-                               n_workers: int = None) -> np.ndarray:
-    """
-    Fill holes in each frame of a binary video in parallel.
-    
-    Parameters
-    ----------
-    bw_video : np.ndarray
-        Binary video data of shape (n_frames, height, width), values 0/1 or 0/255.
-    n_workers : int, optional
-        Number of worker processes to use. Defaults to os.cpu_count() if None.
-    
-    Returns
-    -------
-    np.ndarray
-        Hole‑filled binary video, same shape and dtype as input.
-    """
-    # Ensure we have boolean frames
-    # Any nonzero becomes True; zero remains False.
-    bw_bool_video = (bw_video > 0)
-    
-    
-    # Launch parallel filling
-    with ProcessPoolExecutor(max_workers=n_workers) as exe:
-        # executor.map returns in order; we collect into a list
-        filled_frames = list(exe.map(_fill_frame, bw_bool_video))
-    
-    # Stack back into a (n_frames, H, W) array
-    return np.stack(filled_frames, axis=0)
-
-
-
-def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
-    """
-    Fill holes in each frame of a binary video on GPU via CuPy.
-    """
-    # 1. Upload to GPU and binarize
-    bw_gpu = cp.asarray(bw_video) > 0
-
-    # 2. Run hole‐filling on GPU
-    # cupyx.scipy.ndimage.binary_fill_holes is not implemented and returns None.
-    # Use CPU fallback for hole filling if needed.
-    # Alternatively, use a custom GPU implementation or fallback to scipy.ndimage on CPU.
-    import scipy.ndimage
-    filled_cpu = scipy.ndimage.binary_fill_holes(cp.asnumpy(bw_gpu))
-    filled_gpu = cp.asarray(filled_cpu)
-
-    # 3. Download back to host, preserving dtype
-    return (filled_gpu.astype(bw_video.dtype) * 255
-            if bw_video.max() > 1
-            else filled_gpu.astype(bw_video.dtype))
-
-
-def triangle_binarize(ang_float32, blur=True):
-    # 1. Clean / normalize to [0,255] uint8
-    img = np.nan_to_num(ang_float32, nan=0.0)  # avoid NaNs
-    lo, hi = img.min(), img.max()
-    if hi <= lo:
-        # constant image, nothing to threshold
-        return np.zeros_like(img, dtype=np.uint8), 0.0
-
-    norm = (img - lo) / (hi - lo)           # [0,1]
-    u8 = (norm * 255).astype(np.uint8)      # to 0..255
-
-    # 2. Optional smoothing to reduce noise which can destabilize histogram peak
-    if blur:
-        u8 = cv2.GaussianBlur(u8, (5, 5), 0)
-
-    # 3. Triangle thresholding (global)
-    thresh_val, binarized = cv2.threshold(
-        u8,
-        0,                  # ignored when using OTSU / TRIANGLE flags
-        255,                # max value for binary
-        cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE
-    )
-
-    return binarized, thresh_val

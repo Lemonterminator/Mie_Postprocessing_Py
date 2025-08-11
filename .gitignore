@@ -1,3 +1,5 @@
 Interest/
 Cine/
 runs_mlp/
+*.csv
+*.bak

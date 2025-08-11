@@ -2,7 +2,8 @@ from mie_postprocessing.functions_videos import *
 from mie_postprocessing.rotate_crop import *
 from mie_postprocessing.cone_angle import *
 from mie_postprocessing.ssim import *
-
+from mie_postprocessing.video_filters import *
+from mie_postprocessing.functions_bw import *
 import matplotlib.pyplot as plt
 import subprocess
 from scipy.signal import convolve2d
@@ -13,6 +14,7 @@ import gc
 import json
 from pathlib import Path
 
+
 global parent_folder
 global plumes
 global offset
@@ -20,12 +22,20 @@ global centre
 global hydraulic_delay
 global gain 
 global gamma
+global ir_ 
+global or_
+
 
 # Define the parent folder and other global variables
 parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
 hydraulic_delay = 20  # Hydraulic delay in frames, adjust as needed
 gain = 3 # Gain factor for video processing
 gamma = 2  # Gamma correction factor for video processing
+
+# Inner and outer radius (in pixels) for cropping the images
+ir_ = 14
+or_ = 380
+
 
 # Directory containing mask images and numpy files
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -86,9 +96,6 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # fig, (heat, contour) = video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
     
 
-    ir_ = 14
-    or_ = 380
-
     # Generate the crop rectangle based on the plume parameters
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
 
@@ -97,9 +104,9 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     
     start_time = time.time()
-    
+    '''
     segments = []
-
+    
     # Multithreaded rotation and cropping
     with ThreadPoolExecutor(max_workers=min(len(angles), os.cpu_count() or 1)) as exe:
         future_map = {
@@ -117,7 +124,8 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         # Sort by index to preserve order
         segments_with_idx.sort(key=lambda x: x[0])
         segments = [seg for idx, seg in segments_with_idx]
-    
+    '''
+    segments=rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
     elapsed_time = time.time() - start_time
     print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
     
