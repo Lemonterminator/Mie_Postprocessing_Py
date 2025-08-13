@@ -153,8 +153,6 @@ def play_videos_side_by_side(videos, gain=1, binarize=False, thresh=0.5, intv=17
 
     cv2.destroyAllWindows()
 
-
-
 def map_video_to_range(video):
     """
     Maps a video to a 2D image of its pixel intensity ranges.

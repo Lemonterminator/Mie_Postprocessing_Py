@@ -2,6 +2,9 @@ import numpy as np
 from scipy.signal import fftconvolve
 from concurrent.futures import as_completed, ProcessPoolExecutor
 from scipy.ndimage import median_filter as ndi_median_filter
+import cv2
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
@@ -116,3 +119,28 @@ def Gaussian_LP_video(video_array, cutoff, max_workers=None):
                 print(f"Frame {idx} generated an exception during Gaussian LP filtering: {exc}")
     return np.array(filtered_frames)
 
+
+def gaussian_video_cpu(video_f32: np.ndarray, ksize=(5,5), sigma=0, max_workers=None):
+    """
+    video_f32: np.ndarray, shape (T,H,W), dtype float32
+    """
+    assert video_f32.ndim == 3 and video_f32.dtype == np.float32
+    T, H, W = video_f32.shape
+    out = np.empty_like(video_f32)
+
+    # Option A: let OpenCV use internal threads, run single-threaded at Python level:
+    # cv2.setNumThreads(0)  # 0 = use all cores (default)
+
+    # Option B: parallelize over frames with Python threads; then cap OpenCV threads to avoid oversubscription:
+    if max_workers is not None:
+        cv2.setNumThreads(1)  # important when using many Python threads
+        def work(j):
+            out[j] = cv2.GaussianBlur(video_f32[j], ksize, sigma, borderType=cv2.BORDER_REPLICATE)
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            list(ex.map(work, range(T)))
+    else:
+        # single Python loop; OpenCV can multithread internally
+        for j in range(T):
+            out[j] = cv2.GaussianBlur(video_f32[j], ksize, sigma, borderType=cv2.BORDER_REPLICATE)
+
+    return out

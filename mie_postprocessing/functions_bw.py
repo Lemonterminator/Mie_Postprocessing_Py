@@ -192,3 +192,23 @@ def triangle_binarize(ang_float32, blur=True):
     )
 
     return binarized, thresh_val
+
+def triangle_binarize_u8(u8, blur=True):
+    if blur:
+        u8 = cv2.GaussianBlur(u8, (5, 5), 0)
+    t, binarized = cv2.threshold(u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE)
+    return binarized, t
+
+def triangle_binarize_from_float(img_f32, blur=True):
+    # Fast normalize to 0..255 uint8 in one call (releases GIL)
+    u8 = cv2.normalize(img_f32, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    return triangle_binarize_u8(u8, blur=blur)
+
+def segment2bw(segment, j0=0, blur=True, max_workers=None):
+    T, H, W = segment.shape
+    bw_vid = np.empty((T, H, W), dtype=np.uint8)
+    thres_array = np.zeros(T, dtype=np.float32)
+    seg = (segment*255).astype(np.uint8)
+
+    def work(j):
+        binj, t = triangle_binarize_from_float(segment[j], blur=blur)

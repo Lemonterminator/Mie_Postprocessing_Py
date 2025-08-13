@@ -58,7 +58,6 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     foreground, background = subtract_median_background(video, frame_range=slice(0, hydraulic_delay))
 
     # threshold = find_larger_than_percentile(background, percentile=95)
-
     centre_x = float(centre[0])
     centre_y = float(centre[1])
 
@@ -173,7 +172,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # play_videos_side_by_side(tuple(segments),intv=17)
     
     for i, segment in enumerate(segments):
-        # play_video_cv2(segment)
+        play_video_cv2(segment)
         time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
         '''
         plt.imshow(time_distance_intensity,
