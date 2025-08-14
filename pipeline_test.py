@@ -15,6 +15,49 @@ import os
 import gc
 import json
 from pathlib import Path
+import time
+
+def segments_computation(segments):
+    # segmnets has shape [plume number, frame, rows, cols]
+
+    # Map of intensity and time by summing over rows
+    td_intensity_maps = np.sum(segments, axis=2)
+    # Plot of energy by summing again over cols (summing each image)
+    energies = np.sum(td_intensity_maps, axis=2)
+
+    peak_brightness_frames = np.argmax(energies, axis=1)
+    avg_peak = round(np.mean(peak_brightness_frames))
+
+    multiplier = 100
+    thres_derivative = multiplier*energies[:,0]/energies[:,avg_peak]
+    rows = segments.shape[2]; cols = segments.shape[3]
+    near_nozzle_energies = np.sum(np.sum(segments[:, :avg_peak, round(rows/3):round(rows*2/3), :round(cols/4)], axis=3), axis=2)
+    dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
+    masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
+    hydraulic_delay = masks.argmax(axis=1) + 1
+
+    ''''''
+    bw_vids = np.zeros(segments.shape)
+    start_time = time.time()
+    for i, segment in enumerate(segments):
+        # print(i)
+        bw_vid = np.zeros(segment.shape).astype(int)
+        thres_array = np.zeros(segment.shape[0])
+        
+        # for j in range(hydraulic_delay[i], avg_peak):
+        for j in range(hydraulic_delay[i], len(segment)):
+            bw_vid[j], thres_temp = triangle_binarize(segment[j], blur=True)
+            thres_array[j] = thres_temp/255.0
+        
+        
+        # thres_array[j:] = thres_array[j]
+        # bw_vid[0:hydraulic_delay[i]] = (segment[0:hydraulic_delay[i]] > thres_array[hydraulic_delay[i]]).astype(int)
+        # bw_vid[avg_peak:] = (segment[avg_peak:] > thres_array[avg_peak]).astype(int)
+        # play_video_cv2(bw_vid*255)
+        # play_video_cv2((1-bw_vid)*segment)
+        bw_vids[i] = bw_vid
+    print(f"Time elapsed in triangular segmetation for all segments: {time.time()-start_time:.2f}")
+    return bw_vids
 
 def load() -> np.ndarray:
     path = filedialog.askopenfilename(filetypes=[('Cine','*.cine')])
@@ -96,63 +139,9 @@ def main():
 
     segments = np.array(segments)
 
-    def segments_computation(segments):
-        # segmnets has shape [plume number, frame, rows, cols]
 
-        # Map of intensity and time by summing over rows
-        td_intensity_maps = np.sum(segments, axis=2)
-        # Plot of energy by summing again over cols (summing each image)
-        energies = np.sum(td_intensity_maps, axis=2)
-
-        peak_brightness_frames = np.argmax(energies, axis=1)
-        avg_peak = round(np.mean(peak_brightness_frames))
-
-        thres_derivative = 10*energies[:,0]/energies[:,avg_peak]
-        rows = segments.shape[2]; cols = segments.shape[3]
-        near_nozzle_energies = np.sum(np.sum(segments[:, :avg_peak, round(rows/3):round(rows*2/3), :round(cols/4)], axis=3), axis=2)
-        dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
-        masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
-        hydraulic_delay = masks.argmax(axis=1) + 1
-
-        ''''''
-        bw_vids = np.zeros(segments.shape)
-        for i, segment in enumerate(segments):
-            # print(i)
-            bw_vid = np.zeros(segment.shape).astype(int)
-            thres_array = np.zeros(segment.shape[0])
-            
-            # for j in range(hydraulic_delay[i], avg_peak):
-            for j in range(hydraulic_delay[i], len(segment)):
-                bw_vid[j], thres_temp = triangle_binarize(segment[j], blur=True)
-                thres_array[j] = thres_temp/255.0
-            
-            # thres_array[j:] = thres_array[j]
-            # bw_vid[0:hydraulic_delay[i]] = (segment[0:hydraulic_delay[i]] > thres_array[hydraulic_delay[i]]).astype(int)
-            # bw_vid[avg_peak:] = (segment[avg_peak:] > thres_array[avg_peak]).astype(int)
-            play_video_cv2(bw_vid*255)
-            play_video_cv2((1-bw_vid)*segment)
-
-
-            
-
-    # Experimenting
-    plume1 = segments[0]
-    bw_vid1 = np.zeros(plume1.shape)
-    thres_array = np.zeros(plume1.shape[0])
-    for i in range(plume1.shape[0]):
-        bw, thres = triangle_binarize(plume1[i])
-        
-        bw_vid1[i] = bw
-        thres_array[i] = thres /255.0
-    plt.plot(thres_array)
-    index = np.argmin(thres_array)
-    min_val = thres_array[index]
-    thres_array[:index] = min_val
-    plt.plot(thres_array)
-    plt.show()
-    for i in range(0, index):
-        bw_vid1[i] = plume1[i]> thres_array[i]
-    play_videos_side_by_side((plume1, bw_vid1), intv=170)
+    bw_vids = segments_computation(segments)
+    
 
     '''
 
