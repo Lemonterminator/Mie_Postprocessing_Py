@@ -17,11 +17,38 @@ import json
 from pathlib import Path
 import time
 
+def find_penetration(intensity2d:np.ndarray) -> np.ndarray:
+     # intensity2d: (F, C), float32
+    pen_2d, _ = triangle_binarize_from_float(intensity2d, blur=True)
+    largest = keep_largest_component(pen_2d, connectivity=2)
+    pen1d = penetration_bw_to_index(largest).astype(np.float32)
+    pen1d[pen1d < 0] = np.nan
+    return pen1d
+
 def segments_computation(segments):
     # segmnets has shape [plume number, frame, rows, cols]
 
     # Map of intensity and time by summing over rows
+    # td_intensity_maps has shape [plume number, frame, cols]
     td_intensity_maps = np.sum(segments, axis=2)
+    P, F, C = td_intensity_maps.shape
+    penetration = np.full((P, F), np.nan, dtype=np.float32)
+
+
+    # Converting intensity maps to penetration
+    start_time = time.time()
+    n_workers = min(os.cpu_count() + 4, P, 32) # type: ignore
+    with ThreadPoolExecutor(max_workers=n_workers) as ex:
+        futs = {ex.submit(find_penetration, td_intensity_maps[p]) : p for p in range(P)}
+        for fut in as_completed(futs):
+            penetration[futs[fut]] = fut.result()
+    print(f"Penetration calculation completed in {time.time()-start_time:.3f}s")
+         
+    # for plume_num, intensity2d in enumerate(td_intensity_maps):
+
+        
+
+
     # Plot of energy by summing again over cols (summing each image)
     energies = np.sum(td_intensity_maps, axis=2)
 
@@ -31,14 +58,18 @@ def segments_computation(segments):
     multiplier = 100
     thres_derivative = multiplier*energies[:,0]/energies[:,avg_peak]
     rows = segments.shape[2]; cols = segments.shape[3]
-    near_nozzle_energies = np.sum(np.sum(segments[:, :avg_peak, round(rows/3):round(rows*2/3), :round(cols/4)], axis=3), axis=2)
+    near_nozzle_energies = np.sum(np.sum(segments[:, :avg_peak, round(rows*2/5):round(rows*3/5), :round(cols/5)], axis=3), axis=2)
     dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
     masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
     hydraulic_delay = masks.argmax(axis=1) + 1
 
     ''''''
+    # bw_vids has shape [plume number, frame, rows, cols]
     bw_vids = np.zeros(segments.shape)
+    
     start_time = time.time()
+
+    # To be parallelized 
     for i, segment in enumerate(segments):
         # print(i)
         bw_vid = np.zeros(segment.shape).astype(int)
@@ -55,9 +86,10 @@ def segments_computation(segments):
         # bw_vid[avg_peak:] = (segment[avg_peak:] > thres_array[avg_peak]).astype(int)
         # play_video_cv2(bw_vid*255)
         # play_video_cv2((1-bw_vid)*segment)
+        bw_vid = keep_largest_component_nd(bw_vid)
         bw_vids[i] = bw_vid
-    print(f"Time elapsed in triangular segmetation for all segments: {time.time()-start_time:.2f}")
-    return bw_vids
+    print(f"Time elapsed in triangular segmetation for all segments: {time.time()-start_time:.3f}s")
+    return bw_vids, penetration
 
 def load() -> np.ndarray:
     path = filedialog.askopenfilename(filetypes=[('Cine','*.cine')])
@@ -89,11 +121,12 @@ def main():
     video_raw = video
     # cutting some frames
     video = video[:60, :,:]
-    video_raw = video
+    # video_raw = video
     frames, height, width = video.shape
     # play_video_cv2(video)
+    start_time = time.time()
 
-    bkg = np.median(video[:9, :, :], axis = 0)
+    bkg = np.median(video[:17, :, :], axis = 0)
 
     sub_bkg = video - bkg[None, :, :]
 
@@ -112,6 +145,9 @@ def main():
     centre_x = float(centre[0])
     centre_y = float(centre[1])
 
+    print(f"Preprocessing completed in {time.time()-start_time:.3f}s")
+
+    start_time = time.time()
     # Cone angle
     signal_density_bins, signal, density = angle_signal_density(
         sub_bkg_med, centre_x, centre_y, N_bins=3600
@@ -125,71 +161,24 @@ def main():
         offset = (-phase / number_of_plumes) * 180.0 / np.pi
         offset %= 360.0
         offset = min(offset, (offset-360), key=abs)
-        print(f"Estimated offset from FFT: {offset:.2f} degrees")
+        print(f"Estimated offset from FFT: {offset:.3f} degrees")
 
+    print(f"Cone angle calculation completed in {time.time()-start_time:.3f}s")
+
+    start_time = time.time()
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
 
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
     mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
-    
-
-
     segments = rotate_all_segments_auto(sub_bkg_med, angles, crop, centre, mask=mask)
 
     segments = np.array(segments)
+    print(f"Rotation to segments completed in {time.time()-start_time:.3f}s")
 
 
-    bw_vids = segments_computation(segments)
+    bw_vids, penetration = segments_computation(segments)
     
 
-    '''
-
-    # play_video_cv2(sub_bkg_med)
-    # play_videos_side_by_side((video, sub_bkg, sub_bkg_med), intv=170)
-    bw_vid = np.zeros(sub_bkg_med.shape)
-    thres_array = np.zeros(sub_bkg_med.shape[0])
-    for i in range(sub_bkg.shape[0]):
-        bw, thres = triangle_binarize(sub_bkg_med[i])
-        bw_vid[i] = bw
-        thres_array[i] = thres
-    play_video_cv2(bw_vid)
-    # plt.plot(thres_array)
-    index = np.argmin(thres_array)
-    min_val = thres_array[index]
-    thres_array[:index] = min_val
-    plt.plot(thres_array)
-    plt.show()
-    for i in range(0, index):
-        bw_vid[i] = sub_bkg_med[i]> thres_array[i]/255.0
-    '''
-
-
-
-    
-    '''
-    lap5x5 = np.array([
-        [-1, -3, -4, -3, -1],
-        [-3,  0,  6,  0, -3],
-        [-4,  6, 20,  6, -4],
-        [-3,  0,  6,  0, -3],
-        [-1, -3, -4, -3, -1],
-    ], dtype=np.float32)
-
-    # video_lap = filter_video_fft(video, lap5x5)
-    # play_videos_side_by_side((video_lap, video))
-
-    video_lap = filter_video_fft(sub_bkg, lap5x5)
-    video_lap= np.abs(video_lap)
-    video_lap_med = median_filter_video_auto(video_lap, 3, 3, 3)
-    play_videos_side_by_side((video_lap_med, video_lap, sub_bkg, video))
-
-    bins, signal, density = angle_signal_density(video_lap_med, centre[0], centre[1], 3600)
-    plot_angle_signal_density(bins, signal, log=True, plume_angles=None)
-    
-    bw, thres = triangle_binarize(signal)
-    plt.imshow(bw, origin="lower")
-
-    '''
 if __name__ == '__main__':
     main()

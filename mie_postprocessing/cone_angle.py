@@ -1,5 +1,15 @@
 import numpy as np
-
+# Optional GPU acceleration via CuPy.
+# Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
+try:  # pragma: no cover - runtime hardware dependent
+    import cupy as cp  # type: ignore
+    # from cupyx.scipy.ndimage import median_filter  # type: ignore
+    CUPY_AVAILABLE = True
+except Exception:  # ImportError, CUDA failure, etc.
+    cp = np  # type: ignore
+    # from scipy.ndimage import median_filter  # type: ignore
+    cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
+    CUPY_AVAILABLE = False
 
 def angle_signal_density(video, x0, y0, N_bins: int = 360):
     """Compute signal density versus angle for an image or video.
@@ -25,35 +35,40 @@ def angle_signal_density(video, x0, y0, N_bins: int = 360):
     """
 
     arr = np.asarray(video)
-    if arr.ndim == 2:
-        arr = arr[None]  # treat image as 1-frame video
+    is_image = (arr.ndim == 2)
+    if is_image:
+        arr = arr[None]
 
-    frames, h, w = arr.shape
-
-    y_idx, x_idx = np.indices((h, w))
+    F, H, W = arr.shape
+    y_idx, x_idx = np.indices((H, W))
     dx = x_idx - x0
     dy = y_idx - y0
     theta = np.arctan2(dy, dx)
     theta_deg = np.degrees(theta) % 360
 
-    bins = np.linspace(0, 360, N_bins + 1)
-    inds = np.digitize(theta_deg, bins) - 1  # 0..N_bins-1
 
-    flat = arr.reshape(frames, -1)
-    signal = np.zeros((frames, N_bins), dtype=arr.dtype)
-    counts = np.zeros(N_bins, dtype=int)
+    # Bin edges + per-pixel bin index
+    edges = np.linspace(0, 360, N_bins + 1)
+    bin_width = edges[1] - edges[0]
+    bin_centers = edges[:-1] + 0.5 * bin_width
+    inds = np.digitize(theta_deg, edges) - 1  # 0..N_bins-1
+    inds = inds.ravel()
 
-    for b in range(N_bins):
-        mask = (inds == b).ravel()
-        if np.any(mask):
-            signal[:, b] = flat[:, mask].sum(axis=1)
-            counts[b] = mask.sum()
+    # Pixel counts per bin (same for all frames)
+    counts = np.bincount(inds, minlength=N_bins)
 
-    density = signal / (counts + 1e-9)
+    # Grouped sum by bin for each frame (vectorized over pixels; loop only over frames)
+    signal = np.empty((F, N_bins), dtype=np.result_type(arr.dtype, np.float64))
+    flat = arr.reshape(F, -1)
+    for f in range(F):
+        signal[f] = np.bincount(inds, weights=flat[f], minlength=N_bins)
 
-    if video.ndim == 2:
-        return bins[:-1], signal[0], density[0]
-    return bins[:-1], signal, density
+    # Avoid divide-by-zero
+    density = signal / np.maximum(counts, 1)[None, :]
+
+    if is_image:
+        return bin_centers, signal[0], density[0]
+    return bin_centers, signal, density
 
 
 def plot_angle_signal_density(bins, signal, *, log=False, plume_angles=None):
@@ -111,3 +126,43 @@ def plot_angle_signal_density(bins, signal, *, log=False, plume_angles=None):
 
     plt.tight_layout()
     plt.show()
+
+
+
+def angle_signal_density_cupy(video, x0, y0, N_bins: int = 360):
+    arr = cp.asarray(video)
+    is_image = (arr.ndim == 2)
+    if is_image:
+        arr = arr[None]
+
+    F, H, W = arr.shape
+    y_idx, x_idx = cp.indices((H, W))
+    dx = x_idx - x0
+    dy = y_idx - y0
+    theta_deg = (cp.degrees(cp.arctan2(dy, dx)) % 360).astype(cp.float32)
+
+    edges = cp.linspace(0, 360, N_bins + 1, dtype=cp.float32)
+    bin_width = edges[1] - edges[0]
+    bin_centers = cp.asnumpy(edges[:-1] + 0.5 * bin_width)
+
+    inds = cp.digitize(theta_deg, edges) - 1
+    inds = inds.ravel()
+
+    counts = cp.bincount(inds, minlength=N_bins)
+    flat = arr.reshape(F, -1)
+
+    signal = cp.empty((F, N_bins), dtype=cp.float32)
+    for f in range(F):  # GPU kernel inside; loop over frames is fine
+        signal[f] = cp.bincount(inds, weights=flat[f], minlength=N_bins)
+
+    density = signal / cp.maximum(counts, 1)[None, :]
+
+    if is_image:
+        return bin_centers, cp.asnumpy(signal[0]), cp.asnumpy(density[0])
+    return bin_centers, cp.asnumpy(signal), cp.asnumpy(density)
+
+def angle_signal_density_auto(video, x0, y0, N_bins: int = 360):
+    if CUPY_AVAILABLE:
+        return angle_signal_density_cupy(video, x0, y0, N_bins = 360)
+    else:
+        return angle_signal_density(video, x0, y0, N_bins = 360)

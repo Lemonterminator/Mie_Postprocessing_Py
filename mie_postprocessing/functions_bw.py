@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import cv2
 import concurrent.futures
+from scipy import ndimage
 
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
@@ -204,11 +205,93 @@ def triangle_binarize_from_float(img_f32, blur=True):
     u8 = cv2.normalize(img_f32, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     return triangle_binarize_u8(u8, blur=blur)
 
-def segment2bw(segment, j0=0, blur=True, max_workers=None):
-    T, H, W = segment.shape
-    bw_vid = np.empty((T, H, W), dtype=np.uint8)
-    thres_array = np.zeros(T, dtype=np.float32)
-    seg = (segment*255).astype(np.uint8)
+def keep_largest_component(bw, connectivity=2):
+    """
+    Keep only the largest connected component of 1s in a 2D binary array.
 
-    def work(j):
-        binj, t = triangle_binarize_from_float(segment[j], blur=blur)
+    Parameters
+    ----------
+    bw : array-like of {0,1}, shape (H, W)
+    connectivity : int, 1 or 2
+        1 -> 4-connectivity; 2 -> 8-connectivity (MATLAB default is 8).
+
+    Returns
+    -------
+    largest : ndarray of same shape, dtype same as input
+        Binary mask with only the largest component preserved.
+    """
+    binary_mask = np.asarray(bw, dtype=bool)
+    if connectivity == 1:
+        # 4-connectivity structure
+        structure = np.array([[0,1,0],
+                              [1,1,1],
+                              [0,1,0]], dtype=bool)
+    else:
+        # 8-connectivity structure
+        structure = np.ones((3, 3), dtype=bool)
+    
+    labeled, num_features = (ndimage.label(binary_mask, structure=structure))
+
+    # If blank then return blank
+    if num_features==0: return np.zeros_like(binary_mask, dtype=bw.dtype)
+
+    # Count pixels in each label, 0 is background
+    counts = np.bincount(labeled.ravel())
+    counts[0] = 0 # ignore background
+    largest_label = counts.argmax()
+    largest = (labeled == largest_label)
+    return largest.astype(bw.dtype)
+
+
+import numpy as np
+from scipy import ndimage
+
+def keep_largest_component_nd(bw, connectivity=None):
+    """
+    Keep only the largest connected component in an nD binary array.
+
+    Parameters
+    ----------
+    bw : array-like of {0,1}, shape (N1, N2, ..., Nk)
+    connectivity : int or None
+        For 2D:
+            1 -> 4-connectivity, 2 -> 8-connectivity
+        For 3D:
+            1 -> 6-connectivity, 2 -> 18-connectivity, 3 -> 26-connectivity
+        For nD:
+            in [1, nd], where nd = bw.ndim.
+        If None: use full connectivity (= bw.ndim).
+
+    Returns
+    -------
+    largest : ndarray of same shape, dtype same as input
+    """
+    binary_mask = np.asarray(bw, dtype=bool)
+    nd = binary_mask.ndim
+    if connectivity is None:
+        connectivity = nd  # full connectivity
+
+    if not (1 <= connectivity <= nd):
+        raise ValueError(f"connectivity must be in [1, {nd}], got {connectivity}")
+
+    structure = ndimage.generate_binary_structure(nd, connectivity)
+    labeled, num_features = ndimage.label(binary_mask, structure=structure)
+
+    if num_features == 0:
+        return np.zeros_like(binary_mask, dtype=bw.dtype)
+
+    counts = np.bincount(labeled.ravel())
+    counts[0] = 0
+    largest_label = counts.argmax()
+    largest = (labeled == largest_label)
+    return largest.astype(bw.dtype)
+
+def penetration_bw_to_index(bw):
+    arr = bw.astype(bool)
+    # Find where True elements exist
+    any_true = arr.any(axis=1)  # shape (N,)
+    # Reverse each row to find last occurrence efficiently
+    rev_idx = arr.shape[1] - 1 - arr[:, ::-1].argmax(axis=1)
+    # Mask rows with no True values
+    rev_idx[~any_true] = -1  # or use `np.nan` if float output is acceptable
+    return rev_idx    
