@@ -118,12 +118,13 @@ def main():
     centre, number_of_plumes = load_json()
 
     video = load()
-    video_raw = video
+    # video_raw = video
     # cutting some frames
     video = video[:60, :,:]
     # video_raw = video
     frames, height, width = video.shape
     # play_video_cv2(video)
+
     start_time = time.time()
 
     bkg = np.median(video[:17, :, :], axis = 0)
@@ -149,8 +150,9 @@ def main():
 
     start_time = time.time()
     # Cone angle
+    bins = 3600
     signal_density_bins, signal, density = angle_signal_density(
-        sub_bkg_med, centre_x, centre_y, N_bins=3600
+        sub_bkg_med, centre_x, centre_y, N_bins=bins
     )
 
     # Estimate optimal rotation offset using FFT of the summed angular signal
@@ -174,20 +176,54 @@ def main():
     segments = rotate_all_segments_auto(sub_bkg_med, angles, crop, centre, mask=mask)
 
     segments = np.array(segments)
+    P, F, R, C = segments.shape
     print(f"Rotation to segments completed in {time.time()-start_time:.3f}s")
 
 
     bw_vids, penetration = segments_computation(segments)
 
     penetration_old = np.zeros(penetration.shape)
-    col_sum_bw = np.sum(bw_vids, axis=2)
-    col_sum_bw = col_sum_bw[col_sum_bw >= 1]
+    col_sum_bw = np.sum(bw_vids, axis=2) >=1
     n_workers = min(os.cpu_count() + 4, P, 32) # type: ignore
     with ThreadPoolExecutor(max_workers=n_workers) as ex:
         futs = {ex.submit(penetration_bw_to_index, col_sum_bw[p]): p for p in range(col_sum_bw.shape[0])}
         for fut in as_completed(futs):
             penetration_old[futs[fut]] = fut.result()
-    # pen1d = penetration_bw_to_index(col_sum_bw).astype(np.float32)
+    
+    plt.plot(penetration.T)
+    plt.show()
+    plt.plot(penetration_old.T)
+    plt.show()
+
+    # Comparison
+    plt.plot(np.mean(penetration, axis=0))
+    plt.plot(np.mean(penetration_old, axis=0))
+    plt.show()
+    
+    play_videos_side_by_side(tuple(((1-bw_vids)*segments)[0:5]))
+    play_videos_side_by_side(tuple(((1-bw_vids)*segments)[5:]))
+
+    # 100 times gain
+    gain = 100
+    play_videos_side_by_side(tuple((gain*(1-bw_vids)*segments)[5:10]), intv=70)
+    play_videos_side_by_side(tuple((gain*(1-bw_vids)*segments)[5:]), intv=70)
+
+    # 1000_times gain
+    gain = 1000
+    play_videos_side_by_side(tuple((gain*(1-bw_vids)*segments)[5:10]), intv=70)
+    play_videos_side_by_side(tuple((gain*(1-bw_vids)*segments)[5:]), intv=70)
+
+    # Area demostration
+    area_all_segmets = np.sum(np.sum(bw_vids, axis=3), axis=2)
+    plt.plot(area_all_segmets.T)
+
+    # Cone Angle demostration
+    plot_angle_signal_density(np.linspace(0, 360, bins), signal, log=True)
+    bw_ang, thres = triangle_binarize_from_float(signal, blur=True)
+    plot_angle_signal_density(np.linspace(0, 360, bins), signal*bw_ang, log=True)
+
+    # Show that offset found by FFT calibrates the plume axis
+    plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang, log=True)
 
 if __name__  == '__main__':
     main()
