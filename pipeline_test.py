@@ -178,7 +178,16 @@ def main():
 
 
     bw_vids, penetration = segments_computation(segments)
-    
 
-if __name__ == '__main__':
+    penetration_old = np.zeros(penetration.shape)
+    col_sum_bw = np.sum(bw_vids, axis=2)
+    col_sum_bw = col_sum_bw[col_sum_bw >= 1]
+    n_workers = min(os.cpu_count() + 4, P, 32) # type: ignore
+    with ThreadPoolExecutor(max_workers=n_workers) as ex:
+        futs = {ex.submit(penetration_bw_to_index, col_sum_bw[p]): p for p in range(col_sum_bw.shape[0])}
+        for fut in as_completed(futs):
+            penetration_old[futs[fut]] = fut.result()
+    # pen1d = penetration_bw_to_index(col_sum_bw).astype(np.float32)
+
+if __name__  == '__main__':
     main()

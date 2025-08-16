@@ -3,3 +3,6 @@ Cine/
 runs_mlp/
 *.csv
 *.bak
+__pycache__/
+*.pyc
+__pycache__/*.pyc
