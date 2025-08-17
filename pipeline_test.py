@@ -127,9 +127,9 @@ def main():
 
     start_time = time.time()
 
-    bkg = np.median(video[:17, :, :], axis = 0)
+    bkg = np.median(video[:17, :, :], axis = 0)[None, :, :]
 
-    sub_bkg = video - bkg[None, :, :]
+    sub_bkg = video - bkg
 
     sub_bkg_med = median_filter_video_auto(sub_bkg, 3, 3)
 
@@ -224,6 +224,29 @@ def main():
 
     # Show that offset found by FFT calibrates the plume axis
     plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang, log=True)
+    
+    # Cone Angle
+    shift_bins = int(round(offset/360*bins))
+    bw_shifted = np.roll(bw_ang, -shift_bins, axis=1)
+    # Closing
+    struct = np.ones((1, 3), dtype=bool)
+    plume_widths  = np.zeros((number_of_plumes, bw_ang.shape[0]), dtype= np.float32)
+    from scipy.ndimage import binary_closing
+    for p in range(number_of_plumes):
+        start = int(round(p * bins / number_of_plumes))
+        end = int(round((p + 1) * bins / number_of_plumes))
+        region = bw_shifted[:, start:end]
+        closed = binary_closing(region, structure=struct)
+        bw_shifted[:, start:end] = closed
+        plume_widths[p] = closed.sum(axis=1) * (360.0 / bins)
+    
+    bw_ang_closed = np.roll(bw_shifted, shift_bins, axis=1)
+    plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang_closed, log=True)
+
+    print("Plume widths per frame (degrees):")
+    plt.plot(plume_widths.T)
+    # for p, w in enumerate(plume_widths):
+        # print(f"Plume {p}:", w)
 
 if __name__  == '__main__':
     main()
