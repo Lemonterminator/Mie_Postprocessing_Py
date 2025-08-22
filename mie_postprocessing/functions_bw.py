@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import cv2
 import concurrent.futures
 from scipy import ndimage
+from concurrent.futures import ProcessPoolExecutor
 
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
@@ -112,7 +113,7 @@ def apply_hole_filling_video(opened_video: np.ndarray):
     return processed_video, area
 
     from scipy.ndimage import binary_fill_holes
-from concurrent.futures import ProcessPoolExecutor
+
 
 def _fill_frame(frame_bool):
     filled = binary_fill_holes(frame_bool)
@@ -242,10 +243,6 @@ def keep_largest_component(bw, connectivity=2):
     largest = (labeled == largest_label)
     return largest.astype(bw.dtype)
 
-
-import numpy as np
-from scipy import ndimage
-
 def keep_largest_component_nd(bw, connectivity=None):
     """
     Keep only the largest connected component in an nD binary array.
@@ -295,3 +292,27 @@ def penetration_bw_to_index(bw):
     # Mask rows with no True values
     rev_idx[~any_true] = -1  # or use `np.nan` if float output is acceptable
     return rev_idx    
+
+def bw_boundaries_all_segments(
+    bw_vids, penetration_old, lo=0.0, hi=1.0, connectivity=2,
+    parallel=False, max_workers=None
+):
+    """
+    Parameters
+    ----------
+    bw_vids : array, shape (R, F, H, W), binary
+    penetration_old : array, shape (R, F), in pixels along x
+    lo, hi : floats for fraction of penetration to keep (inclusive range)
+    connectivity : 1 (4-neigh) or 2 (8-neigh)
+    parallel : bool, use threads across frames for speed
+    max_workers : int or None
+
+    Returns
+    -------
+    result : list length R; each item is list length F of tuples (coords_top, coords_bottom),
+             where coords_* are (N,2) int arrays of (y,x).
+    """
+    R, F, H, W = bw_vids.shape
+    assert penetration_old.shape == (R, F)
+    
+    result = [[None] * F for _ in range(R)]

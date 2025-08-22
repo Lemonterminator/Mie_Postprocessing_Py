@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
 try:  # pragma: no cover - runtime hardware dependent
@@ -86,7 +87,7 @@ def plot_angle_signal_density(bins, signal, *, log=False, plume_angles=None):
         Angles in degrees indicating plume directions. Vertical lines are drawn
         at these angles.
     """
-    import matplotlib.pyplot as plt
+    
 
     arr = np.log1p(signal) if log else signal
     arr2d = arr if arr.ndim == 2 else arr[None]
