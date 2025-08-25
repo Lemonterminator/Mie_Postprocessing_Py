@@ -4,6 +4,7 @@ from mie_postprocessing.cone_angle import *
 from mie_postprocessing.ssim import *
 from mie_postprocessing.video_filters import *
 from mie_postprocessing.functions_bw import *
+from mie_postprocessing.video_playback import *
 import matplotlib.pyplot as plt
 import subprocess
 from scipy.signal import convolve2d

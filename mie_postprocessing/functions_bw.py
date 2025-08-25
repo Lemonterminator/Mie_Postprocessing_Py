@@ -169,7 +169,7 @@ def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
     return (filled_gpu.astype(bw_video.dtype) * 255
             if bw_video.max() > 1
             else filled_gpu.astype(bw_video.dtype))
-
+'''
 def triangle_binarize(ang_float32, blur=True):
     # 1. Clean / normalize to [0,255] uint8
     img = np.nan_to_num(ang_float32, nan=0.0)  # avoid NaNs
@@ -205,7 +205,7 @@ def triangle_binarize_from_float(img_f32, blur=True):
     # Fast normalize to 0..255 uint8 in one call (releases GIL)
     u8 = cv2.normalize(img_f32, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     return triangle_binarize_u8(u8, blur=blur)
-
+'''
 def keep_largest_component(bw, connectivity=2):
     """
     Keep only the largest connected component of 1s in a 2D binary array.
@@ -316,3 +316,108 @@ def bw_boundaries_all_segments(
     assert penetration_old.shape == (R, F)
     
     result = [[None] * F for _ in range(R)]
+
+
+def _triangle_threshold_from_hist(hist):
+    """
+    Compute the Triangle threshold index from a 256-bin histogram.
+    Returns an integer t in [0, 255].
+    """
+    # active range
+    nz = np.flatnonzero(hist)
+    if nz.size == 0:
+        return 0
+    left, right = int(nz[0]), int(nz[-1])
+
+    # peak
+    peak = int(np.argmax(hist))
+    h_peak = float(hist[peak])
+
+    # choose the farther endpoint from peak to form the baseline
+    if (peak - left) >= (right - peak):
+        end = left
+    else:
+        end = right
+
+    # line through (peak, h_peak) and (end, h_end)
+    h_end = float(hist[end])
+    dx = end - peak
+    dy = h_end - h_peak
+
+    # avoid division by zero when dx==0 (degenerate but handle anyway)
+    if dx == 0:
+        return peak
+
+    # for each i between peak and end, compute perpendicular distance to the line
+    if end > peak:
+        idx = np.arange(peak, end + 1)
+    else:
+        idx = np.arange(end, peak + 1)
+
+    # vector from peak to (i, hist[i])
+    xi = idx - peak
+    yi = hist[idx].astype(float) - h_peak
+
+    # distance = |dy*xi - dx*yi| / sqrt(dx^2 + dy^2); denominator common -> argmax numerator
+    num = np.abs(dy * xi - dx * yi)
+    i_rel = int(np.argmax(num))
+    t = int(idx[i_rel])
+    return t
+
+
+def triangle_binarize_u8(u8, blur=True, ignore_zero=False, threshold_on_unblurred=True):
+    """
+    Triangle-threshold an 8-bit image with optional zero-ignoring.
+
+    Parameters
+    ----------
+    u8 : np.uint8, shape (H, W)
+    blur : bool
+        Apply Gaussian blur before binarization (for smoother masks).
+    ignore_zero : bool
+        If True, compute the threshold from the histogram of non-zero pixels only.
+        (Zero bin is removed from the histogram to avoid bias from large masked areas.)
+    threshold_on_unblurred : bool
+        If True and ignore_zero=True, derive the threshold from the *unblurred* image
+        to avoid blur leaking non-zero into zero regions; then apply that threshold
+        to the (optionally) blurred image.
+
+    Returns
+    -------
+    binarized : np.uint8 in {0,255}
+    t : int (threshold in 0..255 used on the final image)
+    """
+    if u8.dtype != np.uint8:
+        u8 = u8.astype(np.uint8, copy=False)
+
+    # choose image for threshold computation
+    u8_for_t = u8 if (ignore_zero and threshold_on_unblurred) else (cv2.GaussianBlur(u8, (5,5), 0) if blur else u8)
+
+    if ignore_zero:
+        # histogram on non-zero pixels only (set hist[0]=0)
+        hist = cv2.calcHist([u8_for_t], [0], None, [256], [0,256]).flatten()
+        hist[0] = 0
+        # if all non-zero vanish, return all zeros
+        if hist.sum() == 0:
+            return np.zeros_like(u8), 0
+        t = _triangle_threshold_from_hist(hist)
+        # now apply threshold to (optionally) blurred image
+        u8_apply = cv2.GaussianBlur(u8, (5,5), 0) if blur else u8
+        _, binarized = cv2.threshold(u8_apply, t, 255, cv2.THRESH_BINARY)
+        return binarized, int(t)
+    else:
+        # fast OpenCV path (zeros included)
+        u8_apply = cv2.GaussianBlur(u8, (5,5), 0) if blur else u8
+        t, binarized = cv2.threshold(u8_apply, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE)
+        return binarized, int(t)
+
+
+def triangle_binarize_from_float(img_f32, blur=True, ignore_zero=False, threshold_on_unblurred=True):
+    """
+    Normalize float image to 0..255 u8 and apply Triangle binarization with optional zero-ignoring.
+    """
+    # Fast normalize to 0..255 uint8 (releases GIL internally)
+    u8 = cv2.normalize(img_f32, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    return triangle_binarize_u8(
+        u8, blur=blur, ignore_zero=ignore_zero, threshold_on_unblurred=threshold_on_unblurred
+    )

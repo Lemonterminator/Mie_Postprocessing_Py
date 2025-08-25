@@ -4,6 +4,7 @@ from mie_postprocessing.cone_angle import *
 from mie_postprocessing.ssim import *
 from mie_postprocessing.video_filters import *
 from mie_postprocessing.functions_bw import *
+from mie_postprocessing.video_playback import *
 from sklearn.preprocessing import normalize
 from tkinter import ttk, filedialog, messagebox, colorchooser
 import matplotlib.pyplot as plt
@@ -19,121 +20,11 @@ import time
 
 from skimage import measure
 from scipy.ndimage import binary_erosion, generate_binary_structure
+from scipy.stats import norm
 
 global visualization 
 visualization = True
 
-def _frame_to_uint8(frame, gain=1.0, binarize=False, thresh=0.5):
-    """Match your play_video_cv2 conversion."""
-    if binarize:
-        if frame.dtype != bool:
-            frame_bool = frame > thresh
-        else:
-            frame_bool = frame
-        return (frame_bool.astype(np.uint8)) * 255
-
-    dtype = frame.dtype
-    if np.issubdtype(dtype, np.integer):
-        # assume 16-bit-ish scale; shrink to 8-bit then apply gain
-        out = (frame / 16).astype(np.uint8)
-        if gain != 1.0:
-            out = np.clip(out.astype(np.float32) * gain, 0, 255).astype(np.uint8)
-        return out
-    elif np.issubdtype(dtype, np.floating):
-        return np.clip(gain * (frame * 255.0), 0, 255).astype(np.uint8)
-    else:
-        out = (frame / 16).astype(np.uint8)
-        if gain != 1.0:
-            out = np.clip(out.astype(np.float32) * gain, 0, 255).astype(np.uint8)
-        return out
-
-
-def play_video_with_boundaries_cv2(
-    video,                          # array-like, shape (F, H, W)
-    boundaries_for_rep,             # list/seq length F of (coords_top, coords_bottom), each (N,2) (y,x)
-    gain=1.0,
-    binarize=False,
-    thresh=0.5,
-    intv=17,
-    color_top=(0, 0, 255),          # BGR red
-    color_bottom=None,              # defaults to same as color_top
-    thickness=1,                    # 0 -> 1px; otherwise dilate radius in pixels
-    alpha=1.0                       # 1.0 -> hard paint; <1.0 -> blend
-):
-    """
-    Overlay precomputed boundary points on each frame and play with OpenCV.
-
-    - `boundaries_for_rep[f] = (coords_top, coords_bottom)`
-    - Each coords_* is int array of shape (N,2) with (y,x).
-
-    If `color_bottom` is None, uses `color_top`.
-    `thickness` uses dilation on the mask: kernel size = 2*thickness + 1.
-    """
-    if color_bottom is None:
-        color_bottom = color_top
-
-    video = np.asarray(video)
-    F = len(video)
-    if F == 0:
-        return
-
-    # Prebuild dilation kernel (optional)
-    ksz = max(1, 2 * int(thickness) + 1)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksz, ksz)) if ksz > 1 else None
-
-    for f in range(F):
-        frame = video[f]
-        H, W = frame.shape[-2], frame.shape[-1]
-
-        # Convert to uint8 grayscale
-        frame_u8 = _frame_to_uint8(frame, gain=gain, binarize=binarize, thresh=thresh)
-
-        # Make BGR for color overlay
-        frame_bgr = cv2.cvtColor(frame_u8, cv2.COLOR_GRAY2BGR)
-
-        # Build masks from coords
-        mask_top = np.zeros((H, W), dtype=np.uint8)
-        mask_bot = np.zeros((H, W), dtype=np.uint8)
-
-        coords_top, coords_bot = boundaries_for_rep[f]
-        # Guard empty
-        if coords_top.size:
-            ys, xs = coords_top[:, 0], coords_top[:, 1]
-            # clip just in case
-            inb = (ys >= 0) & (ys < H) & (xs >= 0) & (xs < W)
-            mask_top[ys[inb], xs[inb]] = 255
-        if coords_bot.size:
-            ys, xs = coords_bot[:, 0], coords_bot[:, 1]
-            inb = (ys >= 0) & (ys < H) & (xs >= 0) & (xs < W)
-            mask_bot[ys[inb], xs[inb]] = 255
-
-        # Thicken if requested
-        if kernel is not None:
-            if mask_top.any():
-                mask_top = cv2.dilate(mask_top, kernel, iterations=1)
-            if mask_bot.any():
-                mask_bot = cv2.dilate(mask_bot, kernel, iterations=1)
-
-        # Compose a single color overlay
-        overlay = frame_bgr.copy()
-        if mask_top.any():
-            overlay[mask_top > 0] = color_top
-        if mask_bot.any():
-            overlay[mask_bot > 0] = color_bottom
-
-        if alpha >= 1.0:
-            # Hard paint only where masks are set
-            m = (mask_top > 0) | (mask_bot > 0)
-            frame_bgr[m] = overlay[m]
-        else:
-            # Blend entire frame; cheaper is to blend once globally
-            frame_bgr = cv2.addWeighted(overlay, alpha, frame_bgr, 1.0 - alpha, 0.0)
-
-        cv2.imshow('Frame + Boundary', frame_bgr)
-        if cv2.waitKey(intv) & 0xFF == ord('q'):
-            break
-
-    cv2.destroyAllWindows()
 
 
 def _process_one_frame(bw, xlo, xhi, connectivity=2):
@@ -221,13 +112,47 @@ def bw_boundaries_xband_split(
 
 def find_penetration(intensity2d:np.ndarray) -> np.ndarray:
      # intensity2d: (F, C), float32
-    pen_2d, _ = triangle_binarize_from_float(intensity2d, blur=True)
+    # pen_2d, _ = triangle_binarize_from_float(intensity2d, blur=False)
+
+    arr = np.asarray(intensity2d, dtype=np.float32)
+    assert arr.ndim == 2
+
+    # Valid mask
+    mask = np.isfinite(arr) & (arr > 0)
+
+    # normalize only over masked pixels -> uint8 in [0,255]
+    u8 = np.zeros_like(arr, dtype=np.uint8)
+    if mask.any():
+        u8 = cv2.normalize(
+            arr, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U,
+            mask=mask.astype(np.uint8)  # min/max from masked region only
+        ) # type: ignore
+
+    if u8.dtype != np.uint8:
+        u8 = u8.astype(np.uint8, copy=False)
+
+    edges = cv2.Canny(u8, 50, 150)
+    # visualize
+    cv2.imshow("edges", edges)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    plt.imshow(u8*edges, origin="lower", cmap="gray")
+
+    plt.show()
+ 
+
+ 
+    _, pen_2d = cv2.threshold(u8, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)        
+    
+
     largest = keep_largest_component(pen_2d, connectivity=2)
     pen1d = penetration_bw_to_index(largest).astype(np.float32)
     pen1d[pen1d < 0] = np.nan
     return pen1d
 
 def segments_computation(segments, mask):
+
     # segmnets has shape [plume number, frame, rows, cols]
 
     # Map of intensity and time by summing over rows
@@ -242,10 +167,44 @@ def segments_computation(segments, mask):
     # Converting intensity maps to penetration
     start_time = time.time()
     n_workers = min(os.cpu_count() + 4, P, 32) # type: ignore
+    for p in range(P):
+            # Valid mask
+        arr = td_intensity_maps[p]
+        mask = np.isfinite(arr) & (arr > 0)
+
+        # normalize only over masked pixels -> uint8 in [0,255]
+        u8 = np.zeros_like(arr, dtype=np.uint8)
+        if mask.any():
+            u8 = cv2.normalize(
+                arr, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U,
+                mask=mask.astype(np.uint8)  # min/max from masked region only
+            ) # type: ignore
+
+        if u8.dtype != np.uint8:
+            u8 = u8.astype(np.uint8, copy=False)
+
+        edges = cv2.Canny(u8, 50, 150)
+        penetration[p] = np.argmax(edges, axis=0)
+        '''
+        # visualize
+        cv2.imshow("edges", edges)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        plt.imshow(u8*edges, origin="lower", cmap="gray")
+
+        plt.show()
+        '''
+        # penetration[p] = find_penetration(td_intensity_maps[p])
+    '''    
     with ThreadPoolExecutor(max_workers=n_workers) as ex:
         futs = {ex.submit(find_penetration, td_intensity_maps[p]) : p for p in range(P)}
         for fut in as_completed(futs):
             penetration[futs[fut]] = fut.result()
+    '''
+    if visualization:
+        plt.imshow(td_intensity_maps[0].T, origin="lower", aspect="auto")
+        plt.plot(penetration[0], color="red")
     print(f"Penetration calculation completed in {time.time()-start_time:.3f}s")
          
     # for plume_num, intensity2d in enumerate(td_intensity_maps):
@@ -267,6 +226,10 @@ def segments_computation(segments, mask):
     masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
     hydraulic_delay = masks.argmax(axis=1) + 1
 
+    # Resetting to 0 before hydraulic delay.
+    for p in range(P):
+        penetration[p, :hydraulic_delay[p]] = 0.0
+
     ''''''
     # bw_vids has shape [plume number, frame, rows, cols]
     bw_vids = np.zeros(segments.shape)
@@ -281,19 +244,26 @@ def segments_computation(segments, mask):
         
         # for j in range(hydraulic_delay[i], avg_peak):
         for j in range(hydraulic_delay[i], len(segment)):
-            bw_vid[j], thres_temp = triangle_binarize(segment[j], blur=True)
-            thres_array[j] = thres_temp/255.0
-        
+            # bw_vid[j], thres_temp = triangle_binarize_from_float(segment[j], blur=True)
+            bw_temp, _ = triangle_binarize_from_float(segment[j], blur=True)
+            bw_vid[j] = keep_largest_component(bw_temp)
         
         # thres_array[j:] = thres_array[j]
         # bw_vid[0:hydraulic_delay[i]] = (segment[0:hydraulic_delay[i]] > thres_array[hydraulic_delay[i]]).astype(int)
         # bw_vid[avg_peak:] = (segment[avg_peak:] > thres_array[avg_peak]).astype(int)
         # play_video_cv2(bw_vid*255)
         # play_video_cv2((1-bw_vid)*segment)
-        bw_vid = keep_largest_component_nd(bw_vid)
+        
+        # bw_vid = keep_largest_component_nd(bw_vid)
+
         bw_vids[i] = bw_vid
     print(f"Time elapsed in triangular segmetation for all segments: {time.time()-start_time:.3f}s")
     return bw_vids, penetration
+
+
+
+
+
 
 def load() -> np.ndarray:
     path = filedialog.askopenfilename(filetypes=[('Cine','*.cine')])
@@ -341,6 +311,11 @@ def main():
     sub_bkg_med = median_filter_video_auto(sub_bkg, 5, 3)
 
     sub_bkg_med[sub_bkg_med<0] = 0
+
+    px_range = np.max(sub_bkg_med, axis=0) - np.min(sub_bkg_med, axis=0)
+    range_mask, _ = triangle_binarize_from_float(px_range)
+
+    sub_bkg_med = mask_video(sub_bkg_med, range_mask)
 
     if visualization:
         fig, ax = plt.subplots(2, 2, figsize=(13,11))
@@ -472,8 +447,17 @@ def main():
     segments = rotate_all_segments_auto(sub_bkg_med, angles, crop, centre, mask=mask)
 
     segments = np.array(segments)
+
+    
     P, F, R, C = segments.shape
+    
     print(f"Rotation to segments completed in {time.time()-start_time:.3f}s")
+    # Gaussian suppressor
+    # x = np.arange(0, C)
+    # pmf = norm.pdf(x, loc=0, scale=C/8)
+    # pmf/= np.max(pmf)
+    # brightness_scale = 1-pmf+np.min(pmf)
+    # segments = segments*brightness_scale[None, None, None, :]
 
     if visualization:
         fig, ax = plt.subplots(2,2, figsize=(18,16))
@@ -531,10 +515,10 @@ def main():
     # Cone Angle demostration
 
     bw_ang, thres = triangle_binarize_from_float(signal, blur=True)
-    plot_angle_signal_density(np.linspace(0, 360, bins), signal*bw_ang, log=True)
+    # plot_angle_signal_density(np.linspace(0, 360, bins), signal*bw_ang, log=True)
 
     # Show that offset found by FFT calibrates the plume axis
-    plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang, log=True)
+    # plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang, log=True)
     
     # Cone Angle
     shift_bins = int(round(offset/360*bins))
@@ -551,8 +535,8 @@ def main():
         bw_shifted[:, start:end] = closed
         plume_widths[p] = closed.sum(axis=1) * (360.0 / bins)
     
-    bw_ang_closed = np.roll(bw_shifted, shift_bins, axis=1)
-    plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang_closed, log=True)
+    # bw_ang_closed = np.roll(bw_shifted, shift_bins, axis=1)
+    # plot_angle_signal_density(np.linspace(0, 360, bins) - offset, signal*bw_ang_closed, log=True)
 
     print("Plume widths per frame (degrees):")
     plt.plot(plume_widths.T)
@@ -566,6 +550,11 @@ def main():
     # Play repetition i overlaid with red boundary:
     i = 4
     play_video_with_boundaries_cv2(segments[i], boundaries[i], gain=1.0, binarize=False, intv=170)
+
+    # segments: shape [P][F][H][W] (or ndarray with that shape)
+    # boundaries: shape [P][F][2][N,2]   # like boundaries[p][f][0], boundaries[p][f][1]
+    play_segments_with_boundaries(segments, boundaries, p=0, gain=1.0, intv=170, origin='lower')
+
 
 if __name__  == '__main__':
     main()
