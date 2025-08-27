@@ -72,44 +72,55 @@ def _remap_frame(frame: np.ndarray, map_x: np.ndarray, map_y: np.ndarray, use_cu
             return cv2.remap(frame, map_x, map_y, interpolation=cv2.INTER_CUBIC)
 
 def _remap_frame_cupy(frame, map_x, map_y, interpolation=cv2.INTER_CUBIC):
-    """Remap a single frame using CuPy for GPU acceleration, wiuth cupyx.scipy.ndimage.map_coordinates."""
+    """Remap a single CuPy frame using ``cupyx.scipy.ndimage.map_coordinates``."""
     import cupy as cp
     from cupyx.scipy.ndimage import map_coordinates
-    order_map = {cv2.INTER_NEAREST:0, cv2.INTER_LINEAR:1, cv2.INTER_CUBIC:3}
+
+    order_map = {cv2.INTER_NEAREST: 0, cv2.INTER_LINEAR: 1, cv2.INTER_CUBIC: 3}
     order = order_map.get(interpolation, 1)
 
     coords = cp.stack((map_y, map_x))
+    return map_coordinates(frame, coords, order=order, mode="constant", cval=0.0)
 
-    return (map_coordinates(frame, coords, order=order, mode='constant', cval=0.0))
+def _remap_video_cupy(
+    video, map_x, map_y, interpolation=cv2.INTER_CUBIC, max_workers: Optional[int] = 1
+):
+    """Remap a stack of CuPy frames entirely on the GPU.
 
-def _remap_video_cupy(video, map_x, map_y, interpolation=cv2.INTER_CUBIC):
+    Parameters
+    ----------
+    video : cp.ndarray
+        Input stack of frames on the GPU.
+    map_x, map_y : array-like
+        Precomputed coordinate maps.
+    interpolation : int
+        OpenCV interpolation flag.
+    max_workers : int, optional
+        Number of worker threads. Defaults to ``1`` to avoid CPU
+        oversubscription when this function is invoked from an outer
+        thread pool.
     """
-    Remap a stack of CuPY frames entirely on the GPU. 
-    Parallelized through multithreading.
-    """
-    num_frames = video.shape[0]
     import cupy as cp
+
     map_x_cp = cp.asarray(map_x)
     map_y_cp = cp.asarray(map_y)
+    num_frames = video.shape[0]
+    rotated = [None] * num_frames
 
-    
-    rotated = [None]*num_frames
-    max_workers = None
-    def task(idx: int):
-        return idx, _remap_frame_cupy(video[idx], map_x_cp, map_y_cp, interpolation)
+    if max_workers in (None, 1):
+        for idx in range(num_frames):
+            rotated[idx] = _remap_frame_cupy(
+                video[idx], map_x_cp, map_y_cp, interpolation
+            )
+    else:
+        def task(idx: int):
+            return idx, _remap_frame_cupy(video[idx], map_x_cp, map_y_cp, interpolation)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as exe:
-        futures = [exe.submit(task, i) for i in range(num_frames)]
-        for fut in as_completed(futures):
-            idx, out = fut.result()
-            rotated[idx] = out
-    '''
-    out_frames = []
-    for idx in range(video.shape[0]):
-        out = _remap_frame_cupy(video[idx], map_x_cp, map_y_cp, interpolation)
-        out_frames.append(out)
-    return cp.stack(out_frames, axis=0)
-    '''
+        with ThreadPoolExecutor(max_workers=max_workers) as exe:
+            futures = [exe.submit(task, i) for i in range(num_frames)]
+            for fut in as_completed(futures):
+                idx, out = fut.result()
+                rotated[idx] = out
     return cp.stack(rotated, axis=0)
     
 
@@ -163,7 +174,6 @@ def rotate_and_crop(
     else:
         h, w = array.shape[:2]
 
-    
     map_x, map_y = make_rotation_maps((h, w), angle, crop_rect, rotation_center)
 
     if mask is not None:
@@ -176,19 +186,18 @@ def rotate_and_crop(
         map_y[~mask_bool] = -1
 
     cp = None
-    use_cuda = False
-    try: 
-        import cupy as cp
+    is_cupy = False
+    try:
+        import cupy as cp  # type: ignore
         is_cupy = isinstance(array, cp.ndarray)
     except Exception:
-        cp =None
-    
-    if is_cupy:
-        map_x = cp.asarray(map_x) # type:ignore
-        map_y = cp.asarray(map_y) # type:ignore
-    
-    use_cuda = False
+        cp = None
 
+    if is_cupy:
+        map_x = cp.asarray(map_x)   # type:ignore
+        map_y = cp.asarray(map_y)   # type:ignore
+
+    use_cuda = False
     if not is_cupy:
         try:
             if hasattr(cv2, 'cuda') and cv2.cuda.getCudaEnabledDeviceCount() > 0:
@@ -199,7 +208,7 @@ def rotate_and_crop(
     if is_video:
         num_frames = array.shape[0]
         if is_cupy:
-            return _remap_video_cupy(array, map_x, map_y)
+            return _remap_video_cupy(array, map_x, map_y, max_workers=max_workers)
         if use_cuda:
             return _remap_video_cuda(array, map_x, map_y)
         rotated = [None] * num_frames
@@ -216,6 +225,7 @@ def rotate_and_crop(
     else:
         if is_cupy:
             return _remap_frame_cupy(array, map_x, map_y)
+        return _remap_frame(array, map_x, map_y, use_cuda)
 
     
 def generate_CropRect(inner_radius, outer_radius, number_of_plumes, centre_x, centre_y):
@@ -445,7 +455,7 @@ def rotate_all_segments_auto(video, angles, crop, centre, mask=None):
             exe.submit(
                 # rotate_and_crop, video, angle, crop, centre,
                 rotate_and_crop, video, angle, crop, centre,
-                is_video=True, mask=mask
+                is_video=True, mask=mask, max_workers=None
             ): idx for idx, angle in enumerate(angles)
         }
         segments_with_idx = []

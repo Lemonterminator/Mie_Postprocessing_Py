@@ -152,8 +152,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     
     
     segments = mie_multihole_pipeline(video, centre, number_of_plumes)
-
-    segments = np.stack(segments, axis=0)
+    
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
 

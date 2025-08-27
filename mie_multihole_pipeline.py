@@ -269,8 +269,9 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
     
     # Generate the crop rectangle based on the plume parameters
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
-
+    # Angles of ideal spary axis
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
+    # Triangular plume region mask with offsets.
     mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
     # ``foreground`` may still reside on the GPU if ``preprocessing`` ran on
@@ -279,9 +280,98 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
     foreground = xp.asarray(foreground, dtype=xp.float32, copy=False)
     segments = rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
     elapsed_time = time.time() - start_time
-    print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
+    
 
     segments = xp.stack(segments, axis=0)
+
+    print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
+
+    # Time-distance-intensity maps
+    td_intensity_maps = xp.sum(segments, axis=2)
+    P, F, C = td_intensity_maps.shape
+
+    # Number of none-zero in each column in the mask
+    count = np.sum(mask.astype(np.uint8), axis=0)
+    count = xp.asarray(count) # to GPU if needed
+
+    # Average td_intensity_maps by count
+    # Time-distance-intensity maps are now the average column intensity,
+    # in each plume, frame, at each distance from the centre 
+    td_intensity_maps = td_intensity_maps/count[None, None, :]
+
+    # summing over each image to get the total intensity in each image at each frame
+    energies = xp.sum(td_intensity_maps, axis=2)
+    # Find the frame with peak brightness
+    peak_brightness_frames = xp.argmax(energies, axis=1)
+    avg_peak = int(xp.mean(peak_brightness_frames))
+
+    # Hydraulic delay estimation
+    # multiplier: manual, x times of the total instensity compared to no plume frames
+    multiplier = 100
+    # Threshold for the derivative of energy. 
+    # Computed as the multiplier *  blank frame enrgy (first frame) / peak energy
+    thres_derivative = multiplier*energies[:,0]/energies[:,avg_peak]
+    rows = segments.shape[2]; cols = segments.shape[3]
+
+    # Define a custom region near the nozzle to compute the energy
+    H_low = round(rows*3/7); H_high = round(rows*4/7)
+    W_right = round(cols/10)
+    near_nozzle_energies = xp.sum(xp.sum(segments[:, :avg_peak, H_low:H_high, :W_right], axis=3), axis=2)
+    # Find the discrete derivative of energy in this region
+    dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
+    masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
+    hydraulic_delay = masks.argmax(axis=1) 
+
+    penetration = np.full((P, F), np.nan, dtype=np.float32)
+
+    
+    fig, ax = plt.subplots(P//2, 2, figsize=(12, 3*P/2))
+    for p in range(P):
+        # Correcting decay after peak brightness frame
+        decay_curve = energies[p, peak_brightness_frames[p]:]
+        decay_curve = decay_curve/np.max(decay_curve)
+        td_intensity_maps[p, peak_brightness_frames[p]:, :] = td_intensity_maps[p, peak_brightness_frames[p]:, :]/decay_curve[:,None]
+        
+        
+        arr = td_intensity_maps[p, :, :]
+        mask = np.isfinite(arr) & (arr > 0)
+
+        # normalize only over masked pixels -> uint8 in [0,255]
+        u8 = np.zeros_like(arr, dtype=np.uint8)
+        if mask.any():
+            u8 = cv2.normalize(
+                arr.get(), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U,
+                mask=mask.get().astype(np.uint8)  # min/max from masked region only
+            ) # type: ignore
+
+        if u8.dtype != np.uint8:
+            u8 = u8.astype(np.uint8, copy=False)
+
+        # Try transposed
+        u8 = cv2.equalizeHist(u8.T)
+        X, F = u8.shape
+
+        # With triangular threshold to find penetration
+        # _, bw = cv2.threshold(u8, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        bw, thres = triangle_binarize_u8(u8, blur=False)
+        bw= keep_largest_component(bw)
+        edge_tri = np.argmax(bw[::-1, :], axis=0)
+        edge_tri = bw.shape[0]-edge_tri
+        edge_tri[0:round(F/2)][edge_tri[0:round(F/2)]==X]=0
+        
+        penetration[p] = edge_tri
+
+        plt.figure(1)
+        ax[p//2, p%2].imshow(u8, origin="lower", aspect="auto")
+        ax[p//2, p%2].plot(edge_tri, color="blue")
+
+    plt.figure(2)
+    plt.plot(penetration.T)
+    plt.title("Penetation")
+    plt.show()
+
     if use_gpu:
-        segments = xp.asnumpy(segments) # type: ignore
+        segments = xp.asnumpy(segments)
+
+    
     return segments
