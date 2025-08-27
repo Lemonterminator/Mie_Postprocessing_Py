@@ -5,7 +5,9 @@ from mie_postprocessing.ssim import *
 from mie_postprocessing.video_filters import *
 from mie_postprocessing.functions_bw import *
 from mie_postprocessing.video_playback import *
-from sklearn.preprocessing import normalize
+from mie_multihole_pipeline import *
+
+# from sklearn.preprocessing import normalize
 from tkinter import ttk, filedialog, messagebox, colorchooser
 import matplotlib.pyplot as plt
 import subprocess
@@ -23,7 +25,66 @@ from scipy.ndimage import binary_erosion, generate_binary_structure
 from scipy.stats import norm
 
 global visualization 
-visualization = True
+visualization = False
+
+# import numpy as np
+# import cv2
+# import matplotlib.pyplot as plt
+from skimage.measure import find_contours  # pip install scikit-image
+
+def upper_boundary_contour(u8, q=0.80, smooth_sigma=1.5, monotonic=True, show=False):
+    """
+    u8: 2D array (X, F) in your code after transpose; origin='lower' when plotting.
+    q:  quantile level for the iso-contour (0..1). Increase if boundary falls too low.
+    """
+    # 1) Light smoothing to suppress speckle; keep edges sharp-ish
+    if smooth_sigma > 0:
+        u8f = cv2.GaussianBlur(u8.astype(np.float32), ksize=(0,0), sigmaX=smooth_sigma)
+    else:
+        u8f = u8.astype(np.float32)
+
+    # 2) Pick an iso-intensity level by quantile (ignore zeros/NaNs)
+    valid = np.isfinite(u8f) & (u8f > 0)
+    level = np.quantile(u8f[valid], q)
+
+    # 3) Marching-squares contours at this level
+    cs = find_contours(u8f, level=level)  # list of (N_i, 2) arrays in (row, col) = (y, x)
+    if not cs:
+        return None, level
+
+    X, F = u8f.shape
+
+    # 4) Choose the contour that spans the widest x-range (best for an envelope)
+    def span_x(c): 
+        xs = c[:,1]
+        return xs.max() - xs.min()
+    C = max(cs, key=span_x)
+
+    # 5) Build an upper envelope: for each integer column, take the MAX y along the contour
+    xs = C[:,1]; ys = C[:,0]
+    # Bin by integer columns
+    col = np.clip(xs.round().astype(int), 0, F-1)
+    y_max = np.full(F, np.nan, dtype=np.float32)
+    for j in range(F):
+        sel = (col == j)
+        if np.any(sel):
+            y_max[j] = ys[sel].max()  # "upper" in image coords (bigger row index)
+    # Fill gaps by linear interpolation
+    good = np.isfinite(y_max)
+    if good.sum() >= 2:
+        y_max[~good] = np.interp(np.flatnonzero(~good), np.flatnonzero(good), y_max[good])
+
+    # 6) Enforce non-decreasing (喷雾贯入应随时间单调增加). Optional.
+    if monotonic:
+        y_max = np.maximum.accumulate(y_max)
+
+    if show:
+        plt.imshow(u8f, origin="lower", aspect="auto")
+        plt.plot(y_max, label=f"Contour q={q:.2f}")
+        plt.legend(); plt.show()
+
+    # Convert back to your coordinate convention if needed
+    return y_max, level
 
 
 
@@ -158,17 +219,86 @@ def segments_computation(segments, mask):
     # Map of intensity and time by summing over rows
     # td_intensity_maps has shape [plume number, frame, cols]
     td_intensity_maps = np.sum(segments, axis=2)
+
     count = np.sum(mask.astype(np.uint8), axis=0)
     td_intensity_maps = td_intensity_maps/count[None, None, :]
     P, F, C = td_intensity_maps.shape
     penetration = np.full((P, F), np.nan, dtype=np.float32)
 
+    # Plot of energy by summing again over cols (summing over each image)
+    energies = np.sum(td_intensity_maps, axis=2)
+
+    # Find the frame with peak brightness
+    peak_brightness_frames = np.argmax(energies, axis=1)
+    avg_peak = round(np.mean(peak_brightness_frames))
+
+    # Hydraulic delay estimation
+    # multiplier: manual, x times of the total instensity compared to no plume frames
+    multiplier = 100
+    thres_derivative = multiplier*energies[:,0]/energies[:,avg_peak]
+    rows = segments.shape[2]; cols = segments.shape[3]
+    near_nozzle_energies = np.sum(np.sum(segments[:, :avg_peak, round(rows*3/7):round(rows*4/7), :round(cols/10)], axis=3), axis=2)
+    dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
+    masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
+    hydraulic_delay = masks.argmax(axis=1) + 1
+
+    # Correcting decay after peak brightness frame
+    for p in range(P):
+        # decay_correction = td_intensity_maps[p, peak_brightness_frames[p]:, :]
+        decay_curve = energies[p, peak_brightness_frames[p]:]
+        decay_curve = decay_curve/np.max(decay_curve)
+        # energies[p, peak_brightness_frames[p]:] = np.max(decay_curve)
+        '''
+        # td_intensity_maps[p, peak_brightness_frames[p]:, :] = td_intensity_maps[p, peak_brightness_frames[p]:, :]/decay_curve[:,None]
+        fig, ax = plt.subplots(1,3)
+        ax[0].imshow(td_intensity_maps[p, peak_brightness_frames[p]:, :], origin="lower", aspect="auto")
+        ax[1].imshow(td_intensity_maps[p, peak_brightness_frames[p]:, :]/decay_curve[:,None], origin="lower", aspect="auto")
+        ax[0].set_title("Before decay correction")
+        ax[1].set_title("After decay correction")
+
+        ax[2].plot(decay_curve)
+        ax[2].set_title("Normalized decay curve to let the total intensity constant after peak")
+        plt.show()
+        '''
+        # fig, ax = plt.subplots(1,2)
+        # ax[0].imshow(td_intensity_maps[p], origin="lower", aspect="auto")
+        td_intensity_maps[p, peak_brightness_frames[p]:, :] = td_intensity_maps[p, peak_brightness_frames[p]:, :]/decay_curve[:,None]
+        # ax[1].imshow(td_intensity_maps[p], origin="lower", aspect="auto")
 
     # Converting intensity maps to penetration
     start_time = time.time()
     n_workers = min(os.cpu_count() + 4, P, 32) # type: ignore
+
     for p in range(P):
-            # Valid mask
+        thres = 100*np.max(td_intensity_maps[p, :hydraulic_delay[p], :])
+        maps_bw = keep_largest_component(td_intensity_maps[p].T > thres)[::-1, :] 
+        penetration[p] = C - maps_bw.argmax(axis=0)
+        penetration[p, :hydraulic_delay[p]+1][penetration[p, :hydraulic_delay[p]+1] == C]=0.0 
+        
+        # Demo plotting
+        fig, ax = plt.subplots(1,3)
+        ax[0].imshow(td_intensity_maps[p].T, origin="lower", aspect="auto", cmap="gray")
+        ax[0].plot(penetration[p], color="red", label="Penetration from intensity map")
+        ax[0].axvline(hydraulic_delay[p], color="blue")
+        ax[0].set_xlabel("Time [frames]")
+        ax[2].plot(energies[p])
+        ax[2].set_xlabel("Time [frames]")
+
+        ax[0].set_ylabel("Penetration [px]")
+        ax[2].set_ylabel("Intensity Sum")
+
+        ax[0].set_title("Time-Distane Intensity \n & \n penetration")
+        ax[2].set_title("Intensity sum in all frames")
+
+        ax[0].set_ylim(0, C)
+
+        ax[1].imshow(maps_bw, origin="lower", aspect="auto")
+
+
+    fig, ax = plt.subplots(P//2, 2, figsize=(12, 3*P/2))
+
+    for p in range(P):
+        # Valid mask
         arr = td_intensity_maps[p]
         mask = np.isfinite(arr) & (arr > 0)
 
@@ -183,19 +313,58 @@ def segments_computation(segments, mask):
         if u8.dtype != np.uint8:
             u8 = u8.astype(np.uint8, copy=False)
 
-        edges = cv2.Canny(u8, 50, 150)
-        penetration[p] = np.argmax(edges, axis=0)
-        '''
-        # visualize
-        cv2.imshow("edges", edges)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # Try transposed
+        u8 = cv2.equalizeHist(u8.T)
+        X, F = u8.shape
+        plt.figure(1)
+        ax[p//2, p%2].imshow(u8, origin="lower", aspect="auto")
+        
+        # _, bw = cv2.threshold(u8, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        bw, thres = triangle_binarize_u8(u8, blur=False)
+        bw= keep_largest_component(bw)
+        edge_tri = np.argmax(bw[::-1, :], axis=0)
+        edge_tri = bw.shape[0]-edge_tri
+        edge_tri[0:round(F/2)][edge_tri[0:round(F/2)]==X]=0
+        ax[p//2, p%2].plot(edge_tri, color="blue")
+        penetration[p] = edge_tri
 
-        plt.imshow(u8*edges, origin="lower", cmap="gray")
+        
+    '''    
+        # Canny
+        edges = cv2.Canny(u8, 50, 150)        
+        edge_canny = np.argmax(edges[::-1, :], axis=0)
+        edge_canny = edges.shape[0]-edge_canny
+        edge_canny[0:round(F/2)][edge_canny[0:round(F/2)]==X]=0
+        # plt.plot(edge_canny, color="red", label="Canny")
+        
+        
 
-        plt.show()
-        '''
-        # penetration[p] = find_penetration(td_intensity_maps[p])
+        Lap = cv2.Laplacian(u8, cv2.CV_64F, ksize=5)
+        Lap = np.abs(Lap)
+        edge_lap = np.argmax(edges[::-1, :], axis=0)
+        edge_lap = edges.shape[0]-edge_lap
+        edge_lap[0:round(F/2)][edge_lap[0:round(F/2)]==X]=0
+
+        # plotting 
+        plt.plot(edge_canny, color="red", label="Canny")
+        # plt.plot(edge_lap, color="green", label="Laplacian")
+        plt.legend()
+
+        # u8 is (X, F) after your transpose
+        edge_contour, lev = upper_boundary_contour(u8, q=0.80, smooth_sigma=1.5, monotonic=True, show=False)
+        if edge_contour is None:
+            # fallback: keep old method or lower the level
+            edge_contour, _ = upper_boundary_contour(u8, q=0.70, smooth_sigma=1.5, monotonic=True, show=False)
+        else: 
+            plt.figure()
+            plt.imshow(u8, origin="lower", aspect="auto")
+            plt.plot(edge_contour, label="Contour upper envelope", linewidth=2)
+            plt.legend()
+        penetration[p] = edge_contour  # note: this is in "row" units after transpose
+        # penetration[p] = edge_canny
+    '''
+    plt.show()
+        
     '''    
     with ThreadPoolExecutor(max_workers=n_workers) as ex:
         futs = {ex.submit(find_penetration, td_intensity_maps[p]) : p for p in range(P)}
@@ -212,19 +381,9 @@ def segments_computation(segments, mask):
         
 
 
-    # Plot of energy by summing again over cols (summing each image)
-    energies = np.sum(td_intensity_maps, axis=2)
 
-    peak_brightness_frames = np.argmax(energies, axis=1)
-    avg_peak = round(np.mean(peak_brightness_frames))
 
-    multiplier = 100
-    thres_derivative = multiplier*energies[:,0]/energies[:,avg_peak]
-    rows = segments.shape[2]; cols = segments.shape[3]
-    near_nozzle_energies = np.sum(np.sum(segments[:, :avg_peak, round(rows*3/7):round(rows*4/7), :round(cols/10)], axis=3), axis=2)
-    dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
-    masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
-    hydraulic_delay = masks.argmax(axis=1) + 1
+
 
     # Resetting to 0 before hydraulic delay.
     for p in range(P):
@@ -294,7 +453,11 @@ def main():
     video = load()
     # video_raw = video
     # cutting some frames
-    video = video[:60, :,:]
+    video = video[0:100, :,:]
+
+    mie_multihole_pipeline(video, centre, number_of_plumes)
+
+    video= video**2
     # video_raw = video
     frames, height, width = video.shape
     # play_video_cv2(video)
@@ -304,7 +467,7 @@ def main():
     #####################################################################
     start_time = time.time()
 
-    bkg = np.median(video[:17, :, :], axis = 0)[None, :, :]
+    bkg = np.median(video[:15, :, :], axis = 0)[None, :, :]
 
     sub_bkg = video - bkg
 
@@ -380,7 +543,8 @@ def main():
         print(f"Estimated offset from FFT: {offset:.3f} degrees")
     
     print(f"Cone angle calculation completed in {time.time()-start_time:.3f}s")
-    
+    '''
+    '''
     if visualization:
         arr = np.log1p(signal)
         arr2d = arr if arr.ndim == 2 else arr[None]
@@ -491,8 +655,12 @@ def main():
     plt.show()
 
     # Comparison
-    plt.plot(np.mean(penetration, axis=0))
-    plt.plot(np.mean(penetration_old, axis=0))
+    plt.plot(np.mean(penetration, axis=0), label="Triangular segmentation for column sum")
+    plt.plot(np.mean(penetration_old, axis=0), label="Triagular segmentation for each frame")
+    plt.xlabel("Frame number")
+    plt.ylabel("Penetration [px]")
+    plt.title("Comparision of two penetration calculation methods")
+    plt.legend()
     plt.show()
     
     play_videos_side_by_side(tuple(((1-bw_vids)*segments)[0:5]))

@@ -5,6 +5,7 @@ from mie_postprocessing.ssim import *
 from mie_postprocessing.video_filters import *
 from mie_postprocessing.functions_bw import *
 from mie_postprocessing.video_playback import *
+from mie_multihole_pipeline import *
 import matplotlib.pyplot as plt
 import subprocess
 from scipy.signal import convolve2d
@@ -52,15 +53,17 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
 
 def MIE_pipeline(video, number_of_plumes, offset, centre):
     SSIM = False
+    centre_x = float(centre[0])
+    centre_y = float(centre[1])
 
+    '''
     video *= gain  # Apply gain correction to the video
     video = video ** gamma  # Apply gamma correction to the video
 
     foreground, background = subtract_median_background(video, frame_range=slice(0, hydraulic_delay))
 
     # threshold = find_larger_than_percentile(background, percentile=95)
-    centre_x = float(centre[0])
-    centre_y = float(centre[1])
+
 
     # Cone angle
     signal_density_bins, signal, density = angle_signal_density(
@@ -77,6 +80,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         offset = min(offset, (offset-360), key=abs)
         print(f"Estimated offset from FFT: {offset:.2f} degrees")
     # plot_angle_signal_density(signal_density_bins, signal)
+    '''
 
     '''
     signal_sum = np.sum(signal, axis=0)
@@ -86,6 +90,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     plt.title("Signal Sum vs Angle")
     plt.grid(True)
     plt.show()
+    
     '''  
     # play_video_cv2(foreground, intv=17)
 
@@ -97,6 +102,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     
 
     # Generate the crop rectangle based on the plume parameters
+    '''
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
 
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
@@ -104,6 +110,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
 
     
     start_time = time.time()
+    '''
     '''
     segments = []
     
@@ -125,6 +132,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
         segments_with_idx.sort(key=lambda x: x[0])
         segments = [seg for idx, seg in segments_with_idx]
     '''
+    '''
     segments=rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
     elapsed_time = time.time() - start_time
     print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
@@ -135,11 +143,16 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     gc.collect()
 
     '''
+    '''
     # Stacking the segments into a 4D array
     segments = [seg for seg in segments if seg is not None]
     if not segments:
         raise ValueError("No valid segments to stack.")
     '''
+    
+    
+    segments = mie_multihole_pipeline(video, centre, number_of_plumes)
+
     segments = np.stack(segments, axis=0)
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
