@@ -455,7 +455,7 @@ def main():
     # cutting some frames
     video = video[0:100, :,:]
 
-    mie_multihole_pipeline(video, centre, number_of_plumes)
+    # mie_multihole_pipeline(video, centre, number_of_plumes)
 
     video= video**2
     # video_raw = video

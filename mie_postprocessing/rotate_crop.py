@@ -71,6 +71,48 @@ def _remap_frame(frame: np.ndarray, map_x: np.ndarray, map_y: np.ndarray, use_cu
         else:
             return cv2.remap(frame, map_x, map_y, interpolation=cv2.INTER_CUBIC)
 
+def _remap_frame_cupy(frame, map_x, map_y, interpolation=cv2.INTER_CUBIC):
+    """Remap a single frame using CuPy for GPU acceleration, wiuth cupyx.scipy.ndimage.map_coordinates."""
+    import cupy as cp
+    from cupyx.scipy.ndimage import map_coordinates
+    order_map = {cv2.INTER_NEAREST:0, cv2.INTER_LINEAR:1, cv2.INTER_CUBIC:3}
+    order = order_map.get(interpolation, 1)
+
+    coords = cp.stack((map_y, map_x))
+
+    return (map_coordinates(frame, coords, order=order, mode='constant', cval=0.0))
+
+def _remap_video_cupy(video, map_x, map_y, interpolation=cv2.INTER_CUBIC):
+    """
+    Remap a stack of CuPY frames entirely on the GPU. 
+    Parallelized through multithreading.
+    """
+    num_frames = video.shape[0]
+    import cupy as cp
+    map_x_cp = cp.asarray(map_x)
+    map_y_cp = cp.asarray(map_y)
+
+    
+    rotated = [None]*num_frames
+    max_workers = None
+    def task(idx: int):
+        return idx, _remap_frame_cupy(video[idx], map_x_cp, map_y_cp, interpolation)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as exe:
+        futures = [exe.submit(task, i) for i in range(num_frames)]
+        for fut in as_completed(futures):
+            idx, out = fut.result()
+            rotated[idx] = out
+    '''
+    out_frames = []
+    for idx in range(video.shape[0]):
+        out = _remap_frame_cupy(video[idx], map_x_cp, map_y_cp, interpolation)
+        out_frames.append(out)
+    return cp.stack(out_frames, axis=0)
+    '''
+    return cp.stack(rotated, axis=0)
+    
+
 
 def _remap_video_cuda(video: np.ndarray, map_x: np.ndarray, map_y: np.ndarray, interpolation=cv2.INTER_CUBIC) -> np.ndarray:
     """Remap a stack of frames on the GPU without threading."""
@@ -133,31 +175,48 @@ def rotate_and_crop(
         map_x[~mask_bool] = -1
         map_y[~mask_bool] = -1
 
+    cp = None
     use_cuda = False
-    try:
-        if hasattr(cv2, 'cuda') and cv2.cuda.getCudaEnabledDeviceCount() > 0:
-            use_cuda = True
+    try: 
+        import cupy as cp
+        is_cupy = isinstance(array, cp.ndarray)
     except Exception:
-        use_cuda = False
+        cp =None
+    
+    if is_cupy:
+        map_x = cp.asarray(map_x) # type:ignore
+        map_y = cp.asarray(map_y) # type:ignore
+    
+    use_cuda = False
+
+    if not is_cupy:
+        try:
+            if hasattr(cv2, 'cuda') and cv2.cuda.getCudaEnabledDeviceCount() > 0:
+                use_cuda = True
+        except Exception:
+            use_cuda = False
 
     if is_video:
         num_frames = array.shape[0]
+        if is_cupy:
+            return _remap_video_cupy(array, map_x, map_y)
         if use_cuda:
             return _remap_video_cuda(array, map_x, map_y)
-        else:
-            rotated = [None] * num_frames
+        rotated = [None] * num_frames
 
-            def task(idx: int):
-                return idx, _remap_frame(array[idx], map_x, map_y, use_cuda)
+        def task(idx: int):
+            return idx, _remap_frame(array[idx], map_x, map_y, use_cuda)
 
-            with ThreadPoolExecutor(max_workers=max_workers) as exe:
-                futures = [exe.submit(task, i) for i in range(num_frames)]
-                for fut in as_completed(futures):
-                    idx, out = fut.result()
-                    rotated[idx] = out
-            return np.stack(rotated, axis=0)
+        with ThreadPoolExecutor(max_workers=max_workers) as exe:
+            futures = [exe.submit(task, i) for i in range(num_frames)]
+            for fut in as_completed(futures):
+                idx, out = fut.result()
+                rotated[idx] = out
+        return np.stack(rotated, axis=0)
     else:
-        return _remap_frame(array, map_x, map_y, use_cuda)
+        if is_cupy:
+            return _remap_frame_cupy(array, map_x, map_y)
+
     
 def generate_CropRect(inner_radius, outer_radius, number_of_plumes, centre_x, centre_y):
     section_angle = 360.0/ number_of_plumes

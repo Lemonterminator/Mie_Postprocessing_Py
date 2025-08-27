@@ -186,7 +186,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     # play_videos_side_by_side(tuple(segments),intv=17)
     
     for i, segment in enumerate(segments):
-        play_video_cv2(segment)
+        # play_video_cv2(segment)
         time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
         '''
         plt.imshow(time_distance_intensity,

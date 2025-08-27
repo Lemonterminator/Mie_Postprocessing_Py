@@ -225,7 +225,6 @@ def resolve_backend(use_gpu="auto", triangle_backend="auto"):
 
     return use_gpu, triangle_backend, xp
 
-
 def mie_multihole_pipeline(video, centre, number_of_plumes):
     centre_x = float(centre[0])
     centre_y = float(centre[1])
@@ -274,10 +273,15 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
     mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
-    foreground = foreground.astype(np.float32, copy=False) # type: ignore
-    segments=rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
+    # ``foreground`` may still reside on the GPU if ``preprocessing`` ran on
+    # CuPy.  OpenCV's CUDA routines expect host ``numpy`` arrays when calling
+    # ``cv2.cuda_GpuMat.upload``, so convert to ``numpy`` before rotation.
+    foreground = xp.asarray(foreground, dtype=xp.float32, copy=False)
+    segments = rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
     elapsed_time = time.time() - start_time
     print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
-    
-    segments = np.stack(segments, axis=0)
+
+    segments = xp.stack(segments, axis=0)
+    if use_gpu:
+        segments = xp.asnumpy(segments) # type: ignore
     return segments
