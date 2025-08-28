@@ -225,7 +225,7 @@ def resolve_backend(use_gpu="auto", triangle_backend="auto"):
 
     return use_gpu, triangle_backend, xp
 
-def mie_multihole_pipeline(video, centre, number_of_plumes):
+def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
     centre_x = float(centre[0])
     centre_y = float(centre[1])
 
@@ -236,7 +236,7 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
     foreground = preprocessing(
         video,
         hydraulic_delay_estimate,
-        gamma=1.0,
+        gamma=gamma,
         M=3, N=3,
         range_mask=True,
         timing=True,
@@ -274,15 +274,20 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
     # Triangular plume region mask with offsets.
     mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
+
     # ``foreground`` may still reside on the GPU if ``preprocessing`` ran on
     # CuPy.  OpenCV's CUDA routines expect host ``numpy`` arrays when calling
     # ``cv2.cuda_GpuMat.upload``, so convert to ``numpy`` before rotation.
     foreground = xp.asarray(foreground, dtype=xp.float32, copy=False)
     segments = rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
+    segments = xp.stack(segments, axis=0)
+    segments[segments < 1e-3] = 0
+    # zeros_regions = segments[]
+
     elapsed_time = time.time() - start_time
     
 
-    segments = xp.stack(segments, axis=0)
+    
 
     print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
 
@@ -319,13 +324,14 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
     near_nozzle_energies = xp.sum(xp.sum(segments[:, :avg_peak, H_low:H_high, :W_right], axis=3), axis=2)
     # Find the discrete derivative of energy in this region
     dE1dts = np.diff(near_nozzle_energies[:, 0:avg_peak], axis=1)
-    masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
-    hydraulic_delay = masks.argmax(axis=1) 
+    # masks = dE1dts > (thres_derivative*np.max(dE1dts, axis=1))[:,None]
+    # hydraulic_delay = masks.argmax(axis=1)
+    hydraulic_delay =  (dE1dts > 1).argmax(axis=1)
 
     penetration = np.full((P, F), np.nan, dtype=np.float32)
 
-    
-    fig, ax = plt.subplots(P//2, 2, figsize=(12, 3*P/2))
+    lower = 0; upper = 366
+    fig, ax = plt.subplots(P//3+1, 3, figsize=(12, 3*P/3))
     for p in range(P):
         # Correcting decay after peak brightness frame
         decay_curve = energies[p, peak_brightness_frames[p]:]
@@ -333,41 +339,81 @@ def mie_multihole_pipeline(video, centre, number_of_plumes):
         td_intensity_maps[p, peak_brightness_frames[p]:, :] = td_intensity_maps[p, peak_brightness_frames[p]:, :]/decay_curve[:,None]
         
         
-        arr = td_intensity_maps[p, :, :]
-        mask = np.isfinite(arr) & (arr > 0)
+        arr = td_intensity_maps[p, :, :].T
 
-        # normalize only over masked pixels -> uint8 in [0,255]
-        u8 = np.zeros_like(arr, dtype=np.uint8)
-        if mask.any():
-            u8 = cv2.normalize(
-                arr.get(), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U,
-                mask=mask.get().astype(np.uint8)  # min/max from masked region only
-            ) # type: ignore
 
-        if u8.dtype != np.uint8:
-            u8 = u8.astype(np.uint8, copy=False)
-
-        # Try transposed
-        u8 = cv2.equalizeHist(u8.T)
-        X, F = u8.shape
-
-        # With triangular threshold to find penetration
-        # _, bw = cv2.threshold(u8, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-        bw, thres = triangle_binarize_u8(u8, blur=False)
-        bw= keep_largest_component(bw)
+        X, F = arr.shape
+        bw = _triangle_binarize_gpu(arr)
+        
+        bw = keep_largest_component(bw.get())
         edge_tri = np.argmax(bw[::-1, :], axis=0)
         edge_tri = bw.shape[0]-edge_tri
-        edge_tri[0:round(F/2)][edge_tri[0:round(F/2)]==X]=0
-        
+        edge_tri[0:int(hydraulic_delay[p]+5)][edge_tri[0:int(hydraulic_delay[p]+5)]==X]=0
         penetration[p] = edge_tri
 
         plt.figure(1)
-        ax[p//2, p%2].imshow(u8, origin="lower", aspect="auto")
-        ax[p//2, p%2].plot(edge_tri, color="blue")
+        ax[p//3, p%3].imshow(arr.get(), origin="lower", aspect="auto")
+        # ax[p//3, p%3].plot(penetration[p], color="red")
 
+        _, bw_otsu = cv2.threshold(cv2.normalize(arr.get(), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU) # type:ignore
+        
+        # bw_otsu = ~ bw_otsu.astype(np.bool)
+        
+        
+        
+        start = int(hydraulic_delay[p]+1)
+        end = int(peak_brightness_frames[p])
+        differential = np.diff(arr[:, start:end]* xp.array(bw_otsu[:,start:end]),axis=1).get() #type:ignore
+        # differential = (differential * bw_otsu[:,start:end-1]).astype(np.float32)
+        differential[differential<0] = 0
+        # plt.imshow(differential, origin="lower", aspect="auto")
+
+        edge_diff = np.argmax(differential[::-1, :], axis=0)
+        edge_diff = differential.shape[0]-edge_diff
+        edge_diff[edge_diff>upper-10] = 0
+        edge_diff[edge_diff<lower+10] = 0
+       
+        decision = np.maximum(penetration[p, start:end-1], edge_diff)
+        penetration[p, start:end-1]= decision
+        penetration[p, :int(np.max(hydraulic_delay))]=0
+        ax[p//3, p%3].plot(penetration[p], color="red")
+
+    
+    ax[p//3, p%3+1].plot(penetration.T)
+    # Data Cleaning: Enforce monotonicity
+    np.maximum.accumulate(penetration, axis=1, out=penetration)
+    # Data Cleaning: remove zeros and values too close to the maxium
+    penetration[penetration==0] = np.nan
+    penetration[penetration>upper-2] = np.nan
+    # Data Cleaning: remove too large value before injection
+    penetration[:, :int(penetration.shape[1]/2)][penetration[:, :int(penetration.shape[1]/2)] > upper-10] = np.nan
+
+
+    ax[p//3, p%3+2].plot(penetration.T)
+        
+
+    '''
+    for p in range(P):
+        arr = td_intensity_maps[p, :, :].T
+
+        differential = np.diff(arr.get(),axis=1)
+        X, F = differential.shape
+        edge_diff = np.argmax(differential[::-1, :], axis=0)
+        edge_diff = differential.shape[0]-edge_diff
+        edge_diff = np.array(edge_diff)
+        edge_diff[:int(hydraulic_delay[p])]=0
+    '''
+     
+        
+
+
+
+    '''
     plt.figure(2)
-    plt.plot(penetration.T)
+    plt.plot(penetration.T[15:60])
     plt.title("Penetation")
+    plt.show()
+    '''
     plt.show()
 
     if use_gpu:

@@ -25,7 +25,7 @@ def read_frame(cine_file_path, frame_offset, width, height):
         frame_data = np.fromfile(f, dtype=np.uint16, count=width * height).reshape(height, width)
     return frame_data
 
-def load_cine_video(cine_file_path):
+def load_cine_video(cine_file_path, frame_limit=None):
     # Read the header
     header = cine.read_header(cine_file_path)
     # Extract width, height, and total frame count
@@ -33,6 +33,7 @@ def load_cine_video(cine_file_path):
     height = header['bitmapinfoheader'].biHeight
     frame_offsets = header['pImage']  # List of frame offsets
     frame_count = len(frame_offsets)
+    frame_count= min(frame_count, frame_limit) if frame_limit else frame_count
     print(f"Video Info - Width: {width}, Height: {height}, Frames: {frame_count}")
 
     # Initialize an empty 3D NumPy array to store all frames

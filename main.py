@@ -32,7 +32,7 @@ global or_
 parent_folder = r"G:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
 hydraulic_delay = 20  # Hydraulic delay in frames, adjust as needed
 gain = 3 # Gain factor for video processing
-gamma = 2  # Gamma correction factor for video processing
+gamma = 1.3  # Gamma correction factor for video processing
 
 # Inner and outer radius (in pixels) for cropping the images
 ir_ = 14
@@ -151,8 +151,8 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     '''
     
     
-    segments = mie_multihole_pipeline(video, centre, number_of_plumes)
-    
+    segments = mie_multihole_pipeline(video, centre, number_of_plumes, gamma=gamma)
+
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
 
@@ -337,7 +337,7 @@ async def main():
             if file.suffix == '.cine':
                 print("Procssing:", file.parts[-3], "/", file.parts[-2], "/", file.parts[-1])
 
-                video = load_cine_video(file).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
+                video = load_cine_video(file, frame_limit=50).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                 frames, height, width = video.shape
                 # video = video.astype(float)
                 # play_video_cv2(video)
