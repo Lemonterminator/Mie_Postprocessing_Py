@@ -13,19 +13,19 @@ import matplotlib.pyplot as plt
 import subprocess
 from scipy.signal import convolve2d
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import os
 import gc
 import json
 from pathlib import Path
 import time
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from skimage import measure
 from scipy.ndimage import binary_erosion, generate_binary_structure
 from scipy.stats import norm
 
 global visualization 
-visualization = False
+visualization = True
 
 # import numpy as np
 # import cv2
@@ -123,6 +123,118 @@ def _process_one_frame(bw, xlo, xhi, connectivity=2):
     coords_top = np.column_stack((ys[top_mask], xs[top_mask])).astype(np.int32)
     coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])).astype(np.int32)
     return coords_top, coords_bot
+
+
+# --- Split: compute all boundary points (no x-band filter) ---
+def _boundary_points_one_frame(bw, connectivity=2):
+    """
+    Compute all boundary points of a single binary frame without x-band filtering.
+
+    Returns: (coords_top_all, coords_bottom_all) as (N,2) int32 arrays (y, x).
+    """
+    H, W = bw.shape
+    struct = generate_binary_structure(2, 2 if connectivity == 2 else 1)
+    boundary = bw & ~binary_erosion(bw, structure=struct, border_value=0)
+    if not boundary.any():
+        return (np.empty((0, 2), dtype=np.int32), np.empty((0, 2), dtype=np.int32))
+
+    ys, xs = np.nonzero(boundary)
+    if ys.size == 0:
+        return (np.empty((0, 2), dtype=np.int32), np.empty((0, 2), dtype=np.int32))
+
+    mid = (H - 1) / 2.0
+    top_mask = ys <= mid
+    bot_mask = ~top_mask
+
+    coords_top = np.column_stack((ys[top_mask], xs[top_mask])).astype(np.int32)
+    coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])).astype(np.int32)
+    return coords_top, coords_bot
+
+
+def bw_boundaries_all_points(
+    bw_vids, connectivity=2, parallel=False, max_workers=None
+):
+    """
+    Compute all boundary points for every frame (no x-band filtering).
+
+    Parameters
+    ----------
+    bw_vids : array, shape (R, F, H, W), binary
+    connectivity : 1 (4-neigh) or 2 (8-neigh)
+    parallel : bool
+    max_workers : int or None
+
+    Returns
+    -------
+    result : list length R; each item is list length F of tuples (coords_top_all, coords_bottom_all)
+    """
+    R, F, H, W = bw_vids.shape
+    result = [[None] * F for _ in range(R)]
+
+    def work(i, j):
+        bw = np.asarray(bw_vids[i, j], dtype=bool)
+        return i, j, _boundary_points_one_frame(bw, connectivity)
+
+    if parallel:
+        if max_workers is None:
+            max_workers = max(1, os.cpu_count() - 1)
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = [ex.submit(work, i, j) for i in range(R) for j in range(F)]
+            for fut in as_completed(futs):
+                i, j, tup = fut.result()
+                result[i][j] = tup
+    else:
+        for i in range(R):
+            for j in range(F):
+                _, _, tup = work(i, j)
+                result[i][j] = tup
+
+    return result
+
+
+# --- Split: filter previously computed boundary points by x-band ---
+def bw_boundaries_xband_filter(boundary_results, penetration_old, lo=0.1, hi=0.6):
+    """
+    Filter precomputed boundary points by an x-band defined by lo/hi fractions of penetration.
+
+    Parameters
+    ----------
+    boundary_results : list of lists as returned by bw_boundaries_all_points
+        shape [R][F] of (coords_top_all, coords_bottom_all)
+    penetration_old : array, shape (R, F)
+        Penetration in pixels along x for each (R, F)
+    lo, hi : floats
+        Inclusive fractional range of penetration to keep
+
+    Returns
+    -------
+    filtered : same nested structure with coords filtered to x in [xlo, xhi]
+    """
+    R = len(boundary_results)
+    F = len(boundary_results[0]) if R > 0 else 0
+    assert penetration_old.shape == (R, F)
+
+    def _filter_coords(coords, xlo, xhi):
+        if coords.size == 0:
+            return coords
+        x = coords[:, 1]
+        xlo_i = int(np.floor(max(0, xlo)))
+        xhi_i = int(np.ceil(max(xlo_i, xhi)))
+        keep = (x >= xlo_i) & (x <= xhi_i)
+        return coords[keep]
+
+    filtered = [[None] * F for _ in range(R)]
+    for i in range(R):
+        for j in range(F):
+            coords_top_all, coords_bot_all = boundary_results[i][j]
+            xlo = lo * float(penetration_old[i, j])
+            xhi = hi * float(penetration_old[i, j])
+            coords_top = _filter_coords(coords_top_all, xlo, xhi)
+            coords_bot = _filter_coords(coords_bot_all, xlo, xhi)
+            filtered[i][j] = (coords_top.astype(np.int32, copy=False),
+                              coords_bot.astype(np.int32, copy=False))
+
+    return filtered
 
 
 def bw_boundaries_xband_split(
@@ -477,8 +589,53 @@ def main():
 
     px_range = np.max(sub_bkg_med, axis=0) - np.min(sub_bkg_med, axis=0)
     range_mask, _ = triangle_binarize_from_float(px_range)
-
     sub_bkg_med = mask_video(sub_bkg_med, range_mask)
+    
+    if visualization:
+        fig, ax = plt.subplots(2,2, figsize=(13,11))
+        im1 = ax[0,0].imshow(px_range, origin="lower", cmap="jet")
+        fig.colorbar(im1, ax=ax[0,0])
+        ax[0,0].set_title("Range of pixel in all frames")
+
+        data = px_range.ravel()
+        hist, edges = np.histogram(data, bins=1000, range=(0, 1))
+        centers = (edges[:-1] + edges[1:]) / 2
+        ax[0,1].plot(centers, hist, lw=1.2, label="Histogram of pixel range in log scale")
+        ax[0,1].set_yscale('log')
+        ax[0,1].set_ylim(bottom=1)  # avoid log(0) issues
+        ax[0,1].set_xlabel("Range value")
+        ax[0,1].set_ylabel("Count (log scale)")
+        ax[0,1].set_title("Histogram of pixel range in log scale")
+
+        norm = cv2.normalize(px_range, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        thres_otsu, bw_otsu = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        ax[0,1].axvline(thres_otsu/255.0, color="green", linestyle="-", label="Otsu thres")
+
+
+        
+
+        bw, thres = triangle_binarize_from_float(px_range)
+
+        ax[1,0].imshow(bw)
+
+        ax[0,1].axvline(thres/255.0, color="red", linestyle="--", label="Triangular thres")
+        ax[0,1].legend()
+        ax[1,1].axvline(thres/255.0, color="red", linestyle="--", label="Triangular thres")
+        ax[1,1].plot(centers, hist, lw=1.2, label="Histogram of pixel range in linear scale")
+
+        ax[1,1].set_ylim(bottom=1)  # avoid log(0) issues
+        ax[1,1].set_xlabel("Range value")
+        ax[1,1].set_ylabel("Count (linear scale)")
+        ax[1,1].set_title("Histogram of pixel range in linear scale")
+        ax[1,1].axvline(thres_otsu/255.0, color="green", linestyle="-", label="Otsu thres")
+
+        ax[0,1].grid()
+        ax[1,1].grid()
+        ax[1,1].legend()
+    
+
+
+
 
     if visualization:
         fig, ax = plt.subplots(2, 2, figsize=(13,11))

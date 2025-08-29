@@ -12,6 +12,7 @@ from scipy.signal import convolve2d
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+import re
 import gc
 import json
 from pathlib import Path
@@ -51,6 +52,18 @@ async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=1
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, play_video_cv2, video, gain, binarize, thresh, intv)
 
+
+def numeric_then_alpha_key(p: Path):
+    """
+    Sort numerically by the first integer in the stem if present; otherwise
+    fall back to case-insensitive alphabetical by full name.
+    """
+    m = re.search(r'\d+', p.stem)
+    if m:
+        return (0, int(m.group(0)))          # group 0 = first number
+    else:
+        return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
+    
 def MIE_pipeline(video, number_of_plumes, offset, centre):
     SSIM = False
     centre_x = float(centre[0])
@@ -151,7 +164,7 @@ def MIE_pipeline(video, number_of_plumes, offset, centre):
     '''
     
     
-    segments = mie_multihole_pipeline(video, centre, number_of_plumes, gamma=gamma)
+    segments = mie_multihole_pipeline(video, centre, number_of_plumes, gamma=gamma, binarize_video=False)
 
 
     average_segment = np.mean(segments, axis=0) # Average across the segments
@@ -319,6 +332,7 @@ async def main():
 
         # Get a list of all files in the directory
         files = [file for file in directory_path.iterdir() if file.is_file()]
+        files = sorted(files, key=numeric_then_alpha_key)  
 
         for file in files:
             if file.name == 'config.json':

@@ -9,6 +9,10 @@ import concurrent.futures
 from scipy import ndimage
 from concurrent.futures import ProcessPoolExecutor
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from skimage import measure
+from scipy.ndimage import binary_erosion, generate_binary_structure
+
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
 try:  # pragma: no cover - runtime hardware dependent
@@ -20,6 +24,13 @@ except Exception:  # ImportError, CUDA failure, etc.
     # from scipy.ndimage import median_filter  # type: ignore
     cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
     CUPY_AVAILABLE = False
+
+# Optional GPU connected-components via cuCIM (fast GPU labeling)
+try:  # pragma: no cover - runtime/hardware dependent
+    from cucim.skimage import measure as cucim_measure  # type: ignore
+    CUCIM_AVAILABLE = True
+except Exception:
+    CUCIM_AVAILABLE = False
 
 # -----------------------------
 # Masking and Binarization Pipeline
@@ -206,7 +217,10 @@ def triangle_binarize_from_float(img_f32, blur=True):
     u8 = cv2.normalize(img_f32, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     return triangle_binarize_u8(u8, blur=blur)
 '''
+
+
 def keep_largest_component(bw, connectivity=2):
+    
     """
     Keep only the largest connected component of 1s in a 2D binary array.
 
@@ -283,6 +297,175 @@ def keep_largest_component_nd(bw, connectivity=None):
     largest = (labeled == largest_label)
     return largest.astype(bw.dtype)
 
+
+# -----------------------------
+# CUDA-accelerated Connected Components
+# -----------------------------
+def _to_cupy(x):
+    """Internal: convert numpy array to CuPy if available; pass through CuPy arrays."""
+    if CUPY_AVAILABLE and hasattr(x, "__cuda_array_interface__"):
+        return x
+    return cp.asarray(x) if CUPY_AVAILABLE else x
+
+
+def _return_like_input(mask_gpu, like):
+    """Return array with same library and dtype as input 'like'."""
+    if CUPY_AVAILABLE and hasattr(like, "__cuda_array_interface__"):
+        # Caller passed a CuPy array: return CuPy
+        return mask_gpu.astype(like.dtype, copy=False)
+    # Caller passed NumPy array: return NumPy
+    return cp.asnumpy(mask_gpu).astype(like.dtype, copy=False) if CUPY_AVAILABLE else mask_gpu.astype(like.dtype, copy=False)
+
+
+def _generate_neighbor_offsets(nd, connectivity):
+    """Generate neighbor offsets for given ndim and connectivity.
+    Includes all offsets in {-1,0,1}^nd \ {0} with L1 distance <= connectivity.
+    """
+    from itertools import product
+    offsets = []
+    for off in product((-1, 0, 1), repeat=nd):
+        if all(o == 0 for o in off):
+            continue
+        if sum(abs(int(o)) for o in off) <= int(connectivity):
+            offsets.append(tuple(int(o) for o in off))
+    return offsets
+
+
+def _slices_for_offset(offset, shape):
+    """Return (src_slices, dst_slices) for shifting by 'offset'."""
+    src = []
+    dst = []
+    for k, (dk, nk) in enumerate(zip(offset, shape)):
+        if dk == 0:
+            src.append(slice(0, nk))
+            dst.append(slice(0, nk))
+        elif dk > 0:
+            src.append(slice(0, nk - dk))
+            dst.append(slice(dk, nk))
+        else:  # dk < 0
+            dk = -dk
+            src.append(slice(dk, nk))
+            dst.append(slice(0, nk - dk))
+    return tuple(src), tuple(dst)
+
+
+def _gpu_label_propagation(binary_mask, connectivity):
+    """Label connected components on GPU via iterative label propagation.
+
+    Returns labels with 0 as background, positive ints per component.
+    """
+    # Initialize labels: unique id per foreground pixel; 0 for background
+    shape = binary_mask.shape
+    labels = cp.zeros(shape, dtype=cp.int32)
+    if binary_mask.any():
+        labels[binary_mask] = cp.arange(1, int(binary_mask.sum()) + 1, dtype=cp.int32)
+
+    # Map labels to image positions to preserve spatial uniqueness
+    # Create a base grid of unique ids for all pixels, then mask
+    # This guarantees unique labels even for large sparse masks
+    if labels.max() == 0:
+        # Try alternative initialization using linear indices to avoid counting first
+        lin_ids = cp.arange(labels.size, dtype=cp.int32).reshape(shape) + 1
+        labels = cp.where(binary_mask, lin_ids, 0)
+
+    offsets = _generate_neighbor_offsets(binary_mask.ndim, connectivity)
+
+    changed = True
+    max_iter = 10000  # safety bound
+    it = 0
+    while changed and it < max_iter:
+        changed = False
+        it += 1
+        for off in offsets:
+            src_sl, dst_sl = _slices_for_offset(off, shape)
+            neigh = labels[src_sl]
+            curr = labels[dst_sl]
+            # Compute candidate min label among neighbors where both are foreground
+            both_fg = (neigh > 0) & (curr > 0)
+            if not both_fg.any():
+                continue
+            min_lab = cp.where(both_fg, cp.minimum(curr, neigh), curr)
+            if (min_lab != curr).any():
+                changed = True
+                labels[dst_sl] = min_lab
+        # Optional early exit if no changes
+    return labels
+
+
+def keep_largest_component_cuda(bw, connectivity=2):
+    """
+    CUDA version of keep_largest_component for 2D binary arrays.
+
+    - Uses cuCIM on GPU if available; falls back to CPU implementation otherwise.
+    - If input is a CuPy array, returns CuPy; if NumPy, returns NumPy.
+    """
+    # Fallback to CPU if no GPU
+    if not CUPY_AVAILABLE:
+        return keep_largest_component(bw, connectivity=connectivity)
+
+    bw_gpu = _to_cupy(bw)
+    binary_mask = (bw_gpu != 0)
+
+    if CUCIM_AVAILABLE:
+        labeled, num_features = cucim_measure.label(binary_mask, connectivity=connectivity, return_num=True)
+        if int(num_features) == 0:
+            zeros = cp.zeros_like(binary_mask, dtype=bool)
+            return _return_like_input(zeros, bw)
+    else:
+        # CuPy-only GPU labeling via propagation
+        labeled = _gpu_label_propagation(binary_mask, connectivity=int(connectivity))
+        # Determine number of components lazily
+        num_features = int(cp.unique(labeled[binary_mask]).size)
+        if num_features == 0:
+            zeros = cp.zeros_like(binary_mask, dtype=bool)
+            return _return_like_input(zeros, bw)
+
+    # Find largest component label using unique counts on foreground
+    labels_fg = labeled[binary_mask]
+    uniq, counts = cp.unique(labels_fg, return_counts=True)
+    # uniq does not include 0 by construction
+    largest_label = uniq[cp.argmax(counts)]
+    largest = (labeled == largest_label)
+    return _return_like_input(largest, bw)
+
+
+def keep_largest_component_nd_cuda(bw, connectivity=None):
+    """
+    CUDA version of keep_largest_component_nd for nD binary arrays.
+
+    - Uses cuCIM on GPU if available; falls back to CPU implementation otherwise.
+    - connectivity: int in [1, ndim] or None (defaults to ndim for full connectivity).
+    - Preserves input library (NumPy/CuPy) and dtype.
+    """
+    if not CUPY_AVAILABLE:
+        return keep_largest_component_nd(bw, connectivity=connectivity)
+
+    bw_gpu = _to_cupy(bw)
+    binary_mask = (bw_gpu != 0)
+    nd = binary_mask.ndim
+    if connectivity is None:
+        connectivity = nd
+    if not (1 <= int(connectivity) <= nd):
+        raise ValueError(f"connectivity must be in [1, {nd}], got {connectivity}")
+
+    if CUCIM_AVAILABLE:
+        labeled, num_features = cucim_measure.label(binary_mask, connectivity=int(connectivity), return_num=True)
+        if int(num_features) == 0:
+            zeros = cp.zeros_like(binary_mask, dtype=bool)
+            return _return_like_input(zeros, bw)
+    else:
+        labeled = _gpu_label_propagation(binary_mask, connectivity=int(connectivity))
+        num_features = int(cp.unique(labeled[binary_mask]).size)
+        if num_features == 0:
+            zeros = cp.zeros_like(binary_mask, dtype=bool)
+            return _return_like_input(zeros, bw)
+
+    labels_fg = labeled[binary_mask]
+    uniq, counts = cp.unique(labels_fg, return_counts=True)
+    largest_label = uniq[cp.argmax(counts)]
+    largest = (labeled == largest_label)
+    return _return_like_input(largest, bw)
+
 def penetration_bw_to_index(bw):
     arr = bw.astype(bool)
     # Find where True elements exist
@@ -293,29 +476,6 @@ def penetration_bw_to_index(bw):
     rev_idx[~any_true] = -1  # or use `np.nan` if float output is acceptable
     return rev_idx    
 
-def bw_boundaries_all_segments(
-    bw_vids, penetration_old, lo=0.0, hi=1.0, connectivity=2,
-    parallel=False, max_workers=None
-):
-    """
-    Parameters
-    ----------
-    bw_vids : array, shape (R, F, H, W), binary
-    penetration_old : array, shape (R, F), in pixels along x
-    lo, hi : floats for fraction of penetration to keep (inclusive range)
-    connectivity : 1 (4-neigh) or 2 (8-neigh)
-    parallel : bool, use threads across frames for speed
-    max_workers : int or None
-
-    Returns
-    -------
-    result : list length R; each item is list length F of tuples (coords_top, coords_bottom),
-             where coords_* are (N,2) int arrays of (y,x).
-    """
-    R, F, H, W = bw_vids.shape
-    assert penetration_old.shape == (R, F)
-    
-    result = [[None] * F for _ in range(R)]
 
 
 def _triangle_threshold_from_hist(hist):
@@ -421,3 +581,115 @@ def triangle_binarize_from_float(img_f32, blur=True, ignore_zero=False, threshol
     return triangle_binarize_u8(
         u8, blur=blur, ignore_zero=ignore_zero, threshold_on_unblurred=threshold_on_unblurred
     )
+
+
+# --- Split: compute all boundary points (no x-band filter) ---
+def _boundary_points_one_frame(bw, connectivity=2):
+    """
+    Compute all boundary points of a single binary frame without x-band filtering.
+
+    Returns: (coords_top_all, coords_bottom_all) as (N,2) int32 arrays (y, x).
+    """
+    H, W = bw.shape
+    struct = generate_binary_structure(2, 2 if connectivity == 2 else 1)
+    boundary = bw & ~binary_erosion(bw, structure=struct, border_value=0)
+    if not boundary.any():
+        return (np.empty((0, 2), dtype=np.int32), np.empty((0, 2), dtype=np.int32))
+
+    ys, xs = np.nonzero(boundary)
+    if ys.size == 0:
+        return (np.empty((0, 2), dtype=np.int32), np.empty((0, 2), dtype=np.int32))
+
+    mid = (H - 1) / 2.0
+    top_mask = ys <= mid
+    bot_mask = ~top_mask
+
+    coords_top = np.column_stack((ys[top_mask], xs[top_mask])).astype(np.int32)
+    coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])).astype(np.int32)
+    return coords_top, coords_bot
+
+
+def bw_boundaries_all_points(
+    bw_vids, connectivity=2, parallel=False, max_workers=None
+):
+    """
+    Compute all boundary points for every frame (no x-band filtering).
+
+    Parameters
+    ----------
+    bw_vids : array, shape (R, F, H, W), binary
+    connectivity : 1 (4-neigh) or 2 (8-neigh)
+    parallel : bool
+    max_workers : int or None
+
+    Returns
+    -------
+    result : list length R; each item is list length F of tuples (coords_top_all, coords_bottom_all)
+    """
+    R, F, H, W = bw_vids.shape
+    result = [[None] * F for _ in range(R)]
+
+    def work(i, j):
+        bw = np.asarray(bw_vids[i, j], dtype=bool)
+        return i, j, _boundary_points_one_frame(bw, connectivity)
+
+    if parallel:
+        if max_workers is None:
+            max_workers = max(1, os.cpu_count() - 1)
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = [ex.submit(work, i, j) for i in range(R) for j in range(F)]
+            for fut in as_completed(futs):
+                i, j, tup = fut.result()
+                result[i][j] = tup
+    else:
+        for i in range(R):
+            for j in range(F):
+                _, _, tup = work(i, j)
+                result[i][j] = tup
+
+    return result
+
+
+# --- Split: filter previously computed boundary points by x-band ---
+def bw_boundaries_xband_filter(boundary_results, penetration_old, lo=0.1, hi=0.6):
+    """
+    Filter precomputed boundary points by an x-band defined by lo/hi fractions of penetration.
+
+    Parameters
+    ----------
+    boundary_results : list of lists as returned by bw_boundaries_all_points
+        shape [R][F] of (coords_top_all, coords_bottom_all)
+    penetration_old : array, shape (R, F)
+        Penetration in pixels along x for each (R, F)
+    lo, hi : floats
+        Inclusive fractional range of penetration to keep
+
+    Returns
+    -------
+    filtered : same nested structure with coords filtered to x in [xlo, xhi]
+    """
+    R = len(boundary_results)
+    F = len(boundary_results[0]) if R > 0 else 0
+    assert penetration_old.shape == (R, F)
+
+    def _filter_coords(coords, xlo, xhi):
+        if coords.size == 0:
+            return coords
+        x = coords[:, 1]
+        xlo_i = int(np.floor(max(0, xlo)))
+        xhi_i = int(np.ceil(max(xlo_i, xhi)))
+        keep = (x >= xlo_i) & (x <= xhi_i)
+        return coords[keep]
+
+    filtered = [[None] * F for _ in range(R)]
+    for i in range(R):
+        for j in range(F):
+            coords_top_all, coords_bot_all = boundary_results[i][j]
+            xlo = lo * float(penetration_old[i, j])
+            xhi = hi * float(penetration_old[i, j])
+            coords_top = _filter_coords(coords_top_all, xlo, xhi)
+            coords_bot = _filter_coords(coords_bot_all, xlo, xhi)
+            filtered[i][j] = (coords_top.astype(np.int32, copy=False), # type: ignore
+                              coords_bot.astype(np.int32, copy=False))
+
+    return filtered

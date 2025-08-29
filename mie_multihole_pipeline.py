@@ -10,53 +10,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import time
 from scipy.ndimage import binary_erosion, generate_binary_structure
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 global ir_, or_
 ir_ = 14
 or_ = 380
-'''
-def preprocessing(video, hydraulic_delay_estimate, gamma=1, M=3, N=3, range_mask=True, time=False):
-    if time:
-        start_time = time.time()
 
-    if gamma != 1:
-        video = video**gamma 
-    
-    # 1) Compute background once, keepdims avoids [None, :, :]
-    bkg = np.median(video[:hydraulic_delay_estimate], axis=0, keepdims=True).astype(video.dtype, copy=False)
-
-    # 2) Allocate the destination explicitly and subtract without an extra temporary
-    sub_bkg = np.empty_like(video)
-    np.subtract(video, bkg, out=sub_bkg)        # faster + lower peak RAM than video - bkg
-
-    # If you can mutate `video`, this is even leaner:
-    # video -= bkg
-
-    # 3) Run your filter
-    sub_bkg_med = median_filter_video_auto(sub_bkg, M, N)
-
-    # If `sub_bkg` isn’t needed later, free it explicitly:
-    # del sub_bkg
-
-    sub_bkg_med[sub_bkg_med<0] = 0
-
-    # Masking to reduce the effect of induced brightness increase near nozzle
-    if range_mask:
-        px_range = np.max(sub_bkg_med, axis=0) - np.min(sub_bkg_med, axis=0)
-        range_mask, _ = triangle_binarize_from_float(px_range)
-        foreground = mask_video(sub_bkg_med, range_mask)
-    else:
-        foreground = sub_bkg_med
-    
-    scale = foreground.max()
-    # Scaling
-    foreground /= scale
-
-    if time:
-        print(f"Preprocessing calculation completed in {time.time()-start_time:.3f}s")
-
-    return foreground
-'''
 
 def preprocessing(video, hydraulic_delay_estimate, gamma=1.0, M=3, N=3,
                   range_mask=True, timing=False, use_gpu=False,
@@ -174,7 +134,6 @@ def _triangle_binarize_gpu(px_range_cp):
     return mask_full
 
 
-
 def has_cupy_gpu():
     """Return (available: bool, info: str)."""
     try:
@@ -225,7 +184,37 @@ def resolve_backend(use_gpu="auto", triangle_backend="auto"):
 
     return use_gpu, triangle_backend, xp
 
-def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
+def binarize_videos(segments, hydraulic_delay, penetration):
+    P = segments.shape[0]
+    bw_vids = np.zeros(segments.shape)
+    for i, segment in enumerate(segments):
+        # print(i)
+        bw_vid = np.zeros(segment.shape).astype(int)
+        
+        for j in range(int(hydraulic_delay[i]), len(segment)):
+            # bw_vid[j], thres_temp = triangle_binarize_from_float(segment[j], blur=True)
+            bw_temp, _ = triangle_binarize_from_float(segment[j].get())
+            bw_vid[j] = keep_largest_component(bw_temp)
+        bw_vids[i] = bw_vid
+
+    col = penetration[i] 
+    # Playing
+
+    # gain = 100
+    # play_videos_side_by_side(tuple((gain*(1-bw_vids)*segments.get())[5:10]), intv=70)
+
+    penetration_old = np.zeros(penetration.shape)
+    col_sum_bw = np.sum(bw_vids, axis=2) >=1
+    n_workers = min(os.cpu_count() + 4, P, 32) # type: ignore
+    with ThreadPoolExecutor(max_workers=n_workers) as ex:
+        futs = {ex.submit(penetration_bw_to_index, col_sum_bw[p]): p for p in range(col_sum_bw.shape[0])}
+        for fut in as_completed(futs):
+            penetration_old[futs[fut]] = fut.result()
+
+    return bw_vids, penetration_old
+
+
+def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_video=False):
     centre_x = float(centre[0])
     centre_y = float(centre[1])
 
@@ -245,13 +234,16 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
         return_numpy=not use_gpu,   # keep on device if GPU path is used
     )
 
-        # Cone Angle 
-
+    # Cone Angle 
     start_time = time.time()
-    # Cone angle
+    # accuracy : 360/bins
+
+    '''
+    gamma_foreground = 1.5
     bins = 3600
     signal_density_bins, signal, density = angle_signal_density_auto(
-        foreground, centre_x, centre_y, N_bins=bins
+        # foreground**gamma_foreground, centre_x, centre_y, N_bins=bins
+        video, centre_x, centre_y, N_bins=bins
     )
 
     # Estimate optimal rotation offset using FFT of the summed angular signal
@@ -265,7 +257,21 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
         print(f"Estimated offset from FFT: {offset:.3f} degrees")
     
     print(f"Cone angle calculation completed in {time.time()-start_time:.3f}s")
-    
+    '''
+    bins = 3600
+    signal_density_bins, signal, density = angle_signal_density(
+        foreground.get(), centre_x, centre_y, N_bins=bins
+    )
+
+    # Estimate optimal rotation offset using FFT of the summed angular signal
+    summed_signal = signal.sum(axis=0)
+    fft_vals = np.fft.rfft(summed_signal)
+    if number_of_plumes < len(fft_vals):
+        phase = np.angle(fft_vals[number_of_plumes])
+        offset = (-phase / number_of_plumes) * 180.0 / np.pi
+        offset %= 360.0
+        offset = min(offset, (offset-360), key=abs)
+        print(f"Estimated offset from FFT: {offset:.3f} degrees")
     
     # Generate the crop rectangle based on the plume parameters
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
@@ -328,10 +334,49 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
     # hydraulic_delay = masks.argmax(axis=1)
     hydraulic_delay =  (dE1dts > 1).argmax(axis=1)
 
+    # Penetration by averaging columns and find the strongest edge
     penetration = np.full((P, F), np.nan, dtype=np.float32)
 
+    # TODO: Multithreading implementation
     lower = 0; upper = 366
     fig, ax = plt.subplots(P//3+1, 3, figsize=(12, 3*P/3))
+
+    # Pre-compute Otsu masks on GPU to avoid CPU transfers
+    bw_otsu_all = None
+    if use_gpu:
+        # arrs shape: (P, X, F) where X is distance/radius (columns after transpose)
+        arrs = xp.transpose(td_intensity_maps, (0, 2, 1))
+        P_, X_, F_ = arrs.shape
+
+        # Normalize each plume slice to 0..255 uint8 (OpenCV-like)
+        a_min = xp.min(arrs, axis=(1, 2))
+        a_max = xp.max(arrs, axis=(1, 2))
+        denom = xp.maximum(a_max - a_min, 1e-6)
+        scale = (255.0 / denom)[:, None, None]
+        u8 = xp.clip((arrs - a_min[:, None, None]) * scale, 0, 255).astype(xp.uint8)
+
+        # Compute Otsu threshold per plume on GPU and build masks
+        bw_otsu_all = xp.zeros((P_, X_, F_), dtype=bool)
+        bins = xp.arange(256, dtype=xp.float32)
+        start_time = time.time()
+        for pp in range(P_):
+            # Histogram on GPU
+            hist = xp.histogram(u8[pp], bins=256, range=(0, 256))[0].astype(xp.float32)
+            # Cumulative sums for class weights and means
+            w1 = xp.cumsum(hist)
+            w2 = w1[-1] - w1
+            m1 = xp.cumsum(hist * bins)
+            m2_total = m1[-1]
+            m2 = m2_total - m1
+            mu1 = xp.where(w1 > 0, m1 / w1, 0)
+            mu2 = xp.where(w2 > 0, m2 / w2, 0)
+            sigma_b2 = w1 * w2 * (mu1 - mu2) ** 2
+            t = int(xp.argmax(sigma_b2))
+            bw_otsu_all[pp] = u8[pp] >= t
+        print(f"All Otsu BW computed in {time.time()-start_time :2f}s")
+    
+    # TODO: Multithreading implementation
+    start_time = time.time()
     for p in range(P):
         # Correcting decay after peak brightness frame
         decay_curve = energies[p, peak_brightness_frames[p]:]
@@ -354,15 +399,25 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
         plt.figure(1)
         ax[p//3, p%3].imshow(arr.get(), origin="lower", aspect="auto")
         # ax[p//3, p%3].plot(penetration[p], color="red")
-
-        _, bw_otsu = cv2.threshold(cv2.normalize(arr.get(), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU) # type:ignore
+        
+        # Use pre-computed Otsu masks on GPU to avoid CPU roundtrips
+        if use_gpu and bw_otsu_all is not None:
+            bw_otsu = bw_otsu_all[p]
+        else:
+            # CPU fallback using OpenCV (kept for non-GPU runs)
+            import cv2
+            _, bw_otsu = cv2.threshold(
+                cv2.normalize(arr.get(), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U), # type: ignore
+                0,
+                255,
+                cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+            )  # type: ignore
         
         # bw_otsu = ~ bw_otsu.astype(np.bool)
         
-        
-        
         start = int(hydraulic_delay[p]+1)
         end = int(peak_brightness_frames[p])
+
         differential = np.diff(arr[:, start:end]* xp.array(bw_otsu[:,start:end]),axis=1).get() #type:ignore
         # differential = (differential * bw_otsu[:,start:end-1]).astype(np.float32)
         differential[differential<0] = 0
@@ -376,48 +431,100 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0):
         decision = np.maximum(penetration[p, start:end-1], edge_diff)
         penetration[p, start:end-1]= decision
         penetration[p, :int(np.max(hydraulic_delay))]=0
+        
         ax[p//3, p%3].plot(penetration[p], color="red")
 
-    
     ax[p//3, p%3+1].plot(penetration.T)
+
     # Data Cleaning: Enforce monotonicity
     np.maximum.accumulate(penetration, axis=1, out=penetration)
     # Data Cleaning: remove zeros and values too close to the maxium
     penetration[penetration==0] = np.nan
+    for p in range(P):
+        penetration[p, int(hydraulic_delay[p])] = 0.0
     penetration[penetration>upper-2] = np.nan
     # Data Cleaning: remove too large value before injection
     penetration[:, :int(penetration.shape[1]/2)][penetration[:, :int(penetration.shape[1]/2)] > upper-10] = np.nan
-
+    print(f"Post processing completed in {time.time()-start_time:.2f}s")
 
     ax[p//3, p%3+2].plot(penetration.T)
         
+    # plt.show()
 
-    '''
-    for p in range(P):
-        arr = td_intensity_maps[p, :, :].T
+    
+    if binarize_video:
+        start_time = time.time()
 
-        differential = np.diff(arr.get(),axis=1)
-        X, F = differential.shape
-        edge_diff = np.argmax(differential[::-1, :], axis=0)
-        edge_diff = differential.shape[0]-edge_diff
-        edge_diff = np.array(edge_diff)
-        edge_diff[:int(hydraulic_delay[p])]=0
-    '''
-     
+        bw_vids, penetration_old= binarize_videos(segments, hydraulic_delay, penetration)
+
+        # Data Cleaning: Enforce monotonicity
+        np.maximum.accumulate(penetration_old, axis=1, out=penetration_old)
+        # Data Cleaning: remove zeros and values too close to the maxium
+        penetration_old[penetration_old==0] = np.nan
+        penetration_old[penetration_old>upper-2] = np.nan
+        # Data Cleaning: remove too large value before injection
+        penetration_old[:, :int(penetration_old.shape[1]/2)][penetration_old[:, :int(penetration_old.shape[1]/2)] > upper-10] = np.nan
         
+        # Comparison
+        fig = plt.subplots(1,1)
+        with np.errstate(invalid="ignore", all="ignore"):
+            plt.plot(np.nanmedian(penetration, axis=0), label="Triangular segmentation for column sum")
+            plt.plot(np.nanmedian(penetration_old, axis=0), label="Triagular segmentation for each frame")
+        plt.xlabel("Frame number")
+        plt.ylabel("Penetration [px]")
+        plt.title("Comparision of two penetration calculation methods, median")
+        plt.legend()
+
+        fig = plt.subplots(1,1)
+        with np.errstate(invalid="ignore", all="ignore"):
+            plt.plot(np.nanmean(penetration, axis=0), label="Triangular segmentation for column sum")
+            plt.plot(np.nanmean(penetration_old, axis=0), label="Triagular segmentation for each frame")
+        plt.xlabel("Frame number")
+        plt.ylabel("Penetration [px]")
+        plt.title("Comparision of two penetration calculation methods, mean")
+        plt.legend()
+
+        fig = plt.subplots(1,1)
+        plt.title("Area of all segements")
+        # Area demostration
+        area_all_segmets = np.sum(np.sum(bw_vids, axis=3), axis=2)
+        plt.plot(area_all_segmets.T)
+
+        boundaries = bw_boundaries_all_points(bw_vids)
+        i = 4
+        print(f"Binarizing video and calculating boundary completed in {time.time()-start_time:2f}s")
+        play_video_with_boundaries_cv2(segments[i].get(), boundaries[i], gain=1.0, binarize=False, intv=170)
 
 
 
-    '''
-    plt.figure(2)
-    plt.plot(penetration.T[15:60])
-    plt.title("Penetation")
+
+    # Cone Angle
+    bw_ang, _ = triangle_binarize_from_float(signal, blur=True)
+    bins = 3600
+    shift_bins = int((offset/360*bins))
+    bw_shifted = np.roll(bw_ang, -shift_bins, axis=1)
+    # Closing
+    struct = np.ones((1, 3), dtype=bool)
+    plume_widths  = np.zeros((number_of_plumes, bw_ang.shape[0]), dtype= np.float32)
+    from scipy.ndimage import binary_closing
+    for p in range(number_of_plumes):
+        start = int(round(p * bins / number_of_plumes))
+        end = int(round((p + 1) * bins / number_of_plumes))
+        region = bw_shifted[:, start:end]
+        closed = binary_closing(region, structure=struct)
+        bw_shifted[:, start:end] = closed
+        plume_widths[p] = closed.sum(axis=1) * (360.0 / bins)
+    plt.subplots(1,1)
+    plt.plot(plume_widths.T)
+
     plt.show()
-    '''
-    plt.show()
+    plt.close('all')
+        
 
     if use_gpu:
         segments = xp.asnumpy(segments)
+        # bw_vids = xp.asnumpy(bw_vids)
+
 
     
     return segments
