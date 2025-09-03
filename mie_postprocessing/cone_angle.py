@@ -164,6 +164,6 @@ def angle_signal_density_cupy(video, x0, y0, N_bins: int = 360):
 
 def angle_signal_density_auto(video, x0, y0, N_bins: int = 360):
     if CUPY_AVAILABLE:
-        return angle_signal_density_cupy(video, x0, y0, N_bins = 360)
+        return angle_signal_density_cupy(video, x0, y0, N_bins=N_bins)
     else:
-        return angle_signal_density(video, x0, y0, N_bins = 360)
+        return angle_signal_density(video, x0, y0, N_bins=N_bins)

@@ -25,6 +25,8 @@ global centre
 global hydraulic_delay
 global gain 
 global gamma
+global testpoint_name
+global video_name
 global ir_ 
 global or_
 
@@ -64,227 +66,7 @@ def numeric_then_alpha_key(p: Path):
     else:
         return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
     
-def MIE_pipeline(video, number_of_plumes, offset, centre):
-    SSIM = False
-    centre_x = float(centre[0])
-    centre_y = float(centre[1])
 
-    '''
-    video *= gain  # Apply gain correction to the video
-    video = video ** gamma  # Apply gamma correction to the video
-
-    foreground, background = subtract_median_background(video, frame_range=slice(0, hydraulic_delay))
-
-    # threshold = find_larger_than_percentile(background, percentile=95)
-
-
-    # Cone angle
-    signal_density_bins, signal, density = angle_signal_density(
-        foreground, centre_x, centre_y, N_bins=3600
-    )
-
-    # Estimate optimal rotation offset using FFT of the summed angular signal
-    summed_signal = signal.sum(axis=0)
-    fft_vals = np.fft.rfft(summed_signal)
-    if number_of_plumes < len(fft_vals):
-        phase = np.angle(fft_vals[number_of_plumes])
-        offset = (-phase / number_of_plumes) * 180.0 / np.pi
-        offset %= 360.0
-        offset = min(offset, (offset-360), key=abs)
-        print(f"Estimated offset from FFT: {offset:.2f} degrees")
-    # plot_angle_signal_density(signal_density_bins, signal)
-    '''
-
-    '''
-    signal_sum = np.sum(signal, axis=0)
-    plt.plot(signal_sum)
-    plt.xlabel("Angle (degrees)")
-    plt.ylabel("Signal Sum")        
-    plt.title("Signal Sum vs Angle")
-    plt.grid(True)
-    plt.show()
-    
-    '''  
-    # play_video_cv2(foreground, intv=17)
-
-    # gamma = foreground**2
-    # fig, (heat, contour) = video_histogram_with_contour(gamma, bins=100, exclude_zero=True, log=True)
-
-    # gain = gamma * 5
-    # fig, (heat, contour) = video_histogram_with_contour(gain, bins=100, exclude_zero=True, log=True) 
-    
-
-    # Generate the crop rectangle based on the plume parameters
-    '''
-    crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
-
-    angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
-    mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
-
-    
-    start_time = time.time()
-    '''
-    '''
-    segments = []
-    
-    # Multithreaded rotation and cropping
-    with ThreadPoolExecutor(max_workers=min(len(angles), os.cpu_count() or 1)) as exe:
-        future_map = {
-            exe.submit(
-                # rotate_and_crop, video, angle, crop, centre,
-                rotate_and_crop, foreground, angle, crop, centre,
-                is_video=True, mask=mask
-            ): idx for idx, angle in enumerate(angles)
-        }
-        segments_with_idx = []
-        for fut in as_completed(future_map):
-            idx = future_map[fut]
-            result = fut.result()
-            segments_with_idx.append((idx, result))
-        # Sort by index to preserve order
-        segments_with_idx.sort(key=lambda x: x[0])
-        segments = [seg for idx, seg in segments_with_idx]
-    '''
-    '''
-    segments=rotate_all_segments_auto(foreground, angles, crop, centre, mask=mask)
-    elapsed_time = time.time() - start_time
-    print(f"Computing all rotated segments finished in {elapsed_time:.2f} seconds.")
-    
-    
-    # Free intermediate arrays to reduce peak memory usage
-    # del foreground, gain, gamma
-    gc.collect()
-
-    '''
-    '''
-    # Stacking the segments into a 4D array
-    segments = [seg for seg in segments if seg is not None]
-    if not segments:
-        raise ValueError("No valid segments to stack.")
-    '''
-    
-    
-    segments = mie_multihole_pipeline(video, centre, number_of_plumes, gamma=gamma, binarize_video=False)
-
-
-    average_segment = np.mean(segments, axis=0) # Average across the segments
-
-    if SSIM:
-        # SSIM 
-        start_time = time.time()
-        ssim_matrix = compute_ssim_segments(segments,average_segment)    
-        elapsed_time = time.time() - start_time
-        print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
-
-        # plt.plot(ssim_matrix.transpose())
-        # plt.show()
-    if SSIM:
-        data = {"ssim": ssim_matrix}
-    data = {'average_segment': average_segment}
-    
-
-    # Kmeans 
-    '''
-    start_time = time.time()
-    for segment in segments:
-        labels = kmeans_label_video(segment, k=2)
-        playable = labels_to_playable_video(labels, k=2)
-        # play_videos_side_by_side([segment, playable], intv=34)
-    
-    elapsed_time = time.time() - start_time
-    print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
-    '''
-
-    # play_videos_side_by_side(tuple(segments),intv=17)
-    
-    for i, segment in enumerate(segments):
-        # play_video_cv2(segment)
-        time_distance_intensity = np.sum(segment, axis=1)  # Force computation of the segment to avoid lazy evaluation issues
-        '''
-        plt.imshow(time_distance_intensity,
-                aspect="auto",
-                origin="lower",
-                cmap="viridis",
-                )
-        plt.show()
-            # Cone angle
-        '''
-        
-        
-        signal_density_bins, signal, density = angle_signal_density(segment, 0.0, segment.shape[1]/2.0, N_bins=180)
-        # plot_angle_signal_density(signal_density_bins, signal)
-
-        # segment[segment < threshold] = 0
-        # segment[segment > 0] = 1
-        # area = segment.sum(axis=(1, 2))  # Area in pixels
-
-        # play_video_cv2(segment, intv=17, gain=1, binarize=True)
-
-        
-
-
-
-        data[f'segment{i}_time_distance_intensity'] = time_distance_intensity
-        data[f'segment{i}_signal'] = signal
-        ######
-        # Idea:
-        # Try adaptive higher threshold at the beginning frames of injection
-        #####
-
-        coeff=1.01
-        segment_threshold = find_larger_than_percentile(np.mean(segment[0:hydraulic_delay, :,:]), percentile=99)
-        segment[segment < segment_threshold] = 0
-        segment[segment > 0] = 1
-        area = segment.sum(axis=(1, 2))  # Area in pixels
-
-        data[f'segment{i}_area'] = area
-
-        # masked = segment * segments[i]
-
-        # unmasked = (1- masked)*segments[i]
-        # play_videos_side_by_side((masked, unmasked), intv= 4)
-        
-
-        '''
-        start_time = time.time()
-        for segment in segments:
-            clusters = 3
-            labels = kmeans_label_video(segment, k=clusters)
-            playable = labels_to_playable_video(labels, k=clusters)
-            play_videos_side_by_side([segment, playable], intv=17)
-        
-        elapsed_time = time.time() - start_time
-        # print(f"Computing all Kmeans labels finished in {elapsed_time:.2f} seconds.")
-
-        '''
-        
-
-        '''
-        laplacian_kernel = np.array([[0, 1, 0],
-                   [1, -4, 1],
-                   [0,  1, 0]])
-        
-        avg_kernel = 1/3.0*np.array([[1,1,1],
-                                     [1,1,1],
-                                     [1,1,1]])
-        
-        for i, segment in enumerate(segments):
-            med = median_filter_video_auto(segment, 3, 3)
-            lap_vid = filter_video_fft(med, laplacian_kernel, mode='same')
-            # play_videos_side_by_side((10*lap_vid, segment), intv =17)
-            
-            # play_videos_side_by_side((10*med, segment), intv=17)
-            avg = filter_video_fft(lap_vid, avg_kernel, mode='same')
-            thres = med>0.1
-            play_videos_side_by_side((10*avg, 10*(avg+thres), 10*segment), intv =17)
-        '''
-
-
-            
-        
-
-
-    return data
         
 
         
@@ -342,20 +124,20 @@ async def main():
                     # process the data
                     # for item in data:
                         # print(item)
-                    plumes = int(data['plumes'])
-                    offset = float(data['offset'])
+                    number_of_plumes = int(data['plumes'])
+                    # offset = float(data['offset'])
                     centre = (float(data['centre_x']), float(data['centre_y']))
 
         # print(files)
         for file in files:
             if file.suffix == '.cine':
+                testpoint_name = directory_path.stem
+                video_name = file.stem
+    
                 print("Procssing:", file.parts[-3], "/", file.parts[-2], "/", file.parts[-1])
-
+                # start_time = time.time()
                 video = load_cine_video(file, frame_limit=50).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                 frames, height, width = video.shape
-                # video = video.astype(float)
-                # play_video_cv2(video)
-                # video = video**2
 
                 if "Shadow" in file.name:
                     continue
@@ -617,18 +399,44 @@ async def main():
                     plt.tight_layout()
                     plt.show()'''
                 else:
-                    
-                    # gamma correcetion of video
-                    mie_video = mask_video(video[15:150,:,:], chamber_mask)
-                    # mie_video = mask_video(video, ~chamber_mask)
 
-                    # MIE_pipeline(mie_video, plumes, offset, centre)
-                    data = MIE_pipeline(video, plumes, offset, centre)
-                    file_save_path = (save_path_subfolder / file.with_suffix('.npz').name).resolve()
+                    centre_x = float(centre[0])
+                    centre_y = float(centre[1])
+
+                    
+                    segments, penetration, cone_angle_AngularDensity, bw_vids, boundaries, penetration_old = mie_multihole_pipeline(
+                        video, centre, number_of_plumes, 
+                        gamma=gamma, binarize_video=False, 
+                        plot_on=False
+                        )
+
+                    SSIM = False
+                    if SSIM:
+                        average_segment = np.mean(segments, axis=0) # Average across the segments
+                        data = {'average_segment': average_segment}
+                        # SSIM 
+                        start_time = time.time()
+                        ssim_matrix = compute_ssim_segments(segments,average_segment)    
+                        elapsed_time = time.time() - start_time
+                        print(f"Computing all SSIM finished in {elapsed_time:.2f} seconds.")
+
+                        # plt.plot(ssim_matrix.transpose())
+                        # plt.show()
+                        data = {"ssim": ssim_matrix}
+                    '''
                     np.savez_compressed(
                         file_save_path,
                         **data
                     )
+                    '''
+                    # file_save_path = (save_path_subfolder / file.with_suffix('.npz').name).resolve()
+                    penetration_folder = save_path_subfolder / "penetration"
+                    penetration_folder.mkdir(parents=True, exist_ok=True)
+
+                    file_save_path_penetration = (penetration_folder / file.with_suffix('.npz').name).resolve()
+                            
+                    np.save(file_save_path_penetration, penetration)
+
                     
 
 if __name__ == '__main__':

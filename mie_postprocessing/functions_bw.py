@@ -412,13 +412,11 @@ def keep_largest_component_cuda(bw, connectivity=2):
             zeros = cp.zeros_like(binary_mask, dtype=bool)
             return _return_like_input(zeros, bw)
     else:
-        # CuPy-only GPU labeling via propagation
-        labeled = _gpu_label_propagation(binary_mask, connectivity=int(connectivity))
-        # Determine number of components lazily
-        num_features = int(cp.unique(labeled[binary_mask]).size)
-        if num_features == 0:
-            zeros = cp.zeros_like(binary_mask, dtype=bool)
-            return _return_like_input(zeros, bw)
+        # Prefer fast CPU fallback over slow GPU propagation for moderate 2D slices
+        bw_np = cp.asnumpy(binary_mask)
+        largest_np = keep_largest_component(bw_np, connectivity=connectivity)
+        largest_cp = cp.asarray(largest_np)
+        return _return_like_input(largest_cp, bw)
 
     # Find largest component label using unique counts on foreground
     labels_fg = labeled[binary_mask]
