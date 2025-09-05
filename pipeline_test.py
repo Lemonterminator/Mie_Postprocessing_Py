@@ -539,7 +539,7 @@ def segments_computation(segments, mask):
 def load() -> np.ndarray:
     path = filedialog.askopenfilename(filetypes=[('Cine','*.cine')])
     try:
-        video = load_cine_video(path).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
+        video = load_cine_video(path).astype(np.float32)  # Ensure load_cine_video is defined or imported
         return video
     except Exception as e:
         messagebox.showerror('Error', f'Cannot load video:\n{e}')
@@ -557,7 +557,7 @@ def load_json():
         centre = (float(data['centre_x']), float(data['centre_y']))
     return centre, plumes
 
-def main():
+def pipeline_mie():
     ir_=14; or_=380
 
     centre, number_of_plumes = load_json()
@@ -633,10 +633,6 @@ def main():
         ax[1,1].grid()
         ax[1,1].legend()
     
-
-
-
-
     if visualization:
         fig, ax = plt.subplots(2, 2, figsize=(13,11))
         ax[0,0].imshow(bkg[0]**0.2*10, origin="lower", cmap="gray")
@@ -881,5 +877,109 @@ def main():
     play_segments_with_boundaries(segments, boundaries, p=0, gain=1.0, intv=170, origin='lower')
 
 
+def main(visualization=True):
+    number_of_plumes = 1
+    centre, _ = load_json()
+    video = load()/2**16
+    
+    centre_x = float(centre[0])
+    centre_y = float(centre[1])
+
+    '''
+    ############################################
+    # Cone Angle 
+
+    start_time = time.time()
+    # Cone angle
+    bins = 3600
+    signal_density_bins, signal, density = angle_signal_density(
+        video, centre_x, centre_y, N_bins=bins
+    )
+
+    # Estimate optimal rotation offset using FFT of the summed angular signal
+    summed_signal = signal.sum(axis=0)
+    fft_vals = np.fft.rfft(summed_signal)
+    if number_of_plumes < len(fft_vals):
+        phase = np.angle(fft_vals[number_of_plumes])
+        offset = (-phase / number_of_plumes) * 180.0 / np.pi
+        offset %= 360.0
+        offset = min(offset, (offset-360), key=abs)
+        print(f"Estimated offset from FFT: {offset:.3f} degrees")
+    
+    print(f"Cone angle calculation completed in {time.time()-start_time:.3f}s")
+
+    if visualization:
+        arr = np.log1p(signal)
+        arr2d = arr if arr.ndim == 2 else arr[None]
+        frames, n_bins = arr2d.shape
+
+        bins_ext = np.concatenate((np.linspace(0, 360, bins) - 360, np.linspace(0, 360, bins)))
+        arr_ext = np.concatenate((arr2d, arr2d), axis=1)
+        sum_ext = np.concatenate((summed_signal, summed_signal))
+
+        X, Y = np.meshgrid(bins_ext, np.arange(frames))
+
+        fig, (ax_heat, ax_contour, ax_signal_sum) = plt.subplots(3, 1, figsize=(15, 8), sharex=True)
+
+        im = ax_heat.imshow(
+            arr_ext,
+            aspect="auto",
+            origin="lower",
+            cmap="viridis",
+            extent=[bins_ext[0], bins_ext[-1], 0, frames],
+        )
+        # fig.colorbar(im, ax=ax_heat, label="Log Signal")
+        ax_heat.set_ylabel("Frame index")
+        ax_heat.set_title("Angular Signal Density Heatmap")
+        ax_heat.set_xlim(-180, 180)
+
+        cont = ax_contour.contourf(X, Y, arr_ext, levels=15, cmap="viridis")
+        # fig.colorbar(cont, ax=ax_contour, label="Log Signal")
+        ax_contour.set_xlabel("Angle (degrees)")
+        ax_contour.set_ylabel("Frame index")
+        ax_contour.set_title("Angular Signal Density Contour")
+        ax_heat.set_xlim(-180, 180)
+
+        summed  = ax_signal_sum.plot(bins_ext, sum_ext)
+        ax_signal_sum.set_xlabel("Angle (degrees)")
+        ax_signal_sum.set_ylabel("Intesity")
+        ax_signal_sum.set_title("Angular Signal Density Summed in all frames")
+        ax_signal_sum.set_xlim(-180, 180)
+
+        angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
+        plume_angles = -angles
+
+        if plume_angles is not None:
+            for ang in plume_angles:
+                for shift in (0, 360):
+                    ax_contour.axvline(ang + shift, color="cyan", linestyle="--")
+                    ax_heat.axvline(ang + shift, color="cyan", linestyle="--")
+                    ax_signal_sum.axvline(ang+shift, color="cyan", linestyle="--")
+
+        plt.tight_layout()
+        plt.show()
+    '''
+    angles = np.array([-145.0])
+    offset = 0
+    ir_ =0
+    or_ = 300
+    
+    ##################################################
+    # Rotation into horizontal segments
+    ##################################################
+    start_time = time.time()
+
+    rotated = rotate_video(video, -45.0)
+
+    
+    F, H, W = rotated.shape
+    
+    print(f"Rotation to segments completed in {time.time()-start_time:.3f}s")
+
+    play_video_cv2(rotated)
+    1
+
+
+
 if __name__  == '__main__':
-    main()
+    main(visualization=False)
