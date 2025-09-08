@@ -67,7 +67,7 @@ def medfilt(image, M, N):
 def median_filter_video(video_array, M, N, max_workers=None):
     num_frames = video_array.shape[0]
     filtered_frames = [None] * num_frames
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_index = {executor.submit(medfilt, video_array[i], M, N): i
                            for i in range(num_frames)}
         for future in as_completed(future_to_index):
@@ -77,6 +77,26 @@ def median_filter_video(video_array, M, N, max_workers=None):
             except Exception as exc:
                 print(f"Frame {idx} generated an exception during median filtering: {exc}")
     return np.array(filtered_frames)
+
+def median_filter_video_cv2(video_array, ksize=3, max_workers=None):
+    # video_array: (T, H, W) or (T, H, W, C), uint8/uint16/float32 -> OpenCV prefers uint8/uint16
+    T = video_array.shape[0]
+    out = np.empty_like(video_array)
+
+    def work(i):
+        frame = video_array[i]
+        if frame.dtype == np.float32:  # OpenCV supports this too; uint8/uint16 are fastest
+            return cv2.medianBlur(frame, ksize)
+        # Ensure C-contiguous for OpenCV
+        return cv2.medianBlur(np.ascontiguousarray(frame), ksize)
+
+    # OpenCV’s C code releases the GIL -> threads scale well; avoid process pickling overhead
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(work, i): i for i in range(T)}
+        for f in as_completed(futures):
+            i = futures[f]
+            out[i] = f.result()
+    return out
 
 def median_filter_video_auto(video_array, M, N, T=1, max_workers=None):
     """Apply median filtering using GPU when available.
@@ -90,7 +110,20 @@ def median_filter_video_auto(video_array, M, N, T=1, max_workers=None):
             return median_filter_video_cuda(video_array, M, N, T=T)
         except Exception as exc:  # pragma: no cover - runtime hardware dependent
             print(f"GPU median filtering failed ({exc}), falling back to CPU.")
-    return median_filter_video(video_array, M, N, max_workers=max_workers)
+    # CPU fallback
+    # If M and N are equal (square window), prefer fast OpenCV medianBlur which
+    # accepts a single odd kernel size `ksize`. Otherwise, fall back to SciPy's
+    # rectangular median filter implementation.
+    if M == N:
+        ksize = int(M)
+        # OpenCV requires ksize to be an odd integer >= 3
+        if ksize < 3:
+            ksize = 3
+        if ksize % 2 == 0:
+            ksize += 1
+        return median_filter_video_cv2(video_array, ksize=ksize, max_workers=max_workers)
+    else:
+        return median_filter_video(video_array, M, N, max_workers=max_workers)
 
 def gaussian_low_pass_filter(img, cutoff):
     rows, cols = img.shape

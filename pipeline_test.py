@@ -959,7 +959,7 @@ def main(visualization=True):
         plt.tight_layout()
         plt.show()
     '''
-    angles = np.array([-145.0])
+    angles = np.array([-120.0])
     offset = 0
     ir_ =0
     or_ = 300
@@ -969,17 +969,18 @@ def main(visualization=True):
     ##################################################
     start_time = time.time()
 
-    rotated = rotate_video(video, -45.0)
+    rotated = rotate_video(video, -145.0)
 
     
     F, H, W = rotated.shape
     
     print(f"Rotation to segments completed in {time.time()-start_time:.3f}s")
 
-    play_video_cv2(rotated)
+    play_video_cv2(rotated*100)
     1
 
 
 
 if __name__  == '__main__':
-    main(visualization=False)
+    # main(visualization=False)
+    pipeline_mie()

@@ -78,8 +78,8 @@ def cine_to_injection_duration_us(cine_number: int) -> float:
 # =====================
 CONFIG = {
     # Data roots
-    "cine_root": r"C:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Cine",
-    "results_root": r"C:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Cine/penetration_results",
+    "cine_root": r"C:\Users\LJI008\Mie_Postprocessing_Py\Cine",
+    "results_root": r"C:\Users\LJI008\Mie_Postprocessing_Py\Cine\penetration_results",
     "repetitions_per_condition": 5,
 
     # Training / data handling

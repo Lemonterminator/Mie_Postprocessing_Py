@@ -87,14 +87,19 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
     for condition in range(conditions):
         first_file = files[condition*REPETITIONS_PER_CONDITION]
         first_data = np.load(first_file)
+        if first_file.suffix == '.npz':
+            first_data = first_data['penetration']
         plumes, frames = first_data.shape
         # Condition Data has shape: Repetition, plume number, frames
         condition_data = np.zeros((REPETITIONS_PER_CONDITION, plumes, frames))
         condition_data[0] = first_data
         for repetition in range(1, REPETITIONS_PER_CONDITION):
             current_file = files[condition*REPETITIONS_PER_CONDITION + repetition]
-            condition_data[repetition] = np.load(current_file)
-        
+            if current_file.suffix == '.npz':
+                current_data = np.load(current_file)['penetration']
+            else:
+                current_data = np.load(current_file)
+            condition_data[repetition] = current_data
         
         data = condition_data.reshape(-1, frames)
         
@@ -176,7 +181,14 @@ def main():
         return
     subfolders = get_subfolder_names(folder)
     # sort numerically by the number after 'T'
-    subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
+    try:
+        subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
+    except Exception:
+        subfolders.remove('penetration_results')
+        subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
+
+
+
     # Output root under selected folder
     output_root = folder / "penetration_results"
     output_root.mkdir(parents=True, exist_ok=True)
@@ -185,6 +197,7 @@ def main():
     npz_saver = AsyncNPZSaver(max_workers=2)
 
     for subfolder in subfolders:
+        print("Handling subfolder", subfolder)
         # Specify the directory path    
         # If folder is already a Path
         directory_path = folder / subfolder

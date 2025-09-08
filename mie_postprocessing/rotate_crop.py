@@ -123,8 +123,6 @@ def _remap_video_cupy(
                 rotated[idx] = out
     return cp.stack(rotated, axis=0)
     
-
-
 def _remap_video_cuda(video: np.ndarray, map_x: np.ndarray, map_y: np.ndarray, interpolation=cv2.INTER_CUBIC) -> np.ndarray:
     """Remap a stack of frames on the GPU without threading."""
     gpu_map_x = cv2.cuda_GpuMat(); gpu_map_x.upload(map_x)
@@ -226,8 +224,7 @@ def rotate_and_crop(
         if is_cupy:
             return _remap_frame_cupy(array, map_x, map_y)
         return _remap_frame(array, map_x, map_y, use_cuda)
-
-    
+   
 def generate_CropRect(inner_radius, outer_radius, number_of_plumes, centre_x, centre_y):
     section_angle = 360.0/ number_of_plumes
     half_angle_radian = section_angle / 2.0 * np.pi/180.0
