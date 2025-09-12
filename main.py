@@ -32,13 +32,14 @@ global or_
 
 
 # Define the parent folder and other global variables
-parent_folder = r"D:\Master_Thesis\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
-hydraulic_delay = 20  # Hydraulic delay in frames, adjust as needed
+parent_folder = r"G:\BC20241003_HZ_Nozzle1\cine"
+hydraulic_delay = 11  # Hydraulic delay in frames, adjust as needed
 gain = 3 # Gain factor for video processing
 gamma = 1.3  # Gamma correction factor for video processing
 
 # Inner and outer radius (in pixels) for cropping the images
-ir_ = 14
+# ir_ = 14 # DS300
+ir_ = 11 # Nozzle 1
 or_ = 380
 
 
@@ -98,7 +99,7 @@ async def main():
         region_unblocked = np.load(region_unblocked_path)
     
     # General folder for saving results
-    save_path = Path(parent_folder).parts[-1]
+    save_path = Path(parent_folder).parts[-2]
     try:
         os.mkdir(save_path)
     except FileExistsError:

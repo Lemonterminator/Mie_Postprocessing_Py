@@ -880,7 +880,10 @@ def pipeline_mie():
 def main(visualization=True):
     number_of_plumes = 1
     centre, _ = load_json()
-    video = load()/2**16
+    video = load()
+
+    max = video.max()
+    video /=max
     
     centre_x = float(centre[0])
     centre_y = float(centre[1])
@@ -969,7 +972,8 @@ def main(visualization=True):
     ##################################################
     start_time = time.time()
 
-    rotated = rotate_video(video, -145.0)
+    rotated_raw = rotate_video_auto(video, -125)
+    rotated = rotated_raw[:, 50:400, :]
 
     
     F, H, W = rotated.shape
@@ -977,10 +981,38 @@ def main(visualization=True):
     print(f"Rotation to segments completed in {time.time()-start_time:.3f}s")
 
     play_video_cv2(rotated*100)
-    1
+    
+    td_intensity_map = np.sum(rotated, axis=1).squeeze()
+    
+    bw, thres = triangle_binarize_from_float(td_intensity_map)
+
+    fig, ax = plt.subplots(2, 2)
+
+    ax[0,0].imshow(td_intensity_map, origin="lower", cmap="jet", label="T-D intensity map" )
+
+    ax[0,1].imshow(np.log(td_intensity_map+1e-9), origin="lower", cmap="jet", label="T-D intensity map in log scale")
+    
+
+    data = td_intensity_map.ravel()
+    hist, edges = np.histogram(data, bins=1000, range=(0, 1))
+    centers = (edges[:-1] + edges[1:]) / 2
+    
+
+    
+    ax[1,0].plot(centers, hist, lw=1.2, label="Histogram of T-D intensity map in log scale")
+    ax[1,0].axvline(thres/255.0)
+    ax[1,0].set_yscale('log')
+    ax[1,0].set_ylim(bottom=1)  # avoid log(0) issues
+    ax[1,0].set_xlabel("Range value")
+    ax[1,0].set_ylabel("Count (log scale)")
+    ax[1,0].set_title("Histogram of pixel range in log scale")
+
+    ax[1,1].imshow(np.log(td_intensity_map+1e-9)*bw, origin="lower", cmap="jet", label="Mask * log(map)")
+
+    plt.show()   
 
 
 
 if __name__  == '__main__':
-    # main(visualization=False)
-    pipeline_mie()
+    main(visualization=False)
+    # pipeline_mie()

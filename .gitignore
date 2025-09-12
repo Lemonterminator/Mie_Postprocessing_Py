@@ -6,3 +6,5 @@ runs_mlp/
 __pycache__/
 *.pyc
 __pycache__/*.pyc
+DS300/
+BC20241003_HZ_Nozzle1/

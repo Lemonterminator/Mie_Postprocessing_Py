@@ -23,6 +23,12 @@ from typing import Tuple, Optional, Dict, Any
 
 import numpy as np
 
+global root
+
+# DS300
+# root = Path(r"C:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/DS300/penetration_results")
+# Nozzle 1
+root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1")
 
 # Constants
 FRAME_RATE_HZ: float = 34_000.0
@@ -129,7 +135,7 @@ def process_condition_file(npz_path: Path, verbose: bool = True) -> Path:
 
 
 def process_all(
-    root: Path = Path(r"C:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Cine/penetration_results"),
+    root: Path,
     pattern: str = "condition_*_stats.npz",
     verbose: bool = True,
 ) -> None:
@@ -146,5 +152,5 @@ def process_all(
 
 
 if __name__ == "__main__":
-    process_all()
+    process_all(root=root)
 

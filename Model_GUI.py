@@ -11,6 +11,8 @@ from mie_postprocessing.inference_penetration import (
     predict_time_range as predict_time_range_pen,
 )
 
+global scale
+scale = 0.21345
 
 class InferenceApp:
     """GUI for penetration MLP inference using physical inputs.
@@ -132,11 +134,11 @@ class InferenceApp:
 
             # Predict
             out = predict_time_range_pen(self.pen_run, params, time_s=time_s, output_space=self.pen_space_var.get())
-
+            
             # Plot mean ± std
             self.ax.clear()
-            self.ax.plot(x_vals, out['mean'], label='mean', lw=2)
-            self.ax.fill_between(x_vals, out['mean'] - out['std'], out['mean'] + out['std'], alpha=0.25, label='±1 std')
+            self.ax.plot(x_vals, scale*out['mean'], label='mean', lw=2)
+            self.ax.fill_between(x_vals, scale*(out['mean'] - out['std']), scale*(out['mean'] + out['std']), alpha=0.25, label='±1 std')
             title_space = 'Corrected' if self.pen_space_var.get() == 'corrected' else 'Projected'
             self.ax.set_title(f"Penetration ({title_space})")
             self.ax.set_xlabel(x_label)

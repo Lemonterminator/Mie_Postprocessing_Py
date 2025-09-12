@@ -9,11 +9,11 @@ import re
 import numpy as np
 
 REPETITIONS_PER_CONDITION = 5
-HYDRAULIC_DELAY_ESTIMATION_MIN = 17
-HYDRAULIC_DELAY_ESTIMATION_MAX = 20
+HYDRAULIC_DELAY_ESTIMATION_MIN = 10
+HYDRAULIC_DELAY_ESTIMATION_MAX = 13
 
 # Inner and outer radius (in pixels) for cropping the images
-ir_ = 14
+ir_ = 11
 or_ = 380
 
 

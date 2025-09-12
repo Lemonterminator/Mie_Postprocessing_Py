@@ -46,6 +46,8 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 # =====================
 # Experimental mapping
 # =====================
+'''
+# DS300
 T_GROUP_TO_COND = {
     1:  {"chamber_pressure": 5,  "injection_pressure": 2200, "control_backpressure": 1},
     2:  {"chamber_pressure": 15, "injection_pressure": 2200, "control_backpressure": 1},
@@ -60,8 +62,41 @@ T_GROUP_TO_COND = {
     11: {"chamber_pressure": 5,  "injection_pressure": 1600, "control_backpressure": 1},
     12: {"chamber_pressure": 35, "injection_pressure": 1600, "control_backpressure": 1},
 }
+'''
+T_GROUP_TO_COND = {
+    1:  {"chamber_pressure": 5,  "injection_duration": 560},
+    2:  {"chamber_pressure": 5,  "injection_duration": 592},
+    3:  {"chamber_pressure": 5,  "injection_duration": 620},
+    4:  {"chamber_pressure": 5,  "injection_duration": 646.5},
+    5:  {"chamber_pressure": 5,  "injection_duration": 679},
+    6:  {"chamber_pressure": 5,  "injection_duration": 715},
+    7:  {"chamber_pressure": 5,  "injection_duration": 748.5},
+    8:  {"chamber_pressure": 5,  "injection_duration": 767},
+    9:  {"chamber_pressure": 5,  "injection_duration": 779},
 
+    10:  {"chamber_pressure": 10,  "injection_duration": 560},
+    11:  {"chamber_pressure": 10,  "injection_duration": 592},
+    12:  {"chamber_pressure": 10,  "injection_duration": 620},
+    13:  {"chamber_pressure": 10,  "injection_duration": 646.5},
+    14:  {"chamber_pressure": 10,  "injection_duration": 679},
+    15:  {"chamber_pressure": 10,  "injection_duration": 715},
+    16:  {"chamber_pressure": 10,  "injection_duration": 748.5},
+    17:  {"chamber_pressure": 10,  "injection_duration": 767},
+    18:  {"chamber_pressure": 10,  "injection_duration": 779},
 
+    19:  {"chamber_pressure": 15,  "injection_duration": 560},
+    20:  {"chamber_pressure": 15,  "injection_duration": 592},
+    21:  {"chamber_pressure": 15,  "injection_duration": 620},
+    22:  {"chamber_pressure": 15,  "injection_duration": 646.5},
+    23:  {"chamber_pressure": 15,  "injection_duration": 679},
+    24:  {"chamber_pressure": 15,  "injection_duration": 715},
+    25:  {"chamber_pressure": 15,  "injection_duration": 748.5},
+    26:  {"chamber_pressure": 15,  "injection_duration": 767},
+    27:  {"chamber_pressure": 15,  "injection_duration": 779},
+
+}
+
+### DS300 
 def cine_to_injection_duration_us(cine_number: int) -> float:
     # 1..5 -> 340; +20 each block up to 91..95 -> 700
     # 96..100 -> 750; then +50 per block up to 141..145 -> 1200
@@ -78,8 +113,8 @@ def cine_to_injection_duration_us(cine_number: int) -> float:
 # =====================
 CONFIG = {
     # Data roots
-    "cine_root": r"C:\Users\LJI008\Mie_Postprocessing_Py\Cine",
-    "results_root": r"C:\Users\LJI008\Mie_Postprocessing_Py\Cine\penetration_results",
+    "cine_root": r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1",
+    "results_root": r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1\penetration_results",
     "repetitions_per_condition": 5,
 
     # Training / data handling
@@ -103,7 +138,7 @@ CONFIG = {
     "output_activation": "none", # none | relu | softplus (unused for std; we clamp instead)
 
     # Optimization
-    "epochs": 200,
+    "epochs": 500,
     "optimizer": "adamw",
     "lr": 5e-3,
     "weight_decay": 1e-4,
@@ -258,14 +293,26 @@ def load_frame_stats_to_arrays(
                 std = z["std"].astype(float)
             except Exception:
                 continue
-            inj_dur = inj_map.get(cidx, np.nan)
+            
+            # load injection duration if provided
+            try: 
+                inj_dur = float(cond["injection_duration"])
+            except Exception:
+                inj_dur = inj_map.get(cidx, np.nan)
             # Build rows per frame, dropping NaNs in targets
             valid = ~(np.isnan(mean) | np.isnan(std) | np.isnan(time_s))
             if not np.any(valid):
                 continue
             cp = float(cond["chamber_pressure"])
-            ip = float(cond["injection_pressure"])
-            cb = float(cond["control_backpressure"])
+            try:
+                ip = float(cond["injection_pressure"])
+            except Exception:
+                ip = 2000.0
+            # Control back pressure is 4 by default
+            try:
+                cb = float(cond["control_backpressure"])
+            except Exception:
+                cb = 4.0
             inj = float(inj_dur)
             feats = np.stack([
                 np.full_like(time_s, cp),
