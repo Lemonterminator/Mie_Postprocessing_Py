@@ -127,7 +127,10 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
         npz_path = tp_out_dir / f"condition_{condition + 1:02d}_stats.npz"
         npz_saver.save(
             npz_path,
+            condition_data=condition_data,
+            condition_data_std=std,
             condition_data_cleaned=condition_data_cleaned,
+            condition_data_cleaned_mean = mean,
             plume_wise_mean=plume_wise_mean,
             plume_wise_std=plume_wise_std,
             shot_wise_mean=shot_wise_mean,

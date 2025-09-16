@@ -95,7 +95,22 @@ def preprocessing(video, hydraulic_delay_estimate, gamma=1.0, M=3, N=3,
     if timing:
         print(f"Preprocessing completed in {(_t.time()-t0):.3f}s (use_gpu={use_gpu})")
 
-    return xp.asnumpy(foreground, mask) if (return_numpy and use_gpu) else foreground, mask
+    # Ensure mask is defined even if range_mask is False
+    try:
+        mask  # noqa: F401
+    except NameError:
+        mask = xp.ones_like(foreground[0], dtype=bool)
+
+    # Return consistent types
+    if return_numpy:
+        if use_gpu:
+            # Convert both arrays from CuPy to NumPy
+            return cp.asnumpy(foreground), cp.asnumpy(mask)
+        else:
+            return foreground, mask
+    else:
+        # Keep arrays in their native library (NumPy/CuPy)
+        return foreground, mask
 
 
 # ---- GPU Triangle threshold (CuPy), optional ignore-zeros -------------------
@@ -412,7 +427,8 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
     penetration = np.full((P, F), np.nan, dtype=np.float32)
     lower = 0; upper = 366
     if plot_on:
-        fig, ax = plt.subplots(P//3+1, 3, figsize=(12, 3*P/3))
+        # fig, ax = plt.subplots(P//3+1, 3, figsize=(12, 3*P/3))
+        fig, ax = plt.subplots((P+2)//3+1, 3, figsize=(12, 3*P/3))
 
     # Pre-compute Otsu masks on GPU to avoid CPU transfers
     bw_otsu_all = None
@@ -461,14 +477,25 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
         arr = td_intensity_maps[p, :, :].T
         X, F = arr.shape
 
-        # Binary mask via triangle on GPU, then keep largest component
-        bw = _triangle_binarize_gpu(arr)
-        bw = keep_largest_component_cuda(bw, connectivity=2)
+        # Binary mask via triangle threshold, then keep largest component
+        if use_gpu:
+            # GPU path
+            bw = _triangle_binarize_gpu(arr)
+            bw = keep_largest_component_cuda(bw, connectivity=2)
+        else:
+            # CPU path (no CuPy dependency)
+            arr_np = np.asarray(arr)
+            bw_u8, _ = triangle_binarize_from_float(arr_np)
+            bw = keep_largest_component(bw_u8 > 0, connectivity=2)
 
-        # Boundary from triangular segmentation (download only 1D)
-        edge_tri_cp = xp.argmax(bw[::-1, :], axis=0)
-        edge_tri_cp = bw.shape[0] - edge_tri_cp
-        edge_tri = xp.asnumpy(edge_tri_cp)
+        # Boundary from triangular segmentation (download only 1D for GPU)
+        if use_gpu:
+            edge_tri_cp = xp.argmax(bw[::-1, :], axis=0)
+            edge_tri_cp = bw.shape[0] - edge_tri_cp
+            edge_tri = xp.asnumpy(edge_tri_cp)
+        else:
+            edge_tri = np.argmax(bw[::-1, :], axis=0)
+            edge_tri = bw.shape[0] - edge_tri
 
         # zero-out values before hydraulic delay on CPU vector
         hd = int(hydraulic_delay[p])
@@ -480,7 +507,8 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
             bw_otsu = bw_otsu_all[p]
         else:
             import cv2
-            arr_u8 = cv2.normalize(arr.get(), None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)  # type: ignore
+            arr_np = arr.get() if use_gpu else np.asarray(arr)
+            arr_u8 = cv2.normalize(arr_np, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             _, bw_otsu = cv2.threshold(arr_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # type: ignore
 
         start = int(hydraulic_delay[p] + 1)
@@ -495,7 +523,8 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
             edge_diff_cp = differential.shape[0] - edge_diff_cp
             edge_diff = xp.asnumpy(edge_diff_cp)
         else:
-            differential = np.diff(arr[:, start:end].get() * (np.array(bw_otsu[:, start:end])), axis=1)  # type: ignore
+            arr_np = arr[:, start:end].get() if use_gpu else np.asarray(arr[:, start:end])
+            differential = np.diff(arr_np * np.array(bw_otsu[:, start:end]), axis=1)
             differential[differential < 0] = 0
             edge_diff = np.argmax(differential[::-1, :], axis=0)
             edge_diff = differential.shape[0] - edge_diff
@@ -504,6 +533,7 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
         edge_diff[edge_diff > upper - 10] = 0
         edge_diff[edge_diff < lower + 10] = 0
         decision = np.maximum(penetration[p, start:end - 1], edge_diff)
+        # decision = np.minimum(penetration[p, start:end - 1], edge_diff)
         penetration[p, start:end - 1] = decision
         penetration[p, :int(np.max(hydraulic_delay))] = 0
 
@@ -526,7 +556,10 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
         for p in range(P):
             arr = td_intensity_maps[p, :, :].T
             plt.figure(1)
-            ax[p // 3, p % 3].imshow(arr.get(), origin="lower", aspect="auto")
+            if use_gpu:
+                ax[p // 3, p % 3].imshow(arr.get(), origin="lower", aspect="auto")
+            else:
+                ax[p // 3, p % 3].imshow(arr, origin="lower", aspect="auto")
             ax[p // 3, p % 3].plot(penetration[p], color="red")
 
         ax[p//3, p%3+1].plot(penetration.T)
@@ -543,7 +576,7 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
     print(f"Post processing completed in {time.time()-start_time:.2f}s")
 
     if plot_on:
-        ax[p//3, p%3+2].plot(penetration.T)
+        ax[(p+2)//3, (p+2)%3].plot(penetration.T)
         
     if binarize_video:
         start_time = time.time()

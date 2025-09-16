@@ -32,7 +32,7 @@ global or_
 
 
 # Define the parent folder and other global variables
-parent_folder = r"G:\BC20241003_HZ_Nozzle1\cine"
+parent_folder = r"C:\Users\LJI008\OneDrive - Wärtsilä Corporation\Documents\BC20241010_HZ_Nozzle5\Cine"
 hydraulic_delay = 11  # Hydraulic delay in frames, adjust as needed
 gain = 3 # Gain factor for video processing
 gamma = 1.3  # Gamma correction factor for video processing
@@ -412,7 +412,7 @@ async def main():
                         segments, penetration, cone_angle_AngularDensity, bw_vids, boundaries, penetration_old = mie_multihole_pipeline(
                             video, centre, number_of_plumes, 
                             gamma=gamma, binarize_video=False, 
-                            plot_on=False
+                            plot_on=True
                             )
 
                         SSIM = False

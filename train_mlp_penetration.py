@@ -151,7 +151,7 @@ CONFIG = {
 
     # Scheduler
     "scheduler": "plateau",      # none | plateau | cosine
-    "plateau_patience": 10,
+    "pla teau_patience": 10,
     "plateau_factor": 0.5,
     "cosine_T_max": 100,
 
