@@ -28,7 +28,13 @@ global root
 # DS300
 # root = Path(r"C:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/DS300/penetration_results")
 # Nozzle 1
-root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1")
+# root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1")
+# Nozzle 4
+# root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241007_HZ_Nozzle4")
+# Nozzle 2
+# root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241017_HZ_Nozzle2")
+# Nozzle 3 
+root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241014_HZ_Nozzle3")
 
 # Constants
 FRAME_RATE_HZ: float = 34_000.0
@@ -124,7 +130,14 @@ def derive_output_path(npz_path: Path) -> Path:
 def process_condition_file(npz_path: Path, verbose: bool = True) -> Path:
     """Process a single condition stats NPZ and save frame-wise stats."""
     arr3d = _load_condition_array(npz_path)
-    time_s, mean, std = compute_frame_stats(arr3d)
+    # 
+    try:
+        npz = np.load(str(npz_path))
+        mean = np.array(npz['condition_data_cleaned_mean'], copy=False)
+        std = np.array(npz['condition_data_std'], copy=False)
+        time_s, _, _ = compute_frame_stats(arr3d)
+    except Exception:
+        time_s, mean, std = compute_frame_stats(arr3d)
     out_path = derive_output_path(npz_path)
     save_frame_stats(out_path, time_s, mean, std)
     if verbose:

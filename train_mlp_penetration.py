@@ -46,66 +46,10 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 # =====================
 # Experimental mapping
 # =====================
-'''
-# DS300
-T_GROUP_TO_COND = {
-    1:  {"chamber_pressure": 5,  "injection_pressure": 2200, "control_backpressure": 1},
-    2:  {"chamber_pressure": 15, "injection_pressure": 2200, "control_backpressure": 1},
-    3:  {"chamber_pressure": 25, "injection_pressure": 2200, "control_backpressure": 1},
-    4:  {"chamber_pressure": 35, "injection_pressure": 2200, "control_backpressure": 1},
-    5:  {"chamber_pressure": 5,  "injection_pressure": 1400, "control_backpressure": 1},
-    6:  {"chamber_pressure": 15, "injection_pressure": 1400, "control_backpressure": 1},
-    7:  {"chamber_pressure": 35, "injection_pressure": 1400, "control_backpressure": 1},
-    8:  {"chamber_pressure": 5,  "injection_pressure": 2200, "control_backpressure": 4},
-    9:  {"chamber_pressure": 15, "injection_pressure": 2200, "control_backpressure": 4},
-    10: {"chamber_pressure": 35, "injection_pressure": 2200, "control_backpressure": 4},
-    11: {"chamber_pressure": 5,  "injection_pressure": 1600, "control_backpressure": 1},
-    12: {"chamber_pressure": 35, "injection_pressure": 1600, "control_backpressure": 1},
-}
-'''
-T_GROUP_TO_COND = {
-    1:  {"chamber_pressure": 5,  "injection_duration": 560},
-    2:  {"chamber_pressure": 5,  "injection_duration": 592},
-    3:  {"chamber_pressure": 5,  "injection_duration": 620},
-    4:  {"chamber_pressure": 5,  "injection_duration": 646.5},
-    5:  {"chamber_pressure": 5,  "injection_duration": 679},
-    6:  {"chamber_pressure": 5,  "injection_duration": 715},
-    7:  {"chamber_pressure": 5,  "injection_duration": 748.5},
-    8:  {"chamber_pressure": 5,  "injection_duration": 767},
-    9:  {"chamber_pressure": 5,  "injection_duration": 779},
 
-    10:  {"chamber_pressure": 10,  "injection_duration": 560},
-    11:  {"chamber_pressure": 10,  "injection_duration": 592},
-    12:  {"chamber_pressure": 10,  "injection_duration": 620},
-    13:  {"chamber_pressure": 10,  "injection_duration": 646.5},
-    14:  {"chamber_pressure": 10,  "injection_duration": 679},
-    15:  {"chamber_pressure": 10,  "injection_duration": 715},
-    16:  {"chamber_pressure": 10,  "injection_duration": 748.5},
-    17:  {"chamber_pressure": 10,  "injection_duration": 767},
-    18:  {"chamber_pressure": 10,  "injection_duration": 779},
+from test_matrix.Nozzle2 import T_GROUP_TO_COND
 
-    19:  {"chamber_pressure": 15,  "injection_duration": 560},
-    20:  {"chamber_pressure": 15,  "injection_duration": 592},
-    21:  {"chamber_pressure": 15,  "injection_duration": 620},
-    22:  {"chamber_pressure": 15,  "injection_duration": 646.5},
-    23:  {"chamber_pressure": 15,  "injection_duration": 679},
-    24:  {"chamber_pressure": 15,  "injection_duration": 715},
-    25:  {"chamber_pressure": 15,  "injection_duration": 748.5},
-    26:  {"chamber_pressure": 15,  "injection_duration": 767},
-    27:  {"chamber_pressure": 15,  "injection_duration": 779},
 
-}
-
-### DS300 
-def cine_to_injection_duration_us(cine_number: int) -> float:
-    # 1..5 -> 340; +20 each block up to 91..95 -> 700
-    # 96..100 -> 750; then +50 per block up to 141..145 -> 1200
-    cine_number = max(1, min(145, int(cine_number)))
-    block = (cine_number - 1) // 5
-    if block <= 18:
-        return 340 + 20 * block
-    else:
-        return 750 + 50 * (block - 19)
 
 
 # =====================
@@ -113,8 +57,8 @@ def cine_to_injection_duration_us(cine_number: int) -> float:
 # =====================
 CONFIG = {
     # Data roots
-    "cine_root": r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1",
-    "results_root": r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1\penetration_results",
+    "cine_root": r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241017_HZ_Nozzle2",
+    "results_root": r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241017_HZ_Nozzle2\penetration_results",
     "repetitions_per_condition": 5,
 
     # Training / data handling
@@ -146,12 +90,12 @@ CONFIG = {
     "gradient_clip_norm": 1.0,
 
     # Regularization tricks
-    "input_noise_std": 0.01,
-    "mixup_alpha": 0.0,           # 0 disables
+
+    "mixup_alpha": 0.1,           # 0 disables
 
     # Scheduler
     "scheduler": "plateau",      # none | plateau | cosine
-    "pla teau_patience": 10,
+    "plateau_patience": 10,
     "plateau_factor": 0.5,
     "cosine_T_max": 100,
 
@@ -159,11 +103,11 @@ CONFIG = {
     "early_stop_patience": 80,
     "min_delta": 1e-5,
 
-    # AMP
+    # Automatic Mixed Precision (AMP)
     "use_amp": True,
 
-    # Outputs
-    "out_dir": "runs_mlp/penetration_frame",
+    # Output 
+    "out_dir": None,
 
     # Target/feature standardization toggles (align to the original script behavior)
     "standardize_features": True,
@@ -189,6 +133,8 @@ CONFIG = {
     "correction_factor": float(1.0 / np.cos(np.deg2rad(20.0))),
 }
 
+    # Outputs
+CONFIG["out_dir"]= Path("runs_mlp/" + str(Path(CONFIG["cine_root"]).name))
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -279,7 +225,7 @@ def load_frame_stats_to_arrays(
         cond = T_GROUP_TO_COND.get(t_group)
         if cond is None:
             continue
-        inj_map = build_injection_duration_map(cine_root, t_group, reps_per_cond)
+        
         # Gather condition frame files
         files = sorted(t_dir.glob("condition_*_frame_stats.npz"), key=lambda p: parse_condition_idx(p.name) or 0)
         for f in files:
@@ -298,6 +244,7 @@ def load_frame_stats_to_arrays(
             try: 
                 inj_dur = float(cond["injection_duration"])
             except Exception:
+                inj_map = build_injection_duration_map(cine_root, t_group, reps_per_cond)
                 inj_dur = inj_map.get(cidx, np.nan)
             # Build rows per frame, dropping NaNs in targets
             valid = ~(np.isnan(mean) | np.isnan(std) | np.isnan(time_s))

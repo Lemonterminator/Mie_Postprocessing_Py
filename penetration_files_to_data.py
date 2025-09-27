@@ -2,15 +2,16 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
 from mie_postprocessing.functions_videos import get_subfolder_names
-from mie_postprocessing.Data_cleaning_1d_series import * 
+from mie_postprocessing.Data_cleaning_1d_series import *
 from mie_postprocessing.async_plot_saver import AsyncPlotSaver
 from mie_postprocessing.async_npz_saver import AsyncNPZSaver
 import re
+import math
 import numpy as np
 
 REPETITIONS_PER_CONDITION = 5
 HYDRAULIC_DELAY_ESTIMATION_MIN = 10
-HYDRAULIC_DELAY_ESTIMATION_MAX = 13
+HYDRAULIC_DELAY_ESTIMATION_MAX = 20
 
 # Inner and outer radius (in pixels) for cropping the images
 ir_ = 11
@@ -38,8 +39,41 @@ def numeric_then_alpha_key(p: Path):
         return (0, int(m.group(0)))          # group 0 = first number
     else:
         return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
-    
 
+
+def load_penetration_array(file: Path) -> np.ndarray | None:
+    """Return the penetration array stored in the file or None if not available."""
+    if file.suffix == '.npz':
+        try:
+            with np.load(file, allow_pickle=True) as data:
+                key = next((k for k in ('penetration', 'arr_0') if k in data.files), None)
+                if key is None:
+                    print(f"Skipping {file}: missing 'penetration' array")
+                    return None
+                arr = data[key]
+        except Exception as exc:
+            print(f"Skipping {file}: failed to load ({exc})")
+            return None
+    else:
+        try:
+            arr = np.load(file, allow_pickle=True)
+        except Exception as exc:
+            print(f"Skipping {file}: failed to load ({exc})")
+            return None
+
+    arr = np.asarray(arr)
+    if arr.dtype == object:
+        try:
+            arr = np.stack([np.asarray(row) for row in arr])
+        except Exception as exc:
+            print(f"Skipping {file}: object array could not be converted ({exc})")
+            return None
+
+    if arr.ndim != 2:
+        print(f"Skipping {file}: expected 2-D penetration data, got shape {arr.shape}")
+        return None
+
+    return arr.astype(np.float32, copy=False)
 
 
 def _plot_mean_with_std(ax, means: np.ndarray, stds: np.ndarray, title: str, *, ylim: tuple[float, float] | None = None):
@@ -64,57 +98,142 @@ def _plot_mean_with_std(ax, means: np.ndarray, stds: np.ndarray, title: str, *, 
     ax.set_ylabel("Penetration (in Pixels)")
     ax.grid(True)
 
+def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thres_percentage=0.75):
+    _, frames = condition_data.shape[1:]
+    data = condition_data.reshape(-1, frames)
+    entries, frames = data.shape
+    valid_count_thres = valid_count_thres_percentage * entries
+
+    # Last index where condition is true:
+    valid_counts = (~np.isnan(data)).sum(axis=0)
+
+    data_copy = data.copy()
+
+    where_valid = np.where(valid_counts > valid_count_thres)[0]
+    idx = where_valid[-1] if where_valid.any() else 0
+    if idx > HYDRAULIC_DELAY_ESTIMATION_MAX:
+        '''
+        import matplotlib.pyplot as plt  # lazy import to speed up dialog opening
+        
+        plt.plot(data[:, :idx].T)
+        plt.plot(data[:, idx:].T)
+        plt.xlabel("frames")
+        plt.ylabel("penetration")
+        plt.title(f"Valid (sample>{valid_count_thres}) VS invalid")
+        plt.grid()
+        '''
+        data_copy[:, idx:] = np.nan
+
+        total_valid_counts_original = valid_counts.sum()
+        total_valid_counts_filtered =  (~np.isnan(data_copy)).sum()
+
+        if total_valid_counts_filtered/total_valid_counts_original < 0.6:
+            grid = np.zeros((frames, or_-ir_))
+
+            condition_data_alt = data.reshape(-1, frames)
+            for i in range(condition_data_alt.shape[0]):
+                for frame in range(condition_data_alt.shape[1]):
+                    val = condition_data_alt[i, frame]
+                    if ~np.isnan(val):
+                        pen = round(condition_data_alt[i, frame])
+                        grid[frame, pen] = 1
+            grid = grid.astype(np.bool)
+
+            
+
+            
+
+            
+
+
+    
+
+    # Removing outliers via z-score
+    mean = np.nanmean(data, axis=0)
+    std = np.nanstd(data, axis=0)
+    std_safe = np.where(std == 0, 1, std)
+    z_scores = (condition_data - mean) / std_safe
+
+    # Filtering based on z-score
+    A = (np.abs(z_scores) < z_score_threshold)
+    B = np.where(A, 1, np.nan)
+    condition_data_cleaned = condition_data * B
+    # Before the minimum hydraulic delay, there should be no value
+    mask_pre = condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN] >= 0
+    condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN][mask_pre] = np.nan
+    # After the maximum hydraulic delay, there should be no zero value
+    mask_post = condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:] == 0
+    condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:][mask_post] = np.nan
+
+    # Update mean
+    mean =  np.nanmean(condition_data_cleaned.reshape(-1, frames), axis=0)
+    return condition_data_cleaned, mean, std 
+
 
 def handle_testpoint_penetration(test_point_penetration_folder: Path,
                                  output_root: Path,
                                  plot_saver: AsyncPlotSaver,
                                  npz_saver: AsyncNPZSaver,
-                                 z_score_threshold: float = 2.5,
+                                 z_score_threshold: float = 2,
                                  plot_on: bool = True):
     files = [file for file in test_point_penetration_folder.iterdir() if file.is_file()]
     files = sorted(files, key=numeric_then_alpha_key)
-    # print(files)
-    conditions = len(files) // REPETITIONS_PER_CONDITION 
-
-    # Determine testpoint name for subfolder structure
     try:
         testpoint_name = str(test_point_penetration_folder.parts[-2])
     except Exception:
         testpoint_name = "testpoint"
     tp_out_dir = output_root / testpoint_name
     tp_out_dir.mkdir(parents=True, exist_ok=True)
-
-    for condition in range(conditions):
-        first_file = files[condition*REPETITIONS_PER_CONDITION]
-        first_data = np.load(first_file)
-        if first_file.suffix == '.npz':
-            first_data = first_data['penetration']
-        plumes, frames = first_data.shape
-        # Condition Data has shape: Repetition, plume number, frames
-        condition_data = np.zeros((REPETITIONS_PER_CONDITION, plumes, frames))
-        condition_data[0] = first_data
-        for repetition in range(1, REPETITIONS_PER_CONDITION):
-            current_file = files[condition*REPETITIONS_PER_CONDITION + repetition]
-            if current_file.suffix == '.npz':
-                current_data = np.load(current_file)['penetration']
+    if not files:
+        print(f"No penetration files found in {testpoint_name}")
+        return
+    condition_count = max(1, math.ceil(len(files) / REPETITIONS_PER_CONDITION))
+    for condition in range(condition_count):
+        start_idx = condition * REPETITIONS_PER_CONDITION
+        end_idx = start_idx + REPETITIONS_PER_CONDITION
+        condition_files = files[start_idx:end_idx]
+        if not condition_files:
+            continue
+        valid_arrays = []
+        invalid_files = []
+        for current_file in condition_files:
+            arr = load_penetration_array(current_file)
+            if arr is None:
+                invalid_files.append(current_file.name)
+                continue
+            valid_arrays.append(arr)
+        if not valid_arrays:
+            if invalid_files:
+                skipped = ', '.join(invalid_files)
+                print(f"Skipping condition {condition + 1:02d} in {testpoint_name}: no usable penetration traces (invalid: {skipped})")
             else:
-                current_data = np.load(current_file)
-            condition_data[repetition] = current_data
+                print(f"Skipping condition {condition + 1:02d} in {testpoint_name}: no usable penetration traces")
+            continue
+        reference_shape = valid_arrays[0].shape
+        if any(arr.shape != reference_shape for arr in valid_arrays):
+            shapes = ', '.join(str(arr.shape) for arr in valid_arrays)
+            print(f"Skipping condition {condition + 1:02d} in {testpoint_name}: inconsistent shapes among traces ({shapes})")
+            continue
+        condition_data = np.stack(valid_arrays, axis=0).astype(np.float32, copy=False)
+        if invalid_files:
+            skipped = ', '.join(invalid_files)
+            print(f"Condition {condition + 1:02d} in {testpoint_name}: ignored {len(invalid_files)} corrupt file(s): {skipped}")
         
-        data = condition_data.reshape(-1, frames)
-        
-        # Removing outliers via z-score
-        mean = np.nanmean(data, axis=0)
-        std = np.nanstd(data, axis=0)
-        z_scores = (condition_data - mean) / std
-        
-        # Filtering based on z-score
-        condition_data_cleaned = condition_data * (np.abs(z_scores) < z_score_threshold)
-        # Before the minimum hydraulic delay, there should be no value
-        condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN][condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN]>=0]=np.nan
-        # After the maximum hydraulic delay, there should be no zero value
-        condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:][condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:]==0]=np.nan
-        
+        if plot_on:
+            ylim = (0, or_ - ir_)
+
+            # 1) Original vs Cleaned overview
+            import matplotlib.pyplot as plt  # lazy import to speed up dialog opening
+            fig1, ax = plt.subplots(2, 2, figsize=(12, 8))
+            for i in range(condition_data.shape[0]):
+                ax[0, 0].plot(condition_data[i].T, linewidth=0.8)
+                
+        # Data cleaning
+        plumes, frames = condition_data.shape[1:]
+        condition_data_cleaned, mean, std = penetration_data_cleaning(condition_data, z_score_threshold)
+
+
+
         # Averaging over repetition axis
         plume_wise_mean = np.nanmean(condition_data_cleaned, axis=0)
         plume_wise_std = np.nanstd(condition_data_cleaned, axis=0)
@@ -130,7 +249,7 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
             condition_data=condition_data,
             condition_data_std=std,
             condition_data_cleaned=condition_data_cleaned,
-            condition_data_cleaned_mean = mean,
+            condition_data_cleaned_mean=mean,
             plume_wise_mean=plume_wise_mean,
             plume_wise_std=plume_wise_std,
             shot_wise_mean=shot_wise_mean,
@@ -138,47 +257,50 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
         )
 
         if plot_on:
-            ylim = (0, or_ - ir_)
+            for i in range(condition_data.shape[0]):
+                ax[0, 1].plot(condition_data_cleaned[i].T, linewidth=0.8)
+            ax[0, 0].set_title("Original")
+            ax[0, 1].set_title("Cleaned")
+            ax[0, 0].set_xlabel("Frame Number")
+            ax[0, 1].set_xlabel("Frame Number")
+            ax[0, 0].set_ylabel("Penetration (in Pixels)")
+            ax[0, 1].set_ylabel("Penetration (in Pixels)")
+            ax[0, 0].set_xlim(left=0, right=frames)
+            ax[0, 1].set_xlim(left=0, right=frames)
+            ax[0, 0].set_ylim(*ylim)
+            ax[0, 1].set_ylim(*ylim)
 
-            # 1) Original vs Cleaned overview
-            import matplotlib.pyplot as plt  # lazy import to speed up dialog opening
-            fig1, ax = plt.subplots(1, 2, figsize=(12, 5))
+            ax[1, 0].set_title("Original + mean")
+            ax[1, 0].set_xlabel("Frame Number")
+            ax[1, 0].set_ylabel("Penetration (in Pixels)")
+            ax[1, 0].set_xlim(left=0, right=frames)
             for i in range(condition_data.shape[0]):
-                ax[0].plot(condition_data[i].T, linewidth=0.8)
-            for i in range(condition_data.shape[0]):
-                ax[1].plot(condition_data_cleaned[i].T, linewidth=0.8)
-            ax[0].set_title("Original")
-            ax[1].set_title("Cleaned")
-            ax[0].set_xlabel("Frame Number")
-            ax[1].set_xlabel("Frame Number")
-            ax[0].set_ylabel("Penetration (in Pixels)")
-            ax[1].set_ylabel("Penetration (in Pixels)")
-            ax[0].set_xlim(left=0, right=frames)
-            ax[1].set_xlim(left=0, right=frames)
-            ax[0].set_ylim(*ylim)
-            ax[1].set_ylim(*ylim)
-            for a in ax:
+                ax[1, 0].plot(condition_data[i].T, linewidth=0.3)
+                ax[1, 0].plot(mean, linewidth=1)
+                x = np.arange(frames)
+                m = mean
+                s = std
+                ax[1, 0].fill_between(x, m - s, m + s, color="red", alpha=0.25, linewidth=0)
+
+
+            for a in ax.ravel():
                 a.grid(True)
             plt.suptitle(f"Condition {condition + 1:d} in Testpoint {testpoint_name}")
             plot_saver.submit(fig1, tp_out_dir / f"condition_{condition + 1:02d}_overview.png")
 
-            # 2) Plume-wise mean ± std
+            # 2) Plume-wise mean +/- std
             fig2, ax2 = plt.subplots(figsize=(8, 5))
-            _plot_mean_with_std(ax2, plume_wise_mean, plume_wise_std, "Plume-wise Mean ± Std", ylim=ylim)
+            _plot_mean_with_std(ax2, plume_wise_mean, plume_wise_std, "Plume-wise Mean +/- Std", ylim=ylim)
             plot_saver.submit(fig2, tp_out_dir / f"condition_{condition + 1:02d}_plume_mean_std.png")
 
-            # 3) Shot-wise mean ± std
+            # 3) Shot-wise mean +/- std
             fig3, ax3 = plt.subplots(figsize=(8, 5))
-            _plot_mean_with_std(ax3, shot_wise_mean, shot_wise_std, "Shot-wise Mean ± Std", ylim=ylim)
+            _plot_mean_with_std(ax3, shot_wise_mean, shot_wise_std, "Shot-wise Mean +/- Std", ylim=ylim)
             plot_saver.submit(fig3, tp_out_dir / f"condition_{condition + 1:02d}_shot_mean_std.png")
-        
-
-
-
-
 
 
 def main():
+
     folder = select_folder()
     if folder is None:
         return
@@ -187,10 +309,9 @@ def main():
     try:
         subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
     except Exception:
-        subfolders.remove('penetration_results')
+        if 'penetration_results' in subfolders:
+            subfolders.remove('penetration_results')
         subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
-
-
 
     # Output root under selected folder
     output_root = folder / "penetration_results"
@@ -201,12 +322,9 @@ def main():
 
     for subfolder in subfolders:
         print("Handling subfolder", subfolder)
-        # Specify the directory path    
-        # If folder is already a Path
         directory_path = folder / subfolder
         all_folders = get_subfolder_names(directory_path)
 
-        # Check the name of the results
         for experiment_results in all_folders:
             if experiment_results == 'penetration':
                 TP_P_folder = directory_path / 'penetration'
@@ -215,6 +333,7 @@ def main():
                     output_root=output_root,
                     plot_saver=plot_saver,
                     npz_saver=npz_saver,
+                    plot_on=True              # Turn off plotting to save time
                 )
 
     # Ensure all saves complete before exit

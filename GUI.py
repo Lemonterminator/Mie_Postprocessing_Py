@@ -403,7 +403,6 @@ class VideoAnnotatorUI:
         self.total_frames = self.reader.frame_count
         self.mask = np.zeros((self.reader.height, self.reader.width), dtype=np.uint8)
         self.current_index = 0
-        self.calib_radius_var.set(0.0)
         for w in (self.prev_btn, self.next_btn, self.confirm_btn, self.select_btn, self.export_btn, self.circle_btn):
             w.config(state=tk.NORMAL)
         self.update_image(compute_global=False)

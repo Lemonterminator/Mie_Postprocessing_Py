@@ -385,6 +385,10 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
 
     # summing over each image to get the total intensity in each image at each frame
     energies = xp.sum(td_intensity_maps, axis=2)
+
+    if np.sum(energies) < 10:
+        return None, None, None, None, None, None
+    
     # Find the frame with peak brightness
     peak_brightness_frames = xp.argmax(energies, axis=1)
     # Convert mean to Python int without pulling large arrays

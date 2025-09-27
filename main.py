@@ -27,15 +27,15 @@ global gain
 global gamma
 global testpoint_name
 global video_name
+
 global ir_ 
 global or_
 
-
 # Define the parent folder and other global variables
-parent_folder = r"C:\Users\LJI008\OneDrive - Wärtsilä Corporation\Documents\BC20241010_HZ_Nozzle5\Cine"
+parent_folder = r"D:\LubeOil\BC20241003_HZ_Nozzle1\cine"
 hydraulic_delay = 11  # Hydraulic delay in frames, adjust as needed
-gain = 3 # Gain factor for video processing
-gamma = 1.3  # Gamma correction factor for video processing
+gain = 1 # Gain factor for video processing
+gamma = 1  # Gamma correction factor for video processing
 
 # Inner and outer radius (in pixels) for cropping the images
 # ir_ = 14 # DS300
@@ -411,8 +411,9 @@ async def main():
                         
                         segments, penetration, cone_angle_AngularDensity, bw_vids, boundaries, penetration_old = mie_multihole_pipeline(
                             video, centre, number_of_plumes, 
-                            gamma=gamma, binarize_video=False, 
-                            plot_on=True
+                            gamma=gamma, 
+                            binarize_video=False, 
+                            plot_on=False
                             )
 
                         SSIM = False
@@ -434,6 +435,7 @@ async def main():
                             **data
                         )
                         '''
+
                         # file_save_path = (save_path_subfolder / file.with_suffix('.npz').name).resolve()
                         penetration_folder = save_path_subfolder / "penetration"
                         penetration_folder.mkdir(parents=True, exist_ok=True)
@@ -457,10 +459,29 @@ async def main():
                     
 
 if __name__ == '__main__':
-    
     from multiprocessing import freeze_support
     freeze_support()
+
+    import argparse
+    import os
     import asyncio, time
+
+    parser = argparse.ArgumentParser(description="Run Mie post-processing pipeline")
+    parser.add_argument(
+        "-p", "--parent-folder",
+        default=os.getenv("MIE_PARENT_FOLDER", parent_folder),
+        help="Root folder containing subfolders with .cine files (overrides hardcoded path)"
+    )
+    args = parser.parse_args()
+
+    # Allow overriding the global parent_folder from CLI/env
+    parent_candidate = Path(args.parent_folder)
+    if not parent_candidate.exists():
+        print(f"Configured parent folder not found: {parent_candidate}")
+        print("Set a valid path via --parent-folder or MIE_PARENT_FOLDER, then rerun.")
+        raise SystemExit(0)
+
+    parent_folder = str(parent_candidate)
 
     start = time.time()
     asyncio.run(main())

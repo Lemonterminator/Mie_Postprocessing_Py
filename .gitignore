@@ -8,3 +8,8 @@ __pycache__/
 __pycache__/*.pyc
 DS300/
 BC20241003_HZ_Nozzle1/
+BC20241017_HZ_Nozzle2/
+BC20241014_HZ_Nozzle3/
+BC20241007_HZ_Nozzle4/
+BC20241010_HZ_Nozzle5/
+.venv311/
