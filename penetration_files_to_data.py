@@ -1,3 +1,6 @@
+import os
+
+os.environ.setdefault("MPLBACKEND", "Agg")  # use non-interactive backend for async saves
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
@@ -14,9 +17,13 @@ HYDRAULIC_DELAY_ESTIMATION_MIN = 10
 HYDRAULIC_DELAY_ESTIMATION_MAX = 20
 
 # Inner and outer radius (in pixels) for cropping the images
-ir_ = 11
+ir_ = 11 # Nozzle 1,2,3,4
+# ir_ = 14 # DS300
 or_ = 380
+thres = or_ - ir_ - 20
 
+# Z-score threshold for outlier removal
+z_threshold = 2.5
 
 def select_folder() -> Path | None:
     """Open a folder selection dialog starting in the script directory."""
@@ -111,8 +118,9 @@ def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thr
 
     where_valid = np.where(valid_counts > valid_count_thres)[0]
     idx = where_valid[-1] if where_valid.any() else 0
+    '''
     if idx > HYDRAULIC_DELAY_ESTIMATION_MAX:
-        '''
+        
         import matplotlib.pyplot as plt  # lazy import to speed up dialog opening
         
         plt.plot(data[:, :idx].T)
@@ -121,7 +129,7 @@ def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thr
         plt.ylabel("penetration")
         plt.title(f"Valid (sample>{valid_count_thres}) VS invalid")
         plt.grid()
-        '''
+        
         data_copy[:, idx:] = np.nan
 
         total_valid_counts_original = valid_counts.sum()
@@ -138,16 +146,13 @@ def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thr
                         pen = round(condition_data_alt[i, frame])
                         grid[frame, pen] = 1
             grid = grid.astype(np.bool)
-
-            
-
-            
-
-            
-
-
-    
-
+    '''
+    is_right_censored = np.any(data > thres )
+    if is_right_censored:
+        time_slices = np.sum(data > thres, axis = 0)>0
+        first_right_censored_idx = np.argmax(time_slices)
+    else:
+        first_right_censored_idx = np.nan
     # Removing outliers via z-score
     mean = np.nanmean(data, axis=0)
     std = np.nanstd(data, axis=0)
@@ -167,14 +172,14 @@ def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thr
 
     # Update mean
     mean =  np.nanmean(condition_data_cleaned.reshape(-1, frames), axis=0)
-    return condition_data_cleaned, mean, std 
+    return condition_data_cleaned, mean, std, first_right_censored_idx
 
 
 def handle_testpoint_penetration(test_point_penetration_folder: Path,
                                  output_root: Path,
                                  plot_saver: AsyncPlotSaver,
                                  npz_saver: AsyncNPZSaver,
-                                 z_score_threshold: float = 2,
+                                 z_score_threshold: float = z_threshold,
                                  plot_on: bool = True):
     files = [file for file in test_point_penetration_folder.iterdir() if file.is_file()]
     files = sorted(files, key=numeric_then_alpha_key)
@@ -224,13 +229,13 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
 
             # 1) Original vs Cleaned overview
             import matplotlib.pyplot as plt  # lazy import to speed up dialog opening
-            fig1, ax = plt.subplots(2, 2, figsize=(12, 8))
+            fig1, ax = plt.subplots(2, 2, figsize=(12, 12))
             for i in range(condition_data.shape[0]):
                 ax[0, 0].plot(condition_data[i].T, linewidth=0.8)
                 
         # Data cleaning
         plumes, frames = condition_data.shape[1:]
-        condition_data_cleaned, mean, std = penetration_data_cleaning(condition_data, z_score_threshold)
+        condition_data_cleaned, mean, std, cen_idx = penetration_data_cleaning(condition_data, z_score_threshold)
 
 
 
@@ -254,9 +259,15 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
             plume_wise_std=plume_wise_std,
             shot_wise_mean=shot_wise_mean,
             shot_wise_std=shot_wise_std,
+            first_right_censored_idx=cen_idx
         )
 
         if plot_on:
+            if cen_idx is not np.nan:
+                ax[0, 0].axvline(cen_idx, color='red', linestyle='--', label='First Right-Censored Frame')
+                ax[0, 1].axvline(cen_idx, color='red', linestyle='--', label='First Right-Censored Frame')
+                ax[1, 0].axvline(cen_idx, color='red', linestyle='--', label='First Right-Censored Frame')
+                
             for i in range(condition_data.shape[0]):
                 ax[0, 1].plot(condition_data_cleaned[i].T, linewidth=0.8)
             ax[0, 0].set_title("Original")
@@ -274,20 +285,42 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
             ax[1, 0].set_xlabel("Frame Number")
             ax[1, 0].set_ylabel("Penetration (in Pixels)")
             ax[1, 0].set_xlim(left=0, right=frames)
+
+
+            x = np.arange(frames)
             for i in range(condition_data.shape[0]):
                 ax[1, 0].plot(condition_data[i].T, linewidth=0.3)
-                ax[1, 0].plot(mean, linewidth=1)
-                x = np.arange(frames)
+                ax[1, 0].plot(mean, linewidth=5)
+                
                 m = mean
                 s = std
                 ax[1, 0].fill_between(x, m - s, m + s, color="red", alpha=0.25, linewidth=0)
 
+            ax[1, 1].set_title("Censored vs. Uncensored Mean")
+            ax[1, 1].set_xlabel("Frame Number")
+            ax[1, 1].set_ylabel("Penetration (in Pixels)")
+            ax[1, 1].set_xlim(left=0, right=frames)
+
+            if cen_idx is not np.nan:
+                m = mean[0:cen_idx]
+                ax[1,1].plot(m, linewidth=1, label="Uncensored Mean")
+                s = std[0:cen_idx]
+                ax[1,1].fill_between(x[0:cen_idx], m - s, m + s, color="red", alpha=0.25, linewidth=0)
+                # ax[1,1].plot(np.concatenate(np.nan(int(cen_idx)), mean[cen_idx:]) , linewidth=1, label="Mean after Censoring")
+                empty = np.empty(frames)
+                empty[:] = np.nan
+                empty[cen_idx:] = mean[cen_idx:]
+                ax[1,1].plot(empty, linewidth=1, label="Censored Mean")
+            else:
+                ax[1,1].plot(mean, linewidth=1, label="Mean")
 
             for a in ax.ravel():
                 a.grid(True)
+                a.legend()
             plt.suptitle(f"Condition {condition + 1:d} in Testpoint {testpoint_name}")
             plot_saver.submit(fig1, tp_out_dir / f"condition_{condition + 1:02d}_overview.png")
 
+            '''
             # 2) Plume-wise mean +/- std
             fig2, ax2 = plt.subplots(figsize=(8, 5))
             _plot_mean_with_std(ax2, plume_wise_mean, plume_wise_std, "Plume-wise Mean +/- Std", ylim=ylim)
@@ -297,7 +330,7 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
             fig3, ax3 = plt.subplots(figsize=(8, 5))
             _plot_mean_with_std(ax3, shot_wise_mean, shot_wise_std, "Shot-wise Mean +/- Std", ylim=ylim)
             plot_saver.submit(fig3, tp_out_dir / f"condition_{condition + 1:02d}_shot_mean_std.png")
-
+            '''
 
 def main():
 
@@ -317,25 +350,27 @@ def main():
     output_root = folder / "penetration_results"
     output_root.mkdir(parents=True, exist_ok=True)
     # Async savers
-    plot_saver = AsyncPlotSaver(max_workers=2)
+    plot_saver = AsyncPlotSaver(max_workers=4)
     npz_saver = AsyncNPZSaver(max_workers=2)
 
-    for subfolder in subfolders:
-        print("Handling subfolder", subfolder)
-        directory_path = folder / subfolder
-        all_folders = get_subfolder_names(directory_path)
+    batch_size = 10
+    batches = [subfolders[i:i+batch_size] for i in range(0, len(subfolders), batch_size)]
+    for batch in batches: 
+        for subfolder in batch:
+            print("Handling subfolder", subfolder)
+            directory_path = folder / subfolder
+            all_folders = get_subfolder_names(directory_path)
 
-        for experiment_results in all_folders:
-            if experiment_results == 'penetration':
-                TP_P_folder = directory_path / 'penetration'
-                handle_testpoint_penetration(
-                    TP_P_folder,
-                    output_root=output_root,
-                    plot_saver=plot_saver,
-                    npz_saver=npz_saver,
-                    plot_on=True              # Turn off plotting to save time
-                )
-
+            for experiment_results in all_folders:
+                if experiment_results == 'penetration':
+                    TP_P_folder = directory_path / 'penetration'
+                    handle_testpoint_penetration(
+                        TP_P_folder,
+                        output_root=output_root,
+                        plot_saver=plot_saver,
+                        npz_saver=npz_saver,
+                        plot_on=True              # Turn off plotting to save time
+                    )
     # Ensure all saves complete before exit
     npz_saver.shutdown(wait=True)
     plot_saver.shutdown(wait=True)

@@ -32,9 +32,9 @@ global root
 # Nozzle 4
 # root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241007_HZ_Nozzle4")
 # Nozzle 2
-# root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241017_HZ_Nozzle2")
+root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241017_HZ_Nozzle2")
 # Nozzle 3 
-root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241014_HZ_Nozzle3")
+# root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241014_HZ_Nozzle3")
 
 # Constants
 FRAME_RATE_HZ: float = 34_000.0

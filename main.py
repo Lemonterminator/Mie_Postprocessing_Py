@@ -39,7 +39,7 @@ gamma = 1  # Gamma correction factor for video processing
 
 # Inner and outer radius (in pixels) for cropping the images
 # ir_ = 14 # DS300
-ir_ = 11 # Nozzle 1
+ir_ = 11 # Nozzle 1,2,3,4
 or_ = 380
 
 

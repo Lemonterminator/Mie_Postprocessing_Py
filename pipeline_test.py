@@ -1012,7 +1012,70 @@ def main(visualization=True):
     plt.show()   
 
 
+def schlieren():
+    from scipy.ndimage import maximum_filter
+    
+    vid = load()
+    max = vid.max()
+    bit = np.ceil(np.log(max))
+
+    video = 2**bit -vid
+
+    # video = video/2**bit
+        
+    
+    corners = []
+    for i in range(video.shape[0]):
+        R = cv2.cornerHarris(video[i], blockSize=2, ksize=3, k=0.04)
+        corners.append(R)
+
+    play_video_cv2(corners)
+    corners = np.stack(corners)
+    '''
+    
+    # Take only the local maxima of the corner response function
+    fp = np.ones((3,3))
+    fp[1,1]=0
+    max_corners = []
+
+    for R in corners:
+        maxNR1 = maximum_filter(R, footprint=fp, mode='constant')
+        max_corners.append(maxNR1)
+    play_video_cv2(max_corners)
+    '''
+
+    bws = []
+    for img in video:
+        bw, _ = triangle_binarize_from_float(img)
+        bws.append(bw)
+    bws = np.stack(bws)
+    play_video_cv2(bws*255)
+    play_videos_side_by_side((video/2**bit, bws))
+    
+
+def OH():
+    vid = load()
+    max = vid.max()
+    bit = np.ceil(np.log(max))
+    video = vid/2**bit -0.02
+    play_video_cv2(video)
+    
+    bws = []
+    thres_history = []
+    for img in video:
+        bw, thres = triangle_binarize_from_float(img)
+        thres_history.append(thres)
+        bws.append(bw)
+    thres_history= np.stack(thres_history)
+    bws = np.stack(bws)
+    play_video_cv2(bws)
+    play_videos_side_by_side((video, bws*255))
+
+
+
 
 if __name__  == '__main__':
-    main(visualization=False)
+    # main(visualization=False)
     # pipeline_mie()
+    schlieren()
+    # OH()
