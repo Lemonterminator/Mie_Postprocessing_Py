@@ -226,6 +226,8 @@ def rotate_and_crop(
         return _remap_frame(array, map_x, map_y, use_cuda)
    
 def generate_CropRect(inner_radius, outer_radius, number_of_plumes, centre_x, centre_y):
+    if number_of_plumes==1:
+        number_of_plumes = 2 # Reset to 180 degrees for stability
     section_angle = 360.0/ number_of_plumes
     half_angle_radian = section_angle / 2.0 * np.pi/180.0
     half_width = round(outer_radius*np.sin(half_angle_radian))

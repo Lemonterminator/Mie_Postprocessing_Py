@@ -56,39 +56,39 @@ def is_opencv_ocl_available():
     
 def rotate_frame_cuda(frame, angle, stream=None):
     """
-    在 GPU 上旋转单帧图像／掩码。
+    ? GPU ???????/???
     
     Parameters
     ----------
-    frame : np.ndarray (H×W or H×W×C) or bool mask
+    frame : np.ndarray (H�W or H�W�C) or bool mask
     angle : float
-    stream: cv2.cuda.Stream (optional) — 用于异步操作
+    stream: cv2.cuda.Stream (optional) � ??????
     
     Returns
     -------
-    rotated : 同 frame 类型
+    rotated : ? frame ??
     """
     h, w = frame.shape[:2]
-    # 计算仿射矩阵（在 CPU 上）
+    # ??????(? CPU ?)
     center = (w / 2.0, h / 2.0)
     M = cv2.getRotationMatrix2D(center, angle, 1.0).astype(np.float32)
     
-    # 上传到 GPU
+    # ??? GPU
     if frame.dtype == np.bool_:
-        # 布尔先转 uint8（0/255）
+        # ???? uint8(0/255)
         cpu_uint8 = (frame.astype(np.uint8)) * 255
         gpu_mat = cv2.cuda_GpuMat()
         gpu_mat.upload(cpu_uint8, stream)
-        # warpAffine（最近邻保留掩码边界）
+        # warpAffine(?????????)
         gpu_rot = cv2.cuda.warpAffine(
             gpu_mat, M, (w, h),
             flags=cv2.INTER_NEAREST, stream=stream
         )
-        # 下载并阈值回布尔
+        # ????????
         out_uint8 = gpu_rot.download(stream)
         rotated = out_uint8 > 127
     else:
-        # 对普通灰度或多通道图像
+        # ???????????
         gpu_mat = cv2.cuda.GpuMat()
 
         if stream is not None:
@@ -106,33 +106,33 @@ def rotate_frame_cuda(frame, angle, stream=None):
             )
             rotated = gpu_rot.download()
     
-    # 等待 GPU 流完成
+    # ?? GPU ???
     if stream is not None:
         stream.waitForCompletion()
     return rotated
 
 def rotate_video_cuda(video_array, angle=0, max_workers=4):
     """
-    并行地在 GPU 上旋转整个视频（每帧独立流）。
+    ???? GPU ???????(?????)?
     
     Parameters
     ----------
-    video_array : np.ndarray, shape=(N, H, W) 或 (N, H, W, C) 或 bool
-    angle : float — 旋转角度（度）
-    max_workers : int — 并行线程数（每线程管理一个 cv2.cuda.Stream）
+    video_array : np.ndarray, shape=(N, H, W) ? (N, H, W, C) ? bool
+    angle : float � ????(?)
+    max_workers : int � ?????(??????? cv2.cuda.Stream)
     
     Returns
     -------
-    np.ndarray — 与输入同形状、同 dtype
+    np.ndarray � ???????? dtype
     """
     num_frames = video_array.shape[0]
     rotated = [None] * num_frames
 
-    # 预创建若干 CUDA 流
+    # ????? CUDA ?
     streams = [cv2.cuda.Stream() for _ in range(max_workers)]
 
     def task(idx, frame):
-        # 分配一个流（简单轮询）
+        # ?????(????)
         stream = streams[idx % max_workers]
         return idx, rotate_frame_cuda(frame, angle, stream)
 
@@ -185,3 +185,72 @@ def rotate_video_auto(video_array, angle=0, max_workers=4):
         return rotate_video_ocl(video_array, angle=angle, max_workers=max_workers)
     print("CUDA/OpenCL not available, falling back to CPU.")
     return rotate_video(video_array, angle=angle, max_workers=max_workers)
+
+def rotate_video_nozzle_centering(video_array, centre_x, centre_y, angle, y_crop=None, interpolation=cv2.INTER_CUBIC):
+    """Rotate frames so the nozzle centre ends up at x=0 and mid-height.
+
+    Parameters
+    ----------
+    video_array : np.ndarray
+        Stack of frames shaped (F, H, W) or (F, H, W, C).
+    centre_x, centre_y : float
+        Nozzle coordinates in the original frame.
+    angle : float
+        Rotation angle in degrees (positive is counter-clockwise).
+    y_crop : tuple[int, int], optional
+        Output row range (start, end) to keep after rotation.
+    interpolation : int
+        Interpolation flag for cv2.remap when data is not boolean.
+    """
+    video = np.asarray(video_array)
+    if video.ndim not in (3, 4):
+        raise ValueError("video_array must be 3-D or 4-D (frames, height, width[, channels])")
+
+    num_frames, h, w = video.shape[0], video.shape[1], video.shape[2]
+
+    if y_crop is None:
+        y_start, y_end = 0, h
+    else:
+        if len(y_crop) != 2:
+            raise ValueError("y_crop must be a tuple like (start, end)")
+        y_start, y_end = int(y_crop[0]), int(y_crop[1])
+        if not (0 <= y_start < y_end <= h):
+            raise ValueError("y_crop must satisfy 0 <= start < end <= video height")
+
+    h_out = y_end - y_start
+    if h_out <= 0:
+        raise ValueError("y_crop results in empty output height")
+
+    x_coords = np.arange(w, dtype=np.float32)
+    y_coords = np.arange(y_start, y_end, dtype=np.float32)
+    grid_x, grid_y = np.meshgrid(x_coords, y_coords)
+
+    output_center_y = y_start + (h_out - 1) / 2.0
+    theta = np.deg2rad(angle)
+    cos_a = np.cos(theta)
+    sin_a = np.sin(theta)
+
+    rel_x = grid_x
+    rel_y = grid_y - output_center_y
+
+    map_x = (centre_x + cos_a * rel_x + sin_a * rel_y).astype(np.float32)
+    map_y = (centre_y - sin_a * rel_x + cos_a * rel_y).astype(np.float32)
+
+    rotated_frames = []
+    for idx in range(num_frames):
+        frame = video[idx]
+        if frame.dtype == np.bool_:
+            frame_u8 = frame.astype(np.uint8) * 255
+            remapped = cv2.remap(
+                frame_u8, map_x, map_y, interpolation=cv2.INTER_NEAREST,
+                borderMode=cv2.BORDER_CONSTANT, borderValue=0
+            )
+            rotated = remapped > 127
+        else:
+            rotated = cv2.remap(
+                frame, map_x, map_y, interpolation=interpolation,
+                borderMode=cv2.BORDER_CONSTANT, borderValue=0
+            )
+        rotated_frames.append(rotated)
+
+    return np.stack(rotated_frames, axis=0)
