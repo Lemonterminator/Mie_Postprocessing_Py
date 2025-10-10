@@ -34,7 +34,7 @@ global ir_
 global or_
 
 # Define the parent folder and other global variables
-parent_folder = r"G:\Samuel\Cine"
+parent_folder = r"Z:\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
 DATA_DIR = Path(r"G:\Samuel")
 
 hydraulic_delay = 11  # Hydraulic delay in frames, adjust as needed
@@ -209,29 +209,24 @@ async def main():
                             # plt.plot(ssim_matrix.transpose())
                             # plt.show()
                             data = {"ssim": ssim_matrix}
-                        '''
-                        np.savez_compressed(
-                            file_save_path,
-                            **data
-                        )
-                        '''
 
-                        # file_save_path = (save_path_subfolder / file.with_suffix('.npz').name).resolve()
-                        penetration_folder = save_path_subfolder / "penetration"
-                        penetration_folder.mkdir(parents=True, exist_ok=True)
+                        if penetration is not None:
+                            # file_save_path = (save_path_subfolder / file.with_suffix('.npz').name).resolve()
+                            penetration_folder = save_path_subfolder / "penetration"
+                            penetration_folder.mkdir(parents=True, exist_ok=True)
 
-                        file_save_path_penetration = (penetration_folder / file.stem).resolve()
-                        
-                        # Queue async save (compressed NPZ). Access later via key 'penetration'.
-                        saver.save(file_save_path_penetration, penetration=penetration)
-                        
+                            file_save_path_penetration = (penetration_folder / file.stem).resolve()
+                            
+                            # Queue async save (compressed NPZ). Access later via key 'penetration'.
+                            saver.save(file_save_path_penetration, penetration=penetration)
+                            
 
-                        cone_angle_folder = save_path_subfolder / "cone_angle"
-                        cone_angle_folder.mkdir(parents=True, exist_ok=True)
+                            cone_angle_folder = save_path_subfolder / "cone_angle"
+                            cone_angle_folder.mkdir(parents=True, exist_ok=True)
 
-                        file_save_path_cone_angle = (cone_angle_folder / file.stem).resolve()
+                            file_save_path_cone_angle = (cone_angle_folder / file.stem).resolve()
 
-                        saver.save(file_save_path_cone_angle, cone_angle=cone_angle_AngularDensity)
+                            saver.save(file_save_path_cone_angle, cone_angle=cone_angle_AngularDensity)
     finally:
         # Ensure all background saves complete before exiting
         saver.shutdown(wait=True)

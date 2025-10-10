@@ -33,4 +33,5 @@ class CineReader:
             data = np.fromfile(f, dtype=np.uint16,
                                count=self.width * self.height)
         frame = data.reshape(self.height, self.width)
-        return np.flipud(frame)
+        # return np.flipud(frame)
+        return frame
