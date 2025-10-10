@@ -521,7 +521,14 @@ class VideoAnnotatorUI:
         y1 = int(np.ceil(y1s / self.zoom_factor))
 
         base_tile = self.base_rgba_pad.crop((x0, y0, x1, y1))
-        mask_pad = np.pad(self.mask, ((0, self.display_pad), (0, self.display_pad)), mode='constant', constant_values=0)
+        
+        mask_pad = np.pad(
+            self.mask,
+            ((0, self.display_pad), (0, self.display_pad)),
+            mode='constant',
+            constant_values=0,
+        )
+
         mask_tile = mask_pad[y0:y1, x0:x1]
 
         base_tile = enlarge_image(base_tile, int(self.zoom_factor))
