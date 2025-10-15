@@ -207,7 +207,7 @@ class VideoAnnotatorUI:
         self.zoom_factor = 1
         self.orig_img = np.zeros_like  # placeholder for PIL Image
         self.base_rgba = None          # RGBA cached base frame
-        self.display_pad = 100           # extra border for visualization
+        self.display_pad = 10           # extra border for visualization
         # Offsets for panning within the zoomed image
         self.offset_x = 0
         self.offset_y = 0
@@ -546,18 +546,27 @@ class VideoAnnotatorUI:
         self.canvas.delete('CENTER')
         self.canvas.delete('PLUME')
         self.canvas.delete('CALIBCIRCLE')
-        cx = self.coord_x.get()*self.zoom_factor
-        cy = self.coord_y.get()*self.zoom_factor
+
+        cx_val = self.coord_x.get()
+        cy_val = self.coord_y.get()
+        cx_canvas = (cx_val - x0) * self.zoom_factor + x0s
+        cy_canvas = (cy_val - y0) * self.zoom_factor + y0s
+
         r = 5
-        self.canvas.create_oval(cx-r, cy-r, cx+r, cy+r, outline='yellow', width=2, tags='CENTER')
+        self.canvas.create_oval(
+            cx_canvas - r, cy_canvas - r,
+            cx_canvas + r, cy_canvas + r,
+            outline='yellow', width=2, tags='CENTER'
+        )
 
         radius = self.calib_radius_var.get()
         if radius > 0:
             rr = radius * self.zoom_factor
-            self.canvas.create_oval(cx-rr, cy-rr, cx+rr, cy+rr,
-                                   outline='red', dash=(4,), tags='CALIBCIRCLE')
-            
-
+            self.canvas.create_oval(
+                cx_canvas - rr, cy_canvas - rr,
+                cx_canvas + rr, cy_canvas + rr,
+                outline='red', dash=(4,), tags='CALIBCIRCLE'
+            )
 
         n_plumes = int(self.num_plumes.get()) if self.num_plumes.get() > 0 else 0
         if n_plumes > 0:
@@ -566,13 +575,13 @@ class VideoAnnotatorUI:
             length = max(self.mask.shape) * self.zoom_factor
             for i in range(n_plumes):
                 ang = np.deg2rad(offset + i * step)
-                x_end = cx + length * np.cos(ang)
-                y_end = cy - length * np.sin(ang)
-                self.canvas.create_line(cx, cy, x_end, y_end, fill='cyan', tags='PLUME')
+                x_end = cx_canvas + length * np.cos(ang)
+                y_end = cy_canvas - length * np.sin(ang)
+                self.canvas.create_line(cx_canvas, cy_canvas, x_end, y_end, fill='cyan', tags='PLUME')
                 mid_ang = np.deg2rad(offset + i * step + step / 2)
-                mx = cx + length * np.cos(mid_ang)
-                my = cy - length * np.sin(mid_ang)
-                self.canvas.create_line(cx, cy, mx, my, fill='white', dash=(5,), tags='PLUME')
+                mx = cx_canvas + length * np.cos(mid_ang)
+                my = cy_canvas - length * np.sin(mid_ang)
+                self.canvas.create_line(cx_canvas, cy_canvas, mx, my, fill='white', dash=(5,), tags='PLUME')
 
         self.canvas.config(scrollregion=(0, 0, scaled_w, scaled_h))
 
@@ -692,7 +701,7 @@ class VideoAnnotatorUI:
         cfg = {
             'plumes': int(self.num_plumes.get()),
             'offset': float(self.plume_offset.get()),
-            'centre_x': float(self.coord_x.get()),
+            'centre_x': float(self.coord_x.get()+4.0), # add 4 pixel offset, currently hardcoded for error handling
             'centre_y': float(self.coord_y.get()),
             'calib_radius': float(self.calib_radius_var.get())
         }

@@ -34,8 +34,13 @@ global ir_
 global or_
 
 # Define the parent folder and other global variables
-parent_folder = r"Z:\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
-DATA_DIR = Path(r"G:\Samuel")
+parent_folder = r"D:\OSCC\LubeOil\BC20241017_HZ_Nozzle2\cine\single"
+DATA_DIR = Path(r"D:\OSCC\mask_meth")
+
+chamber_mask_path = DATA_DIR / "chamber_mask.npy"
+
+if chamber_mask_path.exists():
+    chamber_mask = np.load(chamber_mask_path)
 
 hydraulic_delay = 11  # Hydraulic delay in frames, adjust as needed
 gain = 1 # Gain factor for video processing
@@ -49,15 +54,6 @@ or_ = 380
 
 # Directory containing mask images and numpy files
 # DATA_DIR = Path(__file__).resolve().parent / "data"
-
-
-chamber_mask_path = DATA_DIR / "chamber_mask.npy"
-
-if chamber_mask_path.exists():
-    chamber_mask = np.load(chamber_mask_path)
-else:
-    subprocess.run(["python", "masking.py"], check=True)
-    chamber_mask = np.load(chamber_mask_path)
 
 # Define a semaphore with a limit on concurrent tasks
 SEMAPHORE_LIMIT = 8  # Adjust this based on your CPU capacity
@@ -140,7 +136,7 @@ async def main():
                     # start_time = time.time()
 
 
-                    if "Schlieren" in file.name:
+                    if "Schlieren" in file.name or "Shadow" in file.name:
                         video = load_cine_video(file).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                         frames, height, width = video.shape
                         schlieren_singlehole_pipeline(video, chamber_mask, centre, offset)
@@ -185,7 +181,8 @@ async def main():
                         video = load_cine_video(file, frame_limit=50).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                         frames, height, width = video.shape
 
-                        centre_x = float(centre[0])
+                        # Observed small shift error in GUI.py
+                        centre_x = float(centre[0]) 
                         centre_y = float(centre[1])
 
                         

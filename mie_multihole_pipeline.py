@@ -69,7 +69,12 @@ def preprocessing(video, hydraulic_delay_estimate, gamma=1.0, M=3, N=3,
 
     # --- optional range mask near nozzle
     if range_mask:
-        px_range = xp.amax(sub_bkg_med, axis=0) - xp.amin(sub_bkg_med, axis=0)
+        # Min-Max per pixel over time, replaced 
+        # px_range = xp.amax(sub_bkg_med, axis=0) - xp.amin(sub_bkg_med, axis=0)
+
+        q_hi = xp.percentile(sub_bkg_med, 95, axis=0)
+        q_lo = xp.percentile(sub_bkg_med, 5, axis=0)
+        px_range = q_hi - q_lo
 
         if use_gpu and triangle_backend == "gpu":
             mask = _triangle_binarize_gpu(px_range)     # boolean (H,W)
@@ -349,7 +354,7 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
     # ``foreground`` may still reside on the GPU if ``preprocessing`` ran on
     # CuPy.  OpenCV's CUDA routines expect host ``numpy`` arrays when calling
     # ``cv2.cuda_GpuMat.upload``, so convert to ``numpy`` before rotation.
-    foreground = xp.asarray(foreground, dtype=xp.float32, copy=False)
+    foreground = xp.asarray(foreground, dtype=xp.float32)
     segments = rotate_all_segments_auto(foreground, angles, crop, centre, mask=single_plume_region_mask)
     segments = xp.stack(segments, axis=0)
     segments[segments < 1e-3] = 0
