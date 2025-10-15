@@ -31,3 +31,8 @@ T_GROUP_TO_COND = {
     27:  {"chamber_pressure": 15,  "injection_duration": 779},
 
 }
+
+PLUMES  = 10
+DIAMETER = 0.384 # mm
+UMBRELLA_ANGLE = 140 # degrees
+FPS = 25000 # FPS in cine files

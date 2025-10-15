@@ -1,4 +1,4 @@
-# Nozzle 1
+# Nozzle 4
 T_GROUP_TO_COND = {
     1:  {"chamber_pressure": 5,  "injection_duration": 558},
     2:  {"chamber_pressure": 5,  "injection_duration": 585},
@@ -31,3 +31,8 @@ T_GROUP_TO_COND = {
     27:  {"chamber_pressure": 15,  "injection_duration": 745},
 
 }
+
+PLUMES  = 10
+DIAMETER = 0.355 # mm
+UMBRELLA_ANGLE = 140 # degrees
+FPS = 25000 # FPS in cine files

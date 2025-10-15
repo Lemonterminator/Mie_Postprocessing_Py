@@ -25,4 +25,8 @@ def cine_to_injection_duration_us(cine_number: int) -> float:
     else:
         return 750 + 50 * (block - 19)
     
+PLUMES  = 10
+DIAMETER = 0.384 # mm
+UMBRELLA_ANGLE = 140 # degrees
+    
 

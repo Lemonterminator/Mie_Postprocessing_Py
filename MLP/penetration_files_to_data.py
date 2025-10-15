@@ -2,6 +2,8 @@ import os
 
 os.environ.setdefault("MPLBACKEND", "Agg")  # use non-interactive backend for async saves
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import tkinter as tk
 from tkinter import filedialog
 from mie_postprocessing.functions_videos import get_subfolder_names

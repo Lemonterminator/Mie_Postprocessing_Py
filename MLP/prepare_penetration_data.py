@@ -26,9 +26,15 @@ import numpy as np
 global root
 
 # Constants
-FRAME_RATE_HZ: float = 25000.0
-UMBRELLA_ANGLE = 140.0
+'''
+Remember to change this import
+'''
+from test_matrix.Nozzle1 import FPS, UMBRELLA_ANGLE
 
+
+'''
+Remember to change this path
+'''
 # DS300
 # root = Path(r"C:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/DS300/penetration_results")
 # Nozzle 1
@@ -44,7 +50,7 @@ root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_H
 
 TILT_DEG: float = (180-UMBRELLA_ANGLE)/2.0
 CORRECTION_FACTOR: float = 1.0 / float(np.cos(np.deg2rad(TILT_DEG)))
-
+FRAME_RATE_HZ: float = FPS
 
 def _load_condition_array(npz_path: Path) -> np.ndarray:
     """Load the 3D penetration array from a condition stats NPZ.

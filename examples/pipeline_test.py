@@ -1,3 +1,7 @@
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from mie_postprocessing.functions_videos import *
 from mie_postprocessing.rotate_crop import *
 from mie_postprocessing.cone_angle import *
@@ -17,7 +21,6 @@ import asyncio
 import os
 import gc
 import json
-from pathlib import Path
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from skimage import measure

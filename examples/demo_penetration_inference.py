@@ -4,8 +4,9 @@ Demo: Run inference using the trained penetration MLP and plot mean ± std.
 Edit RUN_DIR and params below to your case, then:
   python demo_penetration_inference.py
 """
-
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 import matplotlib.pyplot as plt
 

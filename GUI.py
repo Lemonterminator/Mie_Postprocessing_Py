@@ -436,7 +436,7 @@ class VideoAnnotatorUI:
             self.base_rgba,
             border=(0, 0, self.display_pad, self.display_pad),
             fill=(0, 0, 0, 255))
-        self.offset_x = 0
+        self.offset_x = self.display_pad
         self.offset_y = 0
         self.ax_hist.clear()
         # display histogram with logarithmic y-axis for better dynamic range
@@ -701,7 +701,7 @@ class VideoAnnotatorUI:
         cfg = {
             'plumes': int(self.num_plumes.get()),
             'offset': float(self.plume_offset.get()),
-            'centre_x': float(self.coord_x.get()+4.0), # add 4 pixel offset, currently hardcoded for error handling
+            'centre_x': float(self.coord_x.get()), 
             'centre_y': float(self.coord_y.get()),
             'calib_radius': float(self.calib_radius_var.get())
         }

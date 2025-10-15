@@ -1,9 +1,12 @@
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import matplotlib.pyplot as plt
 import napari
 import numpy as np
-from functions_videos import *
+from mie_postprocessing.functions_videos import *
 from video_config import *
-from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
