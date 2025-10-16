@@ -7,8 +7,6 @@ This module provides functions to rotate video frames efficiently on the GPU usi
 First find the nozzle center and the angle offset by the GUI. 
 """
 
-
-
 def build_affine_inverse_maps_cupy(
     M,
     out_shape,
@@ -89,7 +87,6 @@ def build_rotation_affine(center, angle_deg, *, target=None, scale=1.0):
 
     return np.hstack([A, b[:, None]])
 
-
 def build_nozzle_rotation_maps(
     frame_shape,
     nozzle_center,
@@ -151,6 +148,17 @@ def _reflect_indices(idx, size):
 
 def _clamp_indices(idx, size):
     return cp.clip(idx, 0, size-1)
+
+def _in_bounds(ix, iy, W, H):
+    return (ix >= 0) & (ix < W) & (iy >= 0) & (iy < H)
+
+def _cast_back(out, orig_dtype):
+    if cp.issubdtype(orig_dtype, cp.integer):
+        info = cp.iinfo(orig_dtype)
+        out = cp.clip(cp.rint(out), info.min, info.max).astype(orig_dtype)
+    else:
+        out = out.astype(orig_dtype)
+    return out
 
 def remap_frame_nearest_neighbour_cupy(img, mapx, mapy, border_mode="constant", cval=0.0):
     """
@@ -341,6 +349,212 @@ def remap_frame_bilinear_cupy(img, mapx, mapy, border_mode="constant", cval=0.0)
         out = out.astype(orig_dtype)
     return out
 
+def _cubic_keys_weights(t, a=-0.5):
+    """
+    Compute Keys cubic weights for distances t in [0,1) to the 4 taps:
+    at offsets [-1, 0, 1, 2] relative to floor(x).
+    Returns weights w of shape t.shape + (4,)
+    """
+    # distances to taps
+    t0 = 1 + t        # x - (x0-1) => 1 + frac
+    t1 = t            # x - x0     => frac
+    t2 = 1 - t        # (x0+1) - x
+    t3 = 2 - t        # (x0+2) - x
+
+    def P(x):
+        ax = cp.abs(x)
+        ax2 = ax * ax
+        ax3 = ax2 * ax
+        w = cp.where(
+            ax < 1,
+            (a + 2) * ax3 - (a + 3) * ax2 + 1,
+            cp.where(
+                (ax >= 1) & (ax < 2),
+                a * ax3 - 5 * a * ax2 + 8 * a * ax - 4 * a,
+                cp.zeros_like(ax)
+            )
+        )
+        return w.astype(cp.float32)
+
+    w0 = P(t0)
+    w1 = P(t1)
+    w2 = P(t2)
+    w3 = P(t3)
+    # stack last axis -> (..., 4)
+    return cp.stack([w0, w1, w2, w3], axis=-1)
+
+def remap_frame_bicubic_cupy(img, mapx, mapy, border_mode="constant", cval=0.0):
+    """
+    Bicubic remap (Keys cubic, a = -0.5 like OpenCV INTER_CUBIC).
+    img: cp.ndarray (H,W) or (H,W,C)
+    mapx, mapy: cp.float32 (H_out,W_out) source coords
+    border_mode: "constant" | "replicate" | "reflect"
+    cval: float for constant border
+    """
+    assert img.ndim in (2, 3)
+    H, W = img.shape[:2]
+    H_out, W_out = mapx.shape
+
+    orig_dtype = img.dtype
+    img_f = img.astype(cp.float32, copy=False)
+
+    # integer base indices
+    x0 = cp.floor(mapx).astype(cp.int32)
+    y0 = cp.floor(mapy).astype(cp.int32)
+
+    # fractional distances in [0,1)
+    fx = (mapx - x0).astype(cp.float32)
+    fy = (mapy - y0).astype(cp.float32)
+
+    # 4 taps per axis: offsets -1,0,1,2
+    x_idx = cp.stack([x0 - 1, x0, x0 + 1, x0 + 2], axis=-1).astype(cp.int32)
+    y_idx = cp.stack([y0 - 1, y0, y0 + 1, y0 + 2], axis=-1).astype(cp.int32)
+
+    # weights per axis (H_out,W_out,4)
+    wx = _cubic_keys_weights(fx, a=-0.5)
+    wy = _cubic_keys_weights(fy, a=-0.5)
+
+    # border handling: get valid indices + masks for constant
+    if border_mode == "replicate":
+        x_is = _clamp_indices(x_idx, W)
+        y_is = _clamp_indices(y_idx, H)
+        masks = None
+    elif border_mode == "reflect":
+        x_is = _reflect_indices(x_idx, W)
+        y_is = _reflect_indices(y_idx, H)
+        masks = None
+    elif border_mode == "constant":
+        x_is = _clamp_indices(x_idx, W)
+        y_is = _clamp_indices(y_idx, H)
+        # neighbor masks (H_out,W_out,4,4) per (jy, ix)
+        # build lazily in accumulation loop to save memory
+        masks = "constant"
+        cval_f = cp.asarray(cval, dtype=cp.float32)
+    else:
+        raise ValueError("border_mode must be 'constant', 'replicate', or 'reflect'")
+
+    # accumulate
+    if img_f.ndim == 2:
+        out = cp.zeros((H_out, W_out), dtype=cp.float32)
+    else:
+        C = img_f.shape[2]
+        out = cp.zeros((H_out, W_out, C), dtype=cp.float32)
+
+    # 4x4 taps: outer product of wy[:, :, jy] and wx[:, :, ix]
+    for jy in range(4):
+        iy = y_is[..., jy]
+        for ix in range(4):
+            ix_arr = x_is[..., ix]
+            # sample
+            if img_f.ndim == 2:
+                samp = img_f[iy, ix_arr]  # (H_out,W_out)
+            else:
+                samp = img_f[iy, ix_arr, :]  # (H_out,W_out,C)
+
+            if masks == "constant":
+                m = _in_bounds(x_idx[..., ix], y_idx[..., jy], W, H)
+                if img_f.ndim == 3:
+                    m = m[..., None]
+                samp = cp.where(m, samp, cval_f)
+
+            w = (wy[..., jy] * wx[..., ix]).astype(cp.float32)
+            if img_f.ndim == 3:
+                w = w[..., None]
+            out += w * samp
+
+    return _cast_back(out, orig_dtype)
+
+def _lanczos3_weights(t, a=3):
+    """
+    Lanczos-a (default a=3) weights for distances t in [0,1)
+    to taps at offsets [-a+1, ..., a] relative to floor(x).
+    For a=3: offsets [-2,-1,0,1,2,3] (6 taps).
+    Returns weights w of shape t.shape + (2a,)
+    """
+    # tap offsets relative to x0
+    offs = cp.arange(-a + 1, a + 1, dtype=cp.int32)  # [-2,-1,0,1,2,3] when a=3
+    # shape broadcast to (H_out,W_out,2a)
+    t_grid = t[..., None] - offs[None, None, :]
+    # sinc in NumPy/CuPy is normalized: sinc(x) = sin(pi x)/(pi x)
+    # handle t=0 OK.
+    # zero outside |x|<a
+    w = cp.sinc(t_grid) * cp.sinc(t_grid / a)
+    w = cp.where(cp.abs(t_grid) < a, w, 0.0)
+    # normalize rows slightly to mitigate tiny numeric drift (optional)
+    s = cp.sum(w, axis=-1, keepdims=True)
+    s = cp.where(s != 0, s, 1.0)
+    w = (w / s).astype(cp.float32)
+    return w, offs
+
+def remap_frame_lanczos_3_cupy(img, mapx, mapy, border_mode="constant", cval=0.0):
+    """
+    Lanczos-3 remap on GPU (windowed sinc, support=3).
+    img: cp.ndarray (H,W) or (H,W,C)
+    mapx, mapy: cp.float32 (H_out,W_out) source coords
+    border_mode: "constant" | "replicate" | "reflect"
+    cval: float for constant border
+    """
+    assert img.ndim in (2, 3)
+    H, W = img.shape[:2]
+    H_out, W_out = mapx.shape
+
+    orig_dtype = img.dtype
+    img_f = img.astype(cp.float32, copy=False)
+
+    x0 = cp.floor(mapx).astype(cp.int32)
+    y0 = cp.floor(mapy).astype(cp.int32)
+    fx = (mapx - x0).astype(cp.float32)
+    fy = (mapy - y0).astype(cp.float32)
+
+    wx, xoffs = _lanczos3_weights(fx, a=3)  # (..., 6)
+    wy, yoffs = _lanczos3_weights(fy, a=3)
+
+    x_idx = (x0[..., None] + xoffs[None, None, :]).astype(cp.int32)  # (H_out,W_out,6)
+    y_idx = (y0[..., None] + yoffs[None, None, :]).astype(cp.int32)  # (H_out,W_out,6)
+
+    if border_mode == "replicate":
+        x_is = _clamp_indices(x_idx, W)
+        y_is = _clamp_indices(y_idx, H)
+        masks = None
+    elif border_mode == "reflect":
+        x_is = _reflect_indices(x_idx, W)
+        y_is = _reflect_indices(y_idx, H)
+        masks = None
+    elif border_mode == "constant":
+        x_is = _clamp_indices(x_idx, W)
+        y_is = _clamp_indices(y_idx, H)
+        masks = "constant"
+        cval_f = cp.asarray(cval, dtype=cp.float32)
+    else:
+        raise ValueError("border_mode must be 'constant', 'replicate', or 'reflect'")
+
+    if img_f.ndim == 2:
+        out = cp.zeros((H_out, W_out), dtype=cp.float32)
+    else:
+        C = img_f.shape[2]
+        out = cp.zeros((H_out, W_out, C), dtype=cp.float32)
+
+    # 6x6 accumulation
+    for jy in range(6):
+        iy = y_is[..., jy]
+        for ix in range(6):
+            ix_arr = x_is[..., ix]
+            if img_f.ndim == 2:
+                samp = img_f[iy, ix_arr]
+            else:
+                samp = img_f[iy, ix_arr, :]
+            if masks == "constant":
+                m = _in_bounds(x_idx[..., ix], y_idx[..., jy], W, H)
+                if img_f.ndim == 3:
+                    m = m[..., None]
+                samp = cp.where(m, samp, cval_f)
+
+            w = (wy[..., jy] * wx[..., ix]).astype(cp.float32)
+            if img_f.ndim == 3:
+                w = w[..., None]
+            out += w * samp
+
+    return _cast_back(out, orig_dtype)
 
 def remap_video_cupy(
     video_iterable,
@@ -372,6 +586,10 @@ def remap_video_cupy(
         remap_fn = remap_frame_bilinear_cupy
     elif interpolation == "nearest":
         remap_fn = remap_frame_nearest_neighbour_cupy
+    elif interpolation == "bicubic":
+        remap_fn = remap_frame_bicubic_cupy
+    elif interpolation == "lanczos3":
+        remap_fn = remap_frame_lanczos_3_cupy
     else:
         raise ValueError("interpolation must be 'bilinear' or 'nearest'")
 
@@ -379,8 +597,6 @@ def remap_video_cupy(
     for frame in video_iterable:
         frames_out.append(remap_fn(frame, mapx, mapy, border_mode, cval))
     return cp.stack(frames_out, axis=0) if stack else frames_out
-
-
 
 def rotate_video_nozzle_at_0_half_cupy(
     video,
@@ -412,7 +628,7 @@ def rotate_video_nozzle_at_0_half_cupy(
     calibration_point : tuple[float, float], optional
         `(u_cal, v_cal)` in the rotated full canvas representing the nozzle.
     border_mode, cval, stack : forwarded to `remap_video_cupy`.
-    interpolation : {"bilinear","nearest"}
+    interpolation : {"bilinear","nearest", "bicubic", "lanczos3"}
         Sampling kernel passed to `remap_video_cupy`.
     plot_maps : bool
         When True, display the generated inverse maps for inspection.
