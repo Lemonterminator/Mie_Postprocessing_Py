@@ -139,7 +139,6 @@ class CircleSelector(tk.Toplevel):
         self.show_frame()
 
 
-
     def show_frame(self):
         img = enlarge_image(self.image, int(self.zoom_factor))
         self.photo = ImageTk.PhotoImage(img)

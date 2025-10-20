@@ -541,10 +541,14 @@ def mie_multihole_pipeline(video, centre, number_of_plumes, gamma=1.0, binarize_
         # Clamp and combine decisions
         edge_diff[edge_diff > upper - 10] = 0
         edge_diff[edge_diff < lower + 10] = 0
-        decision = np.maximum(penetration[p, start:end - 1], edge_diff)
+        try: 
+            decision = np.maximum(penetration[p, start:end - 1], edge_diff)
+        except Exception:
+            decision = penetration[p, start:end - 1]
+        
         # decision = np.minimum(penetration[p, start:end - 1], edge_diff)
         penetration[p, start:end - 1] = decision
-        penetration[p, :int(np.max(hydraulic_delay))] = 0
+        # penetration[p, :int(np.max(hydraulic_delay))] = 0
 
         return p
 

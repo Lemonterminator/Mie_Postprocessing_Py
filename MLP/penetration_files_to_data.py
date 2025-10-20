@@ -22,10 +22,10 @@ HYDRAULIC_DELAY_ESTIMATION_MAX = 20
 ir_ = 11 # Nozzle 1,2,3,4
 # ir_ = 14 # DS300
 or_ = 380
-thres = or_ - ir_ - 20
+thres = or_ - ir_ - 10
 
 # Z-score threshold for outlier removal
-z_threshold = 2.5
+z_threshold = 3
 
 def select_folder() -> Path | None:
     """Open a folder selection dialog starting in the script directory."""
@@ -165,9 +165,9 @@ def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thr
     A = (np.abs(z_scores) < z_score_threshold)
     B = np.where(A, 1, np.nan)
     condition_data_cleaned = condition_data * B
-    # Before the minimum hydraulic delay, there should be no value
+    # Before the minimum hydraulic delay, there should be no penetration
     mask_pre = condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN] >= 0
-    condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN][mask_pre] = np.nan
+    condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN][mask_pre] = 0
     # After the maximum hydraulic delay, there should be no zero value
     mask_post = condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:] == 0
     condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:][mask_post] = np.nan

@@ -8,7 +8,7 @@ from mie_postprocessing.video_playback import *
 from mie_multihole_pipeline import *
 import matplotlib.pyplot as plt
 
-from Schlieren_singlehole_pipeline import *
+from examples.Schlieren_singlehole_pipeline import *
 import subprocess
 from scipy.signal import convolve2d
 import asyncio
@@ -34,7 +34,7 @@ global ir_
 global or_
 
 # Define the parent folder and other global variables
-parent_folder = r"D:\OSCC\LubeOil\BC20241017_HZ_Nozzle2\cine\single"
+parent_folder = r"Z:\BC20241016_HZ_Nozzle8\Cine"
 DATA_DIR = Path(r"D:\OSCC\mask_meth")
 
 chamber_mask_path = DATA_DIR / "chamber_mask.npy"
@@ -76,11 +76,6 @@ def numeric_then_alpha_key(p: Path):
     else:
         return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
     
-
-        
-
-        
-        
 
 
 async def main():
@@ -139,50 +134,17 @@ async def main():
                     if "Schlieren" in file.name or "Shadow" in file.name:
                         video = load_cine_video(file).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                         frames, height, width = video.shape
-                        schlieren_singlehole_pipeline(video, chamber_mask, centre, offset)
+                        # schlieren_singlehole_pipeline(video, chamber_mask, centre, offset, plot_on=True)
 
-
-                    elif "OH" in file.name:
-
-                        continue
-
-                        RT = rotate_video(video, -45)
-                        strip = RT[0:150, 250:550, :]
-                        LP_filtered = Gaussian_LP_video(strip, 40)
-                        med = median_filter_video(LP_filtered, 5, 5)
-                        
-
-                        BW = binarize_video_global_threshold(med,"fixed", 800)
-
-                        play_video_cv2(strip*10)
-                        play_video_cv2(BW*255.0)
-
-                        TD_map = calculate_TD_map(strip)
-                        area = calculate_bw_area(BW)
-                        
-                        '''
-                        plt.figure()
-                        plt.imshow(TD_map, cmap='jet', aspect='auto')
-                        plt.title("Average Time–Distance Map")
-                        plt.xlabel("Time (frames)")
-                        plt.ylabel("Distance (pixels)")
-                        plt.colorbar(label="Sum Intensity")
-                        plt.show()
-
-                        plt.figure(figsize=(10, 4))
-                        plt.plot(area, color='blue')
-                        plt.xlabel("Frame")
-                        plt.ylabel("Area (white pixels)")
-                        plt.title("Area Over Time")
-                        plt.grid(True)
-                        plt.tight_layout()
-                        plt.show()'''
                     else:
+                        pass
+
+                    if 1: 
                         video = load_cine_video(file, frame_limit=50).astype(np.float32)/4096  # Ensure load_cine_video is defined or imported
                         frames, height, width = video.shape
 
                         # Observed small shift error in GUI.py
-                        centre_x = float(centre[0]) 
+                        centre_x = float(centre[0]) + 4 # Error 
                         centre_y = float(centre[1])
 
                         
