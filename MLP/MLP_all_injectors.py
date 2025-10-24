@@ -76,7 +76,7 @@ CONFIG = {
     "num_workers": 0,
     "pin_memory": torch.cuda.is_available(),
     "shuffle_train": True,
-    "epochs": 50,
+    "epochs": 50,<
     "grad_clip_norm": 1.0,
     "log_interval": 50,
     "log_var_bounds": (-10.0, 6.0),
