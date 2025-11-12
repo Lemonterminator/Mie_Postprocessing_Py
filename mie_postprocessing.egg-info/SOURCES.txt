@@ -11,9 +11,12 @@ mie_postprocessing/functions_bw.py
 mie_postprocessing/functions_rotation.py
 mie_postprocessing/functions_videos.py
 mie_postprocessing/inference_penetration.py
+mie_postprocessing/inference_penetration_hetero.py
 mie_postprocessing/masking.py
+mie_postprocessing/optical_flow.py
 mie_postprocessing/packages.py
 mie_postprocessing/rotate_crop.py
+mie_postprocessing/rotate_with_alignment.py
 mie_postprocessing/ssim.py
 mie_postprocessing/video_filters.py
 mie_postprocessing/video_playback.py

@@ -1,248 +1,296 @@
-from mie_postprocessing import *
-from mie_postprocessing.functions_videos import *
-from mie_postprocessing.rotate_with_alignment import *
-from mie_postprocessing.video_playback import *
-from mie_postprocessing.optical_flow import *
-from mie_postprocessing.video_filters import *
-from mie_postprocessing.functions_bw import *
-import os
+from __future__ import annotations
+
 import json
+import os
 import sys
+from pathlib import Path
+from typing import Iterable
 
-folder_path = r"G:\SCH_vids\Set2"
-# folder_path = r"D:\OSCC\Meth\T1"
-files = os.listdir(folder_path)
-
-files = [os.path.join(folder_path, f) for f in files if os.path.isfile(os.path.join(folder_path, f))]
-
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
-def svd_foreground(video_FHW, rank=2, center='median', bkg_frame_limit=-1, return_bg=False):
-    """
-    video_FHW: ndarray, shape (F, H, W)
-    rank: 截断奇异值个数（背景秩）。静止背景可设 1~2，缓慢变化 2~5。
-    center: 对每个像素做时域去偏置，'median' 更鲁棒，也可 'mean' 或 None
-    return_bg: 是否同时返回背景视频（F,H,W）
+# Ensure the project root is importable when running from the examples folder.
+_THIS_FILE = Path(__file__).resolve()
+_REPO_ROOT = _THIS_FILE.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-    returns:
-        fg_FHW: 残差前景，shape (F,H,W)
-        (opt) bg_FHW: 低秩背景，shape (F,H,W)
-    """
-    F, H, W = video_FHW.shape
-    X = video_FHW.reshape(F, -1).T        # (HW, F)
+# Prefer GPU if CuPy is available; otherwise use a NumPy-compatible shim.
+try:
+    import cupy as _cupy  # type: ignore
 
-    # 时域去偏置：降低光照慢漂移的影响
-    if center == 'median':
-        if bkg_frame_limit == -1: 
-            bias = cp.median(X, axis=1, keepdims=True)
-        else:
-            bias = cp.median(X[:,:bkg_frame_limit], axis=1, keepdims=True)
-        Xc = X - bias
-    elif center == 'mean':
-        if bkg_frame_limit == -1: 
-            bias = cp.mean(X, axis=1, keepdims=True)
-        else:
-            bias = cp.mean(X[:,:bkg_frame_limit], axis=1, keepdims=True)
-        Xc = X - bias
+    _cupy.cuda.runtime.getDeviceCount()
+    cp = _cupy
+    USING_CUPY = True
+except Exception as exc:  # pragma: no cover - hardware dependent
+    print(f"CuPy unavailable, falling back to NumPy backend: {exc}")
+    USING_CUPY = False
+
+    class _NumpyCompat:
+        def __getattr__(self, name):
+            return getattr(np, name)
+
+        def asarray(self, a, dtype=None):
+            return np.asarray(a, dtype=dtype)
+
+        def asnumpy(self, a):
+            return np.asarray(a)
+
+        def get(self, a):
+            return a
+
+    cp = _NumpyCompat()  # type: ignore
+
+from mie_postprocessing.functions_bw import keep_largest_component
+from mie_postprocessing.functions_videos import load_cine_video
+from mie_postprocessing.optical_flow import compute_farneback_flows
+from mie_postprocessing.video_filters import gaussian_video_cpu, median_filter_video_auto
+from mie_postprocessing.video_playback import play_video_cv2, play_videos_side_by_side
+from mie_postprocessing.svd_background_removal import (
+    svd_foreground_cuda as svd_foreground,
+        godec_like,
+        )
+
+# Import rotation utility based on backend availability to avoid hard Cupy dependency
+if USING_CUPY:
+    from mie_postprocessing.rotate_with_alignment import (
+        rotate_video_nozzle_at_0_half_cupy as rotate_video_nozzle_at_0_half_backend,
+    )
+else:
+    from mie_postprocessing.rotate_with_alignment_cpu import (
+        rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
+    )
+
+# Default dataset location can be overridden with the SCH_DATA_PATH environment variable.
+DATA_ROOT = (
+    Path.home()
+    / "OneDrive - W\u00E4rtsil\u00E4 Corporation"
+    / "Documents"
+    / "Nozzle_temp_impact_SCH"
+)
+
+
+def _iter_files(folder: Path) -> Iterable[Path]:
+    return sorted(p for p in folder.iterdir() if p.is_file())
+
+
+def to_numpy(arr):
+    return cp.asnumpy(arr) if USING_CUPY else np.asarray(arr)
+
+
+
+
+def _min_max_scale(arr: cp.ndarray) -> cp.ndarray:
+    mn = arr.min()
+    mx = arr.max()
+    if mx > mn:
+        return (arr - mn) / (mx - mn)
+    return cp.zeros_like(arr)
+
+
+def _load_metadata(files: Iterable[Path]) -> tuple[int, float, tuple[float, float]]:
+    env_cx = os.getenv("SCH_CENTRE_X")
+    env_cy = os.getenv("SCH_CENTRE_Y")
+    env_offset = os.getenv("SCH_OFFSET")
+    if env_cx and env_cy and env_offset:
+        plumes = int(os.getenv("SCH_PLUMES", "0"))
+        centre = (float(env_cx), float(env_cy))
+        offset = float(env_offset)
+        return plumes, offset, centre
+
+    for file in files:
+        if file.suffix.lower() == ".json":
+            with file.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                plumes = int(data["plumes"])
+                offset = float(data["offset"])
+                centre = (float(data["centre_x"]) + 4.0, float(data["centre_y"]) - 3.0)
+                return plumes, offset, centre
+    raise FileNotFoundError(
+        "No metadata JSON found alongside the cine files. "
+        "Provide SCH_CENTRE_X, SCH_CENTRE_Y, and SCH_OFFSET environment variables to run without metadata."
+    )
+
+
+def _prepare_temporal_smoothing(rotated: cp.ndarray, smooth_frames: int) -> tuple[cp.ndarray, np.ndarray]:
+    rotated_cpu = to_numpy(rotated)
+    smoothed_np = median_filter_video_auto(np.swapaxes(rotated_cpu, 0, 2), smooth_frames, 1)
+    smoothed_np = np.swapaxes(smoothed_np, 0, 2)
+
+    min_val = smoothed_np.min()
+    max_val = smoothed_np.max()
+    if max_val > min_val:
+        smoothed_np = (smoothed_np - min_val) / (max_val - min_val)
     else:
-        bias = 0.0
-        Xc = X
+        smoothed_np = np.zeros_like(smoothed_np, dtype=np.float32)
 
-    # 截断 SVD：用 cp.linalg.svd 再截断，或换 randomized SVD（见下）
-    U, s, Vt = cp.linalg.svd(Xc, full_matrices=False)  # U:(HW,rmax), s:(rmax,), Vt:(F,rmax)
-    r = min(rank, s.size)
-    Uk = U[:, :r]            # (HW,r)
-    sk = s[:r]               # (r,)
-    Vtk = Vt[:r, :]          # (r,F)
+    smoothed_cp = cp.asarray(smoothed_np, dtype=cp.float32)
+    return smoothed_cp, smoothed_np
 
-    Lc = (Uk * sk) @ Vtk     # 低秩背景（zero-centered），(HW,F)
-    S = Xc - Lc              # 残差前景（zero-centered）
 
-    # 复原形状
-    fg_FHW = S.T.reshape(F, H, W)
-
-    if return_bg:
-        bg = (Lc + bias).T.reshape(F, H, W)
-        return fg_FHW, bg
-    else:
-        return fg_FHW
-
-def godec_like(video_FHW, rank=2, lam=2.5, iters=8, center='median', return_bg=False):
+def _rotate_align_video_cpu(
+    video: np.ndarray,
+    nozzle_center: tuple[float, float],
+    offset_deg: float,
+    *,
+    interpolation: str,
+    out_shape: tuple[int, int] | None,
+    border_mode: str,
+    cval: float,
+) -> np.ndarray:
     """
-    GoDec 风格的近似 RPCA:
-        X ≈ L + S,  s.t. rank(L) <= r,  S 稀疏（按阈值截断）
-    lam: 稀疏阈值强度（越大前景越“干净”，但易漏检）
-    iters: 交替次数，通常 5~10 就够
+    Delegate to the NumPy implementation in mie_postprocessing.rotate_with_alignment_cpu.
+    Returns only the rotated video (np.ndarray).
     """
-    F, H, W = video_FHW.shape
-    X = video_FHW.reshape(F, -1).T  # (HW,F)
-
-    # 去偏置
-    if center == 'median':
-        bias = cp.median(X, axis=1, keepdims=True)
-        Xc = X - bias
-    elif center == 'mean':
-        bias = cp.mean(X, axis=1, keepdims=True)
-        Xc = X - bias
-    else:
-        bias = 0.0
-        Xc = X
-
-    # 初始化
-    L = cp.zeros_like(Xc)
-    S = cp.zeros_like(Xc)
-
-    for _ in range(iters):
-        # 1) 低秩投影：对 (Xc - S) 做截断SVD
-        U, s, Vt = cp.linalg.svd(Xc - S, full_matrices=False)
-        r = min(rank, s.size)
-        L = (U[:, :r] * s[:r]) @ Vt[:r, :]
-
-        # 2) 稀疏截断：软阈值（更稳）或硬阈值（更稀疏）
-        R = Xc - L
-        # 全局自适应阈值（MAD）
-        med = cp.median(cp.abs(R))
-        tau = lam * 1.4826 * med + 1e-8
-        # 软阈值
-        S = cp.sign(R) * cp.maximum(cp.abs(R) - tau, 0.0)
-
-    fg = (Xc - L).T.reshape(F, H, W)  # 残差视作前景
-    if return_bg:
-        bg = (L + bias).T.reshape(F, H, W)
-        return fg, bg
-    else:
-        return fg
+    rotated_np, _, _ = rotate_video_nozzle_at_0_half_backend(
+        video,
+        nozzle_center,
+        offset_deg,
+        interpolation=interpolation,
+        border_mode=border_mode,
+        out_shape=out_shape,
+        cval=cval,
+    )
+    return rotated_np.astype(np.float32, copy=False)
 
 
+def main() -> None:
+    folder_path = Path(os.environ.get("SCH_DATA_PATH", DATA_ROOT))
+    if not folder_path.exists():
+        raise FileNotFoundError(f"Data folder not found: {folder_path}")
 
-for file in files:
-    if Path(file).suffix == '.json':
-            with open(file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                number_of_plumes = int(data['plumes'])
-                offset = float(data['offset'])
-                centre = (float(data['centre_x']) + 4, float(data['centre_y'])-3)
+    files = _iter_files(folder_path)
+    number_of_plumes, offset, centre = _load_metadata(files)
+    print(f"Metadata: plumes={number_of_plumes}, offset={offset}, centre={centre}")
 
-for file in files:
-    # if Path(file).suffix == '.cine' and Path(file).stem.split("Shadow")[0]=="":
-    if Path(file).suffix == '.cine':
-        video = load_cine_video(file, frame_limit=399).astype(np.float32)/4096
+    cine_files = [f for f in files if f.suffix.lower() == ".cine"]
+    if not cine_files:
+        raise FileNotFoundError(f"No .cine files found in {folder_path}")
+
+    for cine_file in cine_files:
+        frame_limit = int(os.environ.get("SCH_FRAME_LIMIT", "399"))
+        video = load_cine_video(str(cine_file), frame_limit=frame_limit).astype(np.float32) / 4096.0
         F, H, W = video.shape
 
-        # Rotate to horizontal and crop by half
-        rotated, _, _ = rotate_video_nozzle_at_0_half_cupy(video, centre, -45, interpolation="bicubic", border_mode="constant", out_shape=(H//2, W))
+        if USING_CUPY:
+            try:
+                rotated_gpu, _, _ = rotate_video_nozzle_at_0_half_backend(
+                    video,
+                    centre,
+                    -45.0,
+                    interpolation="bicubic",
+                    border_mode="constant",
+                    out_shape=(H // 2, W),
+                )
+                rotated = cp.asarray(rotated_gpu, dtype=cp.float32)
+            except Exception as exc:  # pragma: no cover - hardware dependent
+                print(f"GPU rotation failed ({exc}), falling back to CPU numpy implementation.")
+                rotated_np = _rotate_align_video_cpu(
+                    video,
+                    centre,
+                    -45.0,
+                    interpolation="bicubic",
+                    border_mode="constant",
+                    out_shape=(H // 2, W),
+                    cval=0.0,
+                )
+                rotated = cp.asarray(rotated_np, dtype=cp.float32)
+        else:
+            rotated_np = _rotate_align_video_cpu(
+                video,
+                centre,
+                -45.0,
+                interpolation="bicubic",
+                border_mode="constant",
+                out_shape=(H // 2, W),
+                cval=0.0,
+            )
+            rotated = cp.asarray(rotated_np, dtype=cp.float32)
 
-        intensity = cp.sum(cp.sum(rotated, axis=2), axis=1).get()
-        # plt.plot(intensity)
-        
-        # Inverting 
-        rotated = 1 - rotated 
+        intensity = to_numpy(cp.sum(cp.sum(rotated, axis=2), axis=1))
+        _ = intensity  # currently for diagnostic plotting if desired
+
+        rotated = 1.0 - rotated
 
         smooth_frames = 3
-        temporal_smoothing = cp.swapaxes(median_filter_video_auto(cp.swapaxes(rotated.get(), 0, 2), smooth_frames, 1), 0, 2)
-        # temporal_smoothing = cp.asarray(cp.clip(temporal_smoothing, 0, 1),dtype=cp.float32)
-
-        # Suppose temarrayporal_smoothing is your CuPy 
-        min_val = temporal_smoothing.min()
-        max_val = temporal_smoothing.max()
-
-        # Avoid division by zero if all values are the same
-        if max_val > min_val:
-            temporal_smoothing = (temporal_smoothing - min_val) / (max_val - min_val)
-        else:
-            temporal_smoothing = cp.zeros_like(temporal_smoothing, dtype=cp.float32)
-
-        temporal_smoothing = cp.asarray(temporal_smoothing, dtype=cp.float32)
-
-
-
-        # rotated_CPU = rotated.get() # Back to CPU
-        F, H, W = rotated.shape
+        temporal_smoothing, temporal_smoothing_np = _prepare_temporal_smoothing(rotated, smooth_frames)
 
         foreground_svd = svd_foreground(temporal_smoothing, 10, bkg_frame_limit=20)
         foreground_godec = godec_like(temporal_smoothing, 10)
 
-        svd_pos = foreground_svd*(foreground_svd > 0)
+        svd_pos = cp.maximum(foreground_svd, 0.0)
+        svd_neg = cp.maximum(-foreground_svd, 0.0)
 
-        svd_neg = -foreground_svd*(foreground_svd <0)
+        svd_pos = _min_max_scale(svd_pos)
+        svd_neg = _min_max_scale(svd_neg)
 
-        
-        
-        # Min-Max scaling 
-        min_val = svd_pos.min()
-        max_val = svd_pos.max()
-        svd_pos = (svd_pos - min_val)/(max_val - min_val)
-
-        min_val = svd_neg.min()
-        max_val = svd_neg.max()
-        svd_neg = (svd_neg - min_val)/(max_val - min_val)
-        
         gamma = 1.5
-        play_videos_side_by_side((
-            cp.swapaxes(rotated, 1,2).get(), 
-            cp.swapaxes(svd_pos, 1, 2).get()**gamma, 
-            cp.swapaxes(svd_neg, 1, 2).get()**gamma
-            ), intv=100)
-        
-        tdi_map = cp.sum(svd_pos**gamma, axis=1).get()
+        play_videos_side_by_side(
+            (
+                to_numpy(cp.swapaxes(rotated, 1, 2)),
+                to_numpy(cp.swapaxes(svd_pos, 1, 2)) ** gamma,
+                to_numpy(cp.swapaxes(svd_neg, 1, 2)) ** gamma,
+            ),
+            intv=100,
+        )
+
+        tdi_map = to_numpy(cp.sum(svd_pos ** gamma, axis=1))
         plt.imshow(tdi_map.T, cmap="jet", origin="lower")
+        plt.title("Time-Distance Intensity Map")
+        plt.show(block=False)
 
-        # Time-Distance Intensity Map
-
-        tdi_map = (tdi_map-tdi_map.min())/(tdi_map.max()-tdi_map.min())
-        tdi_map = np.clip(tdi_map, 0, 1)
-        tdi_map_u8 = (tdi_map*255).astype(np.uint8)
-        thres, bw = cv2.threshold(tdi_map_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        tdi_map_norm = (tdi_map - tdi_map.min()) / (tdi_map.max() - tdi_map.min() + 1e-12)
+        tdi_map_norm = np.clip(tdi_map_norm, 0.0, 1.0)
+        tdi_map_u8 = (tdi_map_norm * 255.0).astype(np.uint8)
+        _, bw = cv2.threshold(tdi_map_u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         bw1 = keep_largest_component(bw)
         bw2 = bw1.T
-        
-        penetration = bw2.shape[0]- np.argmax(bw2[::-1, :], axis=0)
-        penetration[penetration == bw2.shape[0]]  = 0
-        # plt.imshow(bw2, origin="lower")
+
+        penetration = bw2.shape[0] - np.argmax(bw2[::-1, :], axis=0)
+        penetration[penetration == bw2.shape[0]] = 0
+        plt.figure()
         plt.plot(penetration, color="red")
+        plt.title("Penetration over time")
+        plt.show(block=False)
 
-        # Examing the penetration results
-        rotated_cp = rotated.copy()
+        rotated_cp = cp.asarray(rotated.copy())
         for f in range(F):
-            rotated_cp[f, :, penetration[f]:]  *= 1e-1
-        play_video_cv2(rotated_cp.get(), intv=100)
+            rotated_cp[f, :, penetration[f]:] *= 1e-1
+        play_video_cv2(to_numpy(rotated_cp), intv=100)
 
+        foreground_godec = _min_max_scale(foreground_godec)
+        play_videos_side_by_side(
+            (
+                to_numpy(rotated),
+                np.clip(to_numpy(foreground_svd), 0.0, 1.0),
+                np.clip(to_numpy(foreground_godec), 0.0, 1.0),
+            )
+        )
 
-        # plt.imshow(cp.sum(foreground_godec, axis=1).get(), cmap="jet", origin="lower")
-        
-
-        min_val = foreground_godec.min()
-        max_val = foreground_godec.max()
-        foreground_godec = (foreground_godec - min_val)/(max_val - min_val)
-
-
-        play_videos_side_by_side((rotated.get(), np.clip(foreground_svd.get(), 0,1), np.clip(foreground_godec.get(), 0, 1)))
-
-
-        # Optical flow
-        flows_svd = compute_farneback_flows(svd_pos)
-        flows_mag = np.sqrt(flows_svd[:, 0, :,:]**2+ flows_svd[:,1,:,:]**2)
-        min_val = flows_mag.min()
-        max_val = flows_mag.max()
-        flows_mag = (flows_mag-min_val)/(max_val-min_val)
-        play_video_cv2(flows_mag*10)
+        flows_svd = compute_farneback_flows(to_numpy(svd_pos))
+        flows_mag = np.sqrt(flows_svd[:, 0, :, :] ** 2 + flows_svd[:, 1, :, :] ** 2)
+        flows_mag = (flows_mag - flows_mag.min()) / (flows_mag.max() - flows_mag.min() + 1e-12)
+        play_video_cv2(flows_mag * 10.0)
         tdi_map_flows = np.sum(flows_mag, axis=1)
 
-        min_val = tdi_map_flows.min()
-        max_val = tdi_map_flows.max()
-        tdi_map_flows_scaled = (tdi_map_flows- min_val ) / (max_val-min_val)
+        tdi_map_flows_scaled = (tdi_map_flows - tdi_map_flows.min()) / (
+            tdi_map_flows.max() - tdi_map_flows.min() + 1e-12
+        )
+        _ = tdi_map_flows_scaled  # placeholder for downstream analysis
+
+        xy_median = median_filter_video_auto(to_numpy(foreground_godec), 5, 5)
+        xy_blur = gaussian_video_cpu(xy_median.astype(np.float32), ksize=(7, 7))
+        play_videos_side_by_side(
+            (
+                to_numpy(rotated),
+                temporal_smoothing_np,
+                to_numpy(foreground_godec),
+                xy_median,
+                xy_blur,
+            )
+        )
 
 
-        xy_median = median_filter_video_auto(foreground_godec, 5, 5)
-        xy_blur = gaussian_video_cpu(xy_median, ksize=(7,7))
-        play_videos_side_by_side((rotated.get(), temporal_smoothing.get(), foreground_godec.get(), xy_median, xy_blur))
-        
-        
-
-
-
-
-        
-
-
-
+if __name__ == "__main__":
+    main()

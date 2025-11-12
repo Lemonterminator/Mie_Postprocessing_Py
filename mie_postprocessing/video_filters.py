@@ -18,7 +18,18 @@ except Exception:  # ImportError, CUDA failure, etc.
     cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
     CUPY_AVAILABLE = False
 
+def sobel_5x5_kernels() -> tuple[np.ndarray, np.ndarray]:
+    # 1D derivative and smoothing
+    d = np.array([1, 2, 0, -2, -1], dtype=np.float32)   # horizontal diff
+    s = np.array([1, 4, 6, 4, 1], dtype=np.float32)     # vertical smoothing
 
+    # X: smooth vertically, diff horizontally
+    sobel_x = s[:, None] * d[None, :]    # (5, 5)
+
+    # Y: diff vertically, smooth horizontally
+    sobel_y = d[:, None] * s[None, :]    # (5, 5)
+
+    return sobel_x, sobel_y
 
 def filter_video_fft(video: np.ndarray, kernel: np.ndarray, mode='same') -> np.ndarray:
     """

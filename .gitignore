@@ -16,5 +16,56 @@ BC20241011_HZ_Nozzle6/
 BC20241015_HZ_Nozzle7/
 BC20241016_HZ_Nozzle8/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.log
+.python-version
+
+# Virtual environments
+.venv/
 .venv311/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb-meta
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project data/artifacts
 ex.npy
+*.npy
+*.npz
+*.pkl
+*.ckpt
+*.pt
+*.onnx
+*.h5
+
+# Images/videos and heavy outputs (adjust as needed)
+*.mp4
+*.avi
+*.mov
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+
+# IDE/editor
+.vscode/
+.idea/
+*.code-workspace
