@@ -77,6 +77,8 @@ def godec_like(
     return_bg: bool = False,
 ) -> cp.ndarray | tuple[cp.ndarray, cp.ndarray]:
     """Robust PCA style foreground extraction (GoDec-style alternating minimisation)."""
+    if USING_CUPY and not isinstance(video_FHW, cp.ndarray):
+        video_FHW = cp.asarray(video_FHW)
     F, H, W = video_FHW.shape
     X = video_FHW.reshape(F, -1).T
 

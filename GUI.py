@@ -17,7 +17,10 @@ matplotlib.use('Agg')
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+global bits 
+bits = 12
 
+levels = 2.0**bits 
 
 class FrameSelector(tk.Toplevel):
     """Simple viewer to pick a frame from the loaded video."""
@@ -421,7 +424,7 @@ class VideoAnnotatorUI:
         if self.mask is None or self.mask.shape != frame.shape:
             self.mask = np.zeros(frame.shape, dtype=np.uint8)
         g, gm, bl, wh = [self.vars[k].get() for k in ('gain','gamma','black','white')]
-        img = frame/4096 * g
+        img = frame/levels * g
         img = np.clip(img,0,1)
         if gm>0 and gm!=1: img=img**gm
         img8 = (img*255).astype(np.uint8)
@@ -644,7 +647,7 @@ class VideoAnnotatorUI:
     def _process_frame(self, frame):
         """Apply gain/gamma/black/white adjustments and return float frame."""
         g, gm, bl, wh = [self.vars[k].get() for k in ('gain', 'gamma', 'black', 'white')]
-        img = frame / 4096.0 * g
+        img = frame / levels * g
         img = np.clip(img, 0, 1)
         if gm > 0 and gm != 1:
             img = img ** gm
