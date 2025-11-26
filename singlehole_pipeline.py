@@ -263,10 +263,24 @@ def filter_mie(video, angle=45):
     )
     penetration = clean_penetration_profiles(penetration, hydraulic_delay, upper, lower)
 
-    bw_vid = cp.zeros((F, H, W))
-    for f in range(F):
-        bw_vid[f] = _triangle_binarize_gpu(corrected[f],ignore_zeros=True)
+    bw_vids, penetration_old_host = binarize_plume_videos(corrected[None,:,:,:], hydraulic_delay, penetration)
     
+    ## visualization
+
+    joint_video = cp.zeros((F, H*2, W))
+    joint_video[:, :, :H] = cp.swapaxes(corrected, 1, 2)
+    joint_video[:, :, H:] = cp.swapaxes(corrected*bw_vids[0], 1, 2)
+
+
+    avi_saver = AsyncAVISaver(max_workers=4)
+
+    f1 = avi_saver.save(
+        r"G:\MeOH_test\Mie\Processed_Results\Rotated_Videos\joint.avi ",
+        to_numpy(joint_video),
+        fps=10,
+        is_color=False,
+        auto_normalize=True,
+    )
 
     return segments, penetration, cone_angle_AngularDensity
     
