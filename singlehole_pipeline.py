@@ -13,6 +13,8 @@ from mie_postprocessing.video_playback import *
 from mie_postprocessing.cone_angle import *
 from mie_postprocessing.functions_bw import mask_video 
 from mie_multihole_pipeline import _triangle_binarize_gpu
+from mie_postprocessing.bilateral_filter import *
+from mie_postprocessing.single_plume import *
 
 
 from mie_postprocessing.multihole_utils import (
@@ -263,7 +265,7 @@ def filter_mie(video, angle=45):
     )
     penetration = clean_penetration_profiles(penetration, hydraulic_delay, upper, lower)
 
-    bw_vids, penetration_old_host = binarize_plume_videos(corrected[None,:,:,:], hydraulic_delay, penetration)
+    bw_vids, penetration_old_host = binarize_plume_videos(corrected[None,:,:,:], hydraulic_delay)
     
     ## visualization
 
@@ -284,7 +286,29 @@ def filter_mie(video, angle=45):
 
     return segments, penetration, cone_angle_AngularDensity
     
+def pre_processing_mie(video):
+    bilateral_filtered = bilateral_filter_video_volumetric_chunked_halo(video, 3, 3, 3)
 
+    bkg = bilateral_filtered[0]
+    bkg[bkg==0] = 1e-9
+    bkg[bkg==cp.nan]=1e-9
+    div_bkg = _min_max_scale(bilateral_filtered* ((1.0/bkg)[None, :, :]))
+    sub_div_bkg = div_bkg - div_bkg[0][None, :,:]
+    
+
+
+    '''
+    bw_vid, penetration_bw = binarize_plume_video(sub_div_bkg, 15)
+    
+    play_videos_side_by_side((
+        cp.swapaxes(video[:-1], 1,2).get(),
+        cp.swapaxes(bilateral_filtered[1:], 1,2).get(),
+        cp.swapaxes(div_bkg[1:], 1,2).get(), 
+        cp.swapaxes(sub_div_bkg[1:], 1,2).get(),
+        cp.swapaxes(bw_vid[1:], 1,2).get()
+    ), intv=50)
+    '''
+    return sub_div_bkg
 
 
 
@@ -385,11 +409,123 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
     if mode == "Schlieren": 
         filtered = filter_schlieren(rotated, shock_wave_duration)
 
-    if mode == "Mie": 
-        filter_mie(rotated)
+    if mode == "Mie":
+        hydraulic_delay = 15 
+        # filter_mie(rotated)
         # segments, penetration, cone_angle_AngularDensity  = filter_mie(rotated)
         # filtered = segments[0]
+        foreground = pre_processing_mie(rotated)
 
+        F, H, W = foreground.shape
+
+        bw_vid, penetration_bw = binarize_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=50, hole_fill_mode="2D")
+
+        penetration_old = penetration_bw_to_index(penetration_bw > 0)
+
+        boundary = bw_boundaries_all_points_single_plume(bw_vid, parallel=True)
+        '''
+        for i in range(F):
+            boundary_upper = np.asarray(boundary[i][0])
+            upper_x = boundary_upper[:,0]
+            upper_y = boundary_upper[:,1]
+            
+            boundary_lower = np.asarray(boundary[i][1])
+            lower_x = boundary_lower[:,0]
+            lower_y = boundary_lower[:,1]
+
+            if len(upper_x) >0 and len(lower_x) > 0 and len(upper_y) > 0 and len(lower_y) > 0:
+                a_up, b_up, _   =   ransac_line_1d(upper_y, upper_x)
+                a_low, b_low, _ =   ransac_line_1d(lower_y, lower_x)
+        '''
+        points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_old)
+
+        cone_angle_linear_regression = np.zeros(F)
+        cone_angle_ransac = np.zeros(F)
+        cone_angle_average = np.zeros(F)
+
+        avg_up = np.zeros(F)
+        avg_low = np.zeros(F)
+        ransac_up = np.zeros(F)
+        ransac_low = np.zeros(F)
+        lg_up  = np.zeros(F)
+        lg_low = np.zeros(F)
+
+
+        for i in range(F):
+            points = points_all_frames[i]
+            if len(points[0]) > 0 and len(points[1]) > 0:
+                uy, ux =  points[1][:,0], points[1][:,1]
+                ly, lx = points[0][:,0], points[0][:,1]
+                
+                # Shift y axis to center of the image
+                uy -= H//2
+                ly -= H//2
+
+                # 
+                ang_up = np.atan(uy/ux)*180.0/np.pi
+                ang_low = np.atan(ly/lx)*180.0/np.pi
+
+                avg_up[i] = np.nanmean(ang_up)
+                avg_low[i] = np.nanmean(ang_low)
+                cone_angle_average[i] = avg_up[i] - avg_low[i]
+
+                ransac_up[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0])*180.0/np.pi
+                ransac_low[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0])*180.0/np.pi
+                cone_angle_ransac[i] = lg_up[i] - lg_low[i]
+
+                lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0))*180.0/np.pi
+                lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0))*180.0/np.pi
+                cone_angle_linear_regression[i] = lg_up[i] - lg_low[i]
+
+        _, signal, _ = angle_signal_density_auto(foreground, 0.0, H//2, N_bins=3600)
+        AngularDensity = compute_cone_angle_density(signal, 0, 2, bins=3600, use_gpu=True)
+        cone_angle_AD_up = AngularDensity[0]
+        cone_angle_AD_low = AngularDensity[1]
+
+        ad_up_np = to_numpy(cone_angle_AD_up)
+        ad_low_np = to_numpy(cone_angle_AD_low)
+        frame_idx = np.arange(F, dtype=np.int32)
+
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg", force=True)
+            import matplotlib.pyplot as plt
+
+            from pathlib import Path
+            from mie_postprocessing.async_plot_saver import AsyncPlotSaver
+        except Exception as exc:  # pragma: no cover - plotting is optional
+            print(f"Skipping comparison plots (matplotlib unavailable): {exc}")
+        else:
+            plot_saver = AsyncPlotSaver(max_workers=2)
+
+            fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            angle_series = {
+                "Average (upper-lower)": cone_angle_average,
+                "Linear regression": cone_angle_linear_regression,
+                "RANSAC": cone_angle_ransac,
+                "Angular density": ad_up_np - ad_low_np,
+            }
+            for label, values in angle_series.items():
+                axes[0].plot(frame_idx, values, label=label, linewidth=1.4)
+            axes[0].set_ylabel("Cone angle (deg)")
+            axes[0].grid(True)
+            axes[0].legend()
+
+            axes[1].plot(frame_idx, avg_up, label="Upper mean angle", linewidth=1.2)
+            axes[1].plot(frame_idx, avg_low, label="Lower mean angle", linewidth=1.2)
+            axes[1].plot(frame_idx, ad_up_np, label="AD upper", linewidth=1.2)
+            axes[1].plot(frame_idx, ad_low_np, label="AD lower", linewidth=1.2)
+            axes[1].set_xlabel("Frame")
+            axes[1].set_ylabel("Edge angle (deg)")
+            axes[1].grid(True)
+            axes[1].legend()
+
+            output_dir = Path(data_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            plot_path = output_dir / f"{Path(file_name).stem}_cone_angle_comparison.png"
+            plot_saver.submit(fig, plot_path)
+            plot_saver.shutdown(wait=True)
     # play_video_cv2(filtered)
 
 

@@ -18,7 +18,7 @@ from Dewe.dewe import *
 
 ##########################################
 # Manual inputs
-Schlieren_dir = r"G:\MeOH_test\Schlieren"
+Schlieren_dir = r"" # r"G:\MeOH_test\Schlieren"
 
 Mie_dir = r"G:\MeOH_test\Mie"
 Luminescence_dir = r"G:\MeOH_test\NFL"
@@ -78,7 +78,8 @@ def _load_metadata(files: Iterable[Path]) -> tuple[int, float, tuple[float, floa
 # Processing Schlieren Cine Videos
 if not SCH_dir_path.exists():
     raise FileNotFoundError(f"Data dir not found: {SCH_dir_path}")
-else: 
+
+elif SCH_dir_path != Path("") and SCH_dir_path.exists():
     save_dir_SCH = SCH_dir_path / "Processed_Results"
     save_dir_SCH.mkdir(exist_ok=True)
 

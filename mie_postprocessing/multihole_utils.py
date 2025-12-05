@@ -446,7 +446,7 @@ def clean_penetration_profiles(penetration, hydraulic_delay, upper: int, lower: 
     return penetration
 
 
-def binarize_plume_videos(segments, hydraulic_delay, penetration):
+def binarize_plume_videos(segments, hydraulic_delay):
     """Wrapper around the per-frame binarization and boundary extraction."""
     cp = _get_cupy()
     is_cupy = cp is not None and hasattr(segments, "__cuda_array_interface__")
@@ -470,7 +470,10 @@ def binarize_plume_videos(segments, hydraulic_delay, penetration):
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = []
         for i in range(P):
-            j0 = max(int(hd_host[i]), 0)
+            if len(hd_host.shape) > 0:
+                j0 = max(int(hd_host[i]), 0)
+            else:
+                j0 = max(int(hd_host), 0)
             for j in range(j0, F):
                 futs.append(ex.submit(_process_one, i, j))
         for fut in as_completed(futs):

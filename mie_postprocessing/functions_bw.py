@@ -8,7 +8,7 @@ import cv2
 import concurrent.futures
 from scipy import ndimage
 from concurrent.futures import ProcessPoolExecutor
-
+import cupyx.scipy.ndimage as cndi
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from skimage import measure
 from scipy.ndimage import binary_erosion, generate_binary_structure
@@ -427,42 +427,53 @@ def keep_largest_component_cuda(bw, connectivity=2):
     return _return_like_input(largest, bw)
 
 
+
+
 def keep_largest_component_nd_cuda(bw, connectivity=None):
     """
     CUDA version of keep_largest_component_nd for nD binary arrays.
 
-    - Uses cuCIM on GPU if available; falls back to CPU implementation otherwise.
+    - Uses CuPy + cupyx.scipy.ndimage on GPU if bw is a CuPy array.
+    - Falls back to CPU implementation otherwise.
     - connectivity: int in [1, ndim] or None (defaults to ndim for full connectivity).
     - Preserves input library (NumPy/CuPy) and dtype.
     """
-    if not CUPY_AVAILABLE:
+
+    # If CuPy not available or input is not on GPU, stay on CPU
+    if not CUPY_AVAILABLE or not isinstance(bw, cp.ndarray):
         return keep_largest_component_nd(bw, connectivity=connectivity)
 
-    bw_gpu = _to_cupy(bw)
-    binary_mask = (bw_gpu != 0)
-    nd = binary_mask.ndim
+    bw_gpu = (bw != 0)          # ensure boolean mask on GPU
+    nd = bw_gpu.ndim
     if connectivity is None:
         connectivity = nd
     if not (1 <= int(connectivity) <= nd):
         raise ValueError(f"connectivity must be in [1, {nd}], got {connectivity}")
 
-    if CUCIM_AVAILABLE:
-        labeled, num_features = cucim_measure.label(binary_mask, connectivity=int(connectivity), return_num=True)
-        if int(num_features) == 0:
-            zeros = cp.zeros_like(binary_mask, dtype=bool)
-            return _return_like_input(zeros, bw)
-    else:
-        labeled = _gpu_label_propagation(binary_mask, connectivity=int(connectivity))
-        num_features = int(cp.unique(labeled[binary_mask]).size)
-        if num_features == 0:
-            zeros = cp.zeros_like(binary_mask, dtype=bool)
-            return _return_like_input(zeros, bw)
+    # For cupyx.scipy.ndimage.label, connectivity is passed as a structuring element.
+    # Full connectivity:
+    structure = cndi.generate_binary_structure(nd, connectivity)
 
-    labels_fg = labeled[binary_mask]
-    uniq, counts = cp.unique(labels_fg, return_counts=True)
-    largest_label = uniq[cp.argmax(counts)]
-    largest = (labeled == largest_label)
+    labels, num_features = cndi.label(bw_gpu, structure=structure)
+
+    if int(num_features) == 0:
+        zeros = cp.zeros_like(bw_gpu, dtype=bool)
+        return _return_like_input(zeros, bw)
+
+    # Histogram of foreground labels (ignore background label 0)
+    labels_fg = labels[bw_gpu].ravel()
+    counts = cp.bincount(labels_fg)
+    if counts.size <= 1:
+        zeros = cp.zeros_like(bw_gpu, dtype=bool)
+        return _return_like_input(zeros, bw)
+
+    counts[0] = 0  # zero out background
+    largest_label = int(cp.argmax(counts))
+
+    largest = (labels == largest_label)
     return _return_like_input(largest, bw)
+
+
 
 def penetration_bw_to_index(bw):
     arr = bw.astype(bool)

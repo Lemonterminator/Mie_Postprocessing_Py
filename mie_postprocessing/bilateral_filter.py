@@ -305,7 +305,12 @@ def bilateral_filter_video_volumetric_chunked_halo(
             video_xp = video_xp.astype(dtype_xp, copy=False)
     else:
         # Ensure NumPy array
-        if hasattr(video, "device"):  # CuPy array passed
+        if hasattr(video, "__cuda_array_interface__"):  # CuPy array passed
+            if cp is None:
+                try:
+                    import cupy as cp  # lazy import for conversion
+                except Exception as exc:
+                    raise RuntimeError("CuPy array provided but CuPy is not available to move data to CPU.") from exc
             video_xp = cp.asnumpy(video).astype(dtype, copy=False)
         else:
             video_xp = np.asarray(video, dtype=dtype)
@@ -378,15 +383,16 @@ def bilateral_filter_video_volumetric_chunked_halo(
 
         # Halo subvolume
         chunk_halo = video_xp[t0:t1]  # shape: (t1 - t0, H, W)
-        # Temporal padding amounts within halo
-        lead = start - t0  # <= k
-        tail = t1 - end    # <= k
+        # Index range (within chunk_halo) for the frames we actually need to output
+        region_start = start - t0
+        region_end = region_start + (end - start)
 
-        # Pad temporal and spatial axes
+        # Pad temporal axis with the full window radius (k) so every frame in chunk_halo
+        # has a complete neighborhood; spatial axes also padded by k.
         pad_width = (
-            (lead, tail),  # temporal
-            (k, k),        # H
-            (k, k),        # W
+            (k, k),  # temporal
+            (k, k),  # H
+            (k, k),  # W
         )
         pad_chunk = xp.pad(chunk_halo, pad_width=pad_width, mode=mode)
 
@@ -396,15 +402,11 @@ def bilateral_filter_video_volumetric_chunked_halo(
         swv = xp.lib.stride_tricks.sliding_window_view
         patches = swv(pad_chunk, (wsize, wsize, wsize))  # shape: (frames_halo, H, W, wsize, wsize, wsize)
 
-        # Select only the central (non-halo) frames for output
-        valid_start = lead
-        valid_end = lead + (end - start)
-
         # Center intensities for current output region
         centers = video_xp[start:end].reshape(end - start, H, W, 1, 1, 1)
 
         # Range (intensity) weights
-        diff = patches[valid_start:valid_end] - centers
+        diff = patches[region_start:region_end] - centers
         r = xp.exp(-(diff**2) / (xp.array(2.0, dtype=dtype_xp) * (dtype_xp.type(sigma_r)**2)))
 
         # Combine with spatial kernel (broadcast to last 3 dims)
@@ -412,7 +414,7 @@ def bilateral_filter_video_volumetric_chunked_halo(
 
         # Normalize
         w_sum = w.sum(axis=(-1, -2, -3))
-        wp = (w * patches[valid_start:valid_end]).sum(axis=(-1, -2, -3))
+        wp = (w * patches[region_start:region_end]).sum(axis=(-1, -2, -3))
 
         eps = xp.array(1e-8, dtype=dtype_xp)
         out[start:end] = (wp / (w_sum + eps)).astype(dtype_xp, copy=False)
