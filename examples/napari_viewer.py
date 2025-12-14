@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import matplotlib.pyplot as plt
 import napari
 import numpy as np
-from mie_postprocessing.functions_videos import *
+from OSCC_postprocessing.functions_videos import *
 from video_config import *
 
 DATA_DIR = Path(__file__).resolve().parent / "data"

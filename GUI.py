@@ -5,11 +5,11 @@ import numpy as np
 import os
 import json
 
-from mie_postprocessing.zoom_utils import enlarge_image
-from mie_postprocessing.cine_utils import CineReader
-from mie_postprocessing.circ_calculator import calc_circle
-from mie_postprocessing.cone_angle import angle_signal_density, plot_angle_signal_density
-from mie_postprocessing.functions_videos import video_histogram_with_contour
+from OSCC_postprocessing.zoom_utils import enlarge_image
+from OSCC_postprocessing.cine_utils import CineReader
+from OSCC_postprocessing.circ_calculator import calc_circle
+from OSCC_postprocessing.cone_angle import angle_signal_density, plot_angle_signal_density
+from OSCC_postprocessing.functions_videos import video_histogram_with_contour
 
 
 import matplotlib

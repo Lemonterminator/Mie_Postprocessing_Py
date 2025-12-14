@@ -6,8 +6,8 @@ _raft_dir = os.path.join(_root, 'optical_flow', 'RAFT')
 if not os.path.isdir(_raft_dir):
     raise FileNotFoundError(f"Expected RAFT at {_raft_dir}")
 
-# Ensure mie_postprocessing and RAFT core are importable
-_mpp = os.path.join(_root, 'Mie_Postprocessing_Py', 'mie_postprocessing')
+# Ensure OSCC_postprocessing and RAFT core are importable
+_mpp = os.path.join(_root, 'Mie_Postprocessing_Py', 'OSCC_postprocessing')
 _core = os.path.join(_raft_dir, 'core')
 for _p in (_mpp, _raft_dir, _core):
     if os.path.isdir(_p) and _p not in sys.path:

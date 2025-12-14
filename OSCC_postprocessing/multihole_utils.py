@@ -13,14 +13,14 @@ from typing import Any, Tuple
 
 import numpy as np
 
-from mie_postprocessing.video_filters import median_filter_video_auto
-from mie_postprocessing.functions_bw import (
+from OSCC_postprocessing.video_filters import median_filter_video_auto
+from OSCC_postprocessing.functions_bw import (
     triangle_binarize_from_float,
     keep_largest_component,
     keep_largest_component_cuda,
     penetration_bw_to_index,
 )
-from mie_postprocessing.rotate_crop import rotate_all_segments_auto
+from OSCC_postprocessing.rotate_crop import rotate_all_segments_auto
 
 
 def _get_cupy():
@@ -276,8 +276,11 @@ def estimate_peak_brightness_frames(energies, use_gpu: bool):
     return peak_frames, avg_peak, peak_host
 
 
-def estimate_hydraulic_delay(segments, avg_peak: int, use_gpu: bool):
-    """Hydraulic delay from a near-nozzle ROI derivative."""
+def estimate_hydraulic_delay(segments, avg_peak: int, use_gpu: bool, width=1.0/7, height = 0.1):
+    """
+    Hydraulic delay from a near-nozzle ROI derivative.
+    Nozzle is assumed to be at position (H//2, 0)
+    """
     xp = _get_cupy() if use_gpu else np
     if use_gpu and xp is None:
         xp = np
@@ -285,9 +288,10 @@ def estimate_hydraulic_delay(segments, avg_peak: int, use_gpu: bool):
 
     rows = segments.shape[2]
     cols = segments.shape[3]
-    H_low = round(rows * 3 / 7)
-    H_high = round(rows * 4 / 7)
-    W_right = round(cols / 10)
+    
+    H_low = round(rows * (1/width)//2 *width)
+    H_high = round(rows * ((1/width)//2 +1 ) *width)
+    W_right = round(cols *height)
     near_nozzle = xp.sum(
         xp.sum(segments[:, :avg_peak, H_low:H_high, :W_right], axis=3), axis=2
     )
@@ -495,7 +499,7 @@ def binarize_plume_videos(segments, hydraulic_delay):
     return bw_vids, penetration_old_host
 
 
-def compute_cone_angle_density(signal, offset, number_of_plumes, *, bins=3600, use_gpu=False):
+def compute_cone_angle_from_angular_density(signal, offset, number_of_plumes, *, bins=3600, use_gpu=False):
     """Shared GPU/CPU cone-angle computation."""
     shift_bins = int(offset / 360 * bins)
     try:

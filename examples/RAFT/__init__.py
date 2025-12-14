@@ -10,8 +10,8 @@ for _p in (_raft_dir, _raft_core):
     if os.path.isdir(_p) and _p not in sys.path:
         sys.path.append(_p)
 
-# Also add mie_postprocessing (sibling package) if not already present
-_mpp = os.path.join(_root, 'Mie_Postprocessing_Py', 'mie_postprocessing')
+# Also add OSCC_postprocessing (sibling package) if not already present
+_mpp = os.path.join(_root, 'Mie_Postprocessing_Py', 'OSCC_postprocessing')
 if os.path.isdir(_mpp) and _mpp not in sys.path:
     sys.path.append(_mpp)
 

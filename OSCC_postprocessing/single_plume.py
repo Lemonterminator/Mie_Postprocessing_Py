@@ -1,11 +1,11 @@
-from mie_postprocessing.multihole_utils import *
-from mie_postprocessing.functions_bw import *
+from OSCC_postprocessing.multihole_utils import *
+from OSCC_postprocessing.functions_bw import *
 import numpy as np
 import scipy.ndimage as ndi
 from scipy.ndimage import binary_fill_holes
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from mie_postprocessing.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
+from OSCC_postprocessing.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
 
 # Prefer GPU-accelerated cuCIM if available; fall back to scikit-image on CPU.
 try:

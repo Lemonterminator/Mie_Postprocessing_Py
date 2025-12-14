@@ -4,10 +4,10 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
-from mie_postprocessing.cone_angle import angle_signal_density_auto
-from mie_postprocessing.functions_bw import bw_boundaries_all_points
-from mie_postprocessing.rotate_crop import generate_CropRect, generate_plume_mask
-from mie_postprocessing.multihole_utils import (
+from OSCC_postprocessing.cone_angle import angle_signal_density_auto
+from OSCC_postprocessing.functions_bw import bw_boundaries_all_points
+from OSCC_postprocessing.rotate_crop import generate_CropRect, generate_plume_mask
+from OSCC_postprocessing.multihole_utils import (
     preprocess_multihole,
     resolve_backend,
     rotate_segments_with_masks,
@@ -17,7 +17,7 @@ from mie_postprocessing.multihole_utils import (
     compute_penetration_profiles,
     clean_penetration_profiles,
     binarize_plume_videos,
-    compute_cone_angle_density,
+    compute_cone_angle_from_angular_density,
     estimate_offset_from_fft,
     triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
 )
@@ -167,7 +167,7 @@ def mie_multihole_pipeline(
         boundaries = bw_boundaries_all_points(bw_vids_np)
         print(f"Binarizing video and calculating boundary completed in {time.time() - start_time:.2f}s")
 
-    cone_angle_AngularDensity = compute_cone_angle_density(
+    cone_angle_AngularDensity = compute_cone_angle_from_angular_density(
         signal,
         offset,
         number_of_plumes,

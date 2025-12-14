@@ -1,28 +1,31 @@
 import os
 
-os.environ.setdefault("MPLBACKEND", "Agg")  # use non-interactive backend for async saves
+# os.environ.setdefault("MPLBACKEND", "Agg")  # use non-interactive backend for async saves
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import tkinter as tk
 from tkinter import filedialog
-from mie_postprocessing.functions_videos import get_subfolder_names
-from mie_postprocessing.Data_cleaning_1d_series import *
-from mie_postprocessing.async_plot_saver import AsyncPlotSaver
-from mie_postprocessing.async_npz_saver import AsyncNPZSaver
+import importlib.util
+from OSCC_postprocessing.functions_videos import get_subfolder_names
+from OSCC_postprocessing.Data_cleaning_1d_series import *
+from OSCC_postprocessing.async_plot_saver import AsyncPlotSaver
+from OSCC_postprocessing.async_npz_saver import AsyncNPZSaver
 import re
 import math
 import numpy as np
+import pandas as pd
 
 REPETITIONS_PER_CONDITION = 5
 HYDRAULIC_DELAY_ESTIMATION_MIN = 10
 HYDRAULIC_DELAY_ESTIMATION_MAX = 20
+DEFAULT_INJECTION_PRESSURE = 2000
 
 # Inner and outer radius (in pixels) for cropping the images
 ir_ = 11 # Nozzle 1,2,3,4
 # ir_ = 14 # DS300
 or_ = 380
-thres = or_ - ir_ - 10
+thres = or_ - ir_ - 5 
 
 # Z-score threshold for outlier removal
 z_threshold = 3
@@ -37,6 +40,35 @@ def select_folder() -> Path | None:
     )
     root.destroy()
     return Path(folder) if folder else None
+
+
+def _load_module_from_path(path: Path):
+    """Import a Python module from an arbitrary file path."""
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load spec from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def select_test_matrix(initial_file: Path | None = None):
+    """
+    GUI prompt to choose a test_matrix file (e.g., Nozzle1.py) and return the loaded module.
+    """
+    default = initial_file if initial_file else Path(__file__).resolve().parent / "test_matrix" / "Nozzle1.py"
+    root = tk.Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename(
+        title="Select test_matrix file (e.g., Nozzle1.py)",
+        initialdir=default.parent,
+        initialfile=default.name,
+        filetypes=[("Python files", "*.py")],
+    )
+    root.destroy()
+    if not file_path:
+        return None
+    return _load_module_from_path(Path(file_path))
 
 def numeric_then_alpha_key(p: Path):
     """
@@ -107,54 +139,17 @@ def _plot_mean_with_std(ax, means: np.ndarray, stds: np.ndarray, title: str, *, 
     ax.set_ylabel("Penetration (in Pixels)")
     ax.grid(True)
 
-def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thres_percentage=0.75):
-    _, frames = condition_data.shape[1:]
+def penetration_data_cleaning(condition_data, z_score_threshold):
+    """
+    Clean penetration traces:
+    1) z-score filter outliers,
+    2) force zero penetration before the minimum hydraulic delay,
+    3) enforce non-decreasing penetration until the first threshold crossing,
+    4) right-censor (NaN) all samples from the first threshold crossing onward.
+    """
+    rep, plume, frames = condition_data.shape
     data = condition_data.reshape(-1, frames)
-    entries, frames = data.shape
-    valid_count_thres = valid_count_thres_percentage * entries
 
-    # Last index where condition is true:
-    valid_counts = (~np.isnan(data)).sum(axis=0)
-
-    data_copy = data.copy()
-
-    where_valid = np.where(valid_counts > valid_count_thres)[0]
-    idx = where_valid[-1] if where_valid.any() else 0
-    '''
-    if idx > HYDRAULIC_DELAY_ESTIMATION_MAX:
-        
-        import matplotlib.pyplot as plt  # lazy import to speed up dialog opening
-        
-        plt.plot(data[:, :idx].T)
-        plt.plot(data[:, idx:].T)
-        plt.xlabel("frames")
-        plt.ylabel("penetration")
-        plt.title(f"Valid (sample>{valid_count_thres}) VS invalid")
-        plt.grid()
-        
-        data_copy[:, idx:] = np.nan
-
-        total_valid_counts_original = valid_counts.sum()
-        total_valid_counts_filtered =  (~np.isnan(data_copy)).sum()
-
-        if total_valid_counts_filtered/total_valid_counts_original < 0.6:
-            grid = np.zeros((frames, or_-ir_))
-
-            condition_data_alt = data.reshape(-1, frames)
-            for i in range(condition_data_alt.shape[0]):
-                for frame in range(condition_data_alt.shape[1]):
-                    val = condition_data_alt[i, frame]
-                    if ~np.isnan(val):
-                        pen = round(condition_data_alt[i, frame])
-                        grid[frame, pen] = 1
-            grid = grid.astype(np.bool)
-    '''
-    is_right_censored = np.any(data > thres )
-    if is_right_censored:
-        time_slices = np.sum(data > thres, axis = 0)>0
-        first_right_censored_idx = np.argmax(time_slices)
-    else:
-        first_right_censored_idx = np.nan
     # Removing outliers via z-score
     mean = np.nanmean(data, axis=0)
     std = np.nanstd(data, axis=0)
@@ -165,15 +160,41 @@ def penetration_data_cleaning(condition_data, z_score_threshold, valid_count_thr
     A = (np.abs(z_scores) < z_score_threshold)
     B = np.where(A, 1, np.nan)
     condition_data_cleaned = condition_data * B
-    # Before the minimum hydraulic delay, there should be no penetration
-    mask_pre = condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN] >= 0
-    condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN][mask_pre] = 0
-    # After the maximum hydraulic delay, there should be no zero value
-    mask_post = condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:] == 0
-    condition_data_cleaned[:, :, HYDRAULIC_DELAY_ESTIMATION_MAX:][mask_post] = np.nan
 
-    # Update mean
-    mean =  np.nanmean(condition_data_cleaned.reshape(-1, frames), axis=0)
+    # Enforce zero penetration before hydraulic delay
+    condition_data_cleaned[:, :, :HYDRAULIC_DELAY_ESTIMATION_MIN] = 0
+
+    # Flatten for per-trace processing
+    flat_cleaned = condition_data_cleaned.reshape(-1, frames)
+    first_crossings: list[int] = []
+
+    for row in flat_cleaned:
+        # Forward-fill NaNs with the last seen value to avoid drops
+        last_val = 0.0
+        for i in range(frames):
+            if np.isnan(row[i]):
+                row[i] = last_val
+            else:
+                last_val = row[i]
+
+        # Enforce monotonic non-decreasing penetration
+        row[:] = np.maximum.accumulate(row)
+
+        # Right-censor once the trace reaches the threshold
+        over = row >= thres
+        if np.any(over):
+            first_idx = int(np.argmax(over))
+            first_crossings.append(first_idx)
+            row[first_idx:] = np.nan
+
+    condition_data_cleaned = flat_cleaned.reshape(rep, plume, frames)
+
+    # Updated stats after cleaning and censoring
+    mean = np.nanmean(flat_cleaned, axis=0)
+    std = np.nanstd(flat_cleaned, axis=0)
+
+    first_right_censored_idx = int(min(first_crossings)) if first_crossings else np.nan
+
     return condition_data_cleaned, mean, std, first_right_censored_idx
 
 
@@ -193,7 +214,7 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
     tp_out_dir.mkdir(parents=True, exist_ok=True)
     if not files:
         print(f"No penetration files found in {testpoint_name}")
-        return
+        return None, None
     condition_count = max(1, math.ceil(len(files) / REPETITIONS_PER_CONDITION))
     for condition in range(condition_count):
         start_idx = condition * REPETITIONS_PER_CONDITION
@@ -264,6 +285,9 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
             first_right_censored_idx=cen_idx
         )
 
+        
+
+
         if plot_on:
             if cen_idx is not np.nan:
                 ax[0, 0].axvline(cen_idx, color='red', linestyle='--', label='First Right-Censored Frame')
@@ -333,13 +357,66 @@ def handle_testpoint_penetration(test_point_penetration_folder: Path,
             _plot_mean_with_std(ax3, shot_wise_mean, shot_wise_std, "Shot-wise Mean +/- Std", ylim=ylim)
             plot_saver.submit(fig3, tp_out_dir / f"condition_{condition + 1:02d}_shot_mean_std.png")
             '''
+        # Training dataset: cleaned, monotonic traces per plume/rep with NaN tail after threshold
+        df_raw = pd.DataFrame()
+        rep, plume, frames = condition_data_cleaned.shape
+        for r in range(rep):
+            for p in range(plume):
+                arr = condition_data_cleaned[r, p, :]
+                df_raw[f"penetration_cleaned_plume_{p+1:02d}_rep_{r+1:02d}"] = arr
+        df_raw["frame_number"] = np.arange(frames)
+
+        # Testing dataset: mean/median/std per frame, NaN after first censoring index
+        median = np.nanmedian(condition_data_cleaned, axis=(0, 1))
+
+        def _monotonic_with_nan_tail(arr: np.ndarray) -> np.ndarray:
+            # ensure non-decreasing then blank out after censoring index
+            filled = np.maximum.accumulate(np.nan_to_num(arr, nan=0.0))
+            if not np.isnan(cen_idx):
+                filled[int(cen_idx):] = np.nan
+            return filled
+
+        mean_for_df = _monotonic_with_nan_tail(mean)
+        median_for_df = _monotonic_with_nan_tail(median)
+        std_for_df = std.copy()
+        if not np.isnan(cen_idx):
+            std_for_df[int(cen_idx):] = np.nan
+
+        df_test = pd.DataFrame({
+            "penetration_average": mean_for_df,
+            "penetration_median": median_for_df,
+            "penetration_std": std_for_df,
+            "frame_number": np.arange(frames),
+        })
+
+        return df_raw, df_test
+
+    # If no valid condition was processed, return empty placeholders
+    return None, None
+
 
 def main():
+
+    test_matrix_module = select_test_matrix()
+    if test_matrix_module is None:
+        print("No test_matrix file selected; exiting.")
+        return
+
+    # Access to all variables defined in the selected test_matrix file
+    test_matrix_vars = {k: v for k, v in vars(test_matrix_module).items() if not k.startswith("__")}
+    print(f"Loaded test_matrix: {test_matrix_module.__file__}")
+    print(f"Available variables: {', '.join(sorted(test_matrix_vars))}")
 
     folder = select_folder()
     if folder is None:
         return
+    
+    # Getting the nozzle name
+    nozzle_name = folder.name.split("_")[-1]
+
+    # Subfolders within the folder 
     subfolders = get_subfolder_names(folder)
+
     # sort numerically by the number after 'T'
     try:
         subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
@@ -349,33 +426,127 @@ def main():
         subfolders = sorted(subfolders, key=lambda x: int(x[1:]))
 
     # Output root under selected folder
-    output_root = folder / "penetration_results"
+    # output_root = folder / "penetration_results"
+    # Saving data within the 
+    cwd = Path.cwd()
+    output_root = cwd / nozzle_name 
     output_root.mkdir(parents=True, exist_ok=True)
+
+    NPZ_root = output_root / "penetration_results_NPZ"
+    NPZ_root.mkdir(parents=True, exist_ok=True)
+
+    # Additional data processing with Pandas Dataframe
+
+    DF_root = output_root / "Dataframes"
+    DF_root.mkdir(parents=True, exist_ok=True)
+
+    test_data = DF_root / "test_data"
+    test_data.mkdir(parents=True, exist_ok=True)
+
+    train_data = DF_root / "train_data"
+    train_data.mkdir(parents=True, exist_ok=True)
+
+
     # Async savers
     plot_saver = AsyncPlotSaver(max_workers=4)
     npz_saver = AsyncNPZSaver(max_workers=2)
 
     batch_size = 10
     batches = [subfolders[i:i+batch_size] for i in range(0, len(subfolders), batch_size)]
+
+    df_raw_collection = pd.DataFrame()
+    df_test_collection = pd.DataFrame()
+
     for batch in batches: 
         for subfolder in batch:
             print("Handling subfolder", subfolder)
             directory_path = folder / subfolder
             all_folders = get_subfolder_names(directory_path)
 
+            # Getting the testpoint number and the working conditions from the test matrix
+            TP_number = int(subfolder.split("T")[-1])
+            working_condition = test_matrix_vars["T_GROUP_TO_COND"][TP_number]
+
+            chamber_pressure = working_condition["chamber_pressure"]
+            injection_duration = working_condition["injection_duration"]
+            try:
+                injection_pressure = working_condition["injection_pressure"] 
+            except KeyError:
+                injection_pressure = DEFAULT_INJECTION_PRESSURE
+            
+            umbrella_angle = test_matrix_vars["UMBRELLA_ANGLE"]
+            tilt_angle = (180 - umbrella_angle)/2 / 180 * np.pi
+
+            plumes = test_matrix_vars["PLUMES"]
+            diameter = test_matrix_vars["DIAMETER"]
+
+            FPS = test_matrix_vars["FPS"]
+
+            try:
+                px2mm_scale = test_matrix_vars["px2mm_scale"]
+            except KeyError:
+                px2mm_scale = 1.0
+
+
+
+
             for experiment_results in all_folders:
                 if experiment_results == 'penetration':
                     TP_P_folder = directory_path / 'penetration'
-                    handle_testpoint_penetration(
+                    
+                    df_raw, df_test = handle_testpoint_penetration(
                         TP_P_folder,
-                        output_root=output_root,
+                        output_root=NPZ_root,
                         plot_saver=plot_saver,
                         npz_saver=npz_saver,
-                        plot_on=True              # Turn off plotting to save time
-                    )
-    # Ensure all saves complete before exit
+                        plot_on=False              # Turn off plotting to save time 
+                        )                           # type: ignore
+                    
+                    if df_raw is None or df_test is None:
+                        continue
+                    else:
+                        df_raw["chamber_pressure"] = chamber_pressure
+                        df_raw["injection_pressure"] = injection_pressure
+                        df_raw["injection_duration"] = injection_duration
+                        df_raw["tilt_angle"] = tilt_angle
+                        df_raw["px2mm_scale"] = px2mm_scale
+                        df_raw["time_us"]  = df_raw.index / FPS * 1e6
+                        df_raw["plumes"] = plumes
+                        df_raw["diamter"] = diameter
+                        
+
+                        df_test["time_us"] = df_test.index / FPS * 1e6
+                        df_test["chamber_pressure"] = chamber_pressure  
+                        df_test["injection_pressure"] = injection_pressure
+                        df_test["injection_duration"] = injection_duration
+                        df_test["tilt_angle"] = tilt_angle
+                        df_test["px2mm_scale"] = px2mm_scale
+                        df_test["plumes"] = plumes
+                        df_test["diamter"] = diameter
+
+                        # Save CSVs under train/test data folders using the subfolder name
+                        train_csv = train_data / f"{subfolder}.csv"
+                        test_csv = test_data / f"{subfolder}.csv"
+                        train_csv.parent.mkdir(parents=True, exist_ok=True)
+                        test_csv.parent.mkdir(parents=True, exist_ok=True)
+                        df_raw.to_csv(train_csv, index=False)
+                        df_test.to_csv(test_csv, index=False)
+
+                        df_raw_collection = pd.concat([df_raw_collection, df_raw], ignore_index=True)
+                        df_test_collection = pd.concat([df_test_collection, df_test], ignore_index=True)
+
+    
+    
+        # Ensure all saves complete before exit
     npz_saver.shutdown(wait=True)
     plot_saver.shutdown(wait=True)
+
+    train_csv = output_root / f"{nozzle_name}_train_data.csv"
+    test_csv = output_root / f"{nozzle_name}_test_data.csv"
+    train_csv.parent.mkdir(parents=True, exist_ok=True)
+    test_csv.parent.mkdir(parents=True, exist_ok=True)
+    df_raw_collection.to_csv(train_csv)
+    df_test_collection.to_csv(test_csv)
 
 if __name__ == '__main__':
     main()

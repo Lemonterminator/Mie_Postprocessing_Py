@@ -79,7 +79,7 @@ def _resolve_raft_paths() -> Tuple[str, str, str]:
                 model = os.path.join(root, 'models', 'raft-things.pth')
                 return root, core, model
     raise FileNotFoundError(
-        "Could not locate RAFT repository. Set RAFT_DIR env var to RAFT root or place it under optical_flow/RAFT relative to mie_postprocessing.")
+        "Could not locate RAFT repository. Set RAFT_DIR env var to RAFT root or place it under optical_flow/RAFT relative to OSCC_postprocessing.")
 
 
 def _torch_load_compat(path, map_location):

@@ -4,20 +4,20 @@ timing = True
 if timing:
     import time 
 import numpy as np
-from mie_postprocessing.video_filters import gaussian_video_cpu, median_filter_video_auto
-from mie_postprocessing.async_npz_saver import AsyncNPZSaver
-from mie_postprocessing.async_avi_saver import *
-from mie_postprocessing.svd_background_removal import godec_like
-from mie_postprocessing.video_filters import *
-from mie_postprocessing.video_playback import *
-from mie_postprocessing.cone_angle import *
-from mie_postprocessing.functions_bw import mask_video 
+from OSCC_postprocessing.video_filters import gaussian_video_cpu, median_filter_video_auto
+from OSCC_postprocessing.async_npz_saver import AsyncNPZSaver
+from OSCC_postprocessing.async_avi_saver import *
+from OSCC_postprocessing.svd_background_removal import godec_like
+from OSCC_postprocessing.video_filters import *
+from OSCC_postprocessing.video_playback import *
+from OSCC_postprocessing.cone_angle import *
+from OSCC_postprocessing.functions_bw import mask_video 
 from mie_multihole_pipeline import _triangle_binarize_gpu
-from mie_postprocessing.bilateral_filter import *
-from mie_postprocessing.single_plume import *
+from OSCC_postprocessing.bilateral_filter import *
+from OSCC_postprocessing.single_plume import *
 
 
-from mie_postprocessing.multihole_utils import (
+from OSCC_postprocessing.multihole_utils import (
     preprocess_multihole,
     resolve_backend,
     rotate_segments_with_masks,
@@ -27,7 +27,7 @@ from mie_postprocessing.multihole_utils import (
     compute_penetration_profiles,
     clean_penetration_profiles,
     binarize_plume_videos,
-    compute_cone_angle_density,
+    compute_cone_angle_from_angular_density,
     estimate_offset_from_fft,
     triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
 )
@@ -64,11 +64,11 @@ def to_numpy(arr):
 
 # Import rotation utility based on backend availability to avoid hard Cupy dependency
 if USING_CUPY:
-    from mie_postprocessing.rotate_with_alignment import (
+    from OSCC_postprocessing.rotate_with_alignment import (
         rotate_video_nozzle_at_0_half_cupy as rotate_video_nozzle_at_0_half_backend,
     )
 else:
-    from mie_postprocessing.rotate_with_alignment_cpu import (
+    from OSCC_postprocessing.rotate_with_alignment_cpu import (
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
 
@@ -83,7 +83,7 @@ def _rotate_align_video_cpu(
     cval: float,
 ) -> np.ndarray:
     """
-    Delegate to the NumPy implementation in mie_postprocessing.rotate_with_alignment_cpu.
+    Delegate to the NumPy implementation in OSCC_postprocessing.rotate_with_alignment_cpu.
     Returns only the rotated video (np.ndarray).
     """
     rotated_np, _, _ = rotate_video_nozzle_at_0_half_backend(
@@ -294,8 +294,12 @@ def pre_processing_mie(video):
     bkg[bkg==cp.nan]=1e-9
     div_bkg = _min_max_scale(bilateral_filtered* ((1.0/bkg)[None, :, :]))
     sub_div_bkg = div_bkg - div_bkg[0][None, :,:]
-    
 
+    px_range_map = cp.max(sub_div_bkg, axis=0) - cp.min(sub_div_bkg, axis=0)
+    mask, _ = triangle_binarize_from_float(px_range_map.get())
+    mask = keep_largest_component(mask)
+    mask = binary_fill_holes(mask)
+    mask = cp.asarray(mask)
 
     '''
     bw_vid, penetration_bw = binarize_plume_video(sub_div_bkg, 15)
@@ -308,7 +312,7 @@ def pre_processing_mie(video):
         cp.swapaxes(bw_vid[1:], 1,2).get()
     ), intv=50)
     '''
-    return sub_div_bkg
+    return (mask)[None, :, :] * sub_div_bkg
 
 
 
@@ -343,7 +347,7 @@ def mask_angle(video, angle_allowed_deg):
 def singlehole_pipeline(mode, video, offset, centre, file_name, 
                                   rotated_vid_dir, data_dir, 
                                   save_intermediate_results=True,
-                                  FPS=20
+                                  FPS=20, lighting_unchanged_duration=50
                                   ):
     F, H, W = video.shape
     shock_wave_duration = 50
@@ -410,38 +414,57 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         filtered = filter_schlieren(rotated, shock_wave_duration)
 
     if mode == "Mie":
-        hydraulic_delay = 15 
+        hydraulic_delay = 15
+        
         # filter_mie(rotated)
         # segments, penetration, cone_angle_AngularDensity  = filter_mie(rotated)
         # filtered = segments[0]
+
+        # Enhancing the foreground
         foreground = pre_processing_mie(rotated)
+        F, H, W = foreground.shape  # dimensions after rotation/cropping
 
-        F, H, W = foreground.shape
+        # Estimating hydarulic delay
+        _, peak_idx, _ = estimate_peak_brightness_frames(foreground, use_gpu=True)
+        hydraulic_delay = estimate_hydraulic_delay(foreground[None, :, :, :], peak_idx, use_gpu=True)[0]
 
-        bw_vid, penetration_bw = binarize_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=50, hole_fill_mode="2D")
+        # Cone angle
+        # We set the origin to the nozzle, and treat upper and lower half as two plumes
+        # Then calculate their cone angle by angular density respectively
+        _, signal, _ = angle_signal_density_auto(foreground, 0.0, H//2, N_bins=3600)
+        AngularDensity = compute_cone_angle_from_angular_density(signal, 0, 2, bins=3600, use_gpu=True)
 
-        penetration_old = penetration_bw_to_index(penetration_bw > 0)
+        # Upper & Lower cone angle, sums up to the total cone angle
+        cone_angle_AD_up = AngularDensity[0]
+        cone_angle_AD_low = AngularDensity[1]
+        cone_angle_AD = cone_angle_AD_up + cone_angle_AD_low
 
+        # Shape
+        frame_idx = np.arange(F, dtype=np.int32)
+
+        # binarizin the video
+        # Note: penetration_bw_sum is the column wise sum 
+        bw_vid, penetration_bw_sum = binarize_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=lighting_unchanged_duration, hole_fill_mode="2D")
+        
+        # Since penetration_bw_sum is the width (in pixels) of the spary boundary
+        # We assume that it is symmetric with regard of the central axis, and take the width as diameter
+        # radius = diameter /2, and differential volume per image column is pi * radius^2 
+        estimated_volume = 0.25*np.pi*np.sum(penetration_bw_sum**2, axis=1)
+
+        # BW penetration
+        penetration_old = penetration_bw_to_index(penetration_bw_sum > 0)
+
+        # BW boundary
         boundary = bw_boundaries_all_points_single_plume(bw_vid, parallel=True)
-        '''
-        for i in range(F):
-            boundary_upper = np.asarray(boundary[i][0])
-            upper_x = boundary_upper[:,0]
-            upper_y = boundary_upper[:,1]
-            
-            boundary_lower = np.asarray(boundary[i][1])
-            lower_x = boundary_lower[:,0]
-            lower_y = boundary_lower[:,1]
 
-            if len(upper_x) >0 and len(lower_x) > 0 and len(upper_y) > 0 and len(lower_y) > 0:
-                a_up, b_up, _   =   ransac_line_1d(upper_y, upper_x)
-                a_low, b_low, _ =   ransac_line_1d(lower_y, lower_x)
-        '''
+
         points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_old)
 
         cone_angle_linear_regression = np.zeros(F)
         cone_angle_ransac = np.zeros(F)
         cone_angle_average = np.zeros(F)
+        ad_up_np = to_numpy(cone_angle_AD_up)
+        ad_low_np = to_numpy(cone_angle_AD_low)
 
         avg_up = np.zeros(F)
         avg_low = np.zeros(F)
@@ -470,21 +493,18 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
                 cone_angle_average[i] = avg_up[i] - avg_low[i]
 
                 ransac_up[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0])*180.0/np.pi
-                ransac_low[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0])*180.0/np.pi
-                cone_angle_ransac[i] = lg_up[i] - lg_low[i]
+                ransac_low[i] = np.atan(ransac_fixed_intercept(lx, ly, 0)[0])*180.0/np.pi
+                cone_angle_ransac[i] = ransac_up[i] - ransac_low[i]
 
                 lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0))*180.0/np.pi
                 lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0))*180.0/np.pi
                 cone_angle_linear_regression[i] = lg_up[i] - lg_low[i]
 
-        _, signal, _ = angle_signal_density_auto(foreground, 0.0, H//2, N_bins=3600)
-        AngularDensity = compute_cone_angle_density(signal, 0, 2, bins=3600, use_gpu=True)
-        cone_angle_AD_up = AngularDensity[0]
-        cone_angle_AD_low = AngularDensity[1]
 
-        ad_up_np = to_numpy(cone_angle_AD_up)
-        ad_low_np = to_numpy(cone_angle_AD_low)
-        frame_idx = np.arange(F, dtype=np.int32)
+
+
+
+        
 
         try:
             import matplotlib
@@ -493,7 +513,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
             import matplotlib.pyplot as plt
 
             from pathlib import Path
-            from mie_postprocessing.async_plot_saver import AsyncPlotSaver
+            from OSCC_postprocessing.async_plot_saver import AsyncPlotSaver
         except Exception as exc:  # pragma: no cover - plotting is optional
             print(f"Skipping comparison plots (matplotlib unavailable): {exc}")
         else:
@@ -504,7 +524,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
                 "Average (upper-lower)": cone_angle_average,
                 "Linear regression": cone_angle_linear_regression,
                 "RANSAC": cone_angle_ransac,
-                "Angular density": ad_up_np - ad_low_np,
+                "Angular density": ad_up_np + ad_low_np,
             }
             for label, values in angle_series.items():
                 axes[0].plot(frame_idx, values, label=label, linewidth=1.4)

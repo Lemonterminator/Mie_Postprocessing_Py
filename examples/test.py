@@ -5,10 +5,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from mie_postprocessing import *
-from mie_postprocessing.functions_videos import *
-from mie_postprocessing.video_playback import *
-from mie_postprocessing.rotate_with_alignment import * 
+from OSCC_postprocessing import *
+from OSCC_postprocessing.functions_videos import *
+from OSCC_postprocessing.video_playback import *
+from OSCC_postprocessing.rotate_with_alignment import * 
 
 cfg = {
   "plumes": 4,
@@ -62,7 +62,7 @@ out_frames, mapx, mapy = rotate_video_nozzle_at_0_half_cupy(
 print("Remapping took %.2f seconds"%(time.time() - start_time))
 play_video_cv2(out_frames.get())
 
-from mie_postprocessing import compute_raft_flows, compute_farneback_flows
+from OSCC_postprocessing import compute_raft_flows, compute_farneback_flows
 
 flows = compute_farneback_flows(video_float, levels=10)
 

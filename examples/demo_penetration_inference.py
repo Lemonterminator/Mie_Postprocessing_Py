@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
 import matplotlib.pyplot as plt
 
-from mie_postprocessing.inference_penetration import (
+from OSCC_postprocessing.inference_penetration import (
     load_run, frames_to_time, predict_time_range
 )
 

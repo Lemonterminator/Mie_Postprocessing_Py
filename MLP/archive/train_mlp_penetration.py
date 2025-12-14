@@ -2,7 +2,7 @@
 Train an MLP to predict frame-wise penetration mean/std from operating
 conditions + time.
 
-Data source: outputs created by mie_postprocessing.prepare_penetration_data
+Data source: outputs created by OSCC_postprocessing.prepare_penetration_data
   Cine/penetration_results/T*/condition_*_frame_stats.npz
 
 Each frame across all conditions is a supervised sample with:

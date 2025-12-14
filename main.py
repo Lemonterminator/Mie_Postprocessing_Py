@@ -1,10 +1,10 @@
-from mie_postprocessing.functions_videos import *
-from mie_postprocessing.rotate_crop import *
-from mie_postprocessing.cone_angle import *
-from mie_postprocessing.ssim import *
-from mie_postprocessing.video_filters import *
-from mie_postprocessing.functions_bw import *
-from mie_postprocessing.video_playback import *
+from OSCC_postprocessing.functions_videos import *
+from OSCC_postprocessing.rotate_crop import *
+from OSCC_postprocessing.cone_angle import *
+from OSCC_postprocessing.ssim import *
+from OSCC_postprocessing.video_filters import *
+from OSCC_postprocessing.functions_bw import *
+from OSCC_postprocessing.video_playback import *
 from mie_multihole_pipeline import *
 import matplotlib.pyplot as plt
 
@@ -18,7 +18,7 @@ import re
 import gc
 import json
 from pathlib import Path
-from mie_postprocessing.async_npz_saver import AsyncNPZSaver
+from OSCC_postprocessing.async_npz_saver import AsyncNPZSaver
 
 global parent_folder
 global plumes

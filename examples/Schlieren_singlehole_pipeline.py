@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import binary_fill_holes
 
-from mie_postprocessing.functions_bw import keep_largest_component
-from mie_postprocessing.functions_rotation import rotate_video_nozzle_centering
-from mie_postprocessing.video_filters import (
+from OSCC_postprocessing.functions_bw import keep_largest_component
+from OSCC_postprocessing.functions_rotation import rotate_video_nozzle_centering
+from OSCC_postprocessing.video_filters import (
     filter_video_fft,
     gaussian_video_cpu,
     median_filter_video_auto,

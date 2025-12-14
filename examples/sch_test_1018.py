@@ -42,23 +42,23 @@ except Exception as exc:  # pragma: no cover - hardware dependent
 
     cp = _NumpyCompat()  # type: ignore
 
-from mie_postprocessing.functions_bw import keep_largest_component
-from mie_postprocessing.functions_videos import load_cine_video
-from mie_postprocessing.optical_flow import compute_farneback_flows
-from mie_postprocessing.video_filters import gaussian_video_cpu, median_filter_video_auto
-from mie_postprocessing.video_playback import play_video_cv2, play_videos_side_by_side
-from mie_postprocessing.svd_background_removal import (
+from OSCC_postprocessing.functions_bw import keep_largest_component
+from OSCC_postprocessing.functions_videos import load_cine_video
+from OSCC_postprocessing.optical_flow import compute_farneback_flows
+from OSCC_postprocessing.video_filters import gaussian_video_cpu, median_filter_video_auto
+from OSCC_postprocessing.video_playback import play_video_cv2, play_videos_side_by_side
+from OSCC_postprocessing.svd_background_removal import (
     svd_foreground_cuda as svd_foreground,
         godec_like,
         )
 
 # Import rotation utility based on backend availability to avoid hard Cupy dependency
 if USING_CUPY:
-    from mie_postprocessing.rotate_with_alignment import (
+    from OSCC_postprocessing.rotate_with_alignment import (
         rotate_video_nozzle_at_0_half_cupy as rotate_video_nozzle_at_0_half_backend,
     )
 else:
-    from mie_postprocessing.rotate_with_alignment_cpu import (
+    from OSCC_postprocessing.rotate_with_alignment_cpu import (
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
 
@@ -140,7 +140,7 @@ def _rotate_align_video_cpu(
     cval: float,
 ) -> np.ndarray:
     """
-    Delegate to the NumPy implementation in mie_postprocessing.rotate_with_alignment_cpu.
+    Delegate to the NumPy implementation in OSCC_postprocessing.rotate_with_alignment_cpu.
     Returns only the rotated video (np.ndarray).
     """
     rotated_np, _, _ = rotate_video_nozzle_at_0_half_backend(

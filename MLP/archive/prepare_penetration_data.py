@@ -16,6 +16,7 @@ import argparse
 import os
 from importlib import import_module
 from pathlib import Path
+import sys
 from typing import Iterable, Mapping, Optional
 
 import numpy as np
@@ -58,7 +59,7 @@ def process_condition_file(
     verbose: bool = True,
 ) -> Path:
     """Process a single condition NPZ and save the frame-wise stats NPZ."""
-    with np.load(str(npz_path)) as npz_data:
+    with np.load(str(npz_path), allow_pickle=True) as npz_data:
         arr3d = extract_condition_array(npz_data)
         stats = compute_frame_stats(arr3d, frame_rate_hz=frame_rate_hz, correction_factor=correction_factor)
         if prefer_precomputed:
@@ -157,7 +158,16 @@ def write_dataframe(df: pd.DataFrame, output_dir: Path, csv_name: Optional[str] 
 def load_test_matrix(module_name: str):
     """Dynamically import a ``test_matrix`` module."""
     dotted = module_name if "." in module_name else f"MLP.test_matrix.{module_name}"
-    module = import_module(dotted)
+    try:
+        module = import_module(dotted)
+    except ModuleNotFoundError:
+        # When running this file directly (e.g., ``python MLP/prepare_penetration_data.py``),
+        # Python adds ``MLP/`` to sys.path, so ``import MLP...`` fails because the parent
+        # directory is missing. Inject the project root and retry.
+        project_root = Path(__file__).resolve().parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        module = import_module(dotted)
     required = ("FPS", "UMBRELLA_ANGLE", "PLUMES", "DIAMETER", "T_GROUP_TO_COND")
     missing = [attr for attr in required if not hasattr(module, attr)]
     if missing:
@@ -173,6 +183,22 @@ def _autodetect_results_dir(root: Optional[Path]) -> Optional[Path]:
         return root
     candidate = root / "penetration_results"
     return candidate if candidate.exists() else None
+
+
+def _pick_directory(prompt: str, initial: Optional[Path] = None) -> Optional[Path]:
+    """Open a GUI folder picker; return a Path or None if cancelled/unavailable."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:  # pragma: no cover - GUI may be unavailable in CI
+        print(f"GUI folder picker unavailable: {exc}")
+        return None
+
+    root = tk.Tk()
+    root.withdraw()
+    selected = filedialog.askdirectory(title=prompt, initialdir=str(initial) if initial else None)
+    root.destroy()
+    return Path(selected) if selected else None
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,6 +243,19 @@ def main() -> None:
             root = Path(env_root)
 
     results_dir = args.results_dir or _autodetect_results_dir(root)
+
+    if root is None or results_dir is None:
+        picked = _pick_directory(
+            prompt="Select the folder containing penetration data (root or penetration_results).",
+            initial=root or results_dir,
+        )
+        if picked:
+            if picked.name.lower().endswith("penetration_results"):
+                results_dir = results_dir or picked
+                root = root or picked.parent
+            else:
+                root = root or picked
+                results_dir = results_dir or _autodetect_results_dir(picked)
     test_matrix = load_test_matrix(args.test_matrix)
     fps = float(test_matrix.FPS)
     umbrella_angle = float(test_matrix.UMBRELLA_ANGLE)

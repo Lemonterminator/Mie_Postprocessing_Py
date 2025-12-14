@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Penetration inference helpers
-from mie_postprocessing.inference_penetration import (
+from OSCC_postprocessing.inference_penetration import (
     load_run as load_penetration_run,
     frames_to_time as frames_to_time_pen,
     predict_time_range as predict_time_range_pen,

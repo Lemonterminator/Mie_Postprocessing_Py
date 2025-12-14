@@ -35,4 +35,4 @@ cine = [
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["mie_postprocessing*"]
+include = ["OSCC_postprocessing*"]
