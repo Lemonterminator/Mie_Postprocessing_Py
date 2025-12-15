@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Un
 try:
     import matplotlib.pyplot as plt  # type: ignore[import]
 except Exception as exc:
-    raise RuntimeError("matplotlib not installed: pip install matplotlib") from exc
+    plt = None  # type: ignore[assignment]
 
 try:
     import numpy as np  # type: ignore[import]
@@ -304,6 +304,10 @@ def plot_dataframe(
     title: str = "DXD Data",
     criteria: Optional[Iterable[str]] = ("Heat Release", "Chamber Pressure", "Chamber Temperature"),
     ax: Optional[Axes] = None,
+    label_prefix: Optional[str] = None,
+    alpha: float = 1.0,
+    linewidth: float = 1.5,
+    legend_outside: bool = True,
     return_fig: bool = False,
     show: bool = False,
 ) -> Union[Axes, Tuple[Figure, Axes]]:
@@ -314,6 +318,9 @@ def plot_dataframe(
     - Returns `ax` by default; return `(fig, ax)` if `return_fig=True`.
     - Does not call plt.show() unless show=True.
     """
+    if plt is None:
+        raise RuntimeError("matplotlib not installed: pip install matplotlib")
+
     cols = list(df.columns)
     matches = cols if criteria is None else [c for c in cols if any(k.lower() in c.lower() for k in criteria)]
     if not matches:
@@ -330,17 +337,23 @@ def plot_dataframe(
     assert ax is not None  # For type-checkers
 
     # Plot via pandas, targeting the given axes
-    df[matches].plot(ax=ax)
+    df_plot = df[matches]
+    if label_prefix:
+        df_plot = df_plot.rename(columns={c: f"{label_prefix}{c}" for c in df_plot.columns})
+    df_plot.plot(ax=ax, alpha=float(alpha), linewidth=float(linewidth))
     # Labels/format
     ax.set_title(title)
     ax.set_xlabel("Time" if df.index.name else "Sample")
     ax.set_ylabel("Value")
     ax.grid(True)
-    # Explicit legend (stable order)
-    ax.legend(matches, title="Variables", loc="best")
+    if legend_outside:
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
+        fig.tight_layout(rect=(0, 0, 0.82, 1))
+    else:
+        ax.legend(loc="best")
+        fig.tight_layout()
     
-    # Layout & (optional) show
-    fig.tight_layout()
+    # (optional) show
     if show:
         plt.show()
 
@@ -355,20 +368,84 @@ def resolve_data_path(default_path: str) -> Path:
     return path
 
 
+def _make_unique_column_name(name: str, existing: set[str]) -> str:
+    if name not in existing:
+        existing.add(name)
+        return name
+    suffix = 2
+    while f"{name}__{suffix}" in existing:
+        suffix += 1
+    unique = f"{name}__{suffix}"
+    existing.add(unique)
+    return unique
+
+
+def _align_to_timebase(
+    *,
+    base_time: "np.ndarray",
+    src_time: "np.ndarray",
+    src_data: "np.ndarray",
+) -> "np.ndarray":
+    if np is None:
+        raise RuntimeError("numpy is required to align Dewesoft channels")
+
+    if len(src_time) == len(base_time) and np.allclose(src_time, base_time, rtol=0, atol=1e-9):
+        return src_data.astype(np.float64, copy=False)
+
+    src_time = np.asarray(src_time, dtype=np.float64).reshape(-1)
+    src_data = np.asarray(src_data, dtype=np.float64).reshape(-1)
+
+    if src_time.size != src_data.size:
+        raise ValueError(f"Channel time/data length mismatch: time={src_time.size}, data={src_data.size}")
+
+    if src_time.size == 0:
+        return np.full_like(base_time, np.nan, dtype=np.float64)
+
+    order = np.argsort(src_time)
+    src_time = src_time[order]
+    src_data = src_data[order]
+
+    unique_time, unique_idx = np.unique(src_time, return_index=True)
+    src_time = unique_time
+    src_data = src_data[unique_idx]
+
+    aligned = np.interp(base_time, src_time, src_data).astype(np.float64, copy=False)
+    aligned[(base_time < src_time[0]) | (base_time > src_time[-1])] = np.nan
+    return aligned
+
+
 def load_dataframe(path: Path) -> DataFrame:
-    """Load the DXD file into a dataframe and emit diagnostic details."""
+    """Load Dewesoft data into a single, tabulated pandas DataFrame.
+
+    Supports:
+    - `.dxd`: via `DWDataReaderLib` (Windows DLL)
+    - `.csv`: previously-exported tabular data (expects a `time_s` column or index)
+    """
+
+    if pd is None:
+        raise RuntimeError("pandas is required to load Dewesoft data into a DataFrame.")
+
+    if path.suffix.lower() == ".csv":
+        df = pd.read_csv(path)  # type: ignore[call-arg]
+        if "time_s" in df.columns:
+            df = df.set_index("time_s")
+            df.index.name = "time_s"
+        return df
+
+    if path.suffix.lower() != ".dxd":
+        raise ValueError(f"Unsupported Dewesoft input type: {path} (expected .dxd or .csv)")
+
     result, err = read_with_dwdatareaderlib(path)
     if not result:
         if err:
             raise RuntimeError(f"DWDataReaderLib path skipped: {err}")
         raise RuntimeError("DWDataReaderLib did not return data or an error message.")
 
-    dataframe_obj = result.get("dataframe")
     time_channel = result.get("time_channel")
     file_info = result.get("file_info", {})
     all_channels = result.get("channels", [])
     print("DWDataReaderLib result:")
-    print(f" - DLL: {result.get('source', 'DWDataReaderLib')}")
+    # print(f" - DLL: {result.get('source', 'DWDataReaderLib')}")
     if file_info:
         sr = file_info.get("sample_rate")
         dur = file_info.get("duration")
@@ -379,9 +456,9 @@ def load_dataframe(path: Path) -> DataFrame:
     if time_channel:
         print(f" - Time channel: {time_channel}")
     if all_channels:
-        preview = ", ".join(ch["name"] for ch in all_channels[:8])
-        if len(all_channels) > 8:
-            preview += ", ..."
+        preview = ",\n ".join(ch["name"] for ch in all_channels)
+        # if len(all_channels) > 8:
+        #     preview += ", ..."
         print(f" - Channels loaded: {len(all_channels)} ({preview})")
     if result.get("async_channels"):
         async_names = ", ".join(ch["name"] for ch in result["async_channels"][:6])
@@ -393,14 +470,177 @@ def load_dataframe(path: Path) -> DataFrame:
         for name, reason in result["skipped_channels"]:
             print(f"   * {name}: {reason}")
 
-    if dataframe_obj is None:
-        note = err or "DWDataReaderLib loaded data but pandas is missing; install pandas to build DataFrame."
-        raise RuntimeError(f" - Note: {note}")
+    if np is None:
+        raise RuntimeError("numpy is required to build a DataFrame from DWDataReaderLib output.")
 
-    if pd is None:
-        raise RuntimeError("pandas is required to build a DataFrame from DWDataReaderLib output.")
+    if not all_channels:
+        raise RuntimeError("No channels were loaded from the DXD file.")
 
-    df = cast(DataFrame, dataframe_obj)
+    # Choose the densest time base (highest sample count) to avoid losing information.
+    base_channel = max(all_channels, key=lambda ch: len(ch.get("time", [])))
+    base_time = np.asarray(base_channel["time"], dtype=np.float64).reshape(-1)
+    if base_time.size == 0:
+        raise RuntimeError("Base time channel is empty; cannot build DataFrame.")
+
+    df = pd.DataFrame(index=base_time)  # type: ignore[call-arg]
+    df.index.name = "time_s"
+
+    existing_names: set[str] = set()
+    channel_meta: Dict[str, Dict[str, Any]] = {}
+
+    for ch in all_channels:
+        raw_name = cast(str, ch.get("name", "")) or f"channel_{ch.get('index', 'unknown')}"
+        col_name = _make_unique_column_name(raw_name, existing_names)
+
+        src_time = np.asarray(ch.get("time", []), dtype=np.float64)
+        src_data = np.asarray(ch.get("data", []), dtype=np.float64)
+
+        df[col_name] = _align_to_timebase(base_time=base_time, src_time=src_time, src_data=src_data)
+        channel_meta[col_name] = {
+            "source_name": raw_name,
+            "unit": ch.get("unit", ""),
+            "description": ch.get("description", ""),
+            "index": ch.get("index"),
+            "array_size": ch.get("array_size"),
+            "data_type": ch.get("data_type"),
+            "original_len": int(len(src_data)),
+        }
+
+    df.attrs["dewe"] = {
+        "file_info": file_info,
+        "time_channel_reported": time_channel,
+        "time_base_channel": base_channel.get("name"),
+        "channel_meta": channel_meta,
+    }
+
     print(f" - DataFrame shape: {df.shape}")
     print(f" - Columns: {list(df.columns)}")
     return df
+
+
+def _infer_sample_rate_hz_from_time_s(time_s: "np.ndarray") -> float:
+    if np is None:
+        raise RuntimeError("numpy is required to infer sample rate")
+
+    time_s = np.asarray(time_s, dtype=np.float64).reshape(-1)
+    if time_s.size < 2:
+        raise ValueError("Need at least 2 samples to infer sample rate")
+
+    dt = np.diff(time_s)
+    dt = dt[np.isfinite(dt) & (dt > 0)]
+    if dt.size == 0:
+        raise ValueError("Cannot infer sample rate from non-increasing/invalid time base")
+
+    median_dt = float(np.median(dt))
+    if median_dt <= 0:
+        raise ValueError("Invalid time base (non-positive dt)")
+    return 1.0 / median_dt
+
+
+def _nan_safe_series_values(values: "np.ndarray") -> "np.ndarray":
+    if np is None:
+        raise RuntimeError("numpy is required")
+
+    values = np.asarray(values, dtype=np.float64).reshape(-1)
+    if values.size == 0:
+        return values
+
+    if np.all(~np.isfinite(values)):
+        return np.zeros_like(values)
+
+    out = values.copy()
+    finite = np.isfinite(out)
+
+    first = int(np.argmax(finite))
+    out[:first] = out[first]
+
+    idx = np.arange(out.size)
+    out[~finite] = np.interp(idx[~finite], idx[finite], out[finite])
+    return out
+
+
+def align_dewe_dataframe_to_soe(
+    df: "DataFrame",
+    *,
+    injection_current_col: str = "Main Injector - Current Profile",
+    grad_threshold: float = 0.05,
+    pre_samples: int = 3,
+    window_ms: float = 10.0,
+    keep_time_index: bool = True,
+) -> "DataFrame":
+    """Align + truncate a Dewesoft-exported dataframe by Start of Energization (SoE).
+
+    Mirrors the MATLAB logic:
+    `idx_zero = find(gradient(injectionCurrent) > threshold, 1) - pre_samples`
+    then take ~10 ms window starting at `idx_zero`.
+
+    Operates in *row space* (iloc slicing), but uses `time_s` if available to
+    convert `window_ms` into a sample count.
+    """
+
+    if pd is None or np is None:
+        raise RuntimeError("align_dewe_dataframe_to_soe requires pandas and numpy")
+
+    if injection_current_col not in df.columns:
+        raise KeyError(f"Missing column {injection_current_col!r}. Available: {list(df.columns)}")
+
+    # Infer time base (seconds) to convert ms -> samples.
+    time_s: Optional["np.ndarray"] = None
+    if getattr(df.index, "name", None) == "time_s":
+        try:
+            time_s = df.index.to_numpy(dtype=np.float64)  # type: ignore[assignment]
+        except Exception:
+            time_s = None
+    if time_s is None and "time_s" in df.columns:
+        time_s = df["time_s"].to_numpy(dtype=np.float64)
+
+    if time_s is None:
+        raise ValueError("Need a time base to compute window length (df.index named 'time_s' or a 'time_s' column).")
+
+    sample_rate_hz = _infer_sample_rate_hz_from_time_s(time_s)
+    window_samples = int(round(sample_rate_hz * (window_ms / 1000.0)))
+    window_samples = max(window_samples, 1)
+
+    current = df[injection_current_col].to_numpy(dtype=np.float64)
+    current = _nan_safe_series_values(current)
+    grad = np.gradient(current)
+
+    candidates = np.flatnonzero(grad > float(grad_threshold))
+    if candidates.size == 0:
+        # Keep behavior non-fatal so slide_maker can still run for debugging.
+        return df.iloc[:window_samples].copy()
+
+    idx_zero = int(candidates[0]) - int(pre_samples)
+    idx_zero = max(idx_zero, 0)
+    idx_end = min(idx_zero + window_samples, len(df))
+
+    out = df.iloc[idx_zero:idx_end].copy()
+
+    if keep_time_index and getattr(out.index, "name", None) == "time_s":
+        # Keep absolute time, but add a convenient aligned time axis.
+        t0 = float(out.index[0])
+        if "time_ms" in out.columns:
+            out = out.drop(columns=["time_ms"])
+        out.insert(0, "time_ms", (out.index.to_numpy(dtype=np.float64) - t0) * 1000.0)
+    else:
+        out = out.reset_index()
+        if "time_s" in out.columns:
+            t0 = float(out["time_s"].iloc[0])
+            if "time_ms" in out.columns:
+                out = out.drop(columns=["time_ms"])
+            out.insert(0, "time_ms", (out["time_s"].to_numpy(dtype=np.float64) - t0) * 1000.0)
+
+    out.attrs = dict(getattr(df, "attrs", {}))
+    out.attrs.setdefault("alignment", {})
+    out.attrs["alignment"].update(
+        {
+            "method": "soe_gradient",
+            "injection_current_col": injection_current_col,
+            "grad_threshold": float(grad_threshold),
+            "pre_samples": int(pre_samples),
+            "window_ms": float(window_ms),
+            "window_samples": int(window_samples),
+            "idx_zero": int(idx_zero),
+        }
+    )
+    return out

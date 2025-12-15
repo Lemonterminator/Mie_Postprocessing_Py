@@ -1,16 +1,16 @@
 from dewe import * 
 
-file_path = r"G:\Dewe\Test Set 1\BC20250805_Heated_Fuel_T1_0001.dxd"
-
+# file_path = r"F:\G\MeOH_test\Dewe\T2_0001.dxd"
+file_path = r"F:\G\MeOH_test\Dewe\T56_0001.dxd"
 
 def main() -> None:
-    path = resolve_data_path()
+    path = resolve_data_path(file_path)
     df = load_dataframe(path)
 
     # First pass: create independent figures/axes, don't show yet
     _fig1, _ax1 = cast(Tuple[Figure, Axes], plot_dataframe(
         df, title=path.name, 
-        criteria=["Chamber Pressure", "Chamber Temperature"],
+        criteria=["Chamber Pressure", "Chamber gas temperature"],
         return_fig=True, show=False
     ))
 
@@ -28,12 +28,15 @@ def main() -> None:
 
     _fig3, _ax3 = cast(Tuple[Figure, Axes], plot_dataframe(
         df, title=path.name, 
-        criteria=["Injector current"],
+        criteria=["Current Profile"],
         return_fig=True, show=False
     ))
 
     from heat_release_calulation import hrr_calc
-    ChmbP_bar = df.get("Chamber pressure", None)
+    chamber_pressure_col = next((c for c in df.columns if "chamber pressure" in c.lower()), None)
+    if chamber_pressure_col is None:
+        raise RuntimeError("No chamber pressure column found for HRR calculation")
+    ChmbP_bar = df[chamber_pressure_col].to_numpy()
     time_seconds = df.index.to_numpy() if df.index.name == "time_s" else None
     df_hrr = hrr_calc(ChmbP_bar, time=time_seconds, V_m3=8.5e-3, gamma=1.35)
     # First plot (pressure-derived HRR)
@@ -51,4 +54,4 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         print(exc)
-        sys.exit(1)
+        sys.exit()

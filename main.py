@@ -34,7 +34,7 @@ global ir_
 global or_
 
 # Define the parent folder and other global variables
-parent_folder = r"Z:\BC20241016_HZ_Nozzle8\Cine"
+parent_folder = r"F:\BC20241016_HZ_Nozzle8\Cine"
 DATA_DIR = Path(r"D:\OSCC\mask_meth")
 
 chamber_mask_path = DATA_DIR / "chamber_mask.npy"

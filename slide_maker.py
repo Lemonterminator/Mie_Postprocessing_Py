@@ -1,8 +1,22 @@
-from typing import Iterable
+import os
+os.environ["MPLBACKEND"] = "TkAgg"   # 或 "QtAgg"
+# 可选：如果还不生效，再强制：
+import matplotlib
+matplotlib.use("TkAgg", force=True)
+
+
+from typing import Iterable, Optional, Tuple, cast
 from pathlib import Path
 import os
 import json
 import numpy as np
+
+try:
+    from matplotlib.axes import Axes  # type: ignore[import]
+    from matplotlib.figure import Figure  # type: ignore[import]
+except Exception:
+    Axes = object  # type: ignore[assignment]
+    Figure = object  # type: ignore[assignment]
 from singlehole_pipeline import singlehole_pipeline
 from OSCC_postprocessing.functions_bw import keep_largest_component
 from OSCC_postprocessing.functions_videos import load_cine_video
@@ -14,19 +28,29 @@ from OSCC_postprocessing.svd_background_removal import (
     svd_foreground_cuda as svd_foreground,
     godec_like,
 )
-from Dewe.dewe import *
+from OSCC_postprocessing.Dewe.dewe import *
 
 ##########################################
 # Manual inputs
 Schlieren_dir = r"" # r"G:\MeOH_test\Schlieren"
 
-Mie_dir = r"G:\MeOH_test\Mie"
-Luminescence_dir = r"G:\MeOH_test\NFL"
-Dewe_dir = r"G:\MeOH_test\Dewe"
-testpoints = {1:{1, 2, 3}, 2:{2,3}}
+Mie_dir = r"F:\G\MeOH_test\Mie"
+Luminescence_dir = r"F:\G\MeOH_test\NFL"
+Dewe_dir = r"F:\G\MeOH_test\Dewe"
+testpoints_dictionary = {1:{2, 56}}
 
 save_intermediate_results = False
+mode = "sample" # "average all" or "sample"
 ##########################################
+# Format handling functions 
+
+# Funtion to extract testpoint number and repetition number from Dewe filename. 
+# File name example: T2_0001.csv
+def dewe_name_to_testpoint(name: str) -> int:
+    return name.split(".csv")[0].split("_")[0].split("T")[-1]
+
+def dewe_name_to_repetition(name: str) -> int:
+    return int(name.split(".csv")[0].split("_")[1])
 
 
 SCH_dir_path = Path(Schlieren_dir)
@@ -40,7 +64,7 @@ Dewe_dir_path = Path(Dewe_dir)
 def raw_name_processing_sch(str) -> str:
     return str.replace(".cine", "").replace("Schlieren Cam_", "")
 
-assert len(testpoints) < 5, "This program handles at most 5 comparisons"
+assert max(len(s) for s in testpoints_dictionary.values()) < 5, "This program handles at most 5 comparisons"
 
 def _iter_files(dir: Path) -> Iterable[Path]:
     return sorted(p for p in dir.iterdir() if p.is_file())
@@ -145,10 +169,101 @@ else:
     data_dir_Dewe = save_dir_Dewe / "Postprocessed_Data"
     data_dir_Dewe.mkdir(exist_ok=True)
 
+    plots_dir_Dewe = save_dir_Dewe / "Plots"
+    plots_dir_Dewe.mkdir(exist_ok=True)
+
     files = _iter_files(Dewe_dir_path)
 
-    for dewe_path in files:
-        # path = resolve_data_dir_path(dewe_path)
+    # Export DXD -> CSV once (skip if already exported).
+    for dewe_path in (p for p in files if p.suffix.lower() == ".dxd"):
+        name = dewe_path.stem
+        out_csv = data_dir_Dewe / f"{name}.csv"
+        if out_csv.exists():
+            continue
         df = load_dataframe(dewe_path)
-        name = dewe_path.name.replace(".dxd", "")
-        df.to_csv(data_dir_Dewe / f"{name}.csv")
+        df.to_csv(out_csv)
+    
+    saved_files = list(_iter_files(data_dir_Dewe))
+
+    names = list(set(f.name for f in saved_files))
+
+    testpoint_correspondence = list(dewe_name_to_testpoint(name) for name in names)
+    repetition_correspondence = list(dewe_name_to_repetition(name) for name in names)
+
+    for comparison_set in testpoints_dictionary:
+        fig_main: Optional[Figure] = None
+        ax_main: Optional[Axes] = None
+        fig_current: Optional[Figure] = None
+        ax_current: Optional[Axes] = None
+
+        if mode == "average all":
+            selected_names = [name for name in names if dewe_name_to_testpoint(name) in 
+                              [str(tp) for tp in testpoints_dictionary[comparison_set]]]
+        elif mode == "sample":
+            # I set to take the first repetition only for each testpoint
+            selected_names = [name for name in names if (dewe_name_to_testpoint(name) in 
+                              [str(tp) for tp in testpoints_dictionary[comparison_set]] and 
+                              dewe_name_to_repetition(name) == 1)]
+        
+        for name in selected_names:
+            df = load_dataframe(data_dir_Dewe / name)
+            
+            # reset time to start from 0s
+            df.index = df.index-df.index[0]
+
+            # df_plot = df # For debugging
+              
+            df_plot = align_dewe_dataframe_to_soe(
+                df,
+                injection_current_col="Main Injector - Current Profile",  # names might need to be changed
+                grad_threshold=5,
+                pre_samples=50,
+                window_ms=10.0,
+            )
+            
+            
+
+            if "time_ms" in df_plot.columns:
+                df_plot = df_plot.set_index("time_ms")
+
+            label = Path(name).stem
+
+            fig_main, ax_main = cast(
+                Tuple[Figure, Axes],
+                plot_dataframe(
+                    df_plot,
+                    title="Aligned Dewesoft: pressure / temperature / heat release",
+                    criteria=[
+                        "Chamber pressure",
+                        "Chamber gas temperature",
+                        "Temperature acc. Ideal gas law",
+                        "Heat Release",
+                    ],
+                    ax=ax_main,
+                    label_prefix=f"{label} | ",
+                    alpha=0.9,
+                    linewidth=1.2,
+                    return_fig=True,
+                    show=False,
+                ),
+            )
+
+            fig_current, ax_current = cast(
+                Tuple[Figure, Axes],
+                plot_dataframe(
+                    df_plot,
+                    title="Aligned Dewesoft: injector current (filtered)",
+                    criteria=["Main Injector - Current Profile/FIR Filter"],
+                    ax=ax_current,
+                    label_prefix=f"{label} | ",
+                    alpha=0.9,
+                    linewidth=1.2,
+                    return_fig=True,
+                    show=False,
+                ),
+            )
+
+        if fig_main is not None:
+            fig_main.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_main.png", dpi=200)
+        if fig_current is not None:
+            fig_current.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_current.png", dpi=200)

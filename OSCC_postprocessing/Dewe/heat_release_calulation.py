@@ -12,7 +12,8 @@ def hrr_calc(
     fc_hrr: float = 600.0,        # post-filter cutoff for HRR [Hz]
     order_hrr: int = 5,           # post-filter order
     time: np.ndarray | None = None,  # optional time vector [s]; if None uses Fs
-    return_dataframe: bool = True     # if pandas is available, return a DataFrame
+    return_dataframe: bool = True,     # if pandas is available, return a DataFrame
+    filter="butterworth"         # Filter type (for compatibility)
 ):
     """
     Compute heat-release rate (constant-volume model):
@@ -35,6 +36,9 @@ def hrr_calc(
         Butterworth low-pass for HRR after differentiation.
     time : array-like or None
         Time vector [s]. If None, uniform sampling with dt=1/Fs is assumed.
+    filter: any
+        Default to a butterworth filter
+        (Not used; for compatibility with other functions)
     return_dataframe : bool
         If True and pandas is installed, returns a DataFrame with columns:
         ["time_s", "P_bar", "HRR_W", "Q_J"]. Otherwise returns dict of arrays.
@@ -81,8 +85,10 @@ def hrr_calc(
         wn_p = float(fc_p) / (fs_eff / 2.0)
         if not (0 < wn_p < 1):
             raise ValueError(f"Pressure cutoff fc_p={fc_p} invalid for Fs={fs_eff}")
-        bP, aP = butter(order_p, wn_p, btype="low")
-        P = filtfilt(bP, aP, P, axis=0)
+        
+        if filter=="butterworth":
+            bP, aP = butter(order_p, wn_p, btype="low")
+            P = filtfilt(bP, aP, P, axis=0)
 
     # --- Differentiate pressure
     if time is None:

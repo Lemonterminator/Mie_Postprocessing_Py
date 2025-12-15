@@ -8,20 +8,28 @@ import cv2
 import concurrent.futures
 from scipy import ndimage
 from concurrent.futures import ProcessPoolExecutor
-import cupyx.scipy.ndimage as cndi
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from skimage import measure
 from scipy.ndimage import binary_erosion, generate_binary_structure
 
-# Optional GPU acceleration via CuPy.
+# Optional GPU acceleration via CuPy/cupyx.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
 try:  # pragma: no cover - runtime hardware dependent
-    import cupy as cp  # type: ignore
-    # from cupyx.scipy.ndimage import median_filter  # type: ignore
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"CUDA path could not be detected.*",
+            category=UserWarning,
+        )
+        import cupy as cp  # type: ignore
+        import cupyx.scipy.ndimage as cndi  # type: ignore
+
     CUPY_AVAILABLE = True
 except Exception:  # ImportError, CUDA failure, etc.
     cp = np  # type: ignore
-    # from scipy.ndimage import median_filter  # type: ignore
+    cndi = ndimage  # type: ignore
     cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
     CUPY_AVAILABLE = False
 
@@ -319,7 +327,7 @@ def _return_like_input(mask_gpu, like):
 
 def _generate_neighbor_offsets(nd, connectivity):
     """Generate neighbor offsets for given ndim and connectivity.
-    Includes all offsets in {-1,0,1}^nd \ {0} with L1 distance <= connectivity.
+    Includes all offsets in {-1,0,1}^nd \\ {0} with L1 distance <= connectivity.
     """
     from itertools import product
     offsets = []

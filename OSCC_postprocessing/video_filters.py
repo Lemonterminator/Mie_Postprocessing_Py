@@ -9,8 +9,16 @@ from concurrent.futures import ThreadPoolExecutor
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
 try:  # pragma: no cover - runtime hardware dependent
-    import cupy as cp  # type: ignore
-    from cupyx.scipy.ndimage import median_filter  # type: ignore
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"CUDA path could not be detected.*",
+            category=UserWarning,
+        )
+        import cupy as cp  # type: ignore
+        from cupyx.scipy.ndimage import median_filter  # type: ignore
     CUPY_AVAILABLE = True
 except Exception:  # ImportError, CUDA failure, etc.
     cp = np  # type: ignore
