@@ -347,7 +347,7 @@ def plot_dataframe(
     ax.set_ylabel("Value")
     ax.grid(True)
     if legend_outside:
-        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0, fontsize=6)
         fig.tight_layout(rect=(0, 0, 0.82, 1))
     else:
         ax.legend(loc="best")

@@ -25,9 +25,14 @@ from OSCC_postprocessing.multihole_utils import (
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Default nozzle radii (pixels)
+global lower
+global upper
+global ir_
+global or_
 ir_ = 14
 or_ = 380
-
+lower = 0
+upper = 366
 
 def mie_multihole_pipeline(
     video,
@@ -98,8 +103,7 @@ def mie_multihole_pipeline(
     hydraulic_delay = estimate_hydraulic_delay(segments, avg_peak, use_gpu)
     print(f"Vectorized TD-Intensity Heatmaps completed in {time.time() - start_time:.2f}s")
 
-    lower = 0
-    upper = 366
+
     start_time = time.time()
     penetration = compute_penetration_profiles(
         td_intensity_maps,

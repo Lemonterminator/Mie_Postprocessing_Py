@@ -335,7 +335,7 @@ def linear_regression_fixed_intercept(x, y, b0):
     a = numerator / denominator
     return a
 
-def binarize_plume_video(
+def binarize_single_plume_video(
     video,
     hydraulic_delay,
     lighting_unchanged_duration=100,
@@ -500,13 +500,13 @@ def binarize_plume_video(
     return largest_blob_mask_filled, penetration_host
 
 
-def binarize_plume_video_gpu(video, hydraulic_delay, lighting_unchanged_duration=100, return_gpu_mask=False):
+def binarize_single_plume_video_gpu(video, hydraulic_delay, lighting_unchanged_duration=100, return_gpu_mask=False):
     """
     Convenience wrapper to keep backward compatibility.
 
     Runs the GPU-first thresholding path and hands off to CPU for labeling.
     """
-    return binarize_plume_video(
+    return binarize_single_plume_video(
         video,
         hydraulic_delay,
         lighting_unchanged_duration=lighting_unchanged_duration,

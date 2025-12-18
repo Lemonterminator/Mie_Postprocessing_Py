@@ -23,6 +23,22 @@ class AsyncPlotSaver:
 
         def _save():
             try:
+                # Figures may be created with an interactive GUI backend (e.g. TkAgg).
+                # Calling savefig from a background thread can then touch GUI state and
+                # crash with "main thread is not in main loop". Rebind the figure to a
+                # pure Agg canvas before saving to keep this thread-safe.
+                try:
+                    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+                    FigureCanvasAgg(fig)
+                    try:
+                        fig.canvas.toolbar = None
+                    except Exception:
+                        pass
+                except Exception:
+                    # If matplotlib isn't available or rebinding fails, fall back to
+                    # the original savefig behavior.
+                    pass
                 fig.savefig(path, dpi=dpi, bbox_inches=bbox_inches)
             finally:
                 # Close regardless of success to free memory
@@ -47,4 +63,3 @@ class AsyncPlotSaver:
                 self.wait()
         finally:
             self._executor.shutdown(wait=wait, cancel_futures=not wait)
-

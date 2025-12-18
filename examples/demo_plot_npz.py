@@ -52,6 +52,7 @@ def penetration_bw_to_index(bw):
     arr = bw.astype(bool)
     # Find where True elements exist
     any_true = arr.any(axis=1)  # shape (N,)
+
     # Reverse each row to find last occurrence efficiently
     rev_idx = arr.shape[1] - 1 - arr[:, ::-1].argmax(axis=1)
     # Mask rows with no True values

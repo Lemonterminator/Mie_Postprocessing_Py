@@ -15,6 +15,7 @@ from OSCC_postprocessing.functions_bw import mask_video
 from mie_multihole_pipeline import _triangle_binarize_gpu
 from OSCC_postprocessing.bilateral_filter import *
 from OSCC_postprocessing.single_plume import *
+import pandas as pd
 
 
 from OSCC_postprocessing.multihole_utils import (
@@ -285,7 +286,31 @@ def filter_mie(video, angle=45):
     )
 
     return segments, penetration, cone_angle_AngularDensity
+
+def mask_angle(video, angle_allowed_deg):
+    F, H, W = video.shape
     
+    # Half-angle in radians and its tangent
+    half_angle_rad = cp.deg2rad(angle_allowed_deg / 2.0)
+    tan_half = cp.tan(half_angle_rad)
+
+    # Build coordinate grids: x along width, y along height
+    # y: shape (H, 1), centered at H/2
+    # x: shape (1, W), shifted so apex is at x=0 and we avoid /0
+    y = cp.arange(H)[:, None] - H / 2.0      # (H,1)
+    x = cp.arange(W)[None, :] + 1e-9         # (1,W), small epsilon to avoid /0
+
+    # Triangle mask: right side only, angles within ±half_angle
+    # (H,W) boolean mask
+    mask_2d = (x >= 0) & (cp.abs(y / x) <= tan_half)
+
+    # If mask_video expects a (H,W) mask per frame, it can usually broadcast it;
+    # otherwise, expand to (F,H,W)
+    # mask_3d = np.broadcast_to(mask_2d, video.shape)
+    width = cp.sum(mask_2d, axis=0)
+
+    return mask_video(video, mask_2d), mask_2d, width
+
 def pre_processing_mie(video):
     bilateral_filtered = bilateral_filter_video_volumetric_chunked_halo(video, 3, 3, 3)
 
@@ -316,30 +341,54 @@ def pre_processing_mie(video):
 
 
 
-def mask_angle(video, angle_allowed_deg):
-    F, H, W = video.shape
-    
-    # Half-angle in radians and its tangent
-    half_angle_rad = cp.deg2rad(angle_allowed_deg / 2.0)
-    tan_half = cp.tan(half_angle_rad)
+def save_boundary_csv(boundary, out_csv, origin=(0,0)):
+    frames = []
+    point_idxs = []
+    ys = []
+    xs = []
 
-    # Build coordinate grids: x along width, y along height
-    # y: shape (H, 1), centered at H/2
-    # x: shape (1, W), shifted so apex is at x=0 and we avoid /0
-    y = cp.arange(H)[:, None] - H / 2.0      # (H,1)
-    x = cp.arange(W)[None, :] + 1e-9         # (1,W), small epsilon to avoid /0
+    for frame_idx, frame_pts in enumerate(boundary):
+        if frame_pts is None:
+            continue
 
-    # Triangle mask: right side only, angles within ±half_angle
-    # (H,W) boolean mask
-    mask_2d = (x >= 0) & (cp.abs(y / x) <= tan_half)
+        if isinstance(frame_pts, (tuple, list)) and len(frame_pts) == 2:
+            lower = np.asarray(frame_pts[0])
+            upper = np.asarray(frame_pts[1])
+            if lower.size == 0:
+                pts = upper
+            elif upper.size == 0:
+                pts = lower
+            else:
+                pts = np.concatenate((lower, upper), axis=0)
+        else:
+            pts = np.asarray(frame_pts)
 
-    # If mask_video expects a (H,W) mask per frame, it can usually broadcast it;
-    # otherwise, expand to (F,H,W)
-    # mask_3d = np.broadcast_to(mask_2d, video.shape)
-    width = cp.sum(mask_2d, axis=0)
+        if pts.size == 0:
+            continue
 
-    return mask_video(video, mask_2d), mask_2d, width
+        n = int(pts.shape[0])
+        frames.append(np.full(n, frame_idx, dtype=np.int32))
+        point_idxs.append(np.arange(n, dtype=np.int32))
 
+        if origin != (0,0):
+            pts[:, 0] -= origin[0]
+            pts[:, 1] -= origin[1]
+
+        ys.append(pts[:, 0].astype(np.float32, copy=False))
+        xs.append(pts[:, 1].astype(np.float32, copy=False))
+
+    if not frames:
+        pd.DataFrame(columns=["frame", "point_idx", "y", "x"]).to_csv(out_csv, index=False)
+        return
+
+    pd.DataFrame(
+        {
+            "frame": np.concatenate(frames),
+            "point_idx": np.concatenate(point_idxs),
+            "y": np.concatenate(ys),
+            "x": np.concatenate(xs),
+        }
+    ).to_csv(out_csv, index=False)
 
 
 
@@ -414,19 +463,49 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         filtered = filter_schlieren(rotated, shock_wave_duration)
 
     if mode == "Mie":
-        hydraulic_delay = 15
+        # hydraulic_delay = 15
         
         # filter_mie(rotated)
         # segments, penetration, cone_angle_AngularDensity  = filter_mie(rotated)
         # filtered = segments[0]
 
         # Enhancing the foreground
+        start_time = time.time()
         foreground = pre_processing_mie(rotated)
+        print(f"Pre-processing finished in: {time.time() - start_time:.2f} seconds")
         F, H, W = foreground.shape  # dimensions after rotation/cropping
+        
+        # Save the Foreground video asynchronously
+        AsyncNPZSaver().save(data_dir / f"{file_name}_foreground.npz", foreground=to_numpy(foreground))
+        
+        f2 = avi_saver.save(
+            data_dir / f"{file_name}_foreground.avi",
+            to_numpy(foreground),
+            fps=FPS,
+            is_color=False,
+            auto_normalize=True,
+        )
 
-        # Estimating hydarulic delay
+        foreground_col_sum = cp.sum(foreground, axis=1)
+        foreground_energy = cp.sum(foreground_col_sum, axis=1)
+
+        # Find the frame with the brightest near-nozzle region to estimate hydraulic delay
         _, peak_idx, _ = estimate_peak_brightness_frames(foreground, use_gpu=True)
         hydraulic_delay = estimate_hydraulic_delay(foreground[None, :, :, :], peak_idx, use_gpu=True)[0]
+
+        penetration_td = compute_penetration_profiles(
+            foreground_col_sum[None, :, :],
+            foreground_energy[None, :],
+            cp.asarray([hydraulic_delay]),
+            cp.asarray([peak_idx]),
+            use_gpu=True,
+            lower=0,
+            upper=W,
+        )
+
+
+        # Estimating hydarulic delay
+
 
         # Cone angle
         # We set the origin to the nozzle, and treat upper and lower half as two plumes
@@ -443,21 +522,46 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         frame_idx = np.arange(F, dtype=np.int32)
 
         # binarizin the video
-        # Note: penetration_bw_sum is the column wise sum 
-        bw_vid, penetration_bw_sum = binarize_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=lighting_unchanged_duration, hole_fill_mode="2D")
+        # Note: bw_vid_col_sum is the column wise sum 
+        bw_vid, bw_vid_col_sum = binarize_single_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=lighting_unchanged_duration, hole_fill_mode="2D")
         
-        # Since penetration_bw_sum is the width (in pixels) of the spary boundary
+        # Area
+        area = bw_vid.sum(axis=(1,2))
+
+        # Since bw_vid_col_sum is the width (in pixels) of the spary boundary
         # We assume that it is symmetric with regard of the central axis, and take the width as diameter
         # radius = diameter /2, and differential volume per image column is pi * radius^2 
-        estimated_volume = 0.25*np.pi*np.sum(penetration_bw_sum**2, axis=1)
+        estimated_volume = 0.25*np.pi*np.sum(bw_vid_col_sum**2, axis=1)
 
-        # BW penetration
-        penetration_old = penetration_bw_to_index(penetration_bw_sum > 0)
+        upper_bw_width = bw_vid[:, :H//2, :].sum(axis=1)
+        lower_bw_width = bw_vid[:, H//2:, :].sum(axis=1)
+
+        max_plume_radius = np.maximum(upper_bw_width, lower_bw_width)
+        min_plume_radius = np.minimum(upper_bw_width, lower_bw_width)
+
+        estimated_volume_max = np.sum(np.pi*max_plume_radius**2, axis=1)
+        estimated_volume_min = np.sum(np.pi*min_plume_radius**2, axis=1)
+
+
+        # BW penetration considering only distance on x-axis
+        penetration_old = penetration_bw_to_index(bw_vid_col_sum > 0)
 
         # BW boundary
         boundary = bw_boundaries_all_points_single_plume(bw_vid, parallel=True)
 
+        # BW penetration with polar distance
+        penetration_old_polar = np.zeros(F)
+        for i in range(F):
+            pts = boundary[i]
+            if len(pts[0]) > 0 and len(pts[1]) > 0:
+                uy, ux =  pts[1][:,0], pts[1][:,1]
+                ly, lx = pts[0][:,0], pts[0][:,1]
 
+                max_r_upper = np.max(np.sqrt(uy**2 + ux**2))
+                max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
+                penetration_old_polar[i] = max(max_r_upper, max_r_lower)
+
+        # Filtered boundary points for cone angle calculation, 10% to 60% of penetration length at each pixel
         points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_old)
 
         cone_angle_linear_regression = np.zeros(F)
@@ -501,14 +605,8 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
                 cone_angle_linear_regression[i] = lg_up[i] - lg_low[i]
 
 
-
-
-
-        
-
         try:
             import matplotlib
-
             matplotlib.use("Agg", force=True)
             import matplotlib.pyplot as plt
 
@@ -519,7 +617,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         else:
             plot_saver = AsyncPlotSaver(max_workers=2)
 
-            fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            fig1, axes1 = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
             angle_series = {
                 "Average (upper-lower)": cone_angle_average,
                 "Linear regression": cone_angle_linear_regression,
@@ -527,31 +625,69 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
                 "Angular density": ad_up_np + ad_low_np,
             }
             for label, values in angle_series.items():
-                axes[0].plot(frame_idx, values, label=label, linewidth=1.4)
-            axes[0].set_ylabel("Cone angle (deg)")
-            axes[0].grid(True)
-            axes[0].legend()
+                axes1[0].plot(frame_idx, values, label=label, linewidth=1.4)
+            axes1[0].set_ylabel("Cone angle (deg)")
+            axes1[0].grid(True)
+            axes1[0].legend()
 
-            axes[1].plot(frame_idx, avg_up, label="Upper mean angle", linewidth=1.2)
-            axes[1].plot(frame_idx, avg_low, label="Lower mean angle", linewidth=1.2)
-            axes[1].plot(frame_idx, ad_up_np, label="AD upper", linewidth=1.2)
-            axes[1].plot(frame_idx, ad_low_np, label="AD lower", linewidth=1.2)
-            axes[1].set_xlabel("Frame")
-            axes[1].set_ylabel("Edge angle (deg)")
-            axes[1].grid(True)
-            axes[1].legend()
+            axes1[1].plot(frame_idx, avg_up, label="Upper mean angle", linewidth=1.2)
+            axes1[1].plot(frame_idx, -avg_low, label="Lower mean angle", linewidth=1.2)
+            axes1[1].plot(frame_idx, ad_up_np, label="AD upper", linewidth=1.2)
+            axes1[1].plot(frame_idx, ad_low_np, label="AD lower", linewidth=1.2)
+            axes1[1].set_xlabel("Frame")
+            axes1[1].set_ylabel("Edge angle (deg)")
+            axes1[1].grid(True)
+            axes1[1].legend()
 
             output_dir = Path(data_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
             plot_path = output_dir / f"{Path(file_name).stem}_cone_angle_comparison.png"
-            plot_saver.submit(fig, plot_path)
+            plot_saver.submit(fig1, plot_path)
+
+            fig2, ax2 = plt.subplots(figsize=(10, 5))
+            ax2.plot(frame_idx, penetration_old, label="BW penetration (x-axis)", linewidth=1.4)
+            ax2.plot(frame_idx, penetration_old_polar, label="BW penetration (polar)", linewidth=1.4)
+            ax2.plot(frame_idx, to_numpy(penetration_td[0]), label="TD penetration", linewidth=1.4)
+            ax2.set_xlabel("Frame")
+            ax2.set_ylabel("Penetration (pixels)")
+            ax2.grid(True)
+            ax2.legend()
+            plot_path2 = output_dir / f"{Path(file_name).stem}_penetration_comparison.png"
+            plot_saver.submit(fig2, plot_path2)
+
+
             plot_saver.shutdown(wait=True)
-    # play_video_cv2(filtered)
 
+    df = pd.DataFrame({
+        "Frame": np.arange(F),
+        "Penetration_from_BW": penetration_old,
+        "Penetration_from_BW_Polar": penetration_old_polar,
+        "Penetration_from_TD": to_numpy(penetration_td[0]),
+        "Cone_Angle_Angular_Density": to_numpy(cone_angle_AD),
+        "Cone_Angle_Average": cone_angle_average,
+        "Cone_Angle_RANSAC": cone_angle_ransac,
+        "Cone_Angle_Linear_Regression": cone_angle_linear_regression,
+        "Area": to_numpy(area),
+        "Estimated_Volume": estimated_volume,
+        "Estimated_Volume_Upper_limit": estimated_volume_max,
+        "Estimated_Volume_Lower_limit": estimated_volume_min,
+        "Hydraulic_Delay": hydraulic_delay*np.ones(F),
+        "CA_AD_Upper": to_numpy(cone_angle_AD_up),
+        "CA_AD_Lower": to_numpy(cone_angle_AD_low), 
+        "CA_Avg_Upper": avg_up,
+        "CA_Avg_Lower": avg_low,
+        "CA_Ransac_Upper": ransac_up,
+        "CA_Ransac_Lower": ransac_low,
+        "CA_LG_Upper": lg_up,
+        "CA_LG_Lower": lg_low
+    })
+    df.to_csv(data_dir / f"{file_name}_metrics.csv")
 
+    # usage
+    save_boundary_csv(boundary, data_dir / f"{file_name}_boundary_points.csv", origin=(0,H//2))
     
     
-
+    
     avi_saver.wait()
     avi_saver.shutdown()
     # playing to check 

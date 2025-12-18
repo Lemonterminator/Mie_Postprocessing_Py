@@ -34,9 +34,9 @@ from OSCC_postprocessing.Dewe.dewe import *
 # Manual inputs
 Schlieren_dir = r"" # r"G:\MeOH_test\Schlieren"
 
-Mie_dir = r"F:\G\MeOH_test\Mie"
-Luminescence_dir = r"F:\G\MeOH_test\NFL"
-Dewe_dir = r"F:\G\MeOH_test\Dewe"
+Mie_dir = r"G:\MeOH_test\Mie"
+Luminescence_dir = r"G:\MeOH_test\NFL"
+Dewe_dir = r"G:\MeOH_test\Dewe"
 testpoints_dictionary = {1:{2, 56}}
 
 save_intermediate_results = False
