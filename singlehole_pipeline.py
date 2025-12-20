@@ -396,7 +396,7 @@ def save_boundary_csv(boundary, out_csv, origin=(0,0)):
 def singlehole_pipeline(mode, video, offset, centre, file_name, 
                                   rotated_vid_dir, data_dir, 
                                   save_intermediate_results=True,
-                                  FPS=20, lighting_unchanged_duration=50
+                                  FPS=20, lighting_unchanged_duration=50, TD_sum_interval=0.5
                                   ):
     F, H, W = video.shape
     shock_wave_duration = 50
@@ -486,7 +486,11 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
             auto_normalize=True,
         )
 
-        foreground_col_sum = cp.sum(foreground, axis=1)
+        # Time-distance intensity based penetration
+        if TD_sum_interval > 0.0 and TD_sum_interval < 1.0:
+            foreground_col_sum = cp.sum(foreground[H//2- H*TD_sum_interval//2 : H//2 + H*TD_sum_interval//2], axis=1) 
+        else:
+            foreground_col_sum = cp.sum(foreground, axis=1)
         foreground_energy = cp.sum(foreground_col_sum, axis=1)
 
         # Find the frame with the brightest near-nozzle region to estimate hydraulic delay
