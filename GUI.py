@@ -100,6 +100,8 @@ class TiledCompositedView(QtWidgets.QGraphicsView):
         self._calib_radius = 0.0
         self._num_plumes = 0
         self._plume_offset = 0.0
+        self._ring_radii: Optional[tuple[float, float]] = None
+        self._ring_items: list[QtWidgets.QGraphicsEllipseItem] = []
 
         self._is_painting = False
         self._paint_mode = True
@@ -112,6 +114,9 @@ class TiledCompositedView(QtWidgets.QGraphicsView):
         self._tile_item.setPixmap(QtGui.QPixmap())
         self._center_item.setVisible(False)
         self._calib_circle_item.setVisible(False)
+        for it in self._ring_items:
+            self._scene.removeItem(it)
+        self._ring_items.clear()
         for it in self._plume_items:
             self._scene.removeItem(it)
         self._plume_items.clear()
@@ -177,6 +182,13 @@ class TiledCompositedView(QtWidgets.QGraphicsView):
         self._calib_radius = float(calib_radius)
         self._num_plumes = int(num_plumes)
         self._plume_offset = float(plume_offset)
+        self.schedule_redraw()
+
+    def set_ring_radii(self, ring_radii: Optional[tuple[float, float]]):
+        if ring_radii is None:
+            self._ring_radii = None
+        else:
+            self._ring_radii = (float(ring_radii[0]), float(ring_radii[1]))
         self.schedule_redraw()
 
     def schedule_redraw(self):
@@ -273,6 +285,9 @@ class TiledCompositedView(QtWidgets.QGraphicsView):
         if self._base_rgba_pad is None or self._mask is None:
             self._center_item.setVisible(False)
             self._calib_circle_item.setVisible(False)
+            for it in self._ring_items:
+                self._scene.removeItem(it)
+            self._ring_items.clear()
             for it in self._plume_items:
                 self._scene.removeItem(it)
             self._plume_items.clear()
@@ -293,6 +308,32 @@ class TiledCompositedView(QtWidgets.QGraphicsView):
             self._calib_circle_item.setVisible(True)
         else:
             self._calib_circle_item.setVisible(False)
+
+        for it in self._ring_items:
+            self._scene.removeItem(it)
+        self._ring_items.clear()
+        if self._ring_radii is not None:
+            ring_pen = QtGui.QPen(QtGui.QColor("red"), 1)
+            ring_pen.setDashPattern([4, 4])
+            r_in, r_out = self._ring_radii
+            if r_out > 0:
+                rr = r_out * self.zoom_factor
+                outer = QtWidgets.QGraphicsEllipseItem(
+                    cx_scene - rr, cy_scene - rr, 2 * rr, 2 * rr
+                )
+                outer.setPen(ring_pen)
+                outer.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+                self._scene.addItem(outer)
+                self._ring_items.append(outer)
+            if r_in > 0:
+                rr = r_in * self.zoom_factor
+                inner = QtWidgets.QGraphicsEllipseItem(
+                    cx_scene - rr, cy_scene - rr, 2 * rr, 2 * rr
+                )
+                inner.setPen(ring_pen)
+                inner.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+                self._scene.addItem(inner)
+                self._ring_items.append(inner)
 
         for it in self._plume_items:
             self._scene.removeItem(it)
@@ -401,6 +442,8 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self.current_img8: Optional[np.ndarray] = None
 
         self.brush_color = (255, 0, 0)
+        self.ring_inner_radius = 0.0
+        self.ring_outer_radius = 0.0
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -565,6 +608,8 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self.alpha_slider.valueChanged.connect(self._on_mask_style_changed)
         self.color_btn.clicked.connect(self.choose_color)
         self.add_ring_btn.clicked.connect(self.add_ring_mask)
+        self.inner_radius.valueChanged.connect(self._on_ring_changed)
+        self.outer_radius.valueChanged.connect(self._on_ring_changed)
 
     def _build_content(self, root_layout: QtWidgets.QVBoxLayout):
         self.view = TiledCompositedView()
@@ -819,20 +864,30 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         if self.mask is None:
             return
 
-        cx = float(self.coord_x.value())
-        cy = float(self.coord_y.value())
-        r_in = max(0, int(self.inner_radius.value()))
-        r_out = int(self.outer_radius.value())
+        r_in = max(0.0, float(self.inner_radius.value()))
+        r_out = float(self.outer_radius.value())
         if r_out <= 0:
             return
+        if r_in > r_out:
+            r_in, r_out = r_out, r_in
 
-        yy, xx = np.ogrid[: self.mask.shape[0], : self.mask.shape[1]]
-        dist2 = (xx - cx) ** 2 + (yy - cy) ** 2
-        ring = dist2 <= r_out**2
-        if r_in > 0:
-            ring &= dist2 >= r_in**2
-        self.mask[ring] = 1
-        self.view.schedule_redraw()
+        self.ring_inner_radius = r_in
+        self.ring_outer_radius = r_out
+        self.view.set_ring_radii((r_in, r_out))
+
+    def _on_ring_changed(self, *_args):
+        r_in = max(0.0, float(self.inner_radius.value()))
+        r_out = float(self.outer_radius.value())
+        if r_in > r_out:
+            r_in, r_out = r_out, r_in
+        if r_out <= 0:
+            self.ring_inner_radius = 0.0
+            self.ring_outer_radius = 0.0
+            self.view.set_ring_radii(None)
+            return
+        self.ring_inner_radius = r_in
+        self.ring_outer_radius = r_out
+        self.view.set_ring_radii((r_in, r_out))
 
     def choose_color(self):
         initial = QtGui.QColor(*self.brush_color)
@@ -932,7 +987,8 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
             "offset": float(self.plume_offset.value()),
             "centre_x": float(self.coord_x.value()),
             "centre_y": float(self.coord_y.value()),
-            "calib_radius": float(self.calib_radius.value()),
+            "inner_radius": float(self.ring_inner_radius),
+            "outer_radius": float(self.ring_outer_radius),
         }
         path = os.path.join(folder, "config.json")
         try:
