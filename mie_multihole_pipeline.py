@@ -22,6 +22,10 @@ from OSCC_postprocessing.multihole_utils import (
     triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
 )
 
+from OSCC_postprocessing.single_plume import (
+    pre_processing_mie,
+)
+
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Default nozzle radii (pixels)
@@ -54,6 +58,8 @@ def mie_multihole_pipeline(
     hydraulic_delay_estimate = 15
 
     use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
+
+    '''
     foreground, px_range_mask = preprocess_multihole(
         video,
         hydraulic_delay_estimate,
@@ -66,6 +72,11 @@ def mie_multihole_pipeline(
         triangle_backend=triangle_backend,
         return_numpy=not use_gpu,
     )
+    '''
+    
+    video = xp.asarray(video)
+    foreground = pre_processing_mie(video)
+    px_range_mask = foreground[0]==0.0
 
     bins = 3600
     start_time = time.time()
@@ -74,8 +85,12 @@ def mie_multihole_pipeline(
     if offset:
         print(f"Estimated offset from FFT: {offset:.3f} degrees")
 
-    crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
+
+    crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
+    
+
+
     plume_mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
 
     foreground = xp.asarray(foreground, dtype=xp.float32)

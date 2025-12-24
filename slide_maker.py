@@ -1,15 +1,27 @@
 import os
-os.environ["MPLBACKEND"] = "TkAgg"   # 或 "QtAgg"
-# 可选：如果还不生效，再强制：
-import matplotlib
-matplotlib.use("TkAgg", force=True)
+
+try:
+    os.environ["MPLBACKEND"] = "TkAgg"
+    import matplotlib
+
+    matplotlib.use("TkAgg", force=True)
+    HAS_MPL = True
+except Exception as exc:
+    HAS_MPL = False
+    matplotlib = None
+    print(f"matplotlib unavailable; skipping plots: {exc}")
+
 
 
 from typing import Iterable, Optional, Tuple, cast
 from pathlib import Path
 import os
 import json
-import numpy as np
+try:
+    import numpy as np
+except Exception as exc:
+    print(f"numpy unavailable; skipping slide generation: {exc}")
+    raise SystemExit(0)
 
 try:
     from matplotlib.axes import Axes  # type: ignore[import]
@@ -228,42 +240,44 @@ else:
 
             label = Path(name).stem
 
-            fig_main, ax_main = cast(
-                Tuple[Figure, Axes],
-                plot_dataframe(
-                    df_plot,
-                    title="Aligned Dewesoft: pressure / temperature / heat release",
-                    criteria=[
-                        "Chamber pressure",
-                        "Chamber gas temperature",
-                        "Temperature acc. Ideal gas law",
-                        "Heat Release",
-                    ],
-                    ax=ax_main,
-                    label_prefix=f"{label} | ",
-                    alpha=0.9,
-                    linewidth=1.2,
-                    return_fig=True,
-                    show=False,
-                ),
-            )
+            if HAS_MPL:
+                fig_main, ax_main = cast(
+                    Tuple[Figure, Axes],
+                    plot_dataframe(
+                        df_plot,
+                        title="Aligned Dewesoft: pressure / temperature / heat release",
+                        criteria=[
+                            "Chamber pressure",
+                            "Chamber gas temperature",
+                            "Temperature acc. Ideal gas law",
+                            "Heat Release",
+                        ],
+                        ax=ax_main,
+                        label_prefix=f"{label} | ",
+                        alpha=0.9,
+                        linewidth=1.2,
+                        return_fig=True,
+                        show=False,
+                    ),
+                )
 
-            fig_current, ax_current = cast(
-                Tuple[Figure, Axes],
-                plot_dataframe(
-                    df_plot,
-                    title="Aligned Dewesoft: injector current (filtered)",
-                    criteria=["Main Injector - Current Profile/FIR Filter"],
-                    ax=ax_current,
-                    label_prefix=f"{label} | ",
-                    alpha=0.9,
-                    linewidth=1.2,
-                    return_fig=True,
-                    show=False,
-                ),
-            )
+                fig_current, ax_current = cast(
+                    Tuple[Figure, Axes],
+                    plot_dataframe(
+                        df_plot,
+                        title="Aligned Dewesoft: injector current (filtered)",
+                        criteria=["Main Injector - Current Profile/FIR Filter"],
+                        ax=ax_current,
+                        label_prefix=f"{label} | ",
+                        alpha=0.9,
+                        linewidth=1.2,
+                        return_fig=True,
+                        show=False,
+                    ),
+                )
 
-        if fig_main is not None:
-            fig_main.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_main.png", dpi=200)
-        if fig_current is not None:
-            fig_current.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_current.png", dpi=200)
+        if HAS_MPL:
+            if fig_main is not None:
+                fig_main.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_main.png", dpi=200)
+            if fig_current is not None:
+                fig_current.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_current.png", dpi=200)

@@ -1,11 +1,102 @@
 from OSCC_postprocessing.multihole_utils import *
 from OSCC_postprocessing.functions_bw import *
+from OSCC_postprocessing.video_filters import median_filter_video_auto, sobel_5x5_kernels, filter_video_fft
+from OSCC_postprocessing.svd_background_removal import godec_like
+from OSCC_postprocessing.cone_angle import angle_signal_density_auto
+from OSCC_postprocessing.bilateral_filter import bilateral_filter_video_volumetric_chunked_halo
+from OSCC_postprocessing.async_avi_saver import AsyncAVISaver
 import numpy as np
 import scipy.ndimage as ndi
 from scipy.ndimage import binary_fill_holes
 import os
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from OSCC_postprocessing.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
+from OSCC_postprocessing.multihole_utils import triangle_binarize_gpu as _triangle_binarize_gpu
+
+# Prefer GPU if CuPy is available; otherwise use a NumPy-compatible shim.
+try:
+    import cupy as _cupy  # type: ignore
+
+    _cupy.cuda.runtime.getDeviceCount()
+    cp = _cupy
+    USING_CUPY = True
+except Exception as exc:  # pragma: no cover - hardware dependent
+    print(f"CuPy unavailable, falling back to NumPy backend: {exc}")
+    USING_CUPY = False
+
+    class _NumpyCompat:
+        def __getattr__(self, name):
+            return getattr(np, name)
+
+        def asarray(self, a, dtype=None):
+            return np.asarray(a, dtype=dtype)
+
+        def asnumpy(self, a):
+            return np.asarray(a)
+
+        def get(self, a):
+            return a
+
+    cp = _NumpyCompat()  # type: ignore
+
+
+def to_numpy(arr):
+    return cp.asnumpy(arr) if USING_CUPY else np.asarray(arr)
+
+
+def _min_max_scale(arr):
+    mn = arr.min()
+    mx = arr.max()
+    if mx > mn:
+        return (arr - mn) / (mx - mn)
+    return cp.zeros_like(arr)
+
+
+def _prepare_temporal_smoothing(rotated, smooth_frames):
+    rotated_cpu = to_numpy(rotated)
+    smoothed_np = median_filter_video_auto(np.swapaxes(rotated_cpu, 0, 2), smooth_frames, 1)
+    smoothed_np = np.swapaxes(smoothed_np, 0, 2)
+
+    min_val = smoothed_np.min()
+    max_val = smoothed_np.max()
+    if max_val > min_val:
+        smoothed_np = (smoothed_np - min_val) / (max_val - min_val)
+    else:
+        smoothed_np = np.zeros_like(smoothed_np, dtype=np.float32)
+
+    smoothed_cp = cp.asarray(smoothed_np, dtype=cp.float32)
+    return smoothed_cp, smoothed_np
+
+
+def _rotate_align_video_cpu(
+    video: np.ndarray,
+    nozzle_center: tuple[float, float],
+    offset_deg: float,
+    *,
+    interpolation: str,
+    out_shape: tuple[int, int] | None,
+    border_mode: str,
+    cval: float,
+) -> np.ndarray:
+    """
+    Delegate to the NumPy implementation in OSCC_postprocessing.rotate_with_alignment_cpu.
+    Returns only the rotated video (np.ndarray).
+    """
+    from OSCC_postprocessing.rotate_with_alignment_cpu import (
+        rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
+    )
+
+    rotated_np, _, _ = rotate_video_nozzle_at_0_half_backend(
+        video,
+        nozzle_center,
+        offset_deg,
+        interpolation=interpolation,
+        border_mode=border_mode,
+        out_shape=out_shape,
+        cval=cval,
+    )
+    return rotated_np.astype(np.float32, copy=False)
 
 # Prefer GPU-accelerated cuCIM if available; fall back to scikit-image on CPU.
 try:
@@ -599,3 +690,122 @@ def bw_boundaries_xband_filter_single_plume(boundary_results, penetration_old, l
         )
 
     return filtered
+
+
+def filter_schlieren(video, shock_wave_duration):
+    smooth_frames = 3
+    temporal_smoothing, temporal_smoothing_np = _prepare_temporal_smoothing(video, smooth_frames)
+
+    inverted = 1.0 - temporal_smoothing_np
+
+    foreground_godec = godec_like(inverted, 3)
+    godec_pos = np.maximum(foreground_godec, 0.0)
+    godec_pos = _min_max_scale(cp.asarray(godec_pos, dtype=cp.float32))
+
+    if USING_CUPY:
+        godec_pos = godec_pos.get()
+
+    sobel_x, sobel_y = sobel_5x5_kernels()
+    gx_video = filter_video_fft(godec_pos[:shock_wave_duration], sobel_x, mode="same")
+    gy_video = filter_video_fft(godec_pos[:shock_wave_duration], sobel_y, mode="same")
+    grad_mag = np.sqrt(gx_video**2 + gy_video**2)
+
+    gamma = 1.1
+    grad_mag_norm_inv = 1 - _min_max_scale(grad_mag) ** gamma
+
+    thres = 0.9
+    grad_mag_norm_inv[grad_mag_norm_inv < thres] = 0
+    grad_mag_norm_inv[grad_mag_norm_inv > thres] = 1
+
+    shock_wave_filtered = np.zeros_like(godec_pos)
+    shock_wave_filtered[:shock_wave_duration] = _min_max_scale(
+        grad_mag_norm_inv * godec_pos[:shock_wave_duration]
+    )
+    shock_wave_filtered[shock_wave_duration:] = godec_pos[shock_wave_duration:]
+
+    return shock_wave_filtered
+
+
+def mask_angle(video, angle_allowed_deg):
+    F, H, W = video.shape
+
+    half_angle_rad = cp.deg2rad(angle_allowed_deg / 2.0)
+    tan_half = cp.tan(half_angle_rad)
+
+    y = cp.arange(H)[:, None] - H / 2.0
+    x = cp.arange(W)[None, :] + 1e-9
+
+    mask_2d = (x >= 0) & (cp.abs(y / x) <= tan_half)
+    width = cp.sum(mask_2d, axis=0)
+
+    return mask_video(video, mask_2d), mask_2d, width
+
+
+def pre_processing_mie(video):
+    bilateral_filtered = bilateral_filter_video_volumetric_chunked_halo(
+        video, (3, 5, 5), 3, 3
+    )
+
+    bkg = bilateral_filtered[0]
+    bkg[bkg == 0] = 1e-9
+    bkg[bkg == cp.nan] = 1e-9
+    div_bkg = _min_max_scale(bilateral_filtered * ((1.0 / bkg)[None, :, :]))
+    sub_div_bkg = div_bkg - div_bkg[0][None, :, :]
+
+    px_range_map = cp.max(sub_div_bkg, axis=0) - cp.min(sub_div_bkg, axis=0)
+    mask, _ = triangle_binarize_from_float(px_range_map.get())
+    mask = keep_largest_component(mask)
+    mask = binary_fill_holes(mask)
+    mask = cp.asarray(mask)
+
+    return (mask)[None, :, :] * sub_div_bkg
+
+
+def save_boundary_csv(boundary, out_csv, origin=(0, 0)):
+    frames = []
+    point_idxs = []
+    ys = []
+    xs = []
+
+    for frame_idx, frame_pts in enumerate(boundary):
+        if frame_pts is None:
+            continue
+
+        if isinstance(frame_pts, (tuple, list)) and len(frame_pts) == 2:
+            lower = np.asarray(frame_pts[0])
+            upper = np.asarray(frame_pts[1])
+            if lower.size == 0:
+                pts = upper
+            elif upper.size == 0:
+                pts = lower
+            else:
+                pts = np.concatenate((lower, upper), axis=0)
+        else:
+            pts = np.asarray(frame_pts)
+
+        if pts.size == 0:
+            continue
+
+        n = int(pts.shape[0])
+        frames.append(np.full(n, frame_idx, dtype=np.int32))
+        point_idxs.append(np.arange(n, dtype=np.int32))
+
+        if origin != (0, 0):
+            pts[:, 0] -= origin[0]
+            pts[:, 1] -= origin[1]
+
+        ys.append(pts[:, 0].astype(np.float32, copy=False))
+        xs.append(pts[:, 1].astype(np.float32, copy=False))
+
+    if not frames:
+        pd.DataFrame(columns=["frame", "point_idx", "y", "x"]).to_csv(out_csv, index=False)
+        return
+
+    pd.DataFrame(
+        {
+            "frame": np.concatenate(frames),
+            "point_idx": np.concatenate(point_idxs),
+            "y": np.concatenate(ys),
+            "x": np.concatenate(xs),
+        }
+    ).to_csv(out_csv, index=False)

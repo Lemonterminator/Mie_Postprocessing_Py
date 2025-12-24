@@ -221,8 +221,9 @@ def bilateral_filter_video_volumetric_chunked_halo(
     ----------
     video : np.ndarray or cp.ndarray
         Input video volume (F, H, W).
-    wsize : int
-        Odd window size (e.g., 3, 5, 7). Uses a cubic neighborhood of shape (wsize, wsize, wsize).
+    wsize : int or tuple[int, int, int]
+        Odd window size. If int, uses a cubic neighborhood (wsize, wsize, wsize).
+        If tuple, uses (wsize_f, wsize_h, wsize_w) for (F, H, W).
     sigma_d : float
         Spatial standard deviation (applies equally on F, H, W axes).
     sigma_r : float
@@ -248,10 +249,22 @@ def bilateral_filter_video_volumetric_chunked_halo(
     out : np.ndarray or cp.ndarray
         Filtered video in the chosen backend's array type.
     """
-    assert isinstance(wsize, int) and wsize % 2 == 1, "wsize must be an odd integer"
+    if isinstance(wsize, int):
+        wsize_f = wsize_h = wsize_w = wsize
+    else:
+        try:
+            wsize_f, wsize_h, wsize_w = wsize
+        except Exception as exc:
+            raise ValueError("wsize must be an odd int or a 3-tuple (F, H, W).") from exc
+        if not all(isinstance(v, int) for v in (wsize_f, wsize_h, wsize_w)):
+            raise ValueError("wsize tuple must contain ints (F, H, W).")
+        if not all(v % 2 == 1 for v in (wsize_f, wsize_h, wsize_w)):
+            raise ValueError("wsize tuple values must be odd.")
     assert video.ndim == 3, "video must have shape (F, H, W)"
     F, H, W = video.shape
-    k = wsize // 2
+    kf = wsize_f // 2
+    kh = wsize_h // 2
+    kw = wsize_w // 2
 
     # ----------------------------
     # Backend router (NumPy / CuPy)
@@ -267,7 +280,6 @@ def bilateral_filter_video_volumetric_chunked_halo(
             cp = None
 
     # Decide backend
-    on_gpu = False
     if backend == "cupy":
         if not has_cupy:
             raise RuntimeError("backend='cupy' requested but CuPy is not available.")
@@ -275,8 +287,8 @@ def bilateral_filter_video_volumetric_chunked_halo(
     elif backend == "numpy":
         on_gpu = False
     else:  # auto
-        # Prefer GPU if CuPy available and either video is already on GPU or we can move it
-        on_gpu = has_cupy and (hasattr(video, "device") or True)
+        # Prefer GPU when CuPy is available; move input to GPU if needed.
+        on_gpu = has_cupy
 
     # Array module alias
     xp = cp if on_gpu else np
@@ -300,7 +312,8 @@ def bilateral_filter_video_volumetric_chunked_halo(
 
     # Move/cast the input video
     if on_gpu:
-        video_xp = video if hasattr(video, "device") else cp.asarray(video)
+        # video_xp = video if hasattr(video, "device") else cp.asarray(video)
+        video_xp = cp.asarray(video)
         if video_xp.dtype != dtype_xp:
             video_xp = video_xp.astype(dtype_xp, copy=False)
     else:
@@ -314,6 +327,8 @@ def bilateral_filter_video_volumetric_chunked_halo(
             video_xp = cp.asnumpy(video).astype(dtype, copy=False)
         else:
             video_xp = np.asarray(video, dtype=dtype)
+
+    
 
     # ----------------------------
     # Memory-aware chunk size estimate
@@ -336,7 +351,7 @@ def bilateral_filter_video_volumetric_chunked_halo(
 
     # Approx memory per frame for the big patches tensor + working buffers
     bytes_per_element = xp.dtype(dtype_xp).itemsize
-    mem_per_frame = H * W * (wsize ** 3) * bytes_per_element
+    mem_per_frame = H * W * (wsize_f * wsize_h * wsize_w) * bytes_per_element
     # Account for additional arrays (patches, diff, weights, accumulation)
     mem_per_frame *= overhead_factor
 
@@ -357,15 +372,20 @@ def bilateral_filter_video_volumetric_chunked_halo(
         print(
             f"[bilateral 3D] Backend: {'CuPy (GPU)' if on_gpu else 'NumPy (CPU)'} | "
             f"Free mem: {avail_gb:.2f} GB | Chunk size: {chunk_size} frames | "
-            f"Itemsize: {bytes_per_element} B | wsize^3: {wsize**3}"
+            f"Itemsize: {bytes_per_element} B | wsize^3: {wsize_f * wsize_h * wsize_w}"
         )
 
     # ----------------------------
     # Precompute spatial Gaussian kernel (3D)
     # ----------------------------
-    ax = xp.arange(-k, k + 1, dtype=dtype_xp)
-    xx, yy, zz = xp.meshgrid(ax, ax, ax, indexing="ij")
-    spatial_kernel = xp.exp(-(xx**2 + yy**2 + zz**2) / (xp.array(2.0, dtype=dtype_xp) * (dtype_xp.type(sigma_d)**2)))
+    ax_f = xp.arange(-kf, kf + 1, dtype=dtype_xp)
+    ax_h = xp.arange(-kh, kh + 1, dtype=dtype_xp)
+    ax_w = xp.arange(-kw, kw + 1, dtype=dtype_xp)
+    ff, hh, ww = xp.meshgrid(ax_f, ax_h, ax_w, indexing="ij")
+    spatial_kernel = xp.exp(
+        -(ff**2 + hh**2 + ww**2)
+        / (xp.array(2.0, dtype=dtype_xp) * (dtype_xp.type(sigma_d) ** 2))
+    )
     spatial_kernel = spatial_kernel.astype(dtype_xp, copy=False)
 
     # Output allocation
@@ -378,8 +398,8 @@ def bilateral_filter_video_volumetric_chunked_halo(
         end = min(start + chunk_size, F)
 
         # Temporal halo bounds (clamped)
-        t0 = max(0, start - k)
-        t1 = min(F, end + k)
+        t0 = max(0, start - kf)
+        t1 = min(F, end + kf)
 
         # Halo subvolume
         chunk_halo = video_xp[t0:t1]  # shape: (t1 - t0, H, W)
@@ -390,17 +410,19 @@ def bilateral_filter_video_volumetric_chunked_halo(
         # Pad temporal axis with the full window radius (k) so every frame in chunk_halo
         # has a complete neighborhood; spatial axes also padded by k.
         pad_width = (
-            (k, k),  # temporal
-            (k, k),  # H
-            (k, k),  # W
+            (kf, kf),  # temporal
+            (kh, kh),  # H
+            (kw, kw),  # W
         )
+
+        chunk_halo = xp.asarray(chunk_halo.astype(dtype_xp, copy=False))
         pad_chunk = xp.pad(chunk_halo, pad_width=pad_width, mode=mode)
 
         # Sliding window view on (F,H,W) with cubic window (wsize,wsize,wsize)
         # NumPy: np.lib.stride_tricks.sliding_window_view
         # CuPy:  cp.lib.stride_tricks.sliding_window_view
         swv = xp.lib.stride_tricks.sliding_window_view
-        patches = swv(pad_chunk, (wsize, wsize, wsize))  # shape: (frames_halo, H, W, wsize, wsize, wsize)
+        patches = swv(pad_chunk, (wsize_f, wsize_h, wsize_w))
 
         # Center intensities for current output region
         centers = video_xp[start:end].reshape(end - start, H, W, 1, 1, 1)
@@ -437,6 +459,6 @@ def bilateral_filter_video_volumetric_chunked_halo(
 if __name__ == "__main__":
     video = np.random.rand(20, 64, 64).astype(np.float32)
     filtered = bilateral_filter_video_volumetric_chunked_halo(
-        video, wsize=5, sigma_d=2.0, sigma_r=0.1, mode="edge", dtype=np.float32
+        video, wsize=(3, 5, 5), sigma_d=2.0, sigma_r=0.1, mode="edge", dtype=np.float32
     )
     print("Filtered shape:", filtered.shape)
