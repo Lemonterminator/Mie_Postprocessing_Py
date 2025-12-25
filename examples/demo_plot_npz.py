@@ -5,8 +5,8 @@ import tkinter as tk
 from tkinter import filedialog
 import numpy as np
 import matplotlib.pyplot as plt
-from OSCC_postprocessing.functions_videos import *
-from OSCC_postprocessing.cone_angle import plot_angle_signal_density
+from OSCC_postprocessing.cine.functions_videos import *
+from OSCC_postprocessing.analysis.cone_angle import plot_angle_signal_density
 from scipy import ndimage
 import pandas as pd
 
@@ -233,3 +233,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

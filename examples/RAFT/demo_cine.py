@@ -1,7 +1,7 @@
 import os, sys, runpy
 
 _root = os.path.abspath(os.path.join(__file__, '..', '..', '..'))
-_raft_dir = os.path.join(_root, 'optical_flow', 'RAFT')
+_raft_dir = os.path.abspath(os.path.join(__file__, '..'))
 
 if not os.path.isdir(_raft_dir):
     raise FileNotFoundError(f"Expected RAFT at {_raft_dir}")

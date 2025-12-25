@@ -6,10 +6,10 @@ import json
 import os
 import cv2
 
-from OSCC_postprocessing.cine_utils import CineReader
-from OSCC_postprocessing.cone_angle import angle_signal_density
-from OSCC_postprocessing.rotate_crop import rotate_and_crop, generate_CropRect, generate_plume_mask
-from OSCC_postprocessing.zoom_utils import enlarge_image
+from OSCC_postprocessing.cine.cine_utils import CineReader
+from OSCC_postprocessing.analysis.cone_angle import angle_signal_density
+from OSCC_postprocessing.rotation.rotate_crop import rotate_and_crop, generate_CropRect, generate_plume_mask
+from OSCC_postprocessing.utils.zoom_utils import enlarge_image
 
 class ManualSegmenter:
     """Interactive tool to create pixel-wise masks for rotated plume videos."""

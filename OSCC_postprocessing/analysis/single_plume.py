@@ -1,18 +1,18 @@
-from OSCC_postprocessing.multihole_utils import *
-from OSCC_postprocessing.functions_bw import *
-from OSCC_postprocessing.video_filters import median_filter_video_auto, sobel_5x5_kernels, filter_video_fft
-from OSCC_postprocessing.svd_background_removal import godec_like
-from OSCC_postprocessing.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.bilateral_filter import bilateral_filter_video_volumetric_chunked_halo
-from OSCC_postprocessing.async_avi_saver import AsyncAVISaver
+from OSCC_postprocessing.analysis.multihole_utils import *
+from OSCC_postprocessing.binary_ops.functions_bw import *
+from OSCC_postprocessing.filters.video_filters import median_filter_video_auto, sobel_5x5_kernels, filter_video_fft
+from OSCC_postprocessing.filters.svd_background_removal import godec_like
+from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
+from OSCC_postprocessing.filters.bilateral_filter import bilateral_filter_video_volumetric_chunked_halo
+from OSCC_postprocessing.io.async_avi_saver import AsyncAVISaver
 import numpy as np
 import scipy.ndimage as ndi
 from scipy.ndimage import binary_fill_holes
 import os
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from OSCC_postprocessing.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
-from OSCC_postprocessing.multihole_utils import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.binary_ops.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
+from OSCC_postprocessing.analysis.multihole_utils import triangle_binarize_gpu as _triangle_binarize_gpu
 
 # Prefer GPU if CuPy is available; otherwise use a NumPy-compatible shim.
 try:
@@ -80,10 +80,10 @@ def _rotate_align_video_cpu(
     cval: float,
 ) -> np.ndarray:
     """
-    Delegate to the NumPy implementation in OSCC_postprocessing.rotate_with_alignment_cpu.
+    Delegate to the NumPy implementation in OSCC_postprocessing.rotation.rotate_with_alignment_cpu.
     Returns only the rotated video (np.ndarray).
     """
-    from OSCC_postprocessing.rotate_with_alignment_cpu import (
+    from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
 
@@ -809,3 +809,4 @@ def save_boundary_csv(boundary, out_csv, origin=(0, 0)):
             "x": np.concatenate(xs),
         }
     ).to_csv(out_csv, index=False)
+

@@ -7,10 +7,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import tkinter as tk
 from tkinter import filedialog
 import importlib.util
-from OSCC_postprocessing.functions_videos import get_subfolder_names
-from OSCC_postprocessing.Data_cleaning_1d_series import *
-from OSCC_postprocessing.async_plot_saver import AsyncPlotSaver
-from OSCC_postprocessing.async_npz_saver import AsyncNPZSaver
+from OSCC_postprocessing.cine.functions_videos import get_subfolder_names
+from OSCC_postprocessing.utils.data_cleaning_1d_series import *
+from OSCC_postprocessing.io.async_plot_saver import AsyncPlotSaver
+from OSCC_postprocessing.io.async_npz_saver import AsyncNPZSaver
 import re
 import math
 import numpy as np
@@ -550,3 +550,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

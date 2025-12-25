@@ -4,11 +4,11 @@ timing = True
 if timing:
     import time
 import numpy as np
-from OSCC_postprocessing.async_npz_saver import AsyncNPZSaver
-from OSCC_postprocessing.async_avi_saver import *
-from OSCC_postprocessing.video_filters import *
-from OSCC_postprocessing.video_playback import *
-from OSCC_postprocessing.single_plume import (
+from OSCC_postprocessing.io.async_npz_saver import AsyncNPZSaver
+from OSCC_postprocessing.io.async_avi_saver import *
+from OSCC_postprocessing.filters.video_filters import *
+from OSCC_postprocessing.playback.video_playback import *
+from OSCC_postprocessing.analysis.single_plume import (
     USING_CUPY,
     cp,
     _min_max_scale,
@@ -24,11 +24,12 @@ from OSCC_postprocessing.single_plume import (
     save_boundary_csv,
     to_numpy,
 )
-from OSCC_postprocessing.cone_angle import angle_signal_density_auto
+from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
+from OSCC_postprocessing.binary_ops.binarized_metrics import processing_from_binarized_video
 import pandas as pd
 
 
-from OSCC_postprocessing.multihole_utils import (
+from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,
     resolve_backend,
     rotate_segments_with_masks,
@@ -45,11 +46,11 @@ from OSCC_postprocessing.multihole_utils import (
 
 # Import rotation utility based on backend availability to avoid hard Cupy dependency
 if USING_CUPY:
-    from OSCC_postprocessing.rotate_with_alignment import (
+    from OSCC_postprocessing.rotation.rotate_with_alignment import (
         rotate_video_nozzle_at_0_half_cupy as rotate_video_nozzle_at_0_half_backend,
     )
 else:
-    from OSCC_postprocessing.rotate_with_alignment_cpu import (
+    from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
 
@@ -187,100 +188,27 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         cone_angle_AD_up = AngularDensity[0]
         cone_angle_AD_low = AngularDensity[1]
         cone_angle_AD = cone_angle_AD_up + cone_angle_AD_low
+        ad_up_np = to_numpy(cone_angle_AD_up)
+        ad_low_np = to_numpy(cone_angle_AD_low)
 
         # Shape
         frame_idx = np.arange(F, dtype=np.int32)
 
-        start_time = time.time()
         # binarizin the video
         # Note: bw_vid_col_sum is the column wise sum 
-        bw_vid, bw_vid_col_sum = binarize_single_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=lighting_unchanged_duration, hole_fill_mode="2D")
-        
-        # Area
-        area = bw_vid.sum(axis=(1,2))
-
-        # Since bw_vid_col_sum is the width (in pixels) of the spary boundary
-        # We assume that it is symmetric with regard of the central axis, and take the width as diameter
-        # radius = diameter /2, and differential volume per image column is pi * radius^2 
-        estimated_volume = 0.25*np.pi*np.sum(bw_vid_col_sum**2, axis=1)
-
-        upper_bw_width = bw_vid[:, :H//2, :].sum(axis=1)
-        lower_bw_width = bw_vid[:, H//2:, :].sum(axis=1)
-
-        max_plume_radius = np.maximum(upper_bw_width, lower_bw_width)
-        min_plume_radius = np.minimum(upper_bw_width, lower_bw_width)
-
-        estimated_volume_max = np.sum(np.pi*max_plume_radius**2, axis=1)
-        estimated_volume_min = np.sum(np.pi*min_plume_radius**2, axis=1)
-
-
-        # BW penetration considering only distance on x-axis
-        penetration_old = penetration_bw_to_index(bw_vid_col_sum > 0)
-
-        # BW boundary
-        boundary = bw_boundaries_all_points_single_plume(bw_vid, parallel=True)
-
-        # BW penetration with polar distance
-        penetration_old_polar = np.zeros(F)
-        for i in range(F):
-            pts = boundary[i]
-            if len(pts[0]) > 0 and len(pts[1]) > 0:
-                uy, ux =  pts[1][:,0], pts[1][:,1]
-                ly, lx = pts[0][:,0], pts[0][:,1]
-
-                max_r_upper = np.max(np.sqrt(uy**2 + ux**2))
-                max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
-                penetration_old_polar[i] = max(max_r_upper, max_r_lower)
-
-        # Filtered boundary points for cone angle calculation, 10% to 60% of penetration length at each pixel
-        points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_old)
-
-        print(f"Binarization and boundary extraction completed in: {time.time() - start_time:.2f} seconds")
-
-        start_time = time.time()
-        # Cone angle calculations using different methods
-
-        cone_angle_linear_regression = np.zeros(F)
-        cone_angle_ransac = np.zeros(F)
-        cone_angle_average = np.zeros(F)
-        ad_up_np = to_numpy(cone_angle_AD_up)
-        ad_low_np = to_numpy(cone_angle_AD_low)
-
-        avg_up = np.zeros(F)
-        avg_low = np.zeros(F)
-        ransac_up = np.zeros(F)
-        ransac_low = np.zeros(F)
-        lg_up  = np.zeros(F)
-        lg_low = np.zeros(F)
-
-
-        for i in range(F):
-            points = points_all_frames[i]
-            if len(points[0]) > 0 and len(points[1]) > 0:
-                uy, ux =  points[1][:,0], points[1][:,1]
-                ly, lx = points[0][:,0], points[0][:,1]
-                
-                # Shift y axis to center of the image
-                uy -= H//2
-                ly -= H//2
-
-                # 
-                ang_up = np.atan(uy/ux)*180.0/np.pi
-                ang_low = np.atan(ly/lx)*180.0/np.pi
-
-                avg_up[i] = np.nanmean(ang_up)
-                avg_low[i] = np.nanmean(ang_low)
-                cone_angle_average[i] = avg_up[i] - avg_low[i]
-
-                ransac_up[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0])*180.0/np.pi
-                ransac_low[i] = np.atan(ransac_fixed_intercept(lx, ly, 0)[0])*180.0/np.pi
-                cone_angle_ransac[i] = ransac_up[i] - ransac_low[i]
-
-                lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0))*180.0/np.pi
-                lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0))*180.0/np.pi
-                cone_angle_linear_regression[i] = lg_up[i] - lg_low[i]
-
-        print(f"Cone angle calculations completed in: {time.time() - start_time:.2f} seconds")
+        bw_video, bw_video_col_sum = binarize_single_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=lighting_unchanged_duration, hole_fill_mode="2D")
+        df_bw, boundary = processing_from_binarized_video(bw_video, bw_video_col_sum, timing=True)
+        penetration_old = df_bw["Penetration_from_BW"].to_numpy()
+        penetration_old_polar = df_bw["Penetration_from_BW_Polar"].to_numpy()
+        cone_angle_average = df_bw["Cone_Angle_Average"].to_numpy()
+        cone_angle_ransac = df_bw["Cone_Angle_RANSAC"].to_numpy()
+        cone_angle_linear_regression = df_bw["Cone_Angle_Linear_Regression"].to_numpy()
+        avg_up = df_bw["CA_Avg_Upper"].to_numpy()
+        avg_low = df_bw["CA_Avg_Lower"].to_numpy()
+        ransac_up = df_bw["CA_Ransac_Upper"].to_numpy()
+        ransac_low = df_bw["CA_Ransac_Lower"].to_numpy()
+        lg_up = df_bw["CA_LG_Upper"].to_numpy()
+        lg_low = df_bw["CA_LG_Lower"].to_numpy()
 
 
         plot_start = time.time()
@@ -290,7 +218,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
             import matplotlib.pyplot as plt
 
             from pathlib import Path
-            from OSCC_postprocessing.async_plot_saver import AsyncPlotSaver
+            from OSCC_postprocessing.io.async_plot_saver import AsyncPlotSaver
         except Exception as exc:  # pragma: no cover - plotting is optional
             print(f"Skipping comparison plots (matplotlib unavailable): {exc}")
         else:
@@ -351,29 +279,35 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         return out
 
     io_start = time.time()
-    df = pd.DataFrame({
-        "Frame": np.arange(F),
-        "Penetration_from_BW": _pad_series(penetration_old, F),
-        "Penetration_from_BW_Polar": _pad_series(penetration_old_polar, F),
-        "Penetration_from_TD": _pad_series(penetration_td[0], F),
-        "Cone_Angle_Angular_Density": _pad_series(cone_angle_AD, F),
-        "Cone_Angle_Average": _pad_series(cone_angle_average, F),
-        "Cone_Angle_RANSAC": _pad_series(cone_angle_ransac, F),
-        "Cone_Angle_Linear_Regression": _pad_series(cone_angle_linear_regression, F),
-        "Area": _pad_series(area, F),
-        "Estimated_Volume": _pad_series(estimated_volume, F),
-        "Estimated_Volume_Upper_limit": _pad_series(estimated_volume_max, F),
-        "Estimated_Volume_Lower_limit": _pad_series(estimated_volume_min, F),
-        "Hydraulic_Delay": _pad_series(hydraulic_delay * np.ones(F), F),
-        "CA_AD_Upper": _pad_series(cone_angle_AD_up, F),
-        "CA_AD_Lower": _pad_series(cone_angle_AD_low, F),
-        "CA_Avg_Upper": _pad_series(avg_up, F),
-        "CA_Avg_Lower": _pad_series(avg_low, F),
-        "CA_Ransac_Upper": _pad_series(ransac_up, F),
-        "CA_Ransac_Lower": _pad_series(ransac_low, F),
-        "CA_LG_Upper": _pad_series(lg_up, F),
-        "CA_LG_Lower": _pad_series(lg_low, F),
-    })
+    df = df_bw.copy()
+    df["Penetration_from_TD"] = _pad_series(penetration_td[0], F)
+    df["Cone_Angle_Angular_Density"] = _pad_series(cone_angle_AD, F)
+    df["Hydraulic_Delay"] = _pad_series(hydraulic_delay * np.ones(F), F)
+    df["CA_AD_Upper"] = _pad_series(cone_angle_AD_up, F)
+    df["CA_AD_Lower"] = _pad_series(cone_angle_AD_low, F)
+    df = df[[
+        "Frame",
+        "Penetration_from_BW",
+        "Penetration_from_BW_Polar",
+        "Penetration_from_TD",
+        "Cone_Angle_Angular_Density",
+        "Cone_Angle_Average",
+        "Cone_Angle_RANSAC",
+        "Cone_Angle_Linear_Regression",
+        "Area",
+        "Estimated_Volume",
+        "Estimated_Volume_Upper_limit",
+        "Estimated_Volume_Lower_limit",
+        "Hydraulic_Delay",
+        "CA_AD_Upper",
+        "CA_AD_Lower",
+        "CA_Avg_Upper",
+        "CA_Avg_Lower",
+        "CA_Ransac_Upper",
+        "CA_Ransac_Lower",
+        "CA_LG_Upper",
+        "CA_LG_Lower",
+    ]]
     df.to_csv(data_dir / f"{file_name}_metrics.csv")
 
     # usage
@@ -387,3 +321,4 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
     # playing to check 
 
         
+

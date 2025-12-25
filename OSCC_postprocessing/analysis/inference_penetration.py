@@ -13,7 +13,7 @@ Key conventions
 
 Typical usage
 -------------
-from OSCC_postprocessing.inference_penetration import (
+from OSCC_postprocessing.analysis.inference_penetration import (
     load_run, frames_to_time, predict_time_range
 )
 run = load_run(r"runs_mlp/penetration_frame")
@@ -216,3 +216,4 @@ def predict_time_range(run: Dict[str, Any], params: Dict[str, float], *,
     elif output_space != "corrected":
         raise ValueError("output_space must be 'corrected' or 'projected'")
     return {"time_s": time_s, "mean": Y[:, 0], "std": Y[:, 1]}
+

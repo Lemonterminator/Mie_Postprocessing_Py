@@ -6,9 +6,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from OSCC_postprocessing import *
-from OSCC_postprocessing.functions_videos import *
-from OSCC_postprocessing.video_playback import *
-from OSCC_postprocessing.rotate_with_alignment import * 
+from OSCC_postprocessing.cine.functions_videos import *
+from OSCC_postprocessing.playback.video_playback import *
+from OSCC_postprocessing.rotation.rotate_with_alignment import * 
 
 cfg = {
   "plumes": 4,
@@ -69,6 +69,7 @@ flows = compute_farneback_flows(video_float, levels=10)
 flows_scalar = flows[:, 0, :, :]**2 + flows[:, 1, :, :]**2
 flows_scalar = np.sqrt(flows_scalar)
 play_video_cv2(flows_scalar)
+
 
 
 

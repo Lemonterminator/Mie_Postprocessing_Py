@@ -12,11 +12,11 @@ from typing import Optional
 import numpy as np
 from PIL import Image, ImageOps
 
-from OSCC_postprocessing.cine_utils import CineReader
-from OSCC_postprocessing.circ_calculator import calc_circle
-from OSCC_postprocessing.cone_angle import angle_signal_density, plot_angle_signal_density
-from OSCC_postprocessing.functions_videos import video_histogram_with_contour
-from OSCC_postprocessing.zoom_utils import enlarge_image
+from OSCC_postprocessing.cine.cine_utils import CineReader
+from OSCC_postprocessing.analysis.circ_calculator import calc_circle
+from OSCC_postprocessing.analysis.cone_angle import angle_signal_density, plot_angle_signal_density
+from OSCC_postprocessing.cine.functions_videos import video_histogram_with_contour
+from OSCC_postprocessing.utils.zoom_utils import enlarge_image
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -1199,3 +1199,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

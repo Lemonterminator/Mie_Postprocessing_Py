@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from OSCC_postprocessing.inference_penetration_hetero import (
+from OSCC_postprocessing.analysis.inference_penetration_hetero import (
     load_run as load_hetero_run,
     predict_time_range,
 )
@@ -247,3 +247,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = HeteroPenetrationGUI(root)
     root.mainloop()
+

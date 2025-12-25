@@ -30,17 +30,17 @@ except Exception:
     Axes = object  # type: ignore[assignment]
     Figure = object  # type: ignore[assignment]
 from singlehole_pipeline import singlehole_pipeline
-from OSCC_postprocessing.functions_bw import keep_largest_component
-from OSCC_postprocessing.functions_videos import load_cine_video
-from OSCC_postprocessing.optical_flow import compute_farneback_flows
-from OSCC_postprocessing.video_filters import gaussian_video_cpu, median_filter_video_auto
-from OSCC_postprocessing.video_playback import play_video_cv2, play_videos_side_by_side
+from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component
+from OSCC_postprocessing.cine.functions_videos import load_cine_video
+from OSCC_postprocessing.motion.optical_flow import compute_farneback_flows
+from OSCC_postprocessing.filters.video_filters import gaussian_video_cpu, median_filter_video_auto
+from OSCC_postprocessing.playback.video_playback import play_video_cv2, play_videos_side_by_side
 from mie_multihole_pipeline import mie_multihole_pipeline
-from OSCC_postprocessing.svd_background_removal import (
+from OSCC_postprocessing.filters.svd_background_removal import (
     svd_foreground_cuda as svd_foreground,
     godec_like,
 )
-from OSCC_postprocessing.Dewe.dewe import *
+from OSCC_postprocessing.cine.dewe.dewe import *
 
 ##########################################
 # Manual inputs
@@ -281,3 +281,4 @@ else:
                 fig_main.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_main.png", dpi=200)
             if fig_current is not None:
                 fig_current.savefig(plots_dir_Dewe / f"comparison_{comparison_set}_current.png", dpi=200)
+

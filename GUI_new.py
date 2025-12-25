@@ -35,7 +35,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
 )
 
-from OSCC_postprocessing.cine_utils import CineReader
+from OSCC_postprocessing.cine.cine_utils import CineReader
 
 
 class ImageView(QGraphicsView):
@@ -462,3 +462,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

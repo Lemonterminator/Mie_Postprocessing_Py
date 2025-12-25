@@ -2,13 +2,13 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from OSCC_postprocessing.functions_videos import *
-from OSCC_postprocessing.rotate_crop import *
-from OSCC_postprocessing.cone_angle import *
-from OSCC_postprocessing.ssim import *
-from OSCC_postprocessing.video_filters import *
-from OSCC_postprocessing.functions_bw import *
-from OSCC_postprocessing.video_playback import *
+from OSCC_postprocessing.cine.functions_videos import *
+from OSCC_postprocessing.rotation.rotate_crop import *
+from OSCC_postprocessing.analysis.cone_angle import *
+from OSCC_postprocessing.metrics.ssim import *
+from OSCC_postprocessing.filters.video_filters import *
+from OSCC_postprocessing.binary_ops.functions_bw import *
+from OSCC_postprocessing.playback.video_playback import *
 from mie_multihole_pipeline import *
 
 # from sklearn.preprocessing import normalize
@@ -1082,3 +1082,4 @@ if __name__  == '__main__':
     # pipeline_mie()
     schlieren()
     # OH()
+

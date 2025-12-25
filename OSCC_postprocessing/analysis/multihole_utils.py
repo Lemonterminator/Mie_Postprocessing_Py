@@ -13,14 +13,14 @@ from typing import Any, Tuple
 
 import numpy as np
 
-from OSCC_postprocessing.video_filters import median_filter_video_auto
-from OSCC_postprocessing.functions_bw import (
+from OSCC_postprocessing.filters.video_filters import median_filter_video_auto
+from OSCC_postprocessing.binary_ops.functions_bw import (
     triangle_binarize_from_float,
     keep_largest_component,
     keep_largest_component_cuda,
     penetration_bw_to_index,
 )
-from OSCC_postprocessing.rotate_crop import rotate_all_segments_auto
+from OSCC_postprocessing.rotation.rotate_crop import rotate_all_segments_auto
 
 
 def _get_cupy():
@@ -552,3 +552,4 @@ def estimate_offset_from_fft(signal, number_of_plumes: int):
     offset %= 360.0
     offset = min(offset, offset - 360, key=abs)
     return offset
+

@@ -11,6 +11,7 @@ pip install -e .
 Then import modules, e.g.:
 
 ```
-from OSCC_postprocessing.async_plot_saver import AsyncPlotSaver
+from OSCC_postprocessing.io.async_plot_saver import AsyncPlotSaver
 ```
+
 
