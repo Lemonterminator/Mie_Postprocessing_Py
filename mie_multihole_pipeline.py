@@ -26,6 +26,7 @@ from OSCC_postprocessing.analysis.single_plume import (
     pre_processing_mie,
 )
 
+from OSCC_postprocessing.rotate_with_alignment import rotate_video_nozzle_at_0_half_cupy
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Default nozzle radii (pixels)
@@ -75,7 +76,7 @@ def mie_multihole_pipeline(
     '''
     
     video = xp.asarray(video)
-    foreground = pre_processing_mie(video)
+    foreground = pre_processing_mie(video, division=False)
     px_range_mask = foreground[0]==0.0
 
     bins = 3600
@@ -104,6 +105,22 @@ def mie_multihole_pipeline(
         region_mask=plume_mask,
         xp=xp,
     )
+    F, H, W = video.shape
+    segments = []
+    INTERPOLATION = "nearest"
+    BORDER_MODE = "constant"
+    OUT_SHAPE = (H // 4, W//2)
+
+    for idx, angle in enumerate(angles):
+        segment, _, _ = rotate_video_nozzle_at_0_half_cupy(
+                video,
+                centre,
+                angle,
+                interpolation=INTERPOLATION,
+                border_mode=BORDER_MODE,
+                out_shape=OUT_SHAPE,
+            )
+        segments.append(segment)
 
     elapsed = time.time() - start_time
     print(f"Computing all rotated segments finished in {elapsed:.2f} seconds.")

@@ -741,24 +741,37 @@ def mask_angle(video, angle_allowed_deg):
     return mask_video(video, mask_2d), mask_2d, width
 
 
-def pre_processing_mie(video):
+def pre_processing_mie(video, division=True):
+    '''
     bilateral_filtered = bilateral_filter_video_volumetric_chunked_halo(
         video, (3, 5, 5), 3, 3
     )
+    '''
+
+    bilateral_filtered = bilateral_filter_video_cupy(video, 7, 3, 3)
+
+    
 
     bkg = bilateral_filtered[0]
     bkg[bkg == 0] = 1e-9
     bkg[bkg == cp.nan] = 1e-9
-    div_bkg = _min_max_scale(bilateral_filtered * ((1.0 / bkg)[None, :, :]))
-    sub_div_bkg = div_bkg - div_bkg[0][None, :, :]
+    if division:
+        # divide by first frame and subracted backgrounde
+        div_bkg = _min_max_scale(bilateral_filtered * ((1.0 / bkg)[None, :, :]))
+        foreground = div_bkg - div_bkg[0][None, :, :]
+        px_range_map = cp.max(foreground, axis=0) - cp.min(foreground, axis=0)
+    else:
+        # subtrated background if not local lighting correction
+        foreground = bilateral_filtered - bilateral_filtered[0][None, :, :]
+        px_range_map = cp.max(foreground, axis=0) - cp.min(foreground, axis=0)
 
-    px_range_map = cp.max(sub_div_bkg, axis=0) - cp.min(sub_div_bkg, axis=0)
+
     mask, _ = triangle_binarize_from_float(px_range_map.get())
     mask = keep_largest_component(mask)
     mask = binary_fill_holes(mask)
     mask = cp.asarray(mask)
 
-    return (mask)[None, :, :] * sub_div_bkg
+    return (mask)[None, :, :] * foreground
 
 
 def save_boundary_csv(boundary, out_csv, origin=(0, 0)):
