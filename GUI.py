@@ -11,6 +11,7 @@ from typing import Optional
 
 import numpy as np
 from PIL import Image, ImageOps
+from pathlib import Path
 
 from OSCC_postprocessing.cine.cine_utils import CineReader
 from OSCC_postprocessing.analysis.circ_calculator import calc_circle
@@ -453,6 +454,7 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self._build_content(root)
         self._set_controls_enabled(False)
         self._update_calib_button()
+        self.file_name = ""
 
     def _build_controls(self, root_layout: QtWidgets.QVBoxLayout):
         panel = QtWidgets.QWidget()
@@ -700,6 +702,7 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self.mask = np.zeros((self.reader.height, self.reader.width), dtype=np.uint8)
         self._set_controls_enabled(True)
         self.update_image(compute_global=False)
+        self.file_name = Path(path).name
 
     def prev_frame(self):
         if self.current_index > 0:

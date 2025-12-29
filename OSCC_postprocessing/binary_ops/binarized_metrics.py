@@ -2,16 +2,14 @@ import time
 import numpy as np
 import pandas as pd
 
-from OSCC_postprocessing.binary_ops.functions_bw import (
+from OSCC_postprocessing.analysis.single_plume import (
     bw_boundaries_all_points_single_plume,
     bw_boundaries_xband_filter_single_plume,
-    penetration_bw_to_index,
-)
-from OSCC_postprocessing.analysis.single_plume import (
     linear_regression_fixed_intercept,
     ransac_fixed_intercept,
     to_numpy,
 )
+from OSCC_postprocessing.binary_ops.functions_bw import penetration_bw_to_index
 
 
 def processing_from_binarized_video(bw_video, bw_video_col_sum=None, timing=True):

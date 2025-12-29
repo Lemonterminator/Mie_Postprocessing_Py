@@ -154,7 +154,11 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         # Time-distance intensity based penetration
         td_start = time.time()
         if TD_sum_interval > 0.0 and TD_sum_interval < 1.0:
-            foreground_col_sum = cp.sum(foreground[H//2- H*TD_sum_interval//2 : H//2 + H*TD_sum_interval//2], axis=1) 
+            half_band = int(H * TD_sum_interval / 2)
+            foreground_col_sum = cp.sum(
+                foreground[H // 2 - half_band : H // 2 + half_band],
+                axis=1,
+            )
         else:
             foreground_col_sum = cp.sum(foreground, axis=1)
         foreground_energy = cp.sum(foreground_col_sum, axis=1)
@@ -196,7 +200,13 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
 
         # binarizin the video
         # Note: bw_vid_col_sum is the column wise sum 
-        bw_video, bw_video_col_sum = binarize_single_plume_video(foreground, hydraulic_delay, lighting_unchanged_duration=lighting_unchanged_duration, hole_fill_mode="2D")
+        bw_video, _ = binarize_single_plume_video(
+            foreground,
+            hydraulic_delay,
+            lighting_unchanged_duration=lighting_unchanged_duration,
+            hole_fill_mode="2D",
+        )
+        bw_video_col_sum = np.sum(bw_video, axis=1)
         df_bw, boundary = processing_from_binarized_video(bw_video, bw_video_col_sum, timing=True)
         penetration_old = df_bw["Penetration_from_BW"].to_numpy()
         penetration_old_polar = df_bw["Penetration_from_BW_Polar"].to_numpy()

@@ -3,7 +3,11 @@ from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.filters.video_filters import median_filter_video_auto, sobel_5x5_kernels, filter_video_fft
 from OSCC_postprocessing.filters.svd_background_removal import godec_like
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.filters.bilateral_filter import bilateral_filter_video_volumetric_chunked_halo
+from OSCC_postprocessing.filters.bilateral_filter import (
+    bilateral_filter_video_cpu,
+    bilateral_filter_video_cupy,
+    bilateral_filter_video_volumetric_chunked_halo,
+)
 from OSCC_postprocessing.io.async_avi_saver import AsyncAVISaver
 import numpy as np
 import scipy.ndimage as ndi
@@ -748,7 +752,10 @@ def pre_processing_mie(video, division=True):
     )
     '''
 
-    bilateral_filtered = bilateral_filter_video_cupy(video, 7, 3, 3)
+    if USING_CUPY:
+        bilateral_filtered = bilateral_filter_video_cupy(video, 7, 3, 3)
+    else:
+        bilateral_filtered = bilateral_filter_video_cpu(np.asarray(video), 7, 3, 3)
 
     
 
@@ -766,7 +773,7 @@ def pre_processing_mie(video, division=True):
         px_range_map = cp.max(foreground, axis=0) - cp.min(foreground, axis=0)
 
 
-    mask, _ = triangle_binarize_from_float(px_range_map.get())
+    mask, _ = triangle_binarize_from_float(to_numpy(px_range_map))
     mask = keep_largest_component(mask)
     mask = binary_fill_holes(mask)
     mask = cp.asarray(mask)

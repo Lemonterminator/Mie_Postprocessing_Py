@@ -26,7 +26,9 @@ from OSCC_postprocessing.analysis.single_plume import (
     pre_processing_mie,
 )
 
-from OSCC_postprocessing.rotate_with_alignment import rotate_video_nozzle_at_0_half_cupy
+from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
+    rotate_video_nozzle_at_0_half_numpy,
+)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Default nozzle radii (pixels)
@@ -59,6 +61,12 @@ def mie_multihole_pipeline(
     hydraulic_delay_estimate = 15
 
     use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
+    if use_gpu:
+        from OSCC_postprocessing.rotation.rotate_with_alignment import (
+            rotate_video_nozzle_at_0_half_cupy as rotate_video_nozzle_at_0_half_backend,
+        )
+    else:
+        rotate_video_nozzle_at_0_half_backend = rotate_video_nozzle_at_0_half_numpy
 
     '''
     foreground, px_range_mask = preprocess_multihole(
@@ -112,7 +120,7 @@ def mie_multihole_pipeline(
     OUT_SHAPE = (H // 4, W//2)
 
     for idx, angle in enumerate(angles):
-        segment, _, _ = rotate_video_nozzle_at_0_half_cupy(
+        segment, _, _ = rotate_video_nozzle_at_0_half_backend(
                 video,
                 centre,
                 angle,
