@@ -126,6 +126,44 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
     if mode == "Schlieren": 
         filtered = filter_schlieren(rotated, shock_wave_duration)
 
+    if mode == "Luminescence":
+                # hydraulic_delay = 15
+        
+        # filter_mie(rotated)
+        # segments, penetration, cone_angle_AngularDensity  = filter_mie(rotated)
+        # filtered = segments[0]
+
+        # Enhancing the foreground
+        start_time = time.time()
+        foreground = pre_processing_mie(rotated)
+        print(f"Pre-processing finished in: {time.time() - start_time:.2f} seconds")
+        F, H, W = foreground.shape  # dimensions after rotation/cropping
+        
+        if save_intermediate_results:
+            # Save the Foreground video asynchronously
+            AsyncNPZSaver().save(data_dir / f"{file_name}_foreground.npz", foreground=to_numpy(foreground))
+            
+            f2 = avi_saver.save(
+                data_dir / f"{file_name}_foreground.avi",
+                to_numpy(foreground),
+                fps=FPS,
+                is_color=False,
+                auto_normalize=True,
+            )
+
+        # Time-distance intensity based penetration
+        td_start = time.time()
+        if TD_sum_interval > 0.0 and TD_sum_interval < 1.0:
+            half_band = int(H * TD_sum_interval / 2)
+            foreground_col_sum = cp.sum(
+                foreground[H // 2 - half_band : H // 2 + half_band],
+                axis=1,
+            )
+        else:
+            foreground_col_sum = cp.sum(foreground, axis=1)
+        foreground_energy = cp.sum(foreground_col_sum, axis=1)
+        
+
     if mode == "Mie":
         # hydraulic_delay = 15
         

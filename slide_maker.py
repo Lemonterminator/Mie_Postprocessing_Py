@@ -109,8 +109,6 @@ def _load_metadata(files: Iterable[Path]) -> tuple[int, float, tuple[float, floa
     )
 
 
-
-
 # Processing Schlieren Cine Videos
 if not SCH_dir_path.exists():
     raise FileNotFoundError(f"Data dir not found: {SCH_dir_path}")
@@ -142,6 +140,37 @@ elif SCH_dir_path != Path("") and SCH_dir_path.exists():
                                     FPS=20)
         '''
     
+
+
+# Processing Luminescence Cine Videos
+if not Luminescence_dir_path.exists():
+    raise FileNotFoundError(f"Data dir not found: {Luminescence_dir_path}")
+
+elif Luminescence_dir_path != Path("") and Luminescence_dir_path.exists():
+    save_dir_luminescence = Luminescence_dir_path / "Processed_Results"
+    save_dir_luminescence.mkdir(exist_ok=True)
+
+    rotated_dir_luminescence = save_dir_luminescence / "Rotated_Videos"
+    rotated_dir_luminescence.mkdir(exist_ok=True)
+
+    data_dir_luminescence = save_dir_luminescence / "Postprocessed_Data"
+    data_dir_luminescence.mkdir(exist_ok=True)
+
+    files = list(_iter_files(Luminescence_dir_path))
+    _, offset, centre = _load_metadata(files)
+
+    cine_files = [f for f in files if f.suffix.lower() == ".cine"]
+    if not cine_files:
+        raise FileNotFoundError(f"No .cine files found in {Luminescence_dir_path}")
+
+    for cine_file in cine_files:
+        print(str(cine_file.name))
+        video = load_cine_video(str(cine_file)).astype(np.float32) / 4096.0
+
+        singlehole_pipeline("Luminescence", video, offset, centre, cine_file.name, 
+                            rotated_dir_luminescence, data_dir_luminescence,
+                            save_intermediate_results=save_intermediate_results,
+                            FPS=20)
 
 
 if not Mie_dir_path.exists():
