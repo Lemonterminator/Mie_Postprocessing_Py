@@ -33,8 +33,12 @@ global video_name
 global ir_ 
 global or_
 
+
+
 # Define the parent folder and other global variables
 parent_folder = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\cine"
+res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
+rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
 DATA_DIR = Path(r"D:\OSCC\mask_meth")
 
 chamber_mask_path = DATA_DIR / "chamber_mask.npy"
@@ -105,11 +109,13 @@ async def main():
             except FileExistsError:
                 print(f"Directory {save_path_subfolder} already exists. Using existing directory.")
 
+
             # Get a list of all files in the directory
             files = [file for file in directory_path.iterdir() if file.is_file()]
             files = sorted(files, key=numeric_then_alpha_key)  
 
             for file in files:
+                # Find and read config.json
                 if file.name == 'config.json':
                     with open(file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
@@ -118,8 +124,15 @@ async def main():
                         # for item in data:
                             # print(item)
                         number_of_plumes = int(data['plumes'])
-                        offset = float(data['offset'])
+                        # offset = float(data['offset']) # Not used in mie_multihole_pipeline
                         centre = (float(data['centre_x']), float(data['centre_y']))
+
+                        ir_ = float(data['inner_radius'])
+                        or_ = float(data['outer_radius'])
+                        
+
+
+
 
             # print(files)
             for file in files:
@@ -149,7 +162,15 @@ async def main():
 
                         
                         segments, penetration, cone_angle_AngularDensity, bw_vids, boundaries, penetration_old = mie_multihole_pipeline(
-                            video, centre, number_of_plumes, 
+                            video, 
+                            centre,
+                            ir_,
+                            or_, 
+                            number_of_plumes,
+                            file.parts[-2] + "_" + file.stem,
+                            rotated_vid_dir,
+                            res_dir,
+
                             gamma=gamma, 
                             binarize_video=False, 
                             plot_on=False

@@ -16,6 +16,7 @@ from OSCC_postprocessing.analysis.single_plume import (
     binarize_single_plume_video,
     bw_boundaries_all_points_single_plume,
     bw_boundaries_xband_filter_single_plume,
+    estimate_nozzle_opening_duration,
     filter_schlieren,
     linear_regression_fixed_intercept,
     penetration_bw_to_index,
@@ -28,6 +29,9 @@ from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
 from OSCC_postprocessing.binary_ops.binarized_metrics import processing_from_binarized_video
 import pandas as pd
 
+from cupyx.scipy import ndimage as cndimage
+from scipy.signal import savgol_coeffs
+
 
 from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,
@@ -35,7 +39,7 @@ from OSCC_postprocessing.analysis.multihole_utils import (
     rotate_segments_with_masks,
     compute_td_intensity_maps,
     estimate_peak_brightness_frames,
-    estimate_hydraulic_delay,
+    estimate_hydraulic_delay_segments,
     compute_penetration_profiles,
     clean_penetration_profiles,
     binarize_plume_videos,
@@ -58,7 +62,10 @@ else:
 def singlehole_pipeline(mode, video, offset, centre, file_name, 
                                   rotated_vid_dir, data_dir, 
                                   save_intermediate_results=True,
-                                  FPS=20, lighting_unchanged_duration=50, TD_sum_interval=0.5
+                                  saved_video_FPS=20,
+                                  start_frame=15, 
+                                  lighting_unchanged_duration=50, 
+                                  TD_sum_interval=0.5
                                   ):
     F, H, W = video.shape
     shock_wave_duration = 50
@@ -118,7 +125,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         f1 = avi_saver.save(
             rotated_vid_dir / f"{file_name}_rotated.avi",
             to_numpy(rotated),
-            fps=FPS,
+            fps=saved_video_FPS,
             is_color=False,
             auto_normalize=True,
         )
@@ -146,7 +153,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
             f2 = avi_saver.save(
                 data_dir / f"{file_name}_foreground.avi",
                 to_numpy(foreground),
-                fps=FPS,
+                fps=saved_video_FPS,
                 is_color=False,
                 auto_normalize=True,
             )
@@ -184,7 +191,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
             f2 = avi_saver.save(
                 data_dir / f"{file_name}_foreground.avi",
                 to_numpy(foreground),
-                fps=FPS,
+                fps=saved_video_FPS,
                 is_color=False,
                 auto_normalize=True,
             )
@@ -203,7 +210,23 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
 
         # Find the frame with the brightest near-nozzle region to estimate hydraulic delay
         _, peak_idx, _ = estimate_peak_brightness_frames(foreground, use_gpu=True)
-        hydraulic_delay = estimate_hydraulic_delay(foreground[None, :, :, :], peak_idx, use_gpu=True)[0]
+        # hydraulic_delay = estimate_hydraulic_delay_segments(foreground[None, :, :, :], peak_idx, use_gpu=True)[0]
+        
+        # hydraulic_delay, nozzle_closing = estimate_nozzle_opening_duration(foreground, start_frame=start_frame, stop_frame=peak_idx)
+        
+        near_nozzle_avg_intensity = estimate_nozzle_opening_duration(foreground)
+        
+
+        # SG filter to smooth the intensity curve
+        
+        coeff = savgol_coeffs(10, 5, deriv=1, delta=1, use='conv')
+        if USING_CUPY:
+            coeff_gpu = cp.asarray(coeff, dtype=near_nozzle_avg_intensity.dtype)
+            # 3) GPU上做1D卷积
+            # convolve1d 会沿 axis 做一维卷积
+            y_gpu = cndimage.convolve1d(near_nozzle_avg_intensity, coeff_gpu)
+            hydraulic_delay = (y_gpu > 1e-2).argmax()
+
 
         penetration_td = compute_penetration_profiles(
             foreground_col_sum[None, :, :],
@@ -246,6 +269,7 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
         )
         bw_video_col_sum = np.sum(bw_video, axis=1)
         df_bw, boundary = processing_from_binarized_video(bw_video, bw_video_col_sum, timing=True)
+        
         penetration_old = df_bw["Penetration_from_BW"].to_numpy()
         penetration_old_polar = df_bw["Penetration_from_BW_Polar"].to_numpy()
         cone_angle_average = df_bw["Cone_Angle_Average"].to_numpy()
@@ -316,53 +340,53 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
             plot_saver.shutdown(wait=True)
             print(f"Plot generation completed in: {time.time() - plot_start:.2f} seconds")
 
-    def _pad_series(values, length):
-        arr = np.asarray(to_numpy(values)).ravel()
-        if arr.size == length:
-            return arr
-        if arr.size > length:
-            return arr[:length]
-        out = np.full(length, np.nan, dtype=arr.dtype if arr.size else np.float32)
-        out[: arr.size] = arr
-        return out
+        def _pad_series(values, length):
+            arr = np.asarray(to_numpy(values)).ravel()
+            if arr.size == length:
+                return arr
+            if arr.size > length:
+                return arr[:length]
+            out = np.full(length, np.nan, dtype=arr.dtype if arr.size else np.float32)
+            out[: arr.size] = arr
+            return out
 
-    io_start = time.time()
-    df = df_bw.copy()
-    df["Penetration_from_TD"] = _pad_series(penetration_td[0], F)
-    df["Cone_Angle_Angular_Density"] = _pad_series(cone_angle_AD, F)
-    df["Hydraulic_Delay"] = _pad_series(hydraulic_delay * np.ones(F), F)
-    df["CA_AD_Upper"] = _pad_series(cone_angle_AD_up, F)
-    df["CA_AD_Lower"] = _pad_series(cone_angle_AD_low, F)
-    df = df[[
-        "Frame",
-        "Penetration_from_BW",
-        "Penetration_from_BW_Polar",
-        "Penetration_from_TD",
-        "Cone_Angle_Angular_Density",
-        "Cone_Angle_Average",
-        "Cone_Angle_RANSAC",
-        "Cone_Angle_Linear_Regression",
-        "Area",
-        "Estimated_Volume",
-        "Estimated_Volume_Upper_limit",
-        "Estimated_Volume_Lower_limit",
-        "Hydraulic_Delay",
-        "CA_AD_Upper",
-        "CA_AD_Lower",
-        "CA_Avg_Upper",
-        "CA_Avg_Lower",
-        "CA_Ransac_Upper",
-        "CA_Ransac_Lower",
-        "CA_LG_Upper",
-        "CA_LG_Lower",
-    ]]
-    df.to_csv(data_dir / f"{file_name}_metrics.csv")
+        io_start = time.time()
+        df = df_bw.copy()
+        df["Penetration_from_TD"] = _pad_series(penetration_td[0], F)
+        df["Cone_Angle_Angular_Density"] = _pad_series(cone_angle_AD, F)
+        df["Hydraulic_Delay"] = _pad_series(hydraulic_delay * np.ones(F), F)
+        df["CA_AD_Upper"] = _pad_series(cone_angle_AD_up, F)
+        df["CA_AD_Lower"] = _pad_series(cone_angle_AD_low, F)
+        df = df[[
+            "Frame",
+            "Penetration_from_BW",
+            "Penetration_from_BW_Polar",
+            "Penetration_from_TD",
+            "Cone_Angle_Angular_Density",
+            "Cone_Angle_Average",
+            "Cone_Angle_RANSAC",
+            "Cone_Angle_Linear_Regression",
+            "Area",
+            "Estimated_Volume",
+            "Estimated_Volume_Upper_limit",
+            "Estimated_Volume_Lower_limit",
+            "Hydraulic_Delay",
+            "CA_AD_Upper",
+            "CA_AD_Lower",
+            "CA_Avg_Upper",
+            "CA_Avg_Lower",
+            "CA_Ransac_Upper",
+            "CA_Ransac_Lower",
+            "CA_LG_Upper",
+            "CA_LG_Lower",
+        ]]
+        df.to_csv(data_dir / f"{file_name}_metrics.csv")
 
-    # usage
-    save_boundary_csv(boundary, data_dir / f"{file_name}_boundary_points.csv", origin=(0,H//2))
-    print(f"Metrics + boundary CSV completed in: {time.time() - io_start:.2f} seconds")
-    
-    
+        # usage
+        save_boundary_csv(boundary, data_dir / f"{file_name}_boundary_points.csv", origin=(0,H//2))
+        print(f"Metrics + boundary CSV completed in: {time.time() - io_start:.2f} seconds")
+        
+        
     
     avi_saver.wait()
     avi_saver.shutdown()

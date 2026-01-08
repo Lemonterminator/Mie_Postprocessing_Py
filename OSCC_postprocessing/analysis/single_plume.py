@@ -430,6 +430,53 @@ def linear_regression_fixed_intercept(x, y, b0):
     a = numerator / denominator
     return a
 
+def estimate_nozzle_opening_duration(
+        video, 
+        use_gpu: bool=True, 
+        up_thres=0.1, down_thres=0.1,
+        start_frame=0, stop_frame=None, 
+        width=0.1, height = 0.1
+        ):
+    """
+    Hydraulic delay from a near-nozzle ROI derivative.
+    Nozzle is assumed to be at position (H//2, 0)
+    """
+    F, H, W = video.shape
+    assert video.ndim == 3, "video must be (F, H, W)"
+    xp = _get_cupy() if use_gpu else np
+    if use_gpu and xp is None:
+        xp = np
+        use_gpu = False
+
+    # rows = video.shape[1]
+    # cols = video.shape[2]
+    if stop_frame is None:
+        stop_frame = video.shape[0]
+    
+    H_low = np.clip(0, round(H // 2 - H*height //2), H)
+
+    H_high = np.clip(0, round(H // 2 + H*height //2), H)
+
+    W_right = round(W *width)
+
+    near_nozzle_avg_intensity = xp.sum(video[start_frame:stop_frame, H_low:H_high, :W_right], axis=(1,2)) / ((H_high - H_low)*W_right)
+    '''
+    dE = xp.diff(near_nozzle_avg_intensity) # first-order difference along time
+
+    hydraulic_delay = (dE > up_thres).argmax()
+    
+    hydraulic_delay = hydraulic_delay.get() if use_gpu else hydraulic_delay
+
+    nozzle_closing = (dE < down_thres).argmax()
+    nozzle_closing = nozzle_closing.get() if use_gpu else nozzle_closing
+    
+    return hydraulic_delay, nozzle_closing
+    '''
+    res = xp.zeros(F)
+    res[start_frame:stop_frame] = near_nozzle_avg_intensity
+    return res    
+
+
 def binarize_single_plume_video(
     video,
     hydraulic_delay,
