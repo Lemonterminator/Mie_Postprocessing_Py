@@ -1,5 +1,6 @@
 import time
 import warnings
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +14,7 @@ from OSCC_postprocessing.analysis.multihole_utils import (
     rotate_segments_with_masks,
     compute_td_intensity_maps,
     estimate_peak_brightness_frames,
-    estimate_hydraulic_delay,
+    estimate_hydraulic_delay_segments,
     compute_penetration_profiles,
     clean_penetration_profiles,
     binarize_plume_videos,
@@ -68,7 +69,7 @@ from OSCC_postprocessing.analysis.multihole_utils import (
     rotate_segments_with_masks,
     compute_td_intensity_maps,
     estimate_peak_brightness_frames,
-    estimate_hydraulic_delay,
+    estimate_hydraulic_delay_segments,
     compute_penetration_profiles,
     clean_penetration_profiles,
     binarize_plume_videos,
@@ -93,23 +94,25 @@ global lower
 global upper
 global ir_
 global or_
-ir_ = 14
-or_ = 380
-lower = 0
-upper = 366
+# ir_ = 14
+# or_ = 380
+# lower = 0
+# upper = 366
 
 def mie_multihole_pipeline(
     video,
     centre,
+    ir_,
+    or_, 
     number_of_plumes,
-    *,
+    file_name,
+    rotated_vid_dir, 
+    data_dir,
     gamma=1.0,
     binarize_video=False,
     plot_on=False,
-    solver="Fast",
-    file_name,
-    rotated_vid_dir, 
-    data_dir, 
+    solver="Slow",
+
     save_rotated_videos=False,
     FPS=20, 
     lighting_unchanged_duration=50, 
@@ -191,8 +194,9 @@ def mie_multihole_pipeline(
 
     for idx, angle in enumerate(angles):
         segment, _, _ = rotate_video_nozzle_at_0_half_backend(
-                video,
-                centre, # (nozzle_x, nozzle_y) # change to centre_x + cos(angle) * r, centre_y + sin(angle) * r
+                foreground,
+                # centre, # (nozzle_x, nozzle_y) # change to centre_x + cos(angle) * r, centre_y + sin(angle) * r
+                (centre_x + np.cos(angle/180.0*np.pi) * ir_, centre_y + np.sin(angle/180.0*np.pi) * ir_),
                 angle,
                 interpolation=INTERPOLATION,
                 border_mode=BORDER_MODE,
@@ -201,12 +205,14 @@ def mie_multihole_pipeline(
         segments.append(segment)
     # TODO: Check bugs 
     segments = xp.stack(segments, axis=0)  # (P, F, H, W)
-    
-    plume_mask = generate_plume_mask(ir_, or_, segments[2], segments[3])
 
-    range_masks = plume_mask[None, :, :]
+    # plume_mask = generate_plume_mask(ir_, or_, segments.shape[2], segments.shape[3])
+    plume_mask = generate_plume_mask(ir_, or_, segments.shape[3], segments.shape[2])
+
+    range_masks = plume_mask[None, None, :, :]
 
     elapsed = time.time() - start_time
+    segments = cp.asarray(range_masks )* segments
     print(f"Computing all rotated segments finished in {elapsed:.2f} seconds.")
 
     if solver == "Fast":
@@ -218,7 +224,7 @@ def mie_multihole_pipeline(
             return None, None, None, None, None, None
 
         _, avg_peak, peak_frames_host = estimate_peak_brightness_frames(energies, use_gpu)
-        hydraulic_delay = estimate_hydraulic_delay(segments, avg_peak, use_gpu)
+        hydraulic_delay = estimate_hydraulic_delay_segments(segments, avg_peak, use_gpu)
         print(f"Vectorized TD-Intensity Heatmaps completed in {time.time() - start_time:.2f}s")
 
 
@@ -312,7 +318,21 @@ def mie_multihole_pipeline(
         return segments_np, penetration, cone_angle_AngularDensity, bw_vids, boundaries, penetration_old
 
     elif solver == "Slow":
+        P, F, H, W = segments.shape
+        penetration_td_all = np.full((P, F), np.nan, dtype=np.float32)
+        cone_angle_ad_all = np.full((P, F), np.nan, dtype=np.float32)
+
+        def _pad_series(values, length):
+            arr = np.asarray(to_numpy(values)).ravel()
+            if arr.size == length:
+                return arr
+            if arr.size > length:
+                return arr[:length]
+            out = np.full(length, np.nan, dtype=arr.dtype if arr.size else np.float32)
+            out[: arr.size] = arr
+            return out
         for idx, foreground in enumerate(segments):
+            foreground = foreground
             if save_rotated_videos:
                 avi_saver = AsyncAVISaver(max_workers=4)
                 # Save the Foreground video asynchronously
@@ -340,13 +360,27 @@ def mie_multihole_pipeline(
 
             # Find the frame with the brightest near-nozzle region to estimate hydraulic delay
             _, peak_idx, _ = estimate_peak_brightness_frames(foreground, use_gpu=True)
-            hydraulic_delay = estimate_hydraulic_delay(foreground[None, :, :, :], peak_idx, use_gpu=True)[0]
+            hydraulic_delay = estimate_hydraulic_delay_segments(foreground[None, :, :, :], peak_idx, use_gpu=True)
+            if USING_CUPY:
+                hydraulic_delay_arr = cp.asarray(hydraulic_delay, dtype=cp.int32)
+                if hydraulic_delay_arr.ndim == 0:
+                    hydraulic_delay_arr = hydraulic_delay_arr[None]
+                peak_idx_arr = cp.asarray(peak_idx, dtype=cp.int32)
+                if peak_idx_arr.ndim == 0:
+                    peak_idx_arr = peak_idx_arr[None]
+            else:
+                hydraulic_delay_arr = np.asarray(hydraulic_delay, dtype=np.int32)
+                if hydraulic_delay_arr.ndim == 0:
+                    hydraulic_delay_arr = hydraulic_delay_arr[None]
+                peak_idx_arr = np.asarray(peak_idx, dtype=np.int32)
+                if peak_idx_arr.ndim == 0:
+                    peak_idx_arr = peak_idx_arr[None]
 
             penetration_td = compute_penetration_profiles(
                 foreground_col_sum[None, :, :],
                 foreground_energy[None, :],
-                cp.asarray([hydraulic_delay]),
-                cp.asarray([peak_idx]),
+                hydraulic_delay_arr,
+                peak_idx_arr,
                 use_gpu=True,
                 lower=0,
                 upper=W,
@@ -369,6 +403,7 @@ def mie_multihole_pipeline(
             cone_angle_AD = cone_angle_AD_up + cone_angle_AD_low
             ad_up_np = to_numpy(cone_angle_AD_up)
             ad_low_np = to_numpy(cone_angle_AD_low)
+            cone_angle_ad_all[idx] = to_numpy(cone_angle_AD)
 
             # Shape
             frame_idx = np.arange(F, dtype=np.int32)
@@ -395,6 +430,7 @@ def mie_multihole_pipeline(
             lg_up = df_bw["CA_LG_Upper"].to_numpy()
             lg_low = df_bw["CA_LG_Lower"].to_numpy()
 
+            penetration_td_all[idx] = _pad_series(penetration_td[0], F)
 
             plot_start = time.time()
             try:
@@ -453,49 +489,43 @@ def mie_multihole_pipeline(
                 plot_saver.shutdown(wait=True)
                 print(f"Plot generation completed in: {time.time() - plot_start:.2f} seconds")
 
-        def _pad_series(values, length):
-            arr = np.asarray(to_numpy(values)).ravel()
-            if arr.size == length:
-                return arr
-            if arr.size > length:
-                return arr[:length]
-            out = np.full(length, np.nan, dtype=arr.dtype if arr.size else np.float32)
-            out[: arr.size] = arr
-            return out
+            io_start = time.time()
+            df = df_bw.copy()
+            df["Penetration_from_TD"] = _pad_series(penetration_td[0], F)
+            df["Cone_Angle_Angular_Density"] = _pad_series(cone_angle_AD, F)
+            df["Hydraulic_Delay"] = _pad_series(hydraulic_delay * np.ones(F), F)
+            df["CA_AD_Upper"] = _pad_series(cone_angle_AD_up, F)
+            df["CA_AD_Lower"] = _pad_series(cone_angle_AD_low, F)
+            df = df[[
+                "Frame",
+                "Penetration_from_BW",
+                "Penetration_from_BW_Polar",
+                "Penetration_from_TD",
+                "Cone_Angle_Angular_Density",
+                "Cone_Angle_Average",
+                "Cone_Angle_RANSAC",
+                "Cone_Angle_Linear_Regression",
+                "Area",
+                "Estimated_Volume",
+                "Estimated_Volume_Upper_limit",
+                "Estimated_Volume_Lower_limit",
+                "Hydraulic_Delay",
+                "CA_AD_Upper",
+                "CA_AD_Lower",
+                "CA_Avg_Upper",
+                "CA_Avg_Lower",
+                "CA_Ransac_Upper",
+                "CA_Ransac_Lower",
+                "CA_LG_Upper",
+                "CA_LG_Lower",
+            ]]
+            data_dir_path = Path(data_dir)
+            df.to_csv(data_dir_path / f"{file_name}_plume_{idx}_metrics.csv")
 
-        io_start = time.time()
-        df = df_bw.copy()
-        df["Penetration_from_TD"] = _pad_series(penetration_td[0], F)
-        df["Cone_Angle_Angular_Density"] = _pad_series(cone_angle_AD, F)
-        df["Hydraulic_Delay"] = _pad_series(hydraulic_delay * np.ones(F), F)
-        df["CA_AD_Upper"] = _pad_series(cone_angle_AD_up, F)
-        df["CA_AD_Lower"] = _pad_series(cone_angle_AD_low, F)
-        df = df[[
-            "Frame",
-            "Penetration_from_BW",
-            "Penetration_from_BW_Polar",
-            "Penetration_from_TD",
-            "Cone_Angle_Angular_Density",
-            "Cone_Angle_Average",
-            "Cone_Angle_RANSAC",
-            "Cone_Angle_Linear_Regression",
-            "Area",
-            "Estimated_Volume",
-            "Estimated_Volume_Upper_limit",
-            "Estimated_Volume_Lower_limit",
-            "Hydraulic_Delay",
-            "CA_AD_Upper",
-            "CA_AD_Lower",
-            "CA_Avg_Upper",
-            "CA_Avg_Lower",
-            "CA_Ransac_Upper",
-            "CA_Ransac_Lower",
-            "CA_LG_Upper",
-            "CA_LG_Lower",
-        ]]
-        df.to_csv(data_dir / f"{file_name}_plume_{idx}_metrics.csv")
+            # usage
+            save_boundary_csv(boundary, data_dir_path / f"{file_name}_plume_{idx}_boundary_points.csv", origin=(0,H//2))
+            print(f"Metrics + boundary CSV completed in: {time.time() - io_start:.2f} seconds")
 
-        # usage
-        save_boundary_csv(boundary, data_dir / f"{file_name}_plume_{idx}_boundary_points.csv", origin=(0,H//2))
-        print(f"Metrics + boundary CSV completed in: {time.time() - io_start:.2f} seconds")
+        segments_np = to_numpy(segments)
+        return segments_np, penetration_td_all, cone_angle_ad_all, None, None, None
         

@@ -53,16 +53,16 @@ def processing_from_binarized_video(bw_video, bw_video_col_sum=None, timing=True
         print(f"Binarization and boundary extraction completed in: {time.time() - start_time:.2f} seconds")
 
     start_time = time.time()
-    cone_angle_linear_regression = np.zeros(F)
-    cone_angle_ransac = np.zeros(F)
-    cone_angle_average = np.zeros(F)
+    cone_angle_linear_regression = np.full(F, np.nan)
+    cone_angle_ransac = np.full(F, np.nan)
+    cone_angle_average = np.full(F, np.nan)
 
-    avg_up = np.zeros(F)
-    avg_low = np.zeros(F)
-    ransac_up = np.zeros(F)
-    ransac_low = np.zeros(F)
-    lg_up = np.zeros(F)
-    lg_low = np.zeros(F)
+    avg_up = np.full(F, np.nan)
+    avg_low = np.full(F, np.nan)
+    ransac_up = np.full(F, np.nan)
+    ransac_low = np.full(F, np.nan)
+    lg_up = np.full(F, np.nan)
+    lg_low = np.full(F, np.nan)
 
     for i in range(F):
         points = points_all_frames[i]
@@ -80,13 +80,19 @@ def processing_from_binarized_video(bw_video, bw_video_col_sum=None, timing=True
             avg_low[i] = np.nanmean(ang_low)
             cone_angle_average[i] = avg_up[i] - avg_low[i]
 
-            ransac_up[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0]) * 180.0 / np.pi
-            ransac_low[i] = np.atan(ransac_fixed_intercept(lx, ly, 0)[0]) * 180.0 / np.pi
-            cone_angle_ransac[i] = ransac_up[i] - ransac_low[i]
+            try:
+                ransac_up[i] = np.atan(ransac_fixed_intercept(ux, uy, 0)[0]) * 180.0 / np.pi
+                ransac_low[i] = np.atan(ransac_fixed_intercept(lx, ly, 0)[0]) * 180.0 / np.pi
+                cone_angle_ransac[i] = ransac_up[i] - ransac_low[i]
+            except RuntimeError:
+                pass
 
-            lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0)) * 180.0 / np.pi
-            lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0)) * 180.0 / np.pi
-            cone_angle_linear_regression[i] = lg_up[i] - lg_low[i]
+            try:
+                lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0)) * 180.0 / np.pi
+                lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0)) * 180.0 / np.pi
+                cone_angle_linear_regression[i] = lg_up[i] - lg_low[i]
+            except ValueError:
+                pass
 
     if timing:
         print(f"Cone angle calculations completed in: {time.time() - start_time:.2f} seconds")

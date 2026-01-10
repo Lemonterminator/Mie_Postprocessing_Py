@@ -46,9 +46,9 @@ from OSCC_postprocessing.cine.dewe.dewe import *
 # Manual inputs
 Schlieren_dir = r"" # r"G:\MeOH_test\Schlieren"
 
-Mie_dir = r"D:\MeOH_test\Mie"
-Luminescence_dir = r"D:\MeOH_test\NFL"
-Dewe_dir = r"D:\MeOH_test\Dewe"
+Mie_dir = r"G:\MeOH_test\Mie"
+Luminescence_dir = r"G:\MeOH_test\NFL"
+Dewe_dir = r"G:\MeOH_test\Dewe"
 testpoints_dictionary = {1:{2, 56}}
 
 save_intermediate_results = False
@@ -170,7 +170,7 @@ elif Luminescence_dir_path != Path("") and Luminescence_dir_path.exists():
         singlehole_pipeline("Luminescence", video, offset, centre, cine_file.name, 
                             rotated_dir_luminescence, data_dir_luminescence,
                             save_intermediate_results=save_intermediate_results,
-                            FPS=20)
+                            saved_video_FPS=20)
 
 
 if not Mie_dir_path.exists():
@@ -198,7 +198,7 @@ else:
         singlehole_pipeline("Mie", video, offset, centre, cine_file.name, 
                         rotated_dir_Mie, data_dir_Mie,
                         save_intermediate_results=save_intermediate_results,
-                        FPS=20)
+                        saved_video_FPS=20)
 
 
 if not Dewe_dir_path.exists():

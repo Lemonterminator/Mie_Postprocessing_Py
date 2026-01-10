@@ -276,11 +276,14 @@ def estimate_peak_brightness_frames(energies, use_gpu: bool):
     return peak_frames, avg_peak, peak_host
 
 
-def estimate_hydraulic_delay(segments, avg_peak: int, use_gpu: bool, width=1.0/7, height = 0.1):
+def estimate_hydraulic_delay_segments(segments, avg_peak: int, use_gpu: bool, width=1.0/7, height = 0.1):
     """
     Hydraulic delay from a near-nozzle ROI derivative.
     Nozzle is assumed to be at position (H//2, 0)
     """
+    if avg_peak  == 0:
+        return np.zeros((segments.shape[0],), dtype=int)
+    
     xp = _get_cupy() if use_gpu else np
     if use_gpu and xp is None:
         xp = np
@@ -309,6 +312,8 @@ def precompute_td_otsu_masks(td_intensity_maps, use_gpu: bool):
         return None
 
     arrs = cp.transpose(td_intensity_maps, (0, 2, 1))
+    if arrs.size == 0:
+        return None
     P, X, F = arrs.shape
     a_min = cp.min(arrs, axis=(1, 2))
     a_max = cp.max(arrs, axis=(1, 2))
@@ -359,6 +364,8 @@ def compute_penetration_profiles(
     def _process_one_plume(p: int):
         pb = int(peak_brightness_frames_host[p])
         decay_curve = energies[p, pb:]
+        if decay_curve.size == 0:
+            return p, np.full(F, np.nan, dtype=np.float32)
         if use_gpu:
             decay_curve = decay_curve / xp.max(decay_curve)
             td_intensity_maps[p, pb:, :] = td_intensity_maps[p, pb:, :] / decay_curve[:, None]
