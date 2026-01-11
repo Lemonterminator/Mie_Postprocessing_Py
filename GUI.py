@@ -988,7 +988,7 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         cfg = {
             "plumes": int(self.num_plumes.value()),
             "offset": float(self.plume_offset.value()),
-            "centre_x": float(self.coord_x.value()),
+            "centre_x": float(self.coord_x.value() + 3.0),        # Error spotted. 3 pxs
             "centre_y": float(self.coord_y.value()),
             "inner_radius": float(self.ring_inner_radius),
             "outer_radius": float(self.ring_outer_radius),
