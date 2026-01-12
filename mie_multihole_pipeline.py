@@ -359,7 +359,7 @@ def mie_multihole_pipeline(
             foreground_energy = cp.sum(foreground_col_sum, axis=1)
 
             # Find the frame with the brightest near-nozzle region to estimate hydraulic delay
-            _, peak_idx, _ = estimate_peak_brightness_frames(foreground, use_gpu=True)
+            _, peak_idx, _ = estimate_peak_brightness_frames(foreground_energy, use_gpu=True)
             hydraulic_delay = estimate_hydraulic_delay_segments(foreground[None, :, :, :], peak_idx, use_gpu=True)
             if USING_CUPY:
                 hydraulic_delay_arr = cp.asarray(hydraulic_delay, dtype=cp.int32)
@@ -416,6 +416,7 @@ def mie_multihole_pipeline(
                 lighting_unchanged_duration=lighting_unchanged_duration,
                 hole_fill_mode="2D",
             )
+            
             bw_video_col_sum = np.sum(bw_video, axis=1)
             df_bw, boundary = processing_from_binarized_video(bw_video, bw_video_col_sum, timing=True)
             penetration_old = df_bw["Penetration_from_BW"].to_numpy()
