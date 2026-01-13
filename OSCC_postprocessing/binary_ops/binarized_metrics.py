@@ -12,11 +12,14 @@ from OSCC_postprocessing.analysis.single_plume import (
 from OSCC_postprocessing.binary_ops.functions_bw import penetration_bw_to_index
 
 
-def processing_from_binarized_video(bw_video, bw_video_col_sum=None, timing=True):
+def processing_from_binarized_video(bw_video, bw_video_col_sum=None, shift_boundary_y=True, timing=True):
     assert bw_video.ndim == 3
     F, H, W = bw_video.shape
 
     start_time = time.time()
+
+    
+
     area = bw_video.sum(axis=(1, 2))
 
     if bw_video_col_sum is None:
@@ -40,9 +43,13 @@ def processing_from_binarized_video(bw_video, bw_video_col_sum=None, timing=True
     for i in range(F):
         pts = boundary[i]
         if len(pts[0]) > 0 and len(pts[1]) > 0:
+
             uy, ux = pts[1][:, 0], pts[1][:, 1]
             ly, lx = pts[0][:, 0], pts[0][:, 1]
 
+            if shift_boundary_y:
+                uy -= H/2.0
+                ly -= H/2.0
             max_r_upper = np.max(np.sqrt(uy**2 + ux**2))
             max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
             penetration_old_polar[i] = max(max_r_upper, max_r_lower)
@@ -107,14 +114,14 @@ def processing_from_binarized_video(bw_video, bw_video_col_sum=None, timing=True
             "Cone_Angle_Linear_Regression": to_numpy(cone_angle_linear_regression),
             "Area": to_numpy(area),
             "Estimated_Volume": to_numpy(estimated_volume),
-            "Estimated_Volume_Upper_limit": to_numpy(estimated_volume_max),
-            "Estimated_Volume_Lower_limit": to_numpy(estimated_volume_min),
-            "CA_Avg_Upper": to_numpy(avg_up),
-            "CA_Avg_Lower": to_numpy(avg_low),
-            "CA_Ransac_Upper": to_numpy(ransac_up),
-            "CA_Ransac_Lower": to_numpy(ransac_low),
-            "CA_LG_Upper": to_numpy(lg_up),
-            "CA_LG_Lower": to_numpy(lg_low),
+            "Estimated_Volume_Limit_Upper": to_numpy(estimated_volume_max),
+            "Estimated_Volume_Limit_Lower": to_numpy(estimated_volume_min),
+            "Cone_Angle_Avg_Upper": to_numpy(avg_up),
+            "Cone_Angle_Avg": to_numpy(avg_low),
+            "Cone_Angle_Ransac_Upper": to_numpy(ransac_up),
+            "Cone_Angle_Ransac_Lower": to_numpy(ransac_low),
+            "Cone_Angle_LG_Upper": to_numpy(lg_up),
+            "Cone_Angle_LG_Lower": to_numpy(lg_low),
         }
     )
     return df, boundary
