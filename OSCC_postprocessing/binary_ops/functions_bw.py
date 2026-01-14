@@ -601,7 +601,7 @@ def triangle_binarize_from_float(img_f32, blur=True, ignore_zero=False, threshol
 
 
 # --- Split: compute all boundary points (no x-band filter) ---
-def _boundary_points_one_frame(bw, connectivity=2):
+def _boundary_points_one_frame(bw, connectivity=2, x_scale=1.0):
     """
     Compute all boundary points of a single binary frame without x-band filtering.
 
@@ -620,6 +620,11 @@ def _boundary_points_one_frame(bw, connectivity=2):
     mid = (H - 1) / 2.0
     top_mask = ys <= mid
     bot_mask = ~top_mask
+
+    mid_val = np.asarray(mid, dtype=ys.dtype)
+
+    ys -= mid_val   # Centering to 0
+    xs *= x_scale   # Correction by linear projection 
 
     coords_top = np.column_stack((ys[top_mask], xs[top_mask])).astype(np.int32)
     coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])).astype(np.int32)

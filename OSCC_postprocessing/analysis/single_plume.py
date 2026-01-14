@@ -658,7 +658,7 @@ def binarize_single_plume_video_gpu(video, hydraulic_delay, lighting_unchanged_d
     )
 
 
-def bw_boundaries_all_points_single_plume(bw_vid, connectivity=2, parallel=True, max_workers=None):
+def bw_boundaries_all_points_single_plume(bw_vid, connectivity=2, parallel=True, max_workers=None, umbrella_angle=180.0):
     """
     Compute all boundary points for a single BW video (F, H, W).
 
@@ -673,10 +673,17 @@ def bw_boundaries_all_points_single_plume(bw_vid, connectivity=2, parallel=True,
 
     F, H, W = bw_cpu.shape
     result = [None] * F
+    if umbrella_angle == 180.0:
+        x_scale=1.0
+    else:
+        tilt_angle = (180.0-umbrella_angle)/2.0
+        tilt_angle_rad = tilt_angle / 180.0 * np.pi
+        x_scale = 1.0/np.cos(tilt_angle_rad)
+
 
     def work(j):
         bw = np.asarray(bw_cpu[j], dtype=bool)
-        return j, _boundary_points_one_frame(bw, connectivity)
+        return j, _boundary_points_one_frame(bw, connectivity, x_scale=x_scale)
 
     if parallel:
         if max_workers is None:

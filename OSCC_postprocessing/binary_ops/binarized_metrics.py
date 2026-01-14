@@ -60,6 +60,7 @@ def processing_from_binarized_video(bw_video, bw_video_col_sum=None, shift_bound
         print(f"Binarization and boundary extraction completed in: {time.time() - start_time:.2f} seconds")
 
     start_time = time.time()
+
     cone_angle_linear_regression = np.full(F, np.nan)
     cone_angle_ransac = np.full(F, np.nan)
     cone_angle_average = np.full(F, np.nan)
@@ -77,8 +78,6 @@ def processing_from_binarized_video(bw_video, bw_video_col_sum=None, shift_bound
             uy, ux = points[1][:, 0], points[1][:, 1]
             ly, lx = points[0][:, 0], points[0][:, 1]
 
-            uy -= H // 2
-            ly -= H // 2
 
             ang_up = np.atan(uy / ux) * 180.0 / np.pi
             ang_low = np.atan(ly / lx) * 180.0 / np.pi
