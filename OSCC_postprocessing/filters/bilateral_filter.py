@@ -122,7 +122,9 @@ def bilateral_filter_video_cpu(video, wsize, sigma_d, sigma_r,max_workers=None):
             f_idx, filtered = future.result()
             result[f_idx] = filtered
     return result  
-            
+
+'''
+# Legacy implementation, simply loop over the single image filter            
 def bilateral_filter_video_cupy(video, wsize, sigma_d, sigma_r):
     import cupy as cp
     """
@@ -131,6 +133,8 @@ def bilateral_filter_video_cupy(video, wsize, sigma_d, sigma_r):
     """
     # 1) 统一搬到 GPU
     video_gpu = cp.asarray(video, dtype=cp.float32)
+
+    # video_gpu = cp.asarray(video, dtype=cp.float16)
     F, H, W = video_gpu.shape
 
     result = cp.empty_like(video_gpu)
@@ -141,7 +145,41 @@ def bilateral_filter_video_cupy(video, wsize, sigma_d, sigma_r):
         )
 
     return result
-            
+'''            
+
+
+def bilateral_filter_video_cupy(video, wsize, sigma_d, sigma_r, mode="edge"):
+    import cupy as cp
+    video_gpu = cp.asarray(video, dtype=cp.float32)
+    F, H, W = video_gpu.shape
+    k = wsize // 2
+
+    # 预计算空间核（一次）
+    ax = cp.arange(-k, k+1, dtype=cp.float32)
+    xx, yy = cp.meshgrid(ax, ax, indexing="ij")
+    inv_2sd2 = cp.float32(1.0) / (2.0 * cp.float32(sigma_d) * cp.float32(sigma_d))
+    spatial = cp.exp(-(xx*xx + yy*yy) * inv_2sd2).astype(cp.float32)  # (w,w)
+    spatial = spatial[None, None, :, :]  # 便于广播
+
+    inv_2sr2 = cp.float32(1.0) / (2.0 * cp.float32(sigma_r) * cp.float32(sigma_r))
+    eps = cp.float32(1e-8)
+
+    out = cp.empty_like(video_gpu)
+
+    for f in range(F):
+        img = video_gpu[f]
+        pad = cp.pad(img, k, mode=mode)
+        patches = cp.lib.stride_tricks.sliding_window_view(pad, (wsize, wsize))
+        center = img[:, :, None, None]
+        diff = patches - center
+        r = cp.exp(-(diff*diff) * inv_2sr2)
+        w = r * spatial
+        w_sum = w.sum(axis=(-1, -2))
+        wp = (w * patches).sum(axis=(-1, -2))
+        out[f] = wp / (w_sum + eps)
+
+    return out
+
 
 
 def bilateral_filter_video_volumetric_cpu(video, wsize, sigma_d, sigma_r, mode="edge"):

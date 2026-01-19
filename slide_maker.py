@@ -29,7 +29,7 @@ try:
 except Exception:
     Axes = object  # type: ignore[assignment]
     Figure = object  # type: ignore[assignment]
-from singlehole_pipeline import singlehole_pipeline
+from examples.archieve.singlehole_pipeline import singlehole_pipeline
 from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component
 from OSCC_postprocessing.cine.functions_videos import load_cine_video
 from OSCC_postprocessing.motion.optical_flow import compute_farneback_flows

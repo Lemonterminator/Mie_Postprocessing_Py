@@ -4,9 +4,14 @@ timing = True
 if timing:
     import time
 import numpy as np
+from pathlib import Path
 from OSCC_postprocessing.io.async_npz_saver import AsyncNPZSaver
 from OSCC_postprocessing.io.async_avi_saver import *
 from OSCC_postprocessing.filters.video_filters import *
+from OSCC_postprocessing.filters.bilateral_filter import (
+    bilateral_filter_video_cupy,
+    bilateral_filter_video_cpu,
+)
 from OSCC_postprocessing.playback.video_playback import *
 from OSCC_postprocessing.analysis.single_plume import (
     USING_CUPY,
@@ -392,5 +397,168 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
     avi_saver.shutdown()
     # playing to check 
 
-        
+
+def _as_numpy(arr):
+    if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
+        return cp.asnumpy(arr)
+    return np.asarray(arr)
+
+
+def mie_single_hole_pipeline(
+    video: np.ndarray,
+    file_name: str,
+    centre,
+    rotation_offset: float,
+    inner_radius: float,
+    outer_radius: float,
+    video_out_dir: Path,
+    data_out_dir: Path,
+    Relative_Height=1.0 / 3,
+    INTERPOLATION="nearest",
+    BORDER_MODE="constant",
+):
+    # Debug Variables, comment out once ready
+    print("Processing Cine file: ", file_name)
+    print("Video has shape: ", video.shape)
+    print("Nozzle centred at: ", centre[0], centre[1])
+    print("Degrees of rotation:", rotation_offset)
+    print("Saving rotated video strip to directory: ", video_out_dir)
+    print("Saving data to directory: ", data_out_dir)
+
+    video_out_dir = Path(video_out_dir)
+    data_out_dir = Path(data_out_dir)
+    video_out_dir.mkdir(parents=True, exist_ok=True)
+    data_out_dir.mkdir(parents=True, exist_ok=True)
+
+    segment, foreground, bkg = mie_preprocessing(
+        video,
+        centre,
+        rotation_offset,
+        Relative_Height=Relative_Height,
+        INTERPOLATION=INTERPOLATION,
+        BORDER_MODE=BORDER_MODE,
+        outer_radius=outer_radius,
+    )
+
+    npz_saver = AsyncNPZSaver()
+    avi_saver = AsyncAVISaver(max_workers=4)
+
+    npz_saver.save(video_out_dir / f"{file_name}_rotated_strip.npz", segment=_as_numpy(segment))
+    avi_saver.save(
+        video_out_dir / f"{file_name}_rotated_strip.avi",
+        _as_numpy(segment),
+        fps=10,
+        is_color=False,
+        auto_normalize=True,
+    )
+
+    npz_saver.save(data_out_dir / f"{file_name}_foreground.npz", foreground=_as_numpy(foreground))
+    avi_saver.save(
+        data_out_dir / f"{file_name}_foreground.avi",
+        _as_numpy(foreground),
+        fps=10,
+        is_color=False,
+        auto_normalize=True,
+    )
+
+    npz_saver.save(data_out_dir / f"{file_name}_background.npz", background=_as_numpy(bkg))
+
+    avi_saver.wait()
+    avi_saver.shutdown()
+    npz_saver.wait()
+    npz_saver.shutdown()
+
+    return segment, foreground, bkg
+
+
+def mie_preprocessing(
+    video,
+    centre,
+    rotation_offset,
+    Relative_Height=1.0 / 3,
+    INTERPOLATION="nearest",
+    BORDER_MODE="constant",
+    wsize=7,
+    sigma_d=3.0,
+    sigma_r=3.0,
+    blank_frames=10,
+    outer_radius=None,
+    preview=True,
+):
+    # 3D grayscale Numpy array
+    F0 = video.shape[0]
+
+    if outer_radius is None:
+        outer_radius = globals().get("or_")
+    if outer_radius is None:
+        raise ValueError("outer_radius must be provided or set as global 'or_'.")
+
+    out_h = int(round(float(Relative_Height) * float(outer_radius)))
+    out_h = max(1, out_h)
+    out_w = int(round(float(outer_radius)))
+    if out_w <= 0:
+        raise ValueError("outer_radius must be positive.")
+
+    blank_frames = max(1, min(int(blank_frames), F0))
+
+    # Upload to GPU
+    video_cp = cp.asarray(video)
+
+    # Arbitrary rotated image strip shape
+    OUT_SHAPE = (out_h, out_w)
+
+    use_gpu = USING_CUPY
+    if use_gpu:
+        try:
+            segment, _, _ = rotate_video_nozzle_at_0_half_backend(
+                video_cp,
+                centre,
+                rotation_offset,
+                interpolation=INTERPOLATION,
+                border_mode=BORDER_MODE,
+                out_shape=OUT_SHAPE,
+            )
+        except Exception as exc:  # pragma: no cover - hardware dependent
+            print(f"GPU rotation failed ({exc}), falling back to CPU numpy implementation.")
+            use_gpu = False
+    if not use_gpu:
+        segment = _rotate_align_video_cpu(
+            to_numpy(video_cp),
+            centre,
+            rotation_offset,
+            interpolation=INTERPOLATION,
+            border_mode=BORDER_MODE,
+            out_shape=OUT_SHAPE,
+            cval=0.0,
+        )
+
+    # Bilateral filtering
+    if use_gpu:
+        bilateral_filtered = bilateral_filter_video_cupy(segment, wsize, sigma_d, sigma_r)
+    else:
+        bilateral_filtered = bilateral_filter_video_cpu(np.asarray(segment), wsize, sigma_d, sigma_r)
+    xp = cp if use_gpu else np
+
+    # Background subtraction
+    # Take the filtered first frames as background
+    bkg = xp.mean(bilateral_filtered[:blank_frames], axis=0, keepdims=True)
+
+    eps = xp.asarray(1e-9, dtype=bkg.dtype)
+    bkg = xp.where(bkg == 0, eps, bkg)
+    bkg = xp.where(xp.isnan(bkg), eps, bkg)
+
+    # Foreground is the filtered video - filtered background
+    foreground = bilateral_filtered - bkg
+
+    if preview:
+        play_videos_side_by_side(
+            (
+                _as_numpy(xp.swapaxes(segment, 1, 2)),
+                _as_numpy(xp.swapaxes(foreground, 1, 2)),
+                _as_numpy(xp.swapaxes(10.0 * xp.abs(foreground - segment), 1, 2)),
+            ),
+            intv=17,
+        )
+
+    return segment, foreground, bkg
 

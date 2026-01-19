@@ -835,12 +835,9 @@ def pre_processing_mie(video, division=True):
     return (mask)[None, :, :] * foreground
 
 
-def save_boundary_csv(boundary, out_csv, origin=(0, 0)):
-    frames = []
-    point_idxs = []
-    ys = []
-    xs = []
-
+def save_boundary_csv(boundary, out_csv, origin=(0, 0), executor=None):
+    items = []
+    total = 0
     for frame_idx, frame_pts in enumerate(boundary):
         if frame_pts is None:
             continue
@@ -861,26 +858,47 @@ def save_boundary_csv(boundary, out_csv, origin=(0, 0)):
             continue
 
         n = int(pts.shape[0])
-        frames.append(np.full(n, frame_idx, dtype=np.int32))
-        point_idxs.append(np.arange(n, dtype=np.int32))
+        items.append((frame_idx, pts))
+        total += n
 
-        if origin != (0, 0):
-            pts[:, 0] -= origin[0]
-            pts[:, 1] -= origin[1]
+    if total == 0:
+        df = pd.DataFrame(columns=["frame", "point_idx", "y", "x"])
+        if executor is None:
+            df.to_csv(out_csv, index=False)
+            return
+        return executor.submit(df.to_csv, out_csv, index=False)
 
-        ys.append(pts[:, 0].astype(np.float32, copy=False))
-        xs.append(pts[:, 1].astype(np.float32, copy=False))
+    frames = np.empty(total, dtype=np.int32)
+    point_idxs = np.empty(total, dtype=np.int32)
+    ys = np.empty(total, dtype=np.float32)
+    xs = np.empty(total, dtype=np.float32)
 
-    if not frames:
-        pd.DataFrame(columns=["frame", "point_idx", "y", "x"]).to_csv(out_csv, index=False)
+    origin_y = np.float32(origin[0])
+    origin_x = np.float32(origin[1])
+    use_origin = origin_y != 0 or origin_x != 0
+
+    offset = 0
+    for frame_idx, pts in items:
+        n = int(pts.shape[0])
+        end = offset + n
+        frames[offset:end] = frame_idx
+        point_idxs[offset:end] = np.arange(n, dtype=np.int32)
+
+        y = np.asarray(pts[:, 0], dtype=np.float32)
+        x = np.asarray(pts[:, 1], dtype=np.float32)
+        if use_origin:
+            y = y - origin_y
+            x = x - origin_x
+        ys[offset:end] = y
+        xs[offset:end] = x
+        offset = end
+
+    df = pd.DataFrame(
+        {"frame": frames, "point_idx": point_idxs, "y": ys, "x": xs},
+        copy=False,
+    )
+    if executor is None:
+        df.to_csv(out_csv, index=False)
         return
-
-    pd.DataFrame(
-        {
-            "frame": np.concatenate(frames),
-            "point_idx": np.concatenate(point_idxs),
-            "y": np.concatenate(ys),
-            "x": np.concatenate(xs),
-        }
-    ).to_csv(out_csv, index=False)
+    return executor.submit(df.to_csv, out_csv, index=False)
 

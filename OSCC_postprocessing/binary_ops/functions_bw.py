@@ -624,10 +624,10 @@ def _boundary_points_one_frame(bw, connectivity=2, x_scale=1.0):
     mid_val = np.asarray(mid, dtype=ys.dtype)
 
     ys -= mid_val   # Centering to 0
-    xs *= x_scale   # Correction by linear projection 
-
-    coords_top = np.column_stack((ys[top_mask], xs[top_mask])).astype(np.int32)
-    coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])).astype(np.int32)
+    xs = x_scale*xs.astype(np.float16)   # Correction by linear projection 
+    
+    coords_top = np.column_stack((ys[top_mask], xs[top_mask])) # .astype(np.int32)
+    coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])) # .astype(np.int32)
     return coords_top, coords_bot
 
 

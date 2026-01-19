@@ -119,7 +119,7 @@ class ManualSegmenter:
         phase = np.angle(fft_vals[n_plumes]) if n_plumes < len(fft_vals) else 0.0
         offset = (-phase / n_plumes) * 180.0 / np.pi
         offset %= 360.0
-        inner = 14 # int(cfg.get('calib_radius', 0))
+        inner = 0 # int(cfg.get('calib_radius', 0))
         outer = 380 # int(cfg.get('outer_radius', inner * 2))
         crop = generate_CropRect(inner, outer, n_plumes, cx, cy)
         mask = generate_plume_mask(inner, outer, crop[2], crop[3])
