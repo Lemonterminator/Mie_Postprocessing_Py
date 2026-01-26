@@ -1,0 +1,9 @@
+{
+  "debug": false,
+  "output": "videos/static_and_video.mp4",
+  "fps": 30,
+  "layout": [
+    2,
+    2
+  ]
+}
