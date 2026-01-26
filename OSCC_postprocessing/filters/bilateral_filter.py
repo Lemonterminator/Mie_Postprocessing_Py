@@ -490,9 +490,6 @@ def bilateral_filter_video_volumetric_chunked_halo(
     # ----------------------------
     return out
 
-
-
-
 # Example quick test
 if __name__ == "__main__":
     video = np.random.rand(20, 64, 64).astype(np.float32)

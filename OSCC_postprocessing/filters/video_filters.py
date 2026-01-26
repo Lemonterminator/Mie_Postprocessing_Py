@@ -196,3 +196,4 @@ def gaussian_video_cpu(video_f32: np.ndarray, ksize=(5,5), sigma=0, max_workers=
             out[j] = cv2.GaussianBlur(video_f32[j], ksize, sigma, borderType=cv2.BORDER_REPLICATE)
 
     return out
+
