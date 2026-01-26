@@ -152,7 +152,7 @@ def angle_signal_density_cupy(video, x0, y0, N_bins: int = 360):
 
     edges = cp.linspace(0, 360, N_bins + 1, dtype=cp.float32)
     bin_width = edges[1] - edges[0]
-    bin_centers = cp.asnumpy(edges[:-1] + 0.5 * bin_width)
+    bin_centers = cp.asarray(edges[:-1] + 0.5 * bin_width)
 
     inds = cp.digitize(theta_deg, edges) - 1
     inds = inds.ravel()
@@ -167,8 +167,8 @@ def angle_signal_density_cupy(video, x0, y0, N_bins: int = 360):
     density = signal / cp.maximum(counts, 1)[None, :]
 
     if is_image:
-        return bin_centers, cp.asnumpy(signal[0]), cp.asnumpy(density[0])
-    return bin_centers, cp.asnumpy(signal), cp.asnumpy(density)
+        return bin_centers, cp.asarray(signal[0]), cp.asarray(density[0])
+    return bin_centers, cp.asarray(signal), cp.asarray(density)
 
 def angle_signal_density_auto(video, x0, y0, N_bins: int = 360):
     if CUPY_AVAILABLE:

@@ -260,7 +260,32 @@ def generate_plume_mask(inner_radius, outer_radius, w, h):
     # Apply mask to extract polygon region
     return mask >0 
 
+def generate_angular_mask(w, h, angle=None):
 
+    x0 = 0
+    y0 = h/2
+
+    if angle is None:
+        y1 = 0
+        y2 = h
+    else:
+        half_angle_radian = angle / 2.0 * np.pi/180.0
+        y1 = -w * np.tan(half_angle_radian) + h/2
+        y2 = w * np.tan(half_angle_radian) + h/2
+
+    # Create blank single-channel mask of same height/width
+    mask = np.zeros((h, w), dtype=np.uint8)
+    
+    # Define polygon vertices as Nx2 integer array  
+    pts = np.array([[x0, y0], [w, y1], [w, y2]], dtype=np.int32)
+    
+    # Fill the polygon on the mask
+    cv2.fillPoly(mask, [pts], (255,))
+
+    # cv2.imshow("plume_mask", mask) # Debug
+
+    # Apply mask to extract polygon region
+    return mask >0 
 
 # -----------------------------
 # Rotation and Filtering functions
