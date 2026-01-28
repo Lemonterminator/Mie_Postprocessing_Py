@@ -1,8 +1,8 @@
-from OSCC_postprocessing.analysis.multihole_utils import * 
+from OSCC_postprocessing.analysis.multihole_utils import resolve_backend 
 from OSCC_postprocessing.analysis.single_plume import * 
 use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
 
-def longest_true_run(mask):
+def longest_true_run(mask): # type:ignore
     """返回最长 True 连续段的 (start, end_exclusive)，若无 True 返回 None。"""
     """Retruan the longest True duration"""
     m = mask.astype(bool)
