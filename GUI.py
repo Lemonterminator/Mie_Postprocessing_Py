@@ -643,6 +643,7 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
 
         self.view.zoom_changed.connect(self._on_zoom_changed)
         self.view.paint_at.connect(self._on_paint)
+        self._last_config_folder: Optional[str] = None
 
     def _set_controls_enabled(self, enabled: bool):
         for w in (
@@ -980,11 +981,26 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Export", "Mask exported")
 
     def save_config(self):
-        folder = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select Folder to Save Config"
-        )
-        if not folder:
+        dialog = QtWidgets.QFileDialog(self, "Select Folder(s) to Save Config")
+        dialog.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)
+        dialog.setOption(QtWidgets.QFileDialog.Option.ShowDirsOnly, True)
+        dialog.setOption(QtWidgets.QFileDialog.Option.DontUseNativeDialog, True)
+        for view in dialog.findChildren(QtWidgets.QAbstractItemView):
+            view.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
+        start_dir = self._last_config_folder or QtCore.QDir.currentPath()
+        dialog.setDirectory(start_dir)
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
             return
+        selected_folders = dialog.selectedFiles()
+        if not selected_folders:
+            return
+        # preserve order while deduplicating
+        seen: set[str] = set()
+        folders = []
+        for entry in selected_folders:
+            if entry and entry not in seen:
+                seen.add(entry)
+                folders.append(entry)
         cfg = {
             "plumes": int(self.num_plumes.value()),
             "offset": float(self.plume_offset.value()),
@@ -993,17 +1009,35 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
             "inner_radius": float(self.ring_inner_radius),
             "outer_radius": float(self.ring_outer_radius),
         }
-        path = os.path.join(folder, "config.json")
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
-            QtWidgets.QMessageBox.information(
-                self, "Config", f"Configuration saved to {path}"
-            )
-        except Exception as e:
+        saved = []
+        errors: list[tuple[str, Exception]] = []
+        for folder in folders:
+            path = os.path.join(folder, "config.json")
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(cfg, f, indent=2)
+            except Exception as exc:  # pragma: no cover
+                errors.append((folder, exc))
+            else:
+                saved.append(path)
+
+        if errors:
+            message_lines = ["Failed to write config to:"]
+            message_lines.extend(f"{fld}: {err}" for fld, err in errors)
             QtWidgets.QMessageBox.critical(
-                self, "Error", f"Could not save config:\n{e}"
+                self, "Error", "\n".join(message_lines)
             )
+            return
+
+        self._last_config_folder = folders[0]
+
+        if len(saved) == 1:
+            info_msg = f"Configuration saved to {saved[0]}"
+        else:
+            info_lines = ["Configuration saved to multiple folders:"]
+            info_lines.extend(saved)
+            info_msg = "\n".join(info_lines)
+        QtWidgets.QMessageBox.information(self, "Config", info_msg)
 
 
 class FrameSelectorDialog(QtWidgets.QDialog):

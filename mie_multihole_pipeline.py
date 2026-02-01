@@ -88,6 +88,15 @@ else:
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
 
+from OSCC_postprocessing.analysis.hysteresis import *
+from OSCC_postprocessing.binary_ops.masking 
+
+def _as_numpy(arr):
+    if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
+        return cp.asnumpy(arr)
+    return np.asarray(arr)
+
+
 
 # Default nozzle radii (pixels)
 global lower
@@ -98,6 +107,115 @@ global or_
 # or_ = 380
 # lower = 0
 # upper = 366
+
+from OSCC_postprocessing.binary_ops.masking import *
+
+from OSCC_postprocessing.filters.bilateral_filter import *
+
+def mie_multihole_video_strip_processing(video,
+                                  centre,  
+                                  inner_radius, 
+                                  outer_radius, 
+                                  number_of_plumes, 
+                                  init_frames=10, 
+                                  ):
+    # Shape 
+    F, H, W = video.shape
+    # Take the filtered first few frames as background 
+    bkg = cp.mean(video[:init_frames], axis=0)[None, :, :]
+
+    # subtract background
+    video -= bkg
+    
+    # Apply ring mask
+    ring_mask = generate_ring_mask(H, W, centre, inner_radius, outer_radius, xp)
+
+    # mask the video
+    video *= ring_mask[None, :, :]
+
+    # Sum in all frames
+    video_sum_all_frame = _min_max_scale(cp.sum(video, axis=0)*1.0)
+
+    # Make a mask that only leaves area with distinguishable 
+    sum_mask = _triangle_binarize_gpu(video_sum_all_frame, ignore_zeros=False)
+
+    # Compute angular signal density
+    bins = 720
+
+    scale = bins/360.0
+
+    _, total_angular_signal_density, _ = angle_signal_density_auto(video_sum_all_frame[None, :, :], centre[0], centre[1], N_bins=bins)
+
+    # Finding the best rotation offset
+    offset = estimate_offset_from_fft(total_angular_signal_density, number_of_plumes)
+
+    # Angles of the axes at which to be rotated
+    angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - _as_numpy(offset)
+    
+    # Bin-wise mask
+    bin_wise_mask = fill_short_false_runs(_triangle_binarize_gpu(cp.sum(total_angular_signal_density, axis=0), ignore_zeros=True), max_len=3)
+
+    occupied_angles = periodic_true_segment_lengths(bin_wise_mask)
+
+    average_occupied_angle = (bin_wise_mask.sum()/bins*360.0/number_of_plumes).item()
+
+    angular_mask = generate_angular_mask_from_tf(H, W, centre, total_angular_signal_density, bins)
+
+
+    # This is the final mask on the raw image
+    final_mask = (sum_mask & angular_mask & ring_mask)
+
+    # Rotation of video strips
+
+    # Allocate collector
+    segments = []
+    # Arbitrary rotated image strip shape
+    OUT_SHAPE = (H // 4, W//2)
+
+
+    for idx, angle in enumerate(angles):
+        segment, _, _ = rotate_video_nozzle_at_0_half_backend(
+                video,
+                centre, 
+                angle,
+                interpolation="bilinear",
+                border_mode="constant",
+                out_shape=OUT_SHAPE,
+            )
+        segments.append(segment)
+
+
+    segments = xp.stack(segments, axis=0)  # (Plume idx, Frame, H, W)
+    segments = xp.clip(segments, 0.0, 1.0).astype(xp.float16)
+
+
+    plume_mask = generate_plume_mask(segments.shape[3], segments.shape[2], angle=average_occupied_angle*2, x0=ir_)
+
+    # Rotation of final masks
+
+    # Allocate collector
+    segment_masks = []
+
+
+    for idx, angle in enumerate(angles):
+        segment_mask, _, _ = rotate_video_nozzle_at_0_half_backend(
+                final_mask[None, :, :],
+                centre, 
+                angle,
+                interpolation="nearest",
+                border_mode="constant",
+                out_shape=OUT_SHAPE,
+            )
+        segment_masks.append(segment_mask)
+
+
+    segment_masks = xp.stack(segments, axis=0)  # (Plume idx, Frame, H, W)
+
+    segment_masks = (segment_masks & plume_mask[None, None, :, :]).astype(xp.float16)
+
+    return segments, segment_masks, occupied_angles, average_occupied_angle
+
+
 
 def mie_multihole_pipeline(
     video,
