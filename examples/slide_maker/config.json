@@ -1,0 +1,27 @@
+{
+    "directories": {
+        "schlieren": "",
+        "mie": "G:\\MeOH_test\\Mie",
+        "luminescence": "G:\\MeOH_test\\NFL",
+        "dewe": "G:\\MeOH_test\\Dewe"
+    },
+    "comparison_sets": {
+        "density_comparison": [2, 56]
+    },
+    "processing": {
+        "mode": "sample",
+        "save_intermediate_results": false
+    },
+    "hrr_parameters": {
+        "V_m3": 8.5e-3,
+        "gamma": 1.35,
+        "fc_p": 1000.0,
+        "fc_hrr": 600.0
+    },
+    "alignment": {
+        "injection_current_col": "Main Injector - Current Profile",
+        "grad_threshold": 5,
+        "pre_samples": 50,
+        "window_ms": 10.0
+    }
+}
