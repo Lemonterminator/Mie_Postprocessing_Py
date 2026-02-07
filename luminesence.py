@@ -97,6 +97,7 @@ use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend
 from OSCC_postprocessing.analysis.single_plume import *
 from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.analysis.hysteresis import *
+from OSCC_postprocessing.filters.bilateral_filter_rawKernel import bilateral_filter_video_cupy_fast
 
 def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
@@ -172,7 +173,7 @@ def luminesence_preprocessing(
 
     # Bilateral filtering
     if use_gpu:
-        bilateral_filtered = bilateral_filter_video_cupy(segment, wsize, sigma_d, sigma_r)
+        bilateral_filtered = bilateral_filter_video_cupy_fast(segment, wsize, sigma_d, sigma_r)
     else:
         bilateral_filtered = bilateral_filter_video_cpu(np.asarray(segment), wsize, sigma_d, sigma_r)
     xp = cp if use_gpu else np

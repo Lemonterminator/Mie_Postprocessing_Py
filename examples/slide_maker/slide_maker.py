@@ -46,6 +46,12 @@ from OSCC_postprocessing.dewe.dewe import (
     plot_dataframe,
     plot_reactive,
 )
+from OSCC_postprocessing.cine.functions_videos import load_cine_video
+
+# Video processing pipelines
+from mie_single_hole import mie_single_hole_pipeline
+from luminesence import luminescence_pipeline
+from examples.archieve.singlehole_pipeline import singlehole_pipeline
 
 
 # =============================================================================
@@ -99,6 +105,147 @@ def setup_output_dirs(base_dir: Path) -> Tuple[Path, Path, Path]:
 # =============================================================================
 # Processing Functions
 # =============================================================================
+
+def load_video_metadata(directory: Path) -> dict:
+    """Load calibration metadata from JSON file (config.json in video directory).
+    
+    Returns
+    -------
+    dict with keys: plumes, offset, centre, inner_radius, outer_radius
+    """
+    # Look for config.json in the video directory
+    config_file = directory / "config.json"
+    if not config_file.exists():
+        # Try any JSON file
+        json_files = [f for f in directory.iterdir() 
+                      if f.suffix.lower() == ".json" and f.name != "config.json"]
+        if json_files:
+            config_file = json_files[0]
+        else:
+            raise FileNotFoundError(
+                f"No config.json found in {directory}.\n"
+                "Run GUI.py for manual calibration first."
+            )
+
+    with config_file.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+        return {
+            "plumes": int(data.get("plumes", 1)),
+            "offset": float(data.get("offset", 0)),
+            "centre": (float(data.get("centre_x", 0)), float(data.get("centre_y", 0))),
+            "inner_radius": float(data.get("inner_radius", 50)),
+            "outer_radius": float(data.get("outer_radius", 200)),
+        }
+
+
+def process_video_data(config: dict, video_type: str) -> None:
+    """Process video data (Schlieren, Mie, or Luminescence).
+    
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary
+    video_type : str
+        One of "schlieren", "mie", or "luminescence"
+    """
+    dir_key = video_type.lower()
+    video_dir = Path(config["directories"].get(dir_key, ""))
+    
+    if str(video_dir) == "" or not video_dir.exists():
+        print(f"{video_type.capitalize()} directory not specified or doesn't exist, skipping...")
+        return
+
+    print(f"\n{'='*60}\nProcessing {video_type.capitalize()} videos: {video_dir}\n{'='*60}")
+
+    # Setup output directories
+    results_dir = video_dir / "Processed_Results"
+    rotated_dir = results_dir / "Rotated_Videos"
+    data_dir = results_dir / "Postprocessed_Data"
+    for d in [results_dir, rotated_dir, data_dir]:
+        d.mkdir(exist_ok=True)
+
+    # Load metadata
+    try:
+        metadata = load_video_metadata(video_dir)
+        centre = metadata["centre"]
+        offset = metadata["offset"]
+        inner_radius = metadata["inner_radius"]
+        outer_radius = metadata["outer_radius"]
+    except FileNotFoundError as e:
+        print(f"  Error: {e}")
+        return
+
+    # Get processing options
+    save_intermediate = config.get("processing", {}).get("save_intermediate_results", False)
+    saved_video_fps = config.get("processing", {}).get("saved_video_fps", 20)
+    video_bits = config.get("processing", {}).get("video_bits", 12)
+    brightness_levels = 2.0 ** video_bits
+
+    # Process each cine file
+    cine_files = list(iter_files(video_dir, ".cine"))
+    if not cine_files:
+        print(f"  No .cine files found in {video_dir}")
+        return
+
+    for cine_file in cine_files:
+        print(f"  Processing: {cine_file.name}")
+        try:
+            # Load and normalize video
+            video = load_cine_video(str(cine_file))
+            video = video.astype(np.float32) / brightness_levels
+            
+            file_stem = cine_file.stem
+            
+            if video_type.lower() == "mie":
+                # Use mie_single_hole_pipeline
+                mie_single_hole_pipeline(
+                    video=video,
+                    file_name=file_stem,
+                    centre=centre,
+                    rotation_offset=offset,
+                    inner_radius=inner_radius,
+                    outer_radius=outer_radius,
+                    video_out_dir=rotated_dir,
+                    data_out_dir=data_dir,
+                    save_video_strip=save_intermediate,
+                    preview=False,
+                )
+                
+            elif video_type.lower() == "luminescence":
+                # Use luminescence_pipeline
+                luminescence_pipeline(
+                    video=video,
+                    file_name=file_stem,
+                    centre=centre,
+                    rotation_offset=offset,
+                    inner_radius=inner_radius,
+                    outer_radius=outer_radius,
+                    video_out_dir=rotated_dir,
+                    data_out_dir=data_dir,
+                    save_video_strip=save_intermediate,
+                    preview=False,
+                )
+                
+            elif video_type.lower() == "schlieren":
+                # Use singlehole_pipeline for Schlieren
+                singlehole_pipeline(
+                    "Schlieren",
+                    video,
+                    offset,
+                    centre,
+                    cine_file.name,
+                    rotated_dir,
+                    data_dir,
+                    save_intermediate_results=save_intermediate,
+                    saved_video_FPS=saved_video_fps,
+                )
+            
+            print(f"    Done: {cine_file.name}")
+        except Exception as e:
+            import traceback
+            print(f"    Error processing {cine_file.name}: {e}")
+            traceback.print_exc()
+
 
 def process_dewe_data(config: dict) -> None:
     """Process Dewesoft data and generate comparison plots."""
@@ -238,7 +385,11 @@ def main():
     print(f"Loading config: {config_path}")
     config = load_config(config_path)
 
-    # Process Dewesoft data (primary focus)
+    # Process video data (Schlieren, Mie, Luminescence)
+    for video_type in ["schlieren", "mie", "luminescence"]:
+        process_video_data(config, video_type)
+
+    # Process Dewesoft data
     process_dewe_data(config)
 
     print("\n" + "="*60)

@@ -1,0 +1,14 @@
+{
+  "name": "Nozzle8",
+  "nozzle_properties": {
+    "plumes": 10,
+    "diameter_mm": 0.365,
+    "umbrella_angle_deg": 130,
+    "fps": 25000
+  },
+  "test_matrix": {
+    "chamber_pressures_bar": [5, 10, 15],
+    "injection_durations_us": [580, 610, 630, 651, 678, 709, 736.2, 753, 764],
+    "expansion": "cartesian"
+  }
+}

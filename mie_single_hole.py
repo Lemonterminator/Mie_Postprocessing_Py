@@ -257,9 +257,10 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                 auto_normalize=True,
             )
         elif save_mode=="filtered":
-            npz_saver.save(data_out_dir / f"{file_name}_foreground.npz", foreground=_as_numpy(foreground))
+            # Save filtered foreground video to video_out_dir (Rotated_Videos folder)
+            npz_saver.save(video_out_dir / f"{file_name}_foreground.npz", foreground=_as_numpy(foreground))
             avi_saver.save(
-                data_out_dir / f"{file_name}_foreground.avi",
+                video_out_dir / f"{file_name}_foreground.avi",
                 _as_numpy(foreground),
                 fps=10,
                 is_color=False,

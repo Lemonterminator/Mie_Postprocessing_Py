@@ -10,14 +10,67 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.axes import Axes
 
+def normalize_video(video: np.ndarray, quantize_bits: int = 8) -> np.ndarray:
+    """Normalize video to [0, 1] range using min-max scaling.
+    
+    Parameters
+    ----------
+    video : np.ndarray
+        3D array (frames, height, width) with arbitrary value range.
+    quantize_bits : int
+        Number of bits for quantization (8 = 256 levels). Set to 0 to skip quantization.
+    
+    Returns
+    -------
+    np.ndarray
+        Normalized video in [0, 1] range, dtype float32.
+    """
+    video = np.asarray(video, dtype=np.float32)
+    v_min = video.min()
+    v_max = video.max()
+    
+    if v_max - v_min < 1e-8:
+        # Avoid division by zero for constant videos
+        return np.zeros_like(video)
+    
+    # Min-max scale to [0, 1]
+    normalized = (video - v_min) / (v_max - v_min)
+    
+    # Quantize to reduce banding artifacts
+    if quantize_bits > 0:
+        levels = 2 ** quantize_bits
+        normalized = np.floor(normalized * (levels - 1)) / (levels - 1)
+    
+    return normalized
+
+
 class VideoDisplayer:
-    def __init__(self, items, layout=None, figsize=None, default_cmap="gray"):
+    def __init__(self, items, layout=None, figsize=None, default_cmap="gray", 
+                 auto_normalize=True, quantize_bits=8):
+        """
+        Parameters
+        ----------
+        items : list
+            List of items to display (3D numpy arrays for videos, callables for plots).
+        layout : tuple or str, optional
+            Grid layout as (rows, cols) or "rowsxcols" string.
+        figsize : tuple, optional
+            Figure size (width, height).
+        default_cmap : str
+            Default colormap for videos.
+        auto_normalize : bool
+            If True, automatically normalize video brightness using min-max scaling.
+        quantize_bits : int
+            Bits for quantization (8 = 256 levels). Set to 0 to skip.
+        """
         if not isinstance(items, (list, tuple)):
             raise TypeError("items must be a list or tuple.")
         if len(items) == 0:
             raise ValueError("items cannot be empty.")
 
         self.items = list(items)
+        self.auto_normalize = auto_normalize
+        self.quantize_bits = quantize_bits
         self.rows, self.cols = self._normalize_layout(layout, len(self.items))
         if figsize is None:
             figsize = (5 * self.cols, 5 * self.rows)
@@ -65,7 +118,12 @@ class VideoDisplayer:
 
     def _setup_item(self, ax, item, default_cmap):
         if isinstance(item, np.ndarray) and item.ndim == 3:
-            im = ax.imshow(item[0], cmap=default_cmap, animated=True)
+            # Normalize video brightness if enabled
+            if self.auto_normalize:
+                item = normalize_video(item, quantize_bits=self.quantize_bits)
+            
+            # Use fixed vmin/vmax for consistent brightness across frames
+            im = ax.imshow(item[0], cmap=default_cmap, animated=True, vmin=0, vmax=1)
             ax.set_xticks([])
             ax.set_yticks([])
             self.video_entries.append({"data": item, "im": im})

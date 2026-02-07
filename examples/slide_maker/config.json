@@ -1,6 +1,6 @@
 {
     "directories": {
-        "schlieren": "",
+        "schlieren": "G:\\MeOH_test\\Schlieren",
         "mie": "G:\\MeOH_test\\Mie",
         "luminescence": "G:\\MeOH_test\\NFL",
         "dewe": "G:\\MeOH_test\\Dewe"
@@ -10,7 +10,9 @@
     },
     "processing": {
         "mode": "sample",
-        "save_intermediate_results": false
+        "save_intermediate_results": true,
+        "saved_video_fps": 20,
+        "video_bits": 12
     },
     "hrr_parameters": {
         "V_m3": 8.5e-3,
@@ -19,9 +21,20 @@
         "fc_hrr": 600.0
     },
     "alignment": {
-        "injection_current_col": "Main Injector - Current Profile",
         "grad_threshold": 5,
         "pre_samples": 50,
         "window_ms": 10.0
+    },
+    "column_names": {
+        "chamber_pressure": ["Chamber pressure (BarA)", "Chamber pressure", "chamber_pressure"],
+        "chamber_temperature": ["Temperature acc. Ideal gas law", "Chamber gas temperature", "chamber_temperature"],
+        "heat_release": ["Heat Release", "HRR", "heat_release"],
+        "injection_current": ["Main Injector - Current Profile", "Current Profile", "injection_current"],
+        "mie_area": ["Area", "area", "Spray Area"]
+    },
+    "output": {
+        "video_file": "comparison_output.mp4",
+        "fps": 20,
+        "debug": false
     }
 }
