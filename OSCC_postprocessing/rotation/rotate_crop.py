@@ -242,6 +242,7 @@ def generate_CropRect(inner_radius, outer_radius, number_of_plumes, centre_x, ce
 
     return (x, y, w, h)
 
+'''
 def generate_plume_mask(inner_radius, outer_radius, w, h):
     y1 = -h/outer_radius/2 * inner_radius + h/2
     y2 = h/outer_radius/2 * inner_radius + h/2
@@ -259,6 +260,7 @@ def generate_plume_mask(inner_radius, outer_radius, w, h):
 
     # Apply mask to extract polygon region
     return mask >0 
+'''
 
 def generate_angular_mask(w, h, angle=None):
 

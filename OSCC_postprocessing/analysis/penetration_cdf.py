@@ -1,26 +1,9 @@
-import numpy as xp
+import numpy as np
 from OSCC_postprocessing.analysis.multihole_utils import resolve_backend
-
 use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
 
-def monotone_non_decreasing(x, axis=-1):
-    """
-    Prefix max / monotone non-decreasing transform along `axis`.
-    Works for numpy and cupy backends.
-    """
-    try:
-        # NumPy OK; some CuPy builds may raise NotImplementedError
-        return xp.maximum.accumulate(x, axis=axis)
-    except (NotImplementedError, AttributeError):
-        # CuPy fallback: use maximum_filter1d to compute prefix max on GPU
-        import cupy as cp
-        from cupyx.scipy.ndimage import maximum_filter1d
-
-        x = cp.asarray(x)
-        n = x.shape[axis]
-        # origin=-(n-1) aligns the window's right edge to current index => covers [0..i]
-        return maximum_filter1d(x, size=n, axis=axis, origin=-(n - 1), mode="nearest")
-
+def monotone_non_decreasing(x):
+    return np.maximum.accumulate(x)
 
 
 def penetration_cdf_front(I, mask=None, q=0.97, min_x=0):

@@ -137,6 +137,94 @@ def plot_angle_signal_density(bins, signal, *, log=False, plume_angles=None):
     plt.show()
 
 
+def snap_angles_to_local_maxima(
+    angles,
+    ang_int_sum,
+    *,
+    window_deg: float = 2.0,
+    bins: int | None = None,
+    preserve_reference_side: bool = True,
+):
+    """Snap each angle to the nearest strong local maximum within a small window.
+
+    Parameters
+    ----------
+    angles : array-like of float
+        Input angles in degrees. Values can be negative; wrap-around is handled.
+    ang_int_sum : array-like
+        1D angular intensity profile (e.g. ``xp.sum(total_angular_signal_density, axis=0)``).
+    window_deg : float, optional
+        Half-window size in degrees used for local peak search around each angle.
+    bins : int, optional
+        Number of angular bins covering 360 degrees. If omitted, inferred from
+        ``len(ang_int_sum)``.
+    preserve_reference_side : bool, optional
+        If ``True``, negative inputs keep a negative representation when
+        appropriate, while non-negative inputs are returned in ``[0, 360)``.
+
+    Returns
+    -------
+    ndarray
+        Refined angles in degrees, one per input angle.
+    """
+    if window_deg < 0:
+        raise ValueError("window_deg must be non-negative")
+
+    signal = np.asarray(cp.asnumpy(ang_int_sum), dtype=float).ravel()
+    if signal.ndim != 1 or signal.size == 0:
+        raise ValueError("ang_int_sum must be a non-empty 1D array")
+
+    n_bins = int(signal.size if bins is None else bins)
+    if n_bins <= 0:
+        raise ValueError("bins must be positive")
+    if signal.size != n_bins:
+        raise ValueError("len(ang_int_sum) must match bins")
+
+    angles_arr = np.asarray(angles, dtype=float).ravel()
+    if angles_arr.size == 0:
+        return angles_arr.copy()
+
+    # Circular local maxima mask.
+    is_local_max = (signal >= np.roll(signal, 1)) & (signal >= np.roll(signal, -1))
+
+    deg_per_bin = 360.0 / n_bins
+    window_bins = int(np.ceil(window_deg / deg_per_bin))
+
+    refined = np.empty_like(angles_arr)
+
+    for i, angle in enumerate(angles_arr):
+        angle_mod = angle % 360.0
+        center_idx = int(np.round(angle_mod / deg_per_bin)) % n_bins
+
+        offsets = np.arange(-window_bins, window_bins + 1, dtype=int)
+        idx_window = (center_idx + offsets) % n_bins
+
+        local_idx = idx_window[is_local_max[idx_window]]
+        candidates = local_idx if local_idx.size else idx_window
+
+        candidate_vals = signal[candidates]
+        best_val = candidate_vals.max()
+        ties = candidates[candidate_vals == best_val]
+
+        # Break ties by nearest circular distance to the original center index.
+        d1 = (ties - center_idx) % n_bins
+        d2 = (center_idx - ties) % n_bins
+        circular_dist = np.minimum(d1, d2)
+        best_idx = int(ties[np.argmin(circular_dist)])
+
+        snapped = best_idx * deg_per_bin
+        if preserve_reference_side:
+            if angle < 0:
+                branch_options = np.array([snapped - 360.0, snapped])
+                snapped = branch_options[np.argmin(np.abs(branch_options - angle))]
+            else:
+                snapped = snapped % 360.0
+
+        refined[i] = snapped
+
+    return refined
+
+
 
 def angle_signal_density_cupy(video, x0, y0, N_bins: int = 360):
     arr = cp.asarray(video)
