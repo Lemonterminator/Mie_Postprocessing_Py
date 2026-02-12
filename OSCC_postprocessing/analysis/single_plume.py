@@ -56,6 +56,43 @@ def _min_max_scale(arr):
         return (arr - mn) / (mx - mn)
     return cp.zeros_like(arr)
 
+def robust_scale(arr, q_min=5, q_max=95, clip=True, eps=1e-8):
+    """
+    使用分位数进行鲁棒的 Min-Max 缩放。
+    
+    参数:
+        arr: 输入数组 (numpy 或 cupy 数组)
+        q_min: 下分位百分比 (0-100), 默认 5 (即排除底部 5% 的数据)
+        q_max: 上分位百分比 (0-100), 默认 95 (即排除顶部 5% 的数据)
+        clip: 是否将结果截断到 [0, 1] 区间。建议开启，除非你需要保留异常值的相对大小。
+        eps: 防止除以零的微小数值。
+    
+    返回:
+        缩放后的数组
+    """
+    # 1. 确定使用的计算库 (NumPy 或 CuPy)
+    xp = cp.get_array_module(arr) if hasattr(cp, 'get_array_module') else np
+    
+    # 2. 计算分位数 (Quantiles) 作为鲁棒的 min 和 max
+    # 注意：percentile 通常比直接 min/max 更消耗计算资源，但在预处理阶段通常可接受
+    p_low, p_high = xp.percentile(arr, [q_min, q_max])
+    
+    # 3. 计算分母 (Range)，加入 eps 防止除以零
+    # 如果数据是常数，p_high - p_low 为 0，此时 range_val 变为 eps，结果会接近 0 或 0.5 (取决于分子)
+    denominator = p_high - p_low
+    if denominator < eps:
+        denominator = eps
+        
+    # 4. 执行线性缩放
+    scaled = (arr - p_low) / denominator
+    
+    # 5. (可选) 截断异常值
+    # 如果不截断，超过 q_max 的值会大于 1，小于 q_min 的值会小于 0
+    if clip:
+        scaled = xp.clip(scaled, 0, 1)
+        
+    return scaled
+
 
 def _prepare_temporal_smoothing(rotated, smooth_frames):
     rotated_cpu = to_numpy(rotated)
