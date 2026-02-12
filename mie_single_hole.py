@@ -105,6 +105,91 @@ def _as_numpy(arr):
     return np.asarray(arr)
 
 
+def _compute_full_solver_metrics_from_bw(
+    bw_video,
+    H: int,
+    F: int,
+    umbrella_angle: float,
+):
+    bw_video_col_sum = bw_video.sum(axis=1)
+    area = bw_video_col_sum.sum(axis=-1)
+    penetration_bw_x = penetration_bw_to_index(bw_video_col_sum > 0)
+    boundary = bw_boundaries_all_points_single_plume(bw_video, parallel=True, umbrella_angle=180.0)
+
+    if umbrella_angle == 180.0:
+        x_scale = 1.0
+    else:
+        tilt_angle = (180.0 - umbrella_angle) / 2.0
+        tilt_angle_rad = tilt_angle / 180.0 * np.pi
+        x_scale = 1.0 / np.cos(tilt_angle_rad)
+
+    upper_bw_width = bw_video[:, : H // 2, :].sum(axis=1)
+    lower_bw_width = bw_video[:, H // 2 :, :].sum(axis=1)
+
+    estimated_volume = x_scale * np.pi * 0.25 * np.sum((upper_bw_width + lower_bw_width) ** 2, axis=1)
+
+    max_plume_radius = np.maximum(upper_bw_width, lower_bw_width)
+    min_plume_radius = np.minimum(upper_bw_width, lower_bw_width)
+
+    estimated_volume_max = np.pi * x_scale * np.sum(max_plume_radius**2, axis=1)
+    estimated_volume_min = np.pi * x_scale * np.sum(min_plume_radius**2, axis=1)
+
+    penetration_bw_polar = np.zeros(F)
+    for i in range(F):
+        pts = boundary[i]
+        if len(pts[0]) > 0 and len(pts[1]) > 0:
+            uy, ux = pts[1][:, 0], pts[1][:, 1]
+            ly, lx = pts[0][:, 0], pts[0][:, 1]
+
+            max_r_upper = np.max(np.sqrt(uy**2 + ux**2))
+            max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
+            penetration_bw_polar[i] = max(max_r_upper, max_r_lower)
+
+    points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_bw_x.get())
+
+    lg_up = np.full(F, np.nan)
+    lg_low = np.full(F, np.nan)
+    avg_up = np.full(F, np.nan)
+    avg_low = np.full(F, np.nan)
+
+    for i in range(F):
+        points = points_all_frames[i]
+        if len(points[0]) > 0 and len(points[1]) > 0:
+            uy, ux = points[1][:, 0], points[1][:, 1]
+            ly, lx = points[0][:, 0], points[0][:, 1]
+
+            ang_up = np.atan(uy / ux) * 180.0 / np.pi
+            ang_low = np.atan(ly / lx) * 180.0 / np.pi
+
+            avg_up[i] = np.nanmean(ang_up)
+            avg_low[i] = np.nanmean(ang_low)
+
+            try:
+                lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0)) * 180.0 / np.pi
+                lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0)) * 180.0 / np.pi
+            except ValueError:
+                pass
+
+    cone_angle_average = avg_up - avg_low
+    cone_angle_linear_regression = lg_up - lg_low
+
+    return {
+        "area": area,
+        "penetration_bw_x": penetration_bw_x,
+        "boundary": boundary,
+        "estimated_volume": estimated_volume,
+        "estimated_volume_max": estimated_volume_max,
+        "estimated_volume_min": estimated_volume_min,
+        "penetration_bw_polar": penetration_bw_polar,
+        "cone_angle_average": cone_angle_average,
+        "avg_up": avg_up,
+        "avg_low": avg_low,
+        "cone_angle_linear_regression": cone_angle_linear_regression,
+        "lg_up": lg_up,
+        "lg_low": lg_low,
+    }
+
+
 
 # Rotation + Crop + Filtering
 def mie_preprocessing(
@@ -467,46 +552,25 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                         , connectivity=2),
                         mode="2D"
                         )
-        
-
-
-        bw_video_col_sum = bw_video.sum(axis=1)
-
-        area = bw_video_col_sum.sum(axis=-1)
-
-        penetration_bw_x = penetration_bw_to_index(bw_video_col_sum > 0)
-
-        boundary = bw_boundaries_all_points_single_plume(bw_video, parallel=True, umbrella_angle=180.0)
-
-
-        # Estimate the volume
-
-        if umbrella_angle == 180.0:
-            x_scale=1.0
-        else:
-            tilt_angle = (180.0-umbrella_angle)/2.0
-            tilt_angle_rad = tilt_angle / 180.0 * np.pi
-            x_scale = 1.0/np.cos(tilt_angle_rad)
-
-        # Volume is defined as:
-        # Sum [1/4 * pi * diameter^2 * (1 pixel * x_scale unit length)]
-        # In which the diameter is the width of binarized image every column per frame
-        # estimated_volume = x_scale* 0.25 * np.pi * np.sum(bw_video_col_sum**2, axis=1)
-
-        # Upper and lower half of the plume width
-        upper_bw_width = bw_video[:, : H // 2, :].sum(axis=1)
-        lower_bw_width = bw_video[:, H // 2 :, :].sum(axis=1)
-
-        # accelerated version
-        estimated_volume = x_scale * np.pi * 0.25 * np.sum((upper_bw_width + lower_bw_width) ** 2, axis=1)
-        
-        # Check per column the larger width and the smaller width
-        max_plume_radius = np.maximum(upper_bw_width, lower_bw_width)
-        min_plume_radius = np.minimum(upper_bw_width, lower_bw_width)
-
-        # Use the previous to estimate 
-        estimated_volume_max = np.pi * x_scale * np.sum(max_plume_radius**2, axis=1)
-        estimated_volume_min = np.pi * x_scale * np.sum(min_plume_radius**2, axis=1)
+        full_metrics = _compute_full_solver_metrics_from_bw(
+            bw_video=bw_video,
+            H=H,
+            F=F,
+            umbrella_angle=umbrella_angle,
+        )
+        area = full_metrics["area"]
+        penetration_bw_x = full_metrics["penetration_bw_x"]
+        boundary = full_metrics["boundary"]
+        estimated_volume = full_metrics["estimated_volume"]
+        estimated_volume_max = full_metrics["estimated_volume_max"]
+        estimated_volume_min = full_metrics["estimated_volume_min"]
+        penetration_bw_polar = full_metrics["penetration_bw_polar"]
+        cone_angle_average = full_metrics["cone_angle_average"]
+        avg_up = full_metrics["avg_up"]
+        avg_low = full_metrics["avg_low"]
+        cone_angle_linear_regression = full_metrics["cone_angle_linear_regression"]
+        lg_up = full_metrics["lg_up"]
+        lg_low = full_metrics["lg_low"]
 
 
         if preview:
@@ -520,18 +584,6 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                 ),
                 intv=17,
             )
-        
-        penetration_bw_polar = np.zeros(F)
-        for i in range(F):
-            pts = boundary[i]
-            if len(pts[0]) > 0 and len(pts[1]) > 0:
-
-                uy, ux = pts[1][:, 0], pts[1][:, 1]
-                ly, lx = pts[0][:, 0], pts[0][:, 1]
-
-                max_r_upper = np.max(np.sqrt(uy**2 + ux**2))
-                max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
-                penetration_bw_polar[i] = max(max_r_upper, max_r_lower)
     
         if preview:
             plt.plot(_as_numpy(penetration_bw_x), label="Penetration from BW: X distance")
@@ -542,46 +594,6 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
             plt.ylabel("Penetration (px)")
             plt.grid()
             plt.legend()
-        
-        # Filter boundary points per frame 
-        points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_bw_x.get())
-
-        cone_angle_linear_regression = np.full(F, np.nan)
-        lg_up = np.full(F, np.nan)
-        lg_low = np.full(F, np.nan)
-
-        cone_angle_average = np.full(F, np.nan)
-        avg_up = np.full(F, np.nan)
-        avg_low = np.full(F, np.nan)
-
-        # cone_angle_ransac = np.full(F, np.nan)
-        # ransac_up = np.full(F, np.nan)
-        # ransac_low = np.full(F, np.nan)
-
-        # start_time = time.time()
-        for i in range(F):
-            points = points_all_frames[i]
-            if len(points[0]) > 0 and len(points[1]) > 0:
-                uy, ux = points[1][:, 0], points[1][:, 1]
-                ly, lx = points[0][:, 0], points[0][:, 1]
-
-                ang_up = np.atan(uy / ux) * 180.0 / np.pi
-                ang_low = np.atan(ly / lx) * 180.0 / np.pi
-
-                avg_up[i] = np.nanmean(ang_up)
-                avg_low[i] = np.nanmean(ang_low)
-                
-
-
-                try:
-                    lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0)) * 180.0 / np.pi
-                    lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0)) * 180.0 / np.pi
-                    
-                except ValueError:
-                    pass
-
-            cone_angle_average = avg_up -  avg_low
-            cone_angle_linear_regression = lg_up - lg_low
         # print(f"Time taken for classical cone angle calculations: {time.time()-start_time}")
 
     # start_time = time.time()
