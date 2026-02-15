@@ -115,7 +115,7 @@ def periodic_true_segment_angles(mask: xp.ndarray, bins: int | None = None) -> x
     return lengths.astype(float) * 360.0 / bins
 
 
-def generate_ring_mask(H, W, centre, ir_, or_, xp):
+def generate_ring_mask(H, W, centre, ir_, or_):
     """
     Generates a boolean mask for a ring defined by inner and outer radii.
     
