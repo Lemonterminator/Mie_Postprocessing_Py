@@ -7,7 +7,7 @@ from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.playback.video_playback import *
 # from mie_multihole_pipeline import *
 import matplotlib.pyplot as plt
-from main_utils_temp import *
+# from main_utils_temp import *
 
 from examples.Schlieren_singlehole_pipeline import *
 import subprocess
@@ -21,8 +21,7 @@ import json
 from pathlib import Path
 from OSCC_postprocessing.io.async_npz_saver import AsyncNPZSaver
 import pandas as pd
-from main_utils_temp import mie_multihole_video_strip_processing, sobel_magnitude_video_strips, compensate_foreground_gain, traingular_binarize_video_strips, calculate_penetration_bw_num_pixelsthreshold
-
+from mie_multihole_pipeline import * 
 
 global parent_folder
 global plumes
@@ -39,7 +38,7 @@ global video_name
 parent_folder = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\cine"
 res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
 rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
-experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json"
+experiment_config = r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json"
 
 
 # =============================================================================
@@ -424,52 +423,54 @@ async def main():
                     
                     video = load_cine_video(file, frame_limit=80).astype(np.float32)/4096
                     video = xp.asarray(video)  # Ensure load_cine_video is defined or imported
-                    frames, height, width = video.shape
+                    F, W, H = video.shape
 
                     
                     centre_x = float(centre[0]) 
                     centre_y = float(centre[1])
 
-
-
+                    # Create annular mask between inner and outer radius to focus on spray region
+                    ring_mask = generate_ring_mask(H, W, centre, ir_, or_)
+                    
+                    fg, hp = mie_multihole_preprocessing(
+                                video, 
+                                ring_mask,
+                                wsize=3,
+                                sigma=1,
+                                )
                     # Executions part
 
+                    # Nozzle 1
+                    # hp[hp < 3e-2] = 0.0
 
-                    segments, segment_masks, occupied_angles, average_occupied_angle = mie_multihole_video_strip_processing(video,
-                                                                                                                            centre,  
-                                                                                                                            ir_, 
-                                                                                                                            or_, 
-                                                                                                                            number_of_plumes, 
-                                                                                                                            init_frames=10,)
-                    # High pass filtering to find the edge responses                                                                           
-                    segments_high_pass = sobel_magnitude_video_strips(segments)
+                    # Nozzle 2
+                    # hp[hp < 2e-2] = 0.0
+                    # hp = hp ** 0.9
 
-                    # Compensate the gain of the high pass filtered video
-                    segments_highpass_compensated = compensate_foreground_gain(segments_high_pass)  
+                    # Nozzle 3
+                    # hp[hp< 1.5e-2] = 0.0
+                    # hp = hp ** 0.9
 
-                    # Morphological operations
-                    struct1 = cp.zeros((3, 3, 3), dtype=bool)
-                    struct1[1, :, :] = True
+                    # Nozzle 4
+                    # hp[hp < 5e-2] = 0.0
+                    # hp = hp ** 0.7
 
-                    struct2 = cp.ones((3,3,3), dtype=bool)
+                    hp_segments= mie_multihole_postprocessing(fg, hp, 
+                                 centre, number_of_plumes, ir_, or_)
 
-                    # Binarize and refine by filling the holes and closing the edges
-                    segments_highpass_bw = traingular_binarize_video_strips(segments_highpass_compensated, segment_masks=segment_masks, struct_filling=struct1, struct_closing=struct2)
-
-                    # Calculate the penetration from the time-distance intensity heatmap
-                    penetration_highpass = calculate_penetration_bw_num_pixelsthreshold(segments_highpass_bw, ir_, or_, thres_num_bw=1)
+                    penetration_highpass = penetration_cdf_all_plumes(hp_segments, ir_, quantile=1.0-5e-3)
 
                     # Calculate the first derivative of the penetration
-                    penetration_diff = xp.diff(penetration_highpass, axis=1)
+                    penetration_diff = np.diff(penetration_highpass, axis=1)
 
                     # Remove the negative penetration difference
                     diff_threshold = -3
-                    x_loc, y_loc = xp.where(penetration_diff < diff_threshold)
+                    x_loc, y_loc = np.where(penetration_diff < diff_threshold)
 
                     for plume_idx, frame_idx in zip(x_loc, y_loc):
-                        penetration_highpass[plume_idx, frame_idx-1:] = xp.nan
+                        penetration_highpass[plume_idx, frame_idx-1:] = np.nan
 
-                    TF = ~ xp.isnan(penetration_highpass)
+                    TF = ~ np.isnan(penetration_highpass)
 
                     P, F = TF.shape
                     for p in range(P):
