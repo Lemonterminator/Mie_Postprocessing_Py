@@ -35,10 +35,10 @@ global video_name
 
 
 # Define the parent folder and other global variables
-parent_folder = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\cine"
-res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
-rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
-experiment_config = r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json"
+parent_folder = r"F:\BC20241016_HZ_Nozzle8\Cine"
+# res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
+# rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
+experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json"
 
 
 # =============================================================================
@@ -424,6 +424,8 @@ async def main():
                     video = load_cine_video(file, frame_limit=80).astype(np.float32)/4096
                     video = xp.asarray(video)  # Ensure load_cine_video is defined or imported
                     F, W, H = video.shape
+                    if F==0:
+                        continue
 
                     
                     centre_x = float(centre[0]) 
