@@ -466,7 +466,7 @@ async def main():
                     penetration_diff = np.diff(penetration_highpass, axis=1)
 
                     # Remove the negative penetration difference
-                    diff_threshold = -3
+                    diff_threshold = 0
                     x_loc, y_loc = np.where(penetration_diff < diff_threshold)
 
                     for plume_idx, frame_idx in zip(x_loc, y_loc):
@@ -494,6 +494,8 @@ async def main():
                         # Test conditions from subfolder
                         'chamber_pressure_bar': [test_condition.get('chamber_pressure_bar')] * num_frames,
                         'injection_duration_us': [test_condition.get('injection_duration_us')] * num_frames,
+                        'injection_pressure_bar': [test_condition.get('injection_pressure_bar')] * num_frames,
+                        # File name
                     })
                     
                     # Add penetration data per plume

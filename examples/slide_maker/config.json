@@ -5,6 +5,7 @@
         "luminescence": "G:\\MeOH_test\\NFL",
         "dewe": "G:\\MeOH_test\\Dewe"
     },
+
     "comparison_sets": {
         "density_comparison": [2, 56]
     },
@@ -12,7 +13,8 @@
         "mode": "sample",
         "save_intermediate_results": true,
         "saved_video_fps": 20,
-        "video_bits": 12
+        "video_bits": 12,
+        "frame_limit": 200
     },
     "hrr_parameters": {
         "V_m3": 8.5e-3,
@@ -34,7 +36,7 @@
     },
     "output": {
         "video_file": "comparison_output.mp4",
-        "fps": 20,
+        "fps": 10,
         "debug": false
     }
 }

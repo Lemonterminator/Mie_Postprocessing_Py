@@ -138,6 +138,8 @@ def process_video_files(config: dict, video_type: str) -> None:
     saved_video_fps = proc_cfg.get("saved_video_fps", 20)
     video_bits = proc_cfg.get("video_bits", 12)
     brightness_levels = 2.0 ** video_bits
+    frame_limit = proc_cfg.get("frame_limit", None)
+
 
     # Process each cine file
     cine_files = list(iter_files(video_dir, ".cine"))
@@ -151,7 +153,7 @@ def process_video_files(config: dict, video_type: str) -> None:
         print(f"\n  [{i}/{len(cine_files)}] Processing: {cine_file.name}")
         try:
             # Load and normalize video
-            video = load_cine_video(str(cine_file))
+            video = load_cine_video(str(cine_file), frame_limit=frame_limit)
             video = video.astype(np.float32) / brightness_levels
             file_stem = cine_file.stem
             
