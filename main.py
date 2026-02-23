@@ -36,8 +36,8 @@ global video_name
 
 # Define the parent folder and other global variables
 parent_folder = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\cine"
-res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
-rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
+# res_dir = r"G:\OSCC\LubeOil\BC20241017_HZ_Nozzle2\results"
+# rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241017_HZ_Nozzle2\rotated"
 experiment_config = r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json"
 
 
@@ -464,7 +464,7 @@ async def main():
                     penetration_diff = np.diff(penetration_highpass, axis=1)
 
                     # Remove the negative penetration difference
-                    diff_threshold = -3
+                    diff_threshold = 0
                     x_loc, y_loc = np.where(penetration_diff < diff_threshold)
 
                     for plume_idx, frame_idx in zip(x_loc, y_loc):
@@ -492,6 +492,8 @@ async def main():
                         # Test conditions from subfolder
                         'chamber_pressure_bar': [test_condition.get('chamber_pressure_bar')] * num_frames,
                         'injection_duration_us': [test_condition.get('injection_duration_us')] * num_frames,
+                        'injection_pressure_bar': [test_condition.get('injection_pressure_bar')] * num_frames,
+                        # File name
                     })
                     
                     # Add penetration data per plume

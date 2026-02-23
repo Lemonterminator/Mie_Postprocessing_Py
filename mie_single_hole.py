@@ -31,7 +31,7 @@ import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
 from OSCC_postprocessing.binary_ops.functions_bw import bw_boundaries_all_points
-from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect, generate_plume_mask
+from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
 from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,
     resolve_backend,
@@ -644,7 +644,7 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
     
 
 def main():
-    file = Path(r"G:\MeOH_test\Mie\T2_Mie Camera_1.cine")
+    file = Path(r"G:\MeOH_test\Mie_test\T15_Mie Camera_1.cine")
     json_file = Path(r"G:\MeOH_test\Mie\config.json")
     out_dir = Path(r"G:\MeOH_test\Mie\Processed_Results")
 
@@ -699,5 +699,6 @@ def main():
     
     df = mie_single_hole_pipeline(video, file.name, centre, offset, ir_, or_, save_path_video, save_path_data, save_video_strip=False, preview=True)
 
+    print("finsished!")
 if __name__ == '__main__':
     main()
