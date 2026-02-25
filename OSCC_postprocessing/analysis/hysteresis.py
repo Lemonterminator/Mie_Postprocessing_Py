@@ -127,9 +127,11 @@ def longest_true_run(mask):
     return int(starts[k]), int(ends[k])
 
 def detect_single_high_interval(y, x=None,
-                                base_quantile=0.50,
-                                scale_quantile=0.10,
-                                k_hi=8.0, k_lo=4.0,
+                                base_quantile=0.10,
+                                k_hi=0.9, 
+                                k_lo=0.1,
+                                th_lo=None,
+                                th_hi=None,
                                 fill_hole_len=3,
                                 min_island_len=5):
     """
@@ -147,11 +149,14 @@ def detect_single_high_interval(y, x=None,
     else:
         x = xp.asarray(x)
 
+
     # 1) 基线与尺度（鲁棒）
     base = xp.quantile(y, base_quantile)
     sigma = 1.4826 * mad(y - base)  # MAD->std 等效（对高斯噪声）
-    th_hi = base + k_hi * sigma
-    th_lo = base + k_lo * sigma
+    if th_hi is None:
+        th_hi = base + k_hi * sigma
+    if th_lo is None:
+        th_lo = base + k_lo * sigma
 
     # 2) 滞回二值化
     mask = hysteresis_threshold(y, th_lo=th_lo, th_hi=th_hi)

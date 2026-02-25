@@ -55,6 +55,7 @@ from OSCC_postprocessing.analysis.single_plume import (
 from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
     rotate_video_nozzle_at_0_half_numpy,
 )
+from OSCC_postprocessing.binary_ops.functions_bw import regionprops_3d, reconstruct_blob
 
 
 import numpy as np
@@ -331,6 +332,9 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                              near_nozzle_relative_height=1.0 / 20, near_nozzle_relative_width=1.0 / 20,
                              solver="full",
                              preview=False,
+                             maximum_bw_spray_tolerance_y_axis = 50, #px,
+                             nozzle_open_threshold_low=0.1,
+                             nozzle_open_threshold_high=0.5,
                              ): 
     
 
@@ -406,9 +410,11 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
     Lo_Hi = cp.zeros_like(near_nozzle_intensity_sums, dtype=cp.bool_)
 
 
-    y =_min_max_scale( near_nozzle_intensity_sums.T) # cupy -> numpy
-    res, mask, _ = detect_single_high_interval(y)
-
+    # y =_min_max_scale( near_nozzle_intensity_sums.T) # cupy -> numpy
+    y = robust_scale(near_nozzle_intensity_sums.T, q_min=15, q_max=90)
+    
+    res, mask, _ = detect_single_high_interval(y, th_lo=nozzle_open_threshold_low, th_hi=nozzle_open_threshold_high)
+    
     if res is None:
         hydraulic_delay = np.nan
         nozzle_closing = np.nan
@@ -574,9 +580,11 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         if preview:
             fg_copy = foreground.copy() 
 
+        '''
         # Gain correction for the video
-        foreground[int(brightness_peak):] *= xp.asarray(gain_curve[int(brightness_peak):, None, None])
+        # foreground[int(brightness_peak):] *= xp.asarray(gain_curve[int(brightness_peak):, None, None])
 
+        
         # Binarize the whole video with a global triangular threshold
         # Then retain the largest 3D blob 
         # (Reasoning: All bw area in each frame is assumed to be connected to the previous and the next, 
@@ -588,6 +596,38 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                         , connectivity=2),
                         mode="2D"
                         )
+        '''
+        
+        bw_video_0 = triangle_binarize_gpu(_min_max_scale(foreground))
+
+        # Same connectivity as keep_largest_component_nd_cuda (e.g. 2 for 18-neighbors in 3D)
+        
+        # Check for regional Properties in 3D
+        # Get label image to reconstruct blobs
+        props, labels = regionprops_3d(bw_video_0, connectivity=2, return_labels=True, centroid=True)
+
+        # Find the L2 distance for each 3D blob from the y = H//2 axis
+        props["y-dist"] = np.abs(props["centroid_1"] - bw_video_0.shape[1]//2)
+        
+        # Distance based filtering
+        filtered_props = props[props["y-dist"] <= maximum_bw_spray_tolerance_y_axis]
+
+        # Retain the largest blob
+        filtered_props = filtered_props.sort_values("volume", ascending=False)
+
+        # Get the value from the "label" column of the first row (at position 0)
+        label_id = filtered_props.iloc[0]["label"]
+
+        # Reconstruct the video based on filtered labels
+        largest_blob = reconstruct_blob(labels, label_id)
+
+        # Per frame keep the largest white 2d blob. Reason: Connected in 3D != Connected in 2D
+        for f in range(F):
+            largest_blob[f] = keep_largest_component_cuda(largest_blob[f])
+
+        bw_video = _binary_fill_holes_gpu(largest_blob, mode="2D")  # or (labels == label_id)
+
+
         full_metrics = _compute_full_solver_metrics_from_bw(
             bw_video=bw_video,
             H=H,

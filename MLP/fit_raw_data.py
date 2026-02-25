@@ -13,6 +13,7 @@ root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\BC20220627 - Heinzm
 out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data\BC20220627 - Heinzman DS300 - Mie Top view")
 
 FPS = 34000
+max_hydraulic_delay_frames = 25
 # Image processing settings
 # DS300
 OR_MM_PER_PX_REFERENCE = 412.0
@@ -125,7 +126,7 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
     return out, clean_df, flagged_df
 
 
-def penetration_cleaning(arr, scaling_factor, diff_threshold=1.0, hd_upper_lim=15):
+def penetration_cleaning(arr, scaling_factor, diff_threshold=1.0, hd_upper_lim=max_hydraulic_delay_frames):
     arr = np.asarray(arr, dtype=float).copy()
     penetration_delay = 0
 
