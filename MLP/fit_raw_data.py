@@ -9,12 +9,16 @@ import matplotlib.pyplot as plt
 
 
 # Input/output roots
-root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241016_HZ_Nozzle8")
-out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\MLP\synthetic_data\BC20241016_HZ_Nozzle8")
+root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\BC20220627 - Heinzman DS300 - Mie Top view")
+out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data\BC20220627 - Heinzman DS300 - Mie Top view")
 
-
+FPS = 34000
 # Image processing settings
-OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
+# DS300
+OR_MM_PER_PX_REFERENCE = 412.0
+# Otherwise
+# OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
+
 DIFF_THRESHOLD = 2.0  # px
 MM_PER_PX_SCALE = 90.0 / OR_MM_PER_PX_REFERENCE
 MIN_TI = 0.0
@@ -211,6 +215,8 @@ def fit_sigmoid(t, y, ti, x0):
 def prepare_cleaned_series(df_file, diff_threshold=2.0):
     number_of_plumes = int(df_file["plumes"].iloc[0])
     fps = float(df_file["fps"].iloc[0])
+    if fps==np.nan:
+        fps = FPS
     frame_idx = np.asarray(df_file["frame_idx"]).astype(int)
 
     time_s = frame_idx / fps

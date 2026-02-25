@@ -28,5 +28,5 @@ def cine_to_injection_duration_us(cine_number: int) -> float:
 PLUMES  = 10
 DIAMETER = 0.384 # mm
 UMBRELLA_ANGLE = 140 # degrees
-    
+FPS=34000 # FPS in cine files
 

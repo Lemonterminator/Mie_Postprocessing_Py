@@ -3,7 +3,8 @@
   "nozzle_properties": {
     "plumes": 10,
     "diameter_mm": 0.384,
-    "umbrella_angle_deg": 140
+    "umbrella_angle_deg": 140,
+    "fps": 34000
   },
   "test_matrix": {
     "groups": [

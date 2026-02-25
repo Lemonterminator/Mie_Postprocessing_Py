@@ -25,6 +25,7 @@ from OSCC_postprocessing.analysis.multihole_utils import (
 
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -103,6 +104,40 @@ def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
         return cp.asnumpy(arr)
     return np.asarray(arr)
+
+
+def plot_metrics_dataframe(df, title="", save_path=None):
+    """Plot all numeric columns from a metrics DataFrame. Optionally save to file."""
+    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    if not numeric_cols:
+        if save_path is None:
+            print("No numeric columns to plot.")
+        return
+    n_cols = len(numeric_cols)
+    n_rows = max(1, (n_cols + 2) // 3)
+    fig, axes = plt.subplots(n_rows, 3, figsize=(12, 2.5 * n_rows), squeeze=False)
+    axes = axes.flatten()
+    x = np.arange(len(df))
+    for i, col in enumerate(numeric_cols):
+        ax = axes[i]
+        ax.plot(x, df[col], linewidth=1.0)
+        ax.set_title(col, fontsize=9)
+        ax.set_xlabel("Frame")
+        ax.grid(alpha=0.25)
+        ax.tick_params(labelsize=7)
+    for j in range(n_cols, len(axes)):
+        axes[j].set_visible(False)
+    if title:
+        fig.suptitle(title, fontsize=12)
+    else:
+        fig.suptitle("Single-hole Mie metrics", fontsize=12)
+    fig.tight_layout()
+    if save_path is not None:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+    else:
+        plt.show()
 
 
 def _compute_full_solver_metrics_from_bw(
@@ -284,18 +319,19 @@ def mie_preprocessing(
     return segment, foreground, bkg
 
 
-def mie_single_hole_pipeline(video: xp.ndarray, file_name: str, 
-                             centre, rotation_offset: float, inner_radius: float, outer_radius: float, 
+def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
+                             centre, rotation_offset: float, inner_radius: float, outer_radius: float,
                              video_out_dir: Path, data_out_dir: Path,
-                             blank_frames=10, # usually stable in a campaign.
-                             umbrella_angle = 180.0, # Single Plume has 0 deg of tilt angle (spary axis is orthogonal to line of sight)
-                             video_strip_relative_height = 1.0/3, # Relative ratio of the rotated video strip to calibrated outer radius
-                             INTERPOLATION = "nearest" ,BORDER_MODE = "constant", # image rotation settings
-                             save_video_strip=True, save_mode ="filtered", # filtered rotated strip or raw
-                             near_nozzle_relative_height = 1.0/20, near_nozzle_relative_width = 1.0/20, # Image patch sizes relative to the video strip after rotation and crop
-                             solver="full", # "full" or "fast", where "full" mode computes also from binarized video
-                             preview=False 
-                            ): 
+                             save_path_plot: Path | None = None,
+                             blank_frames=10,  # usually stable in a campaign.
+                             umbrella_angle=180.0,  # Single Plume: spray axis orthogonal to line of sight
+                             video_strip_relative_height=1.0 / 3,
+                             INTERPOLATION="nearest", BORDER_MODE="constant",
+                             save_video_strip=True, save_mode="filtered",
+                             near_nozzle_relative_height=1.0 / 20, near_nozzle_relative_width=1.0 / 20,
+                             solver="full",
+                             preview=False,
+                             ): 
     
 
     
@@ -605,8 +641,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
     df["Hydraulic Delay"]                       = _as_numpy(hd)
     df["Nozzle Closing"]                        = _as_numpy(nc)
 
-    if solver=="full":
-
+    executor = None
+    if solver == "full":
         # Asynchronously saving the boundary
         executor = ThreadPoolExecutor(max_workers=4)
         save_boundary_csv(boundary, data_out_dir / f"{file_name}_boundary_points.csv", executor=executor)
@@ -627,24 +663,26 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         df["Cone_Angle_Linear_Regression_Upper"] = _as_numpy(lg_up)
 
 
-    # Save main data        
+    # Save main data
     df.to_csv(data_out_dir / f"{file_name}_metrics.csv")
 
-    # print(f"DataFrame handling finished in {time.time()-start_time:.3f}s")
+    if save_path_plot is not None:
+        plot_path = Path(save_path_plot) / f"{file_name}_metrics.png"
+        plot_metrics_dataframe(df, title=file_name + "\n", save_path=plot_path)
 
-    # Shutting down the asynchrounous data savers
-    if save_video_strip: 
+    # Shutting down the asynchronous data savers
+    if save_video_strip:
         avi_saver.wait()
         avi_saver.shutdown()
         npz_saver.wait()
         npz_saver.shutdown()
+    if executor is not None:
         executor.shutdown(wait=True)
     return df
-    
-    
+
 
 def main():
-    file = Path(r"G:\MeOH_test\Mie_test\T15_Mie Camera_1.cine")
+    file = Path(r"G:\MeOH_test\Mie\T15_Mie Camera_1.cine")
     json_file = Path(r"G:\MeOH_test\Mie\config.json")
     out_dir = Path(r"G:\MeOH_test\Mie\Processed_Results")
 
@@ -655,7 +693,8 @@ def main():
 
     save_path_video = out_dir / "Rotated_Videos"
     save_path_data = out_dir / "Postprocessed_Data"
-
+    save_path_plot = out_dir / "Plots"
+    Path(save_path_plot).mkdir(parents=True, exist_ok=True)
 
 
     umbrella_angle=180.0
@@ -697,7 +736,11 @@ def main():
     print(f"The injector has {number_of_plumes} plumes.")
     print(f"The nozzle is centred at ({centre[0]:.2f}, {centre[1]:.2f}) in image coordinates.")
     
-    df = mie_single_hole_pipeline(video, file.name, centre, offset, ir_, or_, save_path_video, save_path_data, save_video_strip=False, preview=True)
+    df = mie_single_hole_pipeline(
+        video, file.name, centre, offset, ir_, or_,
+        save_path_video, save_path_data, save_path_plot=save_path_plot,
+        save_video_strip=False, preview=True,
+    )
 
     print("finsished!")
 if __name__ == '__main__':

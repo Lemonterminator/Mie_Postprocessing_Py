@@ -35,15 +35,17 @@ global video_name
 
 
 # Define the parent folder and other global variables
-parent_folder = r"F:\BC20241016_HZ_Nozzle8\Cine"
+parent_folder = r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
 # res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
 # rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
-experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json"
+experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"
 
 
 # =============================================================================
 # Experiment Config Loading and Results Management
 # =============================================================================
+frame_limit = 80
+noise_floor_multiplier=2.0
 
 def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
@@ -67,7 +69,6 @@ def load_experiment_config(json_path: str | Path) -> dict:
     with open(json_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-
 def get_nozzle_properties(config: dict) -> dict:
     """
     Extract nozzle properties from the configuration.
@@ -83,7 +84,6 @@ def get_nozzle_properties(config: dict) -> dict:
         Dictionary containing plumes, diameter_mm, umbrella_angle_deg, fps.
     """
     return config.get("nozzle_properties", {})
-
 
 def expand_test_matrix(config: dict) -> list[dict]:
     """
@@ -153,7 +153,6 @@ def expand_test_matrix(config: dict) -> list[dict]:
     
     return results
 
-
 def get_test_condition_by_id(config: dict, group_id: int) -> dict | None:
     """
     Get a specific test condition by its group ID.
@@ -175,7 +174,6 @@ def get_test_condition_by_id(config: dict, group_id: int) -> dict | None:
         if cond.get("id") == group_id:
             return cond
     return None
-
 
 def extract_group_id_from_path(path: Path | str) -> int | None:
     """
@@ -206,7 +204,6 @@ def extract_group_id_from_path(path: Path | str) -> int | None:
         if match:
             return int(match.group(1))
     return None
-
 
 def create_results_dataframe(
     config: dict,
@@ -270,7 +267,6 @@ def create_results_dataframe(
     
     return pd.DataFrame(data)
 
-
 def append_to_master_dataframe(
     master_df: pd.DataFrame | None,
     new_df: pd.DataFrame,
@@ -296,7 +292,6 @@ def append_to_master_dataframe(
         return new_df.copy()
     return pd.concat([master_df, new_df], ignore_index=True)
 
-
 def save_master_dataframe(df: pd.DataFrame, output_path: str | Path, format: str = "csv"):
     """
     Save the master DataFrame to disk.
@@ -318,11 +313,6 @@ def save_master_dataframe(df: pd.DataFrame, output_path: str | Path, format: str
         df.to_parquet(output_path.with_suffix(".parquet"), index=False)
 
 
-frame_limit = 80
-
-
-
-
 # Directory containing mask images and numpy files
 # DATA_DIR = Path(__file__).resolve().parent / "data"
 
@@ -330,11 +320,9 @@ frame_limit = 80
 SEMAPHORE_LIMIT = 8  # Adjust this based on your CPU capacity
 semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
 
-
 async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=17):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, play_video_cv2, video, gain, binarize, thresh, intv)
-
 
 def numeric_then_alpha_key(p: Path):
     """
@@ -347,7 +335,6 @@ def numeric_then_alpha_key(p: Path):
     else:
         return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
     
-
 
 async def main():
 
@@ -439,6 +426,7 @@ async def main():
                                 ring_mask,
                                 wsize=3,
                                 sigma=1,
+                                noise_floor_multiplier=noise_floor_multiplier
                                 )
                     # Executions part
 

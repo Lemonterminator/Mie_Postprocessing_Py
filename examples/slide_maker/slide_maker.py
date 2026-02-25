@@ -161,7 +161,8 @@ def process_video_data(config: dict, video_type: str) -> None:
     results_dir = video_dir / "Processed_Results"
     rotated_dir = results_dir / "Rotated_Videos"
     data_dir = results_dir / "Postprocessed_Data"
-    for d in [results_dir, rotated_dir, data_dir]:
+    plots_dir = results_dir / "Plots"
+    for d in [results_dir, rotated_dir, data_dir, plots_dir]:
         d.mkdir(exist_ok=True)
 
     # Load metadata
@@ -207,6 +208,7 @@ def process_video_data(config: dict, video_type: str) -> None:
                     outer_radius=outer_radius,
                     video_out_dir=rotated_dir,
                     data_out_dir=data_dir,
+                    save_path_plot=plots_dir,
                     save_video_strip=save_intermediate,
                     preview=False,
                 )

@@ -482,6 +482,173 @@ def keep_largest_component_nd_cuda(bw, connectivity=None):
     return _return_like_input(largest, bw)
 
 
+def regionprops_3d(
+    bw,
+    connectivity=None,
+    volume=True,
+    centroid=False,
+    bbox=False,
+    as_dataframe=True,
+    return_labels=False,
+):
+    """
+    Python equivalent to MATLAB regionprops() for a 3D binary volume.
+
+    Labels connected components with the same connectivity rule as
+    keep_largest_component_nd_cuda, then returns only the requested
+    per-region properties (by default only volume, for speed).
+
+    Reconstructing a blob (like MATLAB PixelIdxList): use return_labels=True
+    and then ``blob = (labels == label_id)`` for the desired label_id.
+
+    Parameters
+    ----------
+    bw : array-like, 3D, bool or 0/1
+        Binary volume (e.g. binarized video, shape (F, H, W)).
+    connectivity : int or None
+        For 3D: 1 = 6-neighbors, 2 = 18, 3 = 26 (full). Default 3.
+    volume : bool
+        If True, compute and return volume (pixel count) per region. Default True.
+    centroid : bool
+        If True, compute and return center of mass per region. Default False.
+    bbox : bool
+        If True, compute and return bounding box per region. Default False.
+    as_dataframe : bool
+        If True, return a pandas DataFrame; else list of dicts.
+    return_labels : bool
+        If True, return (props, labels) so you can reconstruct blobs with
+        ``(labels == label_id)``. labels has same shape as bw; 0 = background.
+        Default False.
+
+    Returns
+    -------
+    props : pandas.DataFrame or list of dict
+        Requested fields only (e.g. label + volume when centroid=False, bbox=False).
+        Centroid as (t, y, x); bbox as (min_t, min_y, min_x, max_t, max_y, max_x).
+    labels : array, same shape as bw, optional
+        Only if return_labels=True. Integer label per voxel; 0 = background.
+        Reconstruct blob for label k: ``blob = (labels == k)``.
+    """
+    from collections import defaultdict
+
+    if bw.ndim != 3:
+        raise ValueError("regionprops_3d expects a 3D array, got ndim=%s" % getattr(bw, "ndim", "?"))
+    conn = int(connectivity) if connectivity is not None else 3
+    if not (1 <= conn <= 3):
+        conn = 3
+
+    if CUPY_AVAILABLE and isinstance(bw, cp.ndarray):
+        binary = (bw != 0)
+        structure = cndi.generate_binary_structure(3, conn)
+        labels, num_features = cndi.label(binary, structure=structure)
+        if int(num_features) == 0:
+            out = __regionprops_3d_to_df([]) if as_dataframe else []
+            return (out, labels) if return_labels else out
+
+        label_ids = cp.unique(labels)
+        label_ids = label_ids[label_ids > 0]
+
+        ones = cp.ones_like(labels, dtype=cp.float32)
+        if volume:
+            areas = cndi.sum(ones, labels, label_ids)
+            valid = areas > 0
+            label_ids = label_ids[valid]
+            areas = areas[valid]
+        if label_ids.size == 0:
+            out = __regionprops_3d_to_df([]) if as_dataframe else []
+            return (out, labels) if return_labels else out
+
+        centroids = cndi.center_of_mass(ones, labels, label_ids) if centroid else None
+
+        bboxes = None
+        if bbox:
+            coords = cp.argwhere(labels > 0)
+            labels_flat = labels[labels > 0]
+            coords_cpu = coords.get()
+            labels_cpu = labels_flat.get()
+            bboxes = defaultdict(lambda: [None, None])
+            for idx, lab in zip(coords_cpu, labels_cpu):
+                lab = int(lab)
+                if bboxes[lab][0] is None:
+                    bboxes[lab][0] = list(idx)
+                    bboxes[lab][1] = list(idx)
+                else:
+                    bmin, bmax = bboxes[lab]
+                    for i, v in enumerate(idx):
+                        if v < bmin[i]:
+                            bmin[i] = v
+                        if v > bmax[i]:
+                            bmax[i] = v
+
+        label_ids_cpu = label_ids.get()
+        props = []
+        for i, lab in enumerate(label_ids_cpu):
+            p = {"label": int(lab)}
+            if volume:
+                p["volume"] = float(areas[i].get() if hasattr(areas[i], "get") else areas[i])
+            if centroid:
+                p["centroid"] = tuple(float(c) for c in cp.asnumpy(centroids[i]))
+            if bbox and bboxes is not None:
+                bbox_min, bbox_max = bboxes[int(lab)]
+                p["bbox"] = tuple(bbox_min + [x + 1 for x in bbox_max])
+            props.append(p)
+        out = __regionprops_3d_to_df(props) if as_dataframe else props
+        return (out, labels) if return_labels else out
+    else:
+        bw = np.asarray(bw)
+        if bw.ndim != 3:
+            raise ValueError("regionprops_3d expects a 3D array, got ndim=%s" % bw.ndim)
+        binary = np.asarray(bw != 0, dtype=bool)
+        structure = generate_binary_structure(3, conn)
+        labels_np, _ = ndimage.label(binary, structure=structure)
+        regions = measure.regionprops(labels_np)
+        props = []
+        for r in regions:
+            p = {"label": int(r.label)}
+            if volume:
+                p["volume"] = int(r.area)
+            if centroid:
+                p["centroid"] = tuple(float(c) for c in r.centroid)
+            if bbox:
+                p["bbox"] = tuple(r.bbox)
+            props.append(p)
+        out = __regionprops_3d_to_df(props) if as_dataframe else props
+        return (out, labels_np) if return_labels else out
+
+
+def __regionprops_3d_to_df(props):
+    """Convert list of region dicts to DataFrame; only include keys present in props."""
+    import pandas as pd
+    if not props:
+        return pd.DataFrame()
+    rows = []
+    for p in props:
+        row = {"label": p["label"]}
+        if "volume" in p:
+            row["volume"] = p["volume"]
+        if "centroid" in p:
+            c = p["centroid"]
+            row["centroid_0"], row["centroid_1"], row["centroid_2"] = c[0], c[1], c[2]
+        if "bbox" in p:
+            b = p["bbox"]
+            row["bbox_min_0"], row["bbox_min_1"], row["bbox_min_2"] = b[0], b[1], b[2]
+            row["bbox_max_0"], row["bbox_max_1"], row["bbox_max_2"] = b[3], b[4], b[5]
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def reconstruct_blob(labels, label_id):
+    """
+    Reconstruct the 3D binary mask for one region (like MATLAB PixelIdxList usage).
+
+    Use with regionprops_3d(..., return_labels=True)::
+
+        props, labels = regionprops_3d(bw, volume=True, return_labels=True)
+        label_id = props.loc[0, "label"]   # or props[0]["label"]
+        blob = reconstruct_blob(labels, label_id)   # same as (labels == label_id)
+    """
+    return (labels == label_id)
+
 
 def penetration_bw_to_index(bw):
     arr = bw.astype(bool)

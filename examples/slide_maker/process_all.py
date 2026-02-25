@@ -93,14 +93,15 @@ def load_video_metadata(directory: Path) -> dict:
         }
 
 
-def setup_output_dirs(base_dir: Path) -> Tuple[Path, Path, Path]:
-    """Create and return output directories."""
+def setup_output_dirs(base_dir: Path) -> Tuple[Path, Path, Path, Path]:
+    """Create and return output directories (results_dir, rotated_dir, data_dir, plots_dir)."""
     results_dir = base_dir / "Processed_Results"
     rotated_dir = results_dir / "Rotated_Videos"
     data_dir = results_dir / "Postprocessed_Data"
-    for d in [results_dir, rotated_dir, data_dir]:
+    plots_dir = results_dir / "Plots"
+    for d in [results_dir, rotated_dir, data_dir, plots_dir]:
         d.mkdir(exist_ok=True)
-    return results_dir, rotated_dir, data_dir
+    return results_dir, rotated_dir, data_dir, plots_dir
 
 
 # =============================================================================
@@ -119,7 +120,7 @@ def process_video_files(config: dict, video_type: str) -> None:
     print(f"\n{'='*60}\nProcessing {video_type.capitalize()} videos: {video_dir}\n{'='*60}")
 
     # Setup output directories
-    _, rotated_dir, data_dir = setup_output_dirs(video_dir)
+    _, rotated_dir, data_dir, plots_dir = setup_output_dirs(video_dir)
 
     # Load metadata
     try:
@@ -167,6 +168,7 @@ def process_video_files(config: dict, video_type: str) -> None:
                     outer_radius=outer_radius,
                     video_out_dir=rotated_dir,
                     data_out_dir=data_dir,
+                    save_path_plot=plots_dir,
                     save_video_strip=True,  # Always save video for later use
                     save_mode="filtered",
                     preview=False,

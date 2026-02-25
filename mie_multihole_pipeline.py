@@ -116,7 +116,7 @@ from OSCC_postprocessing.binary_ops.masking import *
 
 
 
-def refined_log_subtraction(video, frames_before_SOI,  q_min=5, q_max=99.99):
+def refined_log_subtraction(video, frames_before_SOI,  q_min=5, q_max=99.99, noise_floor_multiplier=3.0):
 
     eps = 1e-9
     
@@ -143,7 +143,7 @@ def refined_log_subtraction(video, frames_before_SOI,  q_min=5, q_max=99.99):
     # 计算背景的绝对亮度阈值 (比如背景中位数的 1.2 倍作为噪声底)
     # 注意：这里是在线性空间计算阈值
     raw_bkg = xp.exp(lg_bkg)
-    noise_floor_mask = video > (raw_bkg * 3) # 3 是经验值，可调，表示只有亮度超过背景50%的像素才被视为有效
+    noise_floor_mask = video > (raw_bkg * noise_floor_multiplier) # 3 是经验值，可调，表示只有亮度超过背景50%的像素才被视为有效
     
     # 应用门控：将暗部区域平滑过渡到 0
     # 这里使用乘法掩膜，不仅处理了值，也平滑了梯度
@@ -192,10 +192,11 @@ def mie_multihole_preprocessing(
                                 sigma=1.0,
                                 chamber_mask=None,
                                 frames_before_SOI=10,
+                                noise_floor_multiplier=3
                                 ):
         
 
-        lg_foreground = refined_log_subtraction(video, frames_before_SOI)
+        lg_foreground = refined_log_subtraction(video, frames_before_SOI, noise_floor_multiplier=noise_floor_multiplier)
 
         # Sobel Magnitude
         sb_mag = arr_3d_sobel_magnitude_cupy(lg_foreground, wsize=wsize, sigma=sigma)
