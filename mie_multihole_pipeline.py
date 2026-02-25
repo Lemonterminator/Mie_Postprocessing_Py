@@ -206,31 +206,27 @@ def mie_multihole_preprocessing(
         lg_foreground_highpass = robust_scale(sb_mag, q_min=5, q_max=99.9999)
         
         # Frame-wise sum
-        energy_highpass = xp.sum(lg_foreground_highpass, axis=(1,2))
+        # energy_highpass = xp.sum(lg_foreground_highpass, axis=(1,2))
 
         # Find the brightest frame and their intensity for each plume
-        brightness_peaks = _as_numpy(xp.argmax(energy_highpass).item())
+        # brightness_peaks = _as_numpy(xp.argmax(energy_highpass).item())
 
         # Normalize the intensity of the brightest frame to 1 for each plume
-        peak_intensity_sums = xp.max(energy_highpass)
-        energy_highpass /= peak_intensity_sums
+        # peak_intensity_sums = xp.max(energy_highpass)
+        # energy_highpass /= peak_intensity_sums
 
-
-        # lg_foreground_highpass_compensated = bilateral_filter_video_cupy_fast(lg_foreground_highpass, 3, 3,1)
-        lg_foreground_highpass_compensated =  lg_foreground_highpass
-
-
+        
         # === Apply ring masks ===
         lg_foreground*= ring_mask[None, :, :]
         
-        lg_foreground_highpass_compensated *= ring_mask[None, :, :]
+        lg_foreground_highpass *= ring_mask[None, :, :]
 
 
         if chamber_mask is not None:
             chamber_mask = xp.asarray(chamber_mask)
-            lg_foreground_highpass_compensated *= chamber_mask[None, :, :]
+            lg_foreground_highpass *= chamber_mask[None, :, :]
 
-        return lg_foreground, lg_foreground_highpass_compensated
+        return lg_foreground, lg_foreground_highpass
 
 
 def mie_multihole_postprocessing(foreground, highpass, 
@@ -245,7 +241,7 @@ def mie_multihole_postprocessing(foreground, highpass,
 
     # Compute angular signal distribution around the nozzle centre
     _, total_angular_signal_density, _ = angle_signal_density_auto(
-        highpass, centre[0], centre[1], N_bins=bins
+        foreground, centre[0], centre[1], N_bins=bins
     )
 
     # === Find Optimal Rotation Offset ===

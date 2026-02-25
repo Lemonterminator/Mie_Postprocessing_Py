@@ -135,7 +135,7 @@ def process_video_files(config: dict, video_type: str) -> None:
 
     # Get processing options
     proc_cfg = config.get("processing", {})
-    save_intermediate = proc_cfg.get("save_intermediate_results", False)
+    save_intermediate = proc_cfg.get("save_processed_video_strips", False)
     saved_video_fps = proc_cfg.get("saved_video_fps", 20)
     video_bits = proc_cfg.get("video_bits", 12)
     brightness_levels = 2.0 ** video_bits
@@ -168,8 +168,7 @@ def process_video_files(config: dict, video_type: str) -> None:
                     outer_radius=outer_radius,
                     video_out_dir=rotated_dir,
                     data_out_dir=data_dir,
-                    save_path_plot=plots_dir,
-                    save_video_strip=True,  # Always save video for later use
+                    save_video_strip=save_intermediate,  # Always save video for later use
                     save_mode="filtered",
                     preview=False,
                 )
@@ -184,7 +183,7 @@ def process_video_files(config: dict, video_type: str) -> None:
                     outer_radius=outer_radius,
                     video_out_dir=rotated_dir,
                     data_out_dir=data_dir,
-                    save_video_strip=True,
+                    save_video_strip=save_intermediate,
                     save_mode="filtered",
                     preview=False,
                 )
