@@ -11,7 +11,7 @@
     },
     "processing": {
         "mode": "sample",
-        "save_intermediate_results": true,
+        "save_processed_video_strips": false,
         "saved_video_fps": 20,
         "video_bits": 12,
         "frame_limit": 200
