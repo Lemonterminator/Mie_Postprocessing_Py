@@ -31,7 +31,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.binary_ops.functions_bw import bw_boundaries_all_points
 from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
 from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,
@@ -335,6 +334,10 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                              maximum_bw_spray_tolerance_y_axis = 50, #px,
                              nozzle_open_threshold_low=0.1,
                              nozzle_open_threshold_high=0.5,
+                             quantize_npz: bool = False,
+                             quant_float_upper_bound: float = 1.0,
+                             quant_clip_negative: bool = True,
+                             quant_store_metadata: bool = True,
                              ): 
     
 
@@ -373,7 +376,14 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         avi_saver = AsyncAVISaver()
         npz_saver = AsyncNPZSaver()
         if save_mode == "raw": 
-            npz_saver.save(video_out_dir / f"{file_name}_rotated_strip.npz", segment=_as_numpy(segment))
+            npz_saver.save(
+                video_out_dir / f"{file_name}_rotated_strip.npz",
+                quantize_u8=quantize_npz,
+                quant_float_upper_bound=quant_float_upper_bound,
+                quant_clip_negative=quant_clip_negative,
+                quant_store_metadata=quant_store_metadata,
+                segment=_as_numpy(segment),
+            )
             avi_saver.save(
                 video_out_dir / f"{file_name}_rotated_strip.avi",
                 _as_numpy(segment),
@@ -383,7 +393,14 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
             )
         elif save_mode=="filtered":
             # Save filtered foreground video to video_out_dir (Rotated_Videos folder)
-            npz_saver.save(video_out_dir / f"{file_name}_foreground.npz", foreground=_as_numpy(foreground))
+            npz_saver.save(
+                video_out_dir / f"{file_name}_foreground.npz",
+                quantize_u8=quantize_npz,
+                quant_float_upper_bound=quant_float_upper_bound,
+                quant_clip_negative=quant_clip_negative,
+                quant_store_metadata=quant_store_metadata,
+                foreground=_as_numpy(foreground),
+            )
             avi_saver.save(
                 video_out_dir / f"{file_name}_foreground.avi",
                 _as_numpy(foreground),

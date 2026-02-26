@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.binary_ops.functions_bw import bw_boundaries_all_points
 from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
 from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,

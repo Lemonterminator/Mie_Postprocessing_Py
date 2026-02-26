@@ -147,6 +147,13 @@ def process_video_files(config: dict, video_type: str) -> None:
     video_bits = proc_cfg.get("video_bits", 12)
     brightness_levels = 2.0 ** video_bits
     frame_limit = proc_cfg.get("frame_limit", None)
+    quant_cfg = config.get("quantization", {})
+    quant_enabled = bool(quant_cfg.get("enabled", False))
+    quant_targets = {str(t).lower() for t in quant_cfg.get("targets", ["rotated_videos"])}
+    quant_float_upper_bound = float(quant_cfg.get("float_upper_bound", 1.0))
+    quant_clip_negative = bool(quant_cfg.get("clip_negative_to_zero", True))
+    quant_store_metadata = bool(quant_cfg.get("store_metadata", True))
+    quantize_rotated_npz = quant_enabled and ("rotated_videos" in quant_targets)
 
 
     # Process each cine file
@@ -178,6 +185,10 @@ def process_video_files(config: dict, video_type: str) -> None:
                     save_video_strip=save_intermediate,  # Always save video for later use
                     save_mode="filtered",
                     preview=False,
+                    quantize_npz=quantize_rotated_npz,
+                    quant_float_upper_bound=quant_float_upper_bound,
+                    quant_clip_negative=quant_clip_negative,
+                    quant_store_metadata=quant_store_metadata,
                 )
                 
             elif video_type.lower() == "luminescence":
@@ -193,6 +204,10 @@ def process_video_files(config: dict, video_type: str) -> None:
                     save_video_strip=save_intermediate,
                     save_mode="filtered",
                     preview=False,
+                    quantize_npz=quantize_rotated_npz,
+                    quant_float_upper_bound=quant_float_upper_bound,
+                    quant_clip_negative=quant_clip_negative,
+                    quant_store_metadata=quant_store_metadata,
                 )
                 
             elif video_type.lower() == "schlieren":
@@ -206,6 +221,10 @@ def process_video_files(config: dict, video_type: str) -> None:
                     data_dir,
                     save_intermediate_results=save_intermediate,
                     saved_video_FPS=saved_video_fps,
+                    quantize_npz=quantize_rotated_npz,
+                    quant_float_upper_bound=quant_float_upper_bound,
+                    quant_clip_negative=quant_clip_negative,
+                    quant_store_metadata=quant_store_metadata,
                 )
             
             print(f"    ✓ Done: {cine_file.name}")

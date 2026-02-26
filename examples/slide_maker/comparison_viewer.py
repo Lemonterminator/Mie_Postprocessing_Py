@@ -22,9 +22,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import shutil
+import re
+import subprocess
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import cv2
 import numpy as np
 import pandas as pd
 
@@ -34,6 +39,12 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+try:
+    import cupy as cp
+except Exception:  # pragma: no cover - optional dependency
+    cp = None
 
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -272,10 +283,17 @@ LINE_STYLES = ['-', '--', ':', '-.', '-']
 class ComparisonViewer:
     """Custom viewer with decoupled column 1 (plots) and columns 2+ (videos)."""
     
-    def __init__(self, data: ComparisonData, figsize: Tuple[float, float] = None):
+    def __init__(self, data: ComparisonData, figsize: Tuple[float, float] = None, title: Optional[str] = None):
         self.data = data
         self.num_cases = data.num_cases
-        self.num_rows = 4  # P/T/HRR, Mie Area, Injection, Heatmap
+        self.num_plot_rows = 4  # Keep plot column fixed and decoupled
+        self.video_row_kinds = ["mie", "schlieren", "luminescence", "heatmap"]
+        self.active_video_rows = [k for k in self.video_row_kinds if self._is_row_available(k)]
+        self.num_video_rows = len(self.active_video_rows)
+        if self.num_video_rows == 0:
+            # Keep one placeholder row to avoid creating an empty GridSpec.
+            self.active_video_rows = ["none"]
+            self.num_video_rows = 1
         
         # Figure sizing
         if figsize is None:
@@ -294,11 +312,11 @@ class ComparisonViewer:
         )
         
         # Sub-grid for column 1 (plots with shared x-axis)
-        self.gs_plots = self.gs_main[0, 0].subgridspec(self.num_rows, 1, hspace=0.08)
+        self.gs_plots = self.gs_main[0, 0].subgridspec(self.num_plot_rows, 1, hspace=0.08)
         
         # Sub-grid for video columns (tighter spacing)
         self.gs_videos = self.gs_main[0, 1].subgridspec(
-            self.num_rows, self.num_cases, 
+            self.num_video_rows, self.num_cases,
             wspace=0.02, hspace=0.05
         )
         
@@ -306,15 +324,34 @@ class ComparisonViewer:
         self.plot_axes: List[Axes] = []
         self.video_axes: List[List[Axes]] = []  # [row][col]
         self.video_entries: List[Dict] = []  # For animation
+        self.video_scale_cache: Dict[int, Tuple[float, float]] = {}
         
         self._setup_axes()
         self._populate_plots()
         self._populate_videos()
+        if title:
+            self.fig.suptitle(title, fontsize=14, y=0.995)
+
+    def _is_row_available(self, video_kind: str) -> bool:
+        """Return True if this video row has at least one available case."""
+        if video_kind == "mie":
+            return any(self.data.mie_videos.get(tp) is not None for tp in self.data.testpoint_strs)
+        if video_kind == "schlieren":
+            return any(self.data.schlieren_videos.get(tp) is not None for tp in self.data.testpoint_strs)
+        if video_kind == "luminescence":
+            return any(self.data.luminescence_videos.get(tp) is not None for tp in self.data.testpoint_strs)
+        if video_kind == "heatmap":
+            return any(
+                (self.data.luminescence_heatmaps.get(tp) is not None)
+                or (self.data.luminescence_videos.get(tp) is not None)
+                for tp in self.data.testpoint_strs
+            )
+        return False
     
     def _setup_axes(self) -> None:
         """Create all axes with proper sharing."""
         # Column 1: plots with shared x-axis
-        for row in range(self.num_rows):
+        for row in range(self.num_plot_rows):
             if row == 0:
                 ax = self.fig.add_subplot(self.gs_plots[row, 0])
             else:
@@ -322,13 +359,13 @@ class ComparisonViewer:
                 ax = self.fig.add_subplot(self.gs_plots[row, 0], sharex=self.plot_axes[0])
             
             # Hide x-tick labels for all but bottom plot
-            if row < self.num_rows - 1:
+            if row < self.num_plot_rows - 1:
                 plt.setp(ax.get_xticklabels(), visible=False)
             
             self.plot_axes.append(ax)
         
         # Columns 2+: videos
-        for row in range(self.num_rows):
+        for row in range(self.num_video_rows):
             row_axes = []
             for col in range(self.num_cases):
                 ax = self.fig.add_subplot(self.gs_videos[row, col])
@@ -340,17 +377,11 @@ class ComparisonViewer:
     def _populate_plots(self) -> None:
         """Populate column 1 with plots."""
         time_window = self.data.align_cfg.get("window_ms", 10.0)
-        
-        # Row 0: P/T/HRR
+
+        # Keep left-most plot column fixed and decoupled from video row availability.
         self._plot_pressure_temp_hrr(self.plot_axes[0])
-        
-        # Row 1: Mie Area
         self._plot_mie_area(self.plot_axes[1])
-        
-        # Row 2: Injection Current
         self._plot_injection_current(self.plot_axes[2], time_window)
-        
-        # Row 3: Reserved (empty or additional plot)
         self._plot_placeholder(self.plot_axes[3], "(reserved)")
         
         # Set shared x-label only on bottom
@@ -483,25 +514,20 @@ class ComparisonViewer:
     
     def _populate_videos(self) -> None:
         """Populate video columns."""
-        # Row 0: Mie videos
-        for col, tp_str in enumerate(self.data.testpoint_strs):
-            ax = self.video_axes[0][col]
-            self._setup_video_cell(ax, self.data.mie_videos.get(tp_str), f"Mie T{tp_str}")
-        
-        # Row 1: Schlieren videos
-        for col, tp_str in enumerate(self.data.testpoint_strs):
-            ax = self.video_axes[1][col]
-            self._setup_video_cell(ax, self.data.schlieren_videos.get(tp_str), f"Schlieren T{tp_str}")
-        
-        # Row 2: Luminescence videos
-        for col, tp_str in enumerate(self.data.testpoint_strs):
-            ax = self.video_axes[2][col]
-            self._setup_video_cell(ax, self.data.luminescence_videos.get(tp_str), f"Lum. T{tp_str}")
-        
-        # Row 3: Luminescence heatmaps (static)
-        for col, tp_str in enumerate(self.data.testpoint_strs):
-            ax = self.video_axes[3][col]
-            self._setup_heatmap_cell(ax, tp_str)
+        for row_idx, video_kind in enumerate(self.active_video_rows):
+            for col, tp_str in enumerate(self.data.testpoint_strs):
+                ax = self.video_axes[row_idx][col]
+                if video_kind == "mie":
+                    self._setup_video_cell(ax, self.data.mie_videos.get(tp_str), f"Mie T{tp_str}")
+                elif video_kind == "schlieren":
+                    self._setup_video_cell(ax, self.data.schlieren_videos.get(tp_str), f"Schlieren T{tp_str}")
+                elif video_kind == "luminescence":
+                    self._setup_video_cell(ax, self.data.luminescence_videos.get(tp_str), f"Lum. T{tp_str}")
+                elif video_kind == "heatmap":
+                    self._setup_heatmap_cell(ax, tp_str)
+                else:
+                    ax.text(0.5, 0.5, "(not available)", ha='center', va='center',
+                            fontsize=8, color='gray', transform=ax.transAxes)
     
     def _setup_video_cell(self, ax: Axes, video: Optional[np.ndarray], title: str) -> None:
         """Setup a video cell (animated or placeholder)."""
@@ -512,12 +538,11 @@ class ComparisonViewer:
                    fontsize=8, color='gray', transform=ax.transAxes)
             return
         
-        # Normalize video for display
-        video = normalize_video(video, quantize_bits=8)
-        
-        # Create imshow and store for animation
-        im = ax.imshow(video[0], cmap='gray', vmin=0, vmax=1, animated=True)
-        self.video_entries.append({"data": video, "im": im})
+        # Create imshow and store raw video with global 3D min/max for consistent scaling.
+        mn, mx = self._get_video_global_minmax(video, use_cuda=False)
+        first_frame = self._normalize_frame_with_bounds(video[0], mn, mx, use_cuda=False)
+        im = ax.imshow(first_frame, cmap='gray', vmin=0, vmax=1, animated=True)
+        self.video_entries.append({"data": video, "im": im, "mn": mn, "mx": mx})
     
     def _setup_heatmap_cell(self, ax: Axes, tp_str: str) -> None:
         """Setup a heatmap cell (static)."""
@@ -549,9 +574,100 @@ class ComparisonViewer:
         for entry in self.video_entries:
             video = entry["data"]
             idx = frame_idx % video.shape[0]
-            entry["im"].set_array(video[idx])
+            entry["im"].set_array(
+                self._normalize_frame_with_bounds(video[idx], entry["mn"], entry["mx"], use_cuda=False)
+            )
             artists.append(entry["im"])
         return artists
+
+    def _is_cuda_usable(self) -> bool:
+        if cp is None:
+            return False
+        try:
+            return cp.cuda.runtime.getDeviceCount() > 0
+        except Exception:
+            return False
+
+    def _get_video_global_minmax(self, video: np.ndarray, use_cuda: bool = False) -> Tuple[float, float]:
+        """Compute/cached global min/max over full 3D video array."""
+        key = id(video)
+        cached = self.video_scale_cache.get(key)
+        if cached is not None:
+            return cached
+
+        arr = video
+        if use_cuda and self._is_cuda_usable():
+            try:
+                gpu = cp.asarray(arr, dtype=cp.float32)
+                mn = float(cp.min(gpu).item())
+                mx = float(cp.max(gpu).item())
+                self.video_scale_cache[key] = (mn, mx)
+                return mn, mx
+            except Exception:
+                pass
+
+        np_arr = np.asarray(arr, dtype=np.float32)
+        mn, mx = float(np_arr.min()), float(np_arr.max())
+        self.video_scale_cache[key] = (mn, mx)
+        return mn, mx
+
+    def _normalize_frame_with_bounds(
+        self, frame: np.ndarray, mn: float, mx: float, use_cuda: bool = False
+    ) -> np.ndarray:
+        """Normalize one frame using fixed global bounds (min-max scale)."""
+        if not (mx > mn):
+            return np.zeros_like(np.asarray(frame, dtype=np.float32), dtype=np.float32)
+
+        arr = frame
+        denom = mx - mn
+        if use_cuda and self._is_cuda_usable():
+            try:
+                gpu = cp.asarray(arr, dtype=cp.float32)
+                gpu = (gpu - mn) / denom
+                return cp.asnumpy(gpu).astype(np.float32, copy=False)
+            except Exception:
+                pass
+
+        np_arr = np.asarray(arr, dtype=np.float32)
+        out = (np_arr - mn) / denom
+        return out.astype(np.float32, copy=False)
+
+    def _ffmpeg_has_encoder(self, ffmpeg_bin: str, encoder_name: str) -> bool:
+        try:
+            proc = subprocess.run(
+                [ffmpeg_bin, "-hide_banner", "-encoders"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+            return encoder_name in (proc.stdout or "")
+        except Exception:
+            return False
+
+    def _prepare_static_background(self) -> None:
+        """Draw once and cache static background for blit-based frame rendering."""
+        if not isinstance(self.fig.canvas, FigureCanvasAgg):
+            self.fig.set_canvas(FigureCanvasAgg(self.fig))
+        self.fig.canvas.draw()
+        self._cached_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+
+    def _render_frame_rgb(self, frame_idx: int, use_cuda: bool = False) -> np.ndarray:
+        """Render a single frame as RGB uint8 using cached background + dynamic artists."""
+        if not hasattr(self, "_cached_bg"):
+            self._prepare_static_background()
+        self.fig.canvas.restore_region(self._cached_bg)
+        for entry in self.video_entries:
+            video = entry["data"]
+            idx = frame_idx % video.shape[0]
+            im = entry["im"]
+            im.set_array(
+                self._normalize_frame_with_bounds(video[idx], entry["mn"], entry["mx"], use_cuda=use_cuda)
+            )
+            im.axes.draw_artist(im)
+        self.fig.canvas.blit(self.fig.bbox)
+        rgba = np.asarray(self.fig.canvas.buffer_rgba())
+        return np.ascontiguousarray(rgba[:, :, :3])
     
     def _get_max_frames(self) -> int:
         """Get maximum number of frames across all videos."""
@@ -568,33 +684,111 @@ class ComparisonViewer:
                 frames=self._get_max_frames(),
                 interval=50, blit=True
             )
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0, 1, 0.98])
         plt.show()
     
-    def save_video(self, output_path: str, fps: int = 20) -> None:
-        """Save animation to video file."""
-        from matplotlib.animation import FFMpegWriter
-        
+    def save_video(
+        self,
+        output_path: str,
+        fps: int = 20,
+        use_cuda: bool = True,
+        prefer_nvenc: bool = True,
+        fallback_cpu: bool = True,
+        encode_preset: str = "p4",
+        crf_or_cq: int = 23,
+    ) -> None:
+        """Save animation using explicit frame rendering and ffmpeg encode."""
+        from matplotlib.animation import PillowWriter
+
+        out_path = Path(output_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
         if not self.video_entries:
             print("No video entries to animate. Saving static figure.")
-            self.fig.savefig(output_path.replace('.mp4', '.png'), dpi=150)
+            static_path = out_path.with_suffix(".png")
+            self.fig.savefig(static_path, dpi=150)
+            print(f"Static figure saved: {static_path}")
             return
-        
+
+        total_frames = self._get_max_frames()
+        gpu_ok = use_cuda and self._is_cuda_usable()
+        ffmpeg_bin = shutil.which("ffmpeg")
+        has_ffmpeg = ffmpeg_bin is not None
+        has_nvenc = bool(has_ffmpeg and self._ffmpeg_has_encoder(ffmpeg_bin, "h264_nvenc"))
+        use_nvenc = bool(prefer_nvenc and gpu_ok and has_nvenc)
+
+        self._prepare_static_background()
+        h, w = self._render_frame_rgb(0, use_cuda=gpu_ok).shape[:2]
+
+        def _encode_with_ffmpeg(encoder: str) -> None:
+            if encoder == "h264_nvenc":
+                codec_args = ["-c:v", "h264_nvenc", "-preset", encode_preset, "-cq", str(crf_or_cq)]
+            else:
+                codec_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_or_cq)]
+
+            cmd = [
+                ffmpeg_bin, "-y",
+                "-f", "rawvideo",
+                "-pix_fmt", "rgb24",
+                "-s", f"{w}x{h}",
+                "-r", str(fps),
+                "-i", "-",
+                "-an",
+                *codec_args,
+                "-pix_fmt", "yuv420p",
+                str(out_path),
+            ]
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            assert proc.stdin is not None
+            start = time.time()
+            for i in range(total_frames):
+                if i % 50 == 0 or i == total_frames - 1:
+                    print(f"Rendering frame {i + 1}/{total_frames}")
+                rgb = self._render_frame_rgb(i, use_cuda=gpu_ok)
+                if i % 50 == 0 or i == total_frames - 1:
+                    print(f"Encoding frame {i + 1}/{total_frames}")
+                proc.stdin.write(rgb.tobytes())
+            proc.stdin.close()
+            stderr = proc.stderr.read() if proc.stderr is not None else b""
+            proc.wait()
+            if proc.returncode != 0:
+                err = stderr.decode("utf-8", errors="ignore")
+                raise RuntimeError(err[-1200:])
+            print(f"Encoding completed in {time.time() - start:.2f}s")
+
+        if has_ffmpeg:
+            try:
+                selected = "h264_nvenc" if use_nvenc else "libx264"
+                print(f"Using ffmpeg encoder: {selected}")
+                _encode_with_ffmpeg(selected)
+                print(f"Video saved: {out_path}")
+                return
+            except Exception as exc:
+                print(f"ffmpeg encode failed ({exc}).")
+                if fallback_cpu and has_ffmpeg:
+                    try:
+                        print("Falling back to CPU encoder: libx264")
+                        _encode_with_ffmpeg("libx264")
+                        print(f"Video saved: {out_path}")
+                        return
+                    except Exception as exc2:
+                        print(f"CPU fallback failed ({exc2}). Falling back to GIF.")
+                else:
+                    print("CPU fallback disabled. Falling back to GIF.")
+
+        # Final fallback: GIF
         self.anim = FuncAnimation(
             self.fig, self._update_frame,
-            frames=self._get_max_frames(),
-            interval=1000 // fps, blit=True
+            frames=total_frames,
+            interval=1000 // max(1, fps), blit=True
         )
-        
-        writer = FFMpegWriter(fps=fps, metadata={'title': 'Comparison'})
-        self.anim.save(output_path, writer=writer)
-        print(f"Video saved: {output_path}")
+        gif_path = out_path.with_suffix(".gif")
+        writer = PillowWriter(fps=fps)
+        self.anim.save(str(gif_path), writer=writer)
+        print(f"Video saved (GIF fallback): {gif_path}")
 
 
 # =============================================================================
-# Main Entry Point
-# =============================================================================
-
 def main():
     parser = argparse.ArgumentParser(
         description="Visualize testpoint comparisons with plots and videos"
@@ -617,42 +811,56 @@ def main():
     print(f"Loading config: {config_path}")
     config = load_config(config_path)
 
-    # Get first comparison set
+    # Process all comparison sets
     comparison_sets = config.get("comparison_sets", {})
     if not comparison_sets:
         print("Error: No comparison_sets defined in config")
         return 1
 
-    set_name, testpoints = next(iter(comparison_sets.items()))
-    print(f"Comparison set: {set_name}")
-    print(f"Testpoints: {testpoints}")
+    def _safe_filename(name: str) -> str:
+        s = re.sub(r'[<>:\"/\\|?*]+', "_", name.strip())
+        s = re.sub(r"\s+", " ", s).strip()
+        return s or "comparison"
 
-    # Load all data
-    data = ComparisonData(config, testpoints)
-    data.load_all()
+    items = list(comparison_sets.items())
+    for idx, (set_name, testpoints) in enumerate(items, start=1):
+        print("\n" + "#" * 60)
+        print(f"[{idx}/{len(items)}] Comparison set: {set_name}")
+        print(f"Testpoints: {testpoints}")
 
-    # Build visualization
-    print("\n" + "="*60)
-    print("BUILDING VISUALIZATION")
-    print("="*60)
-    print(f"Layout: 4 rows x {1 + len(testpoints)} cols (plots | videos)")
-    
-    viewer = ComparisonViewer(data)
+        # Load all data
+        data = ComparisonData(config, testpoints)
+        data.load_all()
 
-    # Show or save
-    if args.debug:
-        print("\nShowing visualization (debug mode)...")
-        viewer.show()
-    else:
-        output_path = args.output or Path(f"comparison_{set_name}.mp4")
-        if not output_path.is_absolute():
-            output_path = Path(__file__).parent / output_path
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        print(f"\nSaving video to: {output_path}")
-        viewer.save_video(str(output_path), fps=args.fps)
+        # Build visualization
+        print("\n" + "=" * 60)
+        print("BUILDING VISUALIZATION")
+        print("=" * 60)
+        viewer = ComparisonViewer(data, title=set_name)
+        print(
+            f"Layout: plots=4 rows (fixed), videos={viewer.num_video_rows} rows (dynamic), "
+            f"cols={1 + len(testpoints)}"
+        )
 
-    print("\n✓ Visualization complete!")
+        # Show or save
+        if args.debug:
+            print("\nShowing visualization (debug mode)...")
+            viewer.show()
+        else:
+            if args.output is not None and len(items) == 1:
+                output_path = args.output
+                if not output_path.is_absolute():
+                    output_path = Path.cwd() / output_path
+            else:
+                out_name = f"comparison_{_safe_filename(set_name)}.mp4"
+                output_path = Path.cwd() / "video" / out_name
+
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"\nSaving video to: {output_path}")
+            viewer.save_video(str(output_path), fps=args.fps)
+            plt.close(viewer.fig)
+
+    print("\nVisualization complete!")
     return 0
 
 

@@ -25,7 +25,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.binary_ops.functions_bw import bw_boundaries_all_points
 from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
 from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,
@@ -210,7 +209,11 @@ def luminescence_pipeline(video: xp.ndarray, file_name: str,
                              INTERPOLATION = "nearest" ,BORDER_MODE = "constant", # image rotation settings
                              save_video_strip=True, save_mode ="filtered", # filtered rotated strip or raw
                              blank_frames=20,
-                             preview=False 
+                             preview=False,
+                             quantize_npz: bool = False,
+                             quant_float_upper_bound: float = 1.0,
+                             quant_clip_negative: bool = True,
+                             quant_store_metadata: bool = True,
                             ):
 
     if preview:
@@ -243,11 +246,25 @@ def luminescence_pipeline(video: xp.ndarray, file_name: str,
         if save_mode == "filtered":
             avi_saver = AsyncAVISaver(max_workers=2)
             avi_saver.save(video_out_dir / (file_name + ".avi"), _as_numpy(foreground), is_color=False)
-            npz_saver.save(video_out_dir / (file_name + ".npz"), foreground=_as_numpy(foreground))
+            npz_saver.save(
+                video_out_dir / (file_name + ".npz"),
+                quantize_u8=quantize_npz,
+                quant_float_upper_bound=quant_float_upper_bound,
+                quant_clip_negative=quant_clip_negative,
+                quant_store_metadata=quant_store_metadata,
+                foreground=_as_numpy(foreground),
+            )
         elif save_mode == "raw":
             avi_saver = AsyncAVISaver(max_workers=2)
             avi_saver.save(video_out_dir / (file_name + ".avi"), _as_numpy(segment), is_color=False)
-            npz_saver.save(video_out_dir / (file_name + ".npz"), segment=_as_numpy(segment))
+            npz_saver.save(
+                video_out_dir / (file_name + ".npz"),
+                quantize_u8=quantize_npz,
+                quant_float_upper_bound=quant_float_upper_bound,
+                quant_clip_negative=quant_clip_negative,
+                quant_store_metadata=quant_store_metadata,
+                segment=_as_numpy(segment),
+            )
 
 
     F, H, W = foreground.shape

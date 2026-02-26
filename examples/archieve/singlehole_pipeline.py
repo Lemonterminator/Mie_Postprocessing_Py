@@ -70,7 +70,11 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
                                   saved_video_FPS=20,
                                   start_frame=15, 
                                   lighting_unchanged_duration=50, 
-                                  TD_sum_interval=0.5
+                                  TD_sum_interval=0.5,
+                                  quantize_npz: bool = False,
+                                  quant_float_upper_bound: float = 1.0,
+                                  quant_clip_negative: bool = True,
+                                  quant_store_metadata: bool = True
                                   ):
     F, H, W = video.shape
     shock_wave_duration = 50
@@ -125,7 +129,14 @@ def singlehole_pipeline(mode, video, offset, centre, file_name,
     avi_saver = AsyncAVISaver(max_workers=4)
     if save_intermediate_results:
         # np.savez(data_SCH / f"{file_name}_rotated.npy", to_numpy(rotated))
-        AsyncNPZSaver().save(rotated_vid_dir / f"{file_name}_rotated.npz", rotated=to_numpy(rotated))
+        AsyncNPZSaver().save(
+            rotated_vid_dir / f"{file_name}_rotated.npz",
+            quantize_u8=quantize_npz,
+            quant_float_upper_bound=quant_float_upper_bound,
+            quant_clip_negative=quant_clip_negative,
+            quant_store_metadata=quant_store_metadata,
+            rotated=to_numpy(rotated),
+        )
         
         f1 = avi_saver.save(
             rotated_vid_dir / f"{file_name}_rotated.avi",
