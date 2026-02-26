@@ -455,7 +455,7 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
     # Find average pixel intensity in each frame
     average_pixel_intensity = 1.0/ W* xp.sum(td_map, axis=0)
 
-    # Find the largest 
+    # Find the largest   
     brightness_peak = xp.argmax(average_pixel_intensity)
 
     # Find the frame where the average intensity is the largest

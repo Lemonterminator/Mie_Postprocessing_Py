@@ -73,13 +73,20 @@ def get_default_config_path() -> Path:
 # Utility Functions
 # =============================================================================
 
-def iter_files(directory: Path, suffix: str = None) -> Iterable[Path]:
-    """Iterate over files in directory, optionally filtered by suffix."""
+def iter_files(directory: Path, suffix: str = None, keyword_match: str = None) -> Iterable[Path]:
+    """Iterate files filtered by extension/suffix and optional filename keyword."""
     if not directory.exists():
         return []
     files = sorted(p for p in directory.iterdir() if p.is_file())
     if suffix:
-        files = [f for f in files if f.suffix.lower() == suffix.lower()]
+        token = suffix.lower()
+        if token.startswith("."):
+            files = [f for f in files if f.suffix.lower() == token]
+        else:
+            files = [f for f in files if f.name.lower().endswith(token)]
+    if keyword_match:
+        key = keyword_match.lower()
+        files = [f for f in files if key in f.name.lower()]
     return files
 
 

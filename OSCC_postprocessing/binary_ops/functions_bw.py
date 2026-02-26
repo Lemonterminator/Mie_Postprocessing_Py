@@ -11,6 +11,8 @@ from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from skimage import measure
 from scipy.ndimage import binary_erosion, generate_binary_structure
+import pandas as pd
+import os
 
 # Optional GPU acceleration via CuPy/cupyx.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
@@ -436,7 +438,6 @@ def keep_largest_component_cuda(bw, connectivity=2):
 
 
 
-
 def keep_largest_component_nd_cuda(bw, connectivity=None):
     """
     CUDA version of keep_largest_component_nd for nD binary arrays.
@@ -661,7 +662,6 @@ def penetration_bw_to_index(bw):
     return rev_idx    
 
 
-
 def _triangle_threshold_from_hist(hist):
     """
     Compute the Triangle threshold index from a 256-bin histogram.
@@ -797,9 +797,49 @@ def _boundary_points_one_frame(bw, connectivity=2, x_scale=1.0):
     coords_bot = np.column_stack((ys[bot_mask], xs[bot_mask])) # .astype(np.int32)
     return coords_top, coords_bot
 
+def bw_boundaries_single_plume(
+    bw_vids, connectivity=2, parallel=True, max_workers=None
+):
+    """
+    Compute all boundary points for every frame (no x-band filtering).
 
-def bw_boundaries_all_points(
-    bw_vids, connectivity=2, parallel=False, max_workers=None
+    Parameters
+    ----------
+    bw_vids : array, shape (F, H, W), binary
+    connectivity : 1 (4-neigh) or 2 (8-neigh)
+    parallel : bool
+    max_workers : int or None
+
+    Returns
+    -------
+    result : list length F of tuples (coords_top_all, coords_bottom_all)
+    """
+    F, H, W = bw_vids.shape
+    result = [None] * F
+
+    def work(i):
+        bw = np.asarray(bw_vids[i], dtype=bool)
+        return i, _boundary_points_one_frame(bw, connectivity)
+
+    if parallel:
+        if max_workers is None:
+            max_workers = max(1, os.cpu_count() - 1)
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = [ex.submit(work, i) for i in range(F)]
+            for fut in as_completed(futs):
+                i, tup = fut.result()
+                if i >= F:
+                    print(i)
+                result[i] = tup
+    else:
+        for i in range(F):
+            _, tup = work(i)
+            result[i] = tup
+
+    return result
+
+def bw_boundaries_all_plumes(
+    bw_vids, connectivity=2, parallel=True, max_workers=None
 ):
     """
     Compute all boundary points for every frame (no x-band filtering).
@@ -838,9 +878,50 @@ def bw_boundaries_all_points(
 
     return result
 
+# --- Split: filter previously computed boundary points by x-band ---
+def bw_boundaries_xband_filter__single_plume(boundary_results, penetration, lo=0.1, hi=0.6):
+    """
+    Filter precomputed boundary points by an x-band defined by lo/hi fractions of penetration.
+
+    Parameters
+    ----------
+    boundary_results : list of lists as returned by bw_boundaries_all_points
+        shape [F] of (coords_top_all, coords_bottom_all)
+    penetration_old : array, shape (R, F)
+        Penetration in pixels along x for each (R, F)
+    lo, hi : floats
+        Inclusive fractional range of penetration to keep
+
+    Returns
+    -------
+    filtered : same nested structure with coords filtered to x in [xlo, xhi]
+    """
+    # R = len(boundary_results)
+    F = len(boundary_results) # if R > 0 else 0
+    assert len(penetration) == F
+
+    def _filter_coords(coords, xlo, xhi):
+        if coords.size == 0:
+            return coords
+        x = coords[:, 1]
+        xlo_i = int(np.floor(max(0, xlo)))
+        xhi_i = int(np.ceil(max(xlo_i, xhi)))
+        keep = (x >= xlo_i) & (x <= xhi_i)
+        return coords[keep]
+
+    filtered = [None] * F
+    for i in range(F):
+        coords_top_all, coords_bot_all = boundary_results[i]
+        xlo = lo * float(penetration[i])
+        xhi = hi * float(penetration[i])
+        coords_top = _filter_coords(coords_top_all, xlo, xhi)
+        coords_bot = _filter_coords(coords_bot_all, xlo, xhi)
+        filtered[i] = (coords_top.astype(np.int32, copy=False), # type: ignore
+                            coords_bot.astype(np.int32, copy=False))
+    return filtered
 
 # --- Split: filter previously computed boundary points by x-band ---
-def bw_boundaries_xband_filter(boundary_results, penetration_old, lo=0.1, hi=0.6):
+def bw_boundaries_xband_filter_all_plumes(boundary_results, penetration_old, lo=0.1, hi=0.6):
     """
     Filter precomputed boundary points by an x-band defined by lo/hi fractions of penetration.
 
@@ -882,3 +963,80 @@ def bw_boundaries_xband_filter(boundary_results, penetration_old, lo=0.1, hi=0.6
                               coords_bot.astype(np.int32, copy=False))
 
     return filtered
+
+
+def load_boundary_file(file_path, return_BW_video=False, F:int=0, H:int=0, W:int=0):
+    """
+    Load boundary points from CSV (must include frame/x/y).
+    Returns:
+    1) boundary_list: boundary points per frame (missing frames stay None)
+    2) optional bw_video: filled binary masks per frame (0/255)
+    """
+    # If binary video output is required, dimensions must be valid.
+    if return_BW_video and not (F > 0 and H > 0 and W > 0):
+        raise ValueError("When return_BW_video=True, F/H/W must be positive.")
+
+    boundary_bw = pd.read_csv(file_path)
+
+    # Validate required columns to prevent KeyError later.
+    required_cols = {"frame", "x", "y"}
+    missing_cols = required_cols - set(boundary_bw.columns)
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {sorted(missing_cols)}")
+
+    # Empty input: return empty list and optional empty video buffer.
+    if boundary_bw.empty:
+        bw_video = np.zeros((F, H, W), dtype=np.uint8) if return_BW_video else None
+        return bw_video, []
+
+    grouped = boundary_bw.groupby("frame", sort=True)
+
+    # Pre-allocate by max frame index; missing frames remain None.
+    last_frame = int(boundary_bw["frame"].max())
+    boundary_list = [None] * (last_frame + 1)
+
+    # OpenCV fill operations are best done on uint8.
+    bw_video = np.zeros((F, H, W), dtype=np.uint8) if return_BW_video else None
+
+    for frame, group in grouped:
+        frame = int(frame) # type: ignore
+
+        # Keep original boundary points as (N, 2) => [x, y].
+        pts = group[["x", "y"]].to_numpy(dtype=np.float32)
+        boundary_list[frame] = pts # type: ignore
+
+        if not return_BW_video:
+            continue
+
+        # Skip drawing when CSV frame is outside provided video length.
+        if frame < 0 or frame >= F:
+            continue
+
+        # Shift y by H//2 to map boundary coordinates into image coordinates.
+        x = np.clip(np.rint(pts[:, 0]).astype(np.int32), 0, W - 1)
+        y = np.clip(np.rint(pts[:, 1] + H // 2).astype(np.int32), 0, H - 1)
+
+        # Draw boundary pixels first (order-independent).
+        edge = np.zeros((H, W), dtype=np.uint8)
+        edge[y, x] = 255
+
+        # Close tiny gaps on the boundary so flood fill does not leak in.
+        edge = cv2.morphologyEx(edge, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+
+        # Flood-fill on a padded canvas so boundaries touching image edges do not leak.
+        edge_pad = np.zeros((H + 2, W + 2), dtype=np.uint8)
+        edge_pad[1:-1, 1:-1] = edge
+
+        ff = edge_pad.copy()
+        flood_mask = np.zeros((H + 4, W + 4), dtype=np.uint8)
+        cv2.floodFill(ff, flood_mask, (0, 0), 255)
+
+        # In padded domain: interior = not(outside) and not(boundary)
+        outside = ff
+        interior_pad = cv2.bitwise_and(cv2.bitwise_not(outside), cv2.bitwise_not(edge_pad))
+
+        # Crop back to original size and merge with boundary.
+        filled = interior_pad[1:-1, 1:-1]
+        bw_video[frame] = cv2.bitwise_or(edge, filled)
+
+    return bw_video, boundary_list

@@ -1,6 +1,8 @@
 import cv2 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+from datetime import datetime
 
 def play_video_cv2(video, gain=1, binarize=False, thresh=0.5, intv=17):
     """
@@ -128,7 +130,7 @@ def _frame_to_uint8(frame, gain=1.0, binarize=False, thresh=0.5):
 
 def play_video_with_boundaries_cv2(
     video,                          # array-like, shape (F, H, W)
-    boundaries_for_rep,             # list/seq length F of (coords_top, coords_bottom), each (N,2) (y,x)
+    boundaries_for_rep,             # supports two formats, see docstring
     gain=1.0,
     binarize=False,
     thresh=0.5,
@@ -141,12 +143,82 @@ def play_video_with_boundaries_cv2(
     """
     Overlay precomputed boundary points on each frame and play with OpenCV.
 
-    - `boundaries_for_rep[f] = (coords_top, coords_bottom)`
-    - Each coords_* is int array of shape (N,2) with (y,x).
+    Supported `boundaries_for_rep` frame formats:
+    1) tuple/list: (coords_top, coords_bottom), each shape (N,2) in (y, x)
+       or centered-y (y_centered, x)
+    2) array/None from `load_boundary_file` output: shape (N,2) in
+       (x, y_centered) or None
 
     If `color_bottom` is None, uses `color_top`.
     `thickness` uses dilation on the mask: kernel size = 2*thickness + 1.
     """
+    def _empty_coords():
+        return np.empty((0, 2), dtype=np.int32)
+
+    def _to_yx(points, H, W, assume_xy=False, centered_y=False):
+        """Convert points to int (y, x) and clip to frame bounds."""
+        if points is None:
+            return _empty_coords()
+        arr = np.asarray(points)
+        if arr.size == 0:
+            return _empty_coords()
+        if arr.ndim == 1:
+            if arr.shape[0] < 2:
+                return _empty_coords()
+            arr = arr.reshape(1, -1)
+        arr = np.rint(arr[:, :2]).astype(np.int32)
+        if assume_xy:
+            # load_boundary_file format: [x, y_centered].
+            x = arr[:, 0]
+            y = arr[:, 1]
+        else:
+            # tuple format in this function: [y, x] (or centered y).
+            y = arr[:, 0]
+            x = arr[:, 1]
+        if centered_y:
+            y = y + H // 2
+        x = np.clip(x, 0, W - 1)
+        y = np.clip(y, 0, H - 1)
+        return np.column_stack([y, x]).astype(np.int32)
+
+    def _is_centered_y(points):
+        """Heuristic: centered coordinates usually include negative y."""
+        if points is None:
+            return False
+        arr = np.asarray(points)
+        if arr.size == 0:
+            return False
+        if arr.ndim == 1:
+            if arr.shape[0] < 1:
+                return False
+            y = arr[0:1]
+        else:
+            y = arr[:, 0]
+        return np.nanmin(y) < 0
+
+    def _get_frame_boundaries(boundaries, idx, H, W):
+        """
+        Return coords_top/coords_bot in (y, x) for a frame.
+        Accepts both old tuple format and load_boundary_file boundary_list format.
+        """
+        if boundaries is None or idx >= len(boundaries):
+            return _empty_coords(), _empty_coords()
+
+        item = boundaries[idx]
+        if item is None:
+            return _empty_coords(), _empty_coords()
+
+        # Old format: (top, bottom), both expected in (y, x).
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            centered = _is_centered_y(item[0]) or _is_centered_y(item[1])
+            return (
+                _to_yx(item[0], H, W, assume_xy=False, centered_y=centered),
+                _to_yx(item[1], H, W, assume_xy=False, centered_y=centered),
+            )
+
+        # New format from load_boundary_file: single (N,2) in (x, y_centered).
+        return _to_yx(item, H, W, assume_xy=True, centered_y=True), _empty_coords()
+
     if color_bottom is None:
         color_bottom = color_top
 
@@ -173,7 +245,7 @@ def play_video_with_boundaries_cv2(
         mask_top = np.zeros((H, W), dtype=np.uint8)
         mask_bot = np.zeros((H, W), dtype=np.uint8)
 
-        coords_top, coords_bot = boundaries_for_rep[f]
+        coords_top, coords_bot = _get_frame_boundaries(boundaries_for_rep, f, H, W)
         # Guard empty
         if coords_top.size:
             ys, xs = coords_top[:, 0], coords_top[:, 1]
@@ -212,6 +284,172 @@ def play_video_with_boundaries_cv2(
             break
 
     cv2.destroyAllWindows()
+
+
+def save_video_with_boundaries_cv2(
+    video,                          # array-like, shape (F, H, W)
+    boundaries_for_rep,             # supports two formats, see docstring
+    gain=1.0,
+    binarize=False,
+    thresh=0.5,
+    fps=10,
+    save_path=None,
+    color_top=(0, 0, 255),          # BGR red
+    color_bottom=None,              # defaults to same as color_top
+    thickness=1,                    # 0 -> 1px; otherwise dilate radius in pixels
+    alpha=1.0                       # 1.0 -> hard paint; <1.0 -> blend
+):
+    """
+    Overlay precomputed boundary points on each frame and save as AVI.
+
+    Supported `boundaries_for_rep` frame formats:
+    1) tuple/list: (coords_top, coords_bottom), each shape (N,2) in (y, x)
+       or centered-y (y_centered, x)
+    2) array/None from `load_boundary_file` output: shape (N,2) in
+       (x, y_centered) or None
+
+    If `save_path` is None, writes `boundary_overlay_YYYYMMDD_HHMMSS.avi`
+    to current working directory.
+
+    Returns
+    -------
+    save_path : str
+        Full path to saved AVI file.
+    """
+    def _empty_coords():
+        return np.empty((0, 2), dtype=np.int32)
+
+    def _to_yx(points, H, W, assume_xy=False, centered_y=False):
+        if points is None:
+            return _empty_coords()
+        arr = np.asarray(points)
+        if arr.size == 0:
+            return _empty_coords()
+        if arr.ndim == 1:
+            if arr.shape[0] < 2:
+                return _empty_coords()
+            arr = arr.reshape(1, -1)
+        arr = np.rint(arr[:, :2]).astype(np.int32)
+        if assume_xy:
+            x = arr[:, 0]
+            y = arr[:, 1]
+        else:
+            y = arr[:, 0]
+            x = arr[:, 1]
+        if centered_y:
+            y = y + H // 2
+        x = np.clip(x, 0, W - 1)
+        y = np.clip(y, 0, H - 1)
+        return np.column_stack([y, x]).astype(np.int32)
+
+    def _is_centered_y(points):
+        if points is None:
+            return False
+        arr = np.asarray(points)
+        if arr.size == 0:
+            return False
+        if arr.ndim == 1:
+            if arr.shape[0] < 1:
+                return False
+            y = arr[0:1]
+        else:
+            y = arr[:, 0]
+        return np.nanmin(y) < 0
+
+    def _get_frame_boundaries(boundaries, idx, H, W):
+        if boundaries is None or idx >= len(boundaries):
+            return _empty_coords(), _empty_coords()
+
+        item = boundaries[idx]
+        if item is None:
+            return _empty_coords(), _empty_coords()
+
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            centered = _is_centered_y(item[0]) or _is_centered_y(item[1])
+            return (
+                _to_yx(item[0], H, W, assume_xy=False, centered_y=centered),
+                _to_yx(item[1], H, W, assume_xy=False, centered_y=centered),
+            )
+
+        return _to_yx(item, H, W, assume_xy=True, centered_y=True), _empty_coords()
+
+    if color_bottom is None:
+        color_bottom = color_top
+
+    video = np.asarray(video)
+    F = len(video)
+    if F == 0:
+        raise ValueError("`video` is empty.")
+
+    first = np.asarray(video[0])
+    if first.ndim < 2:
+        raise ValueError("Each frame must be at least 2D (H, W).")
+    H, W = first.shape[-2], first.shape[-1]
+
+    if save_path is None:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_path = os.path.join(os.getcwd(), f"boundary_overlay_{stamp}.avi")
+    else:
+        save_path = os.path.abspath(save_path)
+        parent = os.path.dirname(save_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    writer = cv2.VideoWriter(save_path, fourcc, float(fps), (int(W), int(H)))
+    if not writer.isOpened():
+        raise RuntimeError(f"Failed to open VideoWriter for: {save_path}")
+
+    ksz = max(1, 2 * int(thickness) + 1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksz, ksz)) if ksz > 1 else None
+
+    try:
+        for f in range(F):
+            frame = np.asarray(video[f])
+            if frame.shape[-2] != H or frame.shape[-1] != W:
+                raise ValueError(
+                    f"Frame {f} size mismatch: expected ({H}, {W}), got ({frame.shape[-2]}, {frame.shape[-1]})"
+                )
+
+            frame_u8 = _frame_to_uint8(frame, gain=gain, binarize=binarize, thresh=thresh)
+            frame_bgr = cv2.cvtColor(frame_u8, cv2.COLOR_GRAY2BGR)
+
+            mask_top = np.zeros((H, W), dtype=np.uint8)
+            mask_bot = np.zeros((H, W), dtype=np.uint8)
+
+            coords_top, coords_bot = _get_frame_boundaries(boundaries_for_rep, f, H, W)
+            if coords_top.size:
+                ys, xs = coords_top[:, 0], coords_top[:, 1]
+                inb = (ys >= 0) & (ys < H) & (xs >= 0) & (xs < W)
+                mask_top[ys[inb], xs[inb]] = 255
+            if coords_bot.size:
+                ys, xs = coords_bot[:, 0], coords_bot[:, 1]
+                inb = (ys >= 0) & (ys < H) & (xs >= 0) & (xs < W)
+                mask_bot[ys[inb], xs[inb]] = 255
+
+            if kernel is not None:
+                if mask_top.any():
+                    mask_top = cv2.dilate(mask_top, kernel, iterations=1)
+                if mask_bot.any():
+                    mask_bot = cv2.dilate(mask_bot, kernel, iterations=1)
+
+            overlay = frame_bgr.copy()
+            if mask_top.any():
+                overlay[mask_top > 0] = color_top
+            if mask_bot.any():
+                overlay[mask_bot > 0] = color_bottom
+
+            if alpha >= 1.0:
+                m = (mask_top > 0) | (mask_bot > 0)
+                frame_bgr[m] = overlay[m]
+            else:
+                frame_bgr = cv2.addWeighted(overlay, alpha, frame_bgr, 1.0 - alpha, 0.0)
+
+            writer.write(frame_bgr)
+    finally:
+        writer.release()
+
+    return save_path
 
 
 def play_segments_with_boundaries(segments, boundaries, p=0, gain=1.0, intv=17,
