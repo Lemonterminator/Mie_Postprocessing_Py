@@ -54,6 +54,7 @@ ex.npy
 *.pt
 *.onnx
 *.h5
+.models/
 
 # Images/videos and heavy outputs (adjust as needed)
 *.mp4

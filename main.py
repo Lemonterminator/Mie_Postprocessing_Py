@@ -175,6 +175,53 @@ def get_test_condition_by_id(config: dict, group_id: int) -> dict | None:
             return cond
     return None
 
+def extract_cine_number(file_path: Path | str) -> int | None:
+    """
+    Extract cine number from filename stem (e.g., '121.cine' -> 121).
+    """
+    path = Path(file_path)
+    match = re.search(r"\d+", path.stem)
+    if not match:
+        return None
+    return int(match.group(0))
+
+def compute_injection_duration_us(
+    config: dict,
+    cine_number: int | None,
+    fallback: float | int | None = None,
+) -> float | int | None:
+    """
+    Compute injection duration from config lookup formula, if available.
+    Falls back to the provided constant value when lookup is unavailable.
+    """
+    if cine_number is None:
+        return fallback
+
+    lookup = config.get("injection_duration_lookup", {})
+    formula = lookup.get("formula", {})
+    block_expr = formula.get("block")
+    rules = formula.get("rules", [])
+
+    if not block_expr or not rules:
+        return fallback
+
+    safe_globals = {"__builtins__": {}}
+    local_vars = {"cine_number": cine_number}
+    try:
+        block = eval(str(block_expr), safe_globals, local_vars)
+        local_vars["block"] = block
+        for rule in rules:
+            condition_expr = rule.get("condition")
+            result_expr = rule.get("result")
+            if not condition_expr or result_expr is None:
+                continue
+            if bool(eval(str(condition_expr), safe_globals, local_vars)):
+                return eval(str(result_expr), safe_globals, local_vars)
+    except Exception:
+        return fallback
+
+    return fallback
+
 def extract_group_id_from_path(path: Path | str) -> int | None:
     """
     Extract the test group ID from a file or folder path.
@@ -447,7 +494,7 @@ async def main():
 
                     hp_segments= mie_multihole_postprocessing(fg, hp, 
                                  centre, number_of_plumes, ir_, or_)
-
+                    
                     penetration_highpass = penetration_cdf_all_plumes(hp_segments, ir_, quantile=1.0-5e-3)
 
                     # Calculate the first derivative of the penetration
@@ -471,6 +518,12 @@ async def main():
                     
                     # Build DataFrame with experiment config and penetration data
                     num_frames = penetration_highpass_cleaned.shape[1]
+                    cine_number = extract_cine_number(file)
+                    injection_duration_us = compute_injection_duration_us(
+                        exp_config,
+                        cine_number,
+                        fallback=test_condition.get('injection_duration_us'),
+                    )
                     df = pd.DataFrame({
                         # Frame index
                         'frame_idx': list(range(num_frames)),
@@ -481,7 +534,7 @@ async def main():
                         'fps': [nozzle_props.get('fps')] * num_frames,
                         # Test conditions from subfolder
                         'chamber_pressure_bar': [test_condition.get('chamber_pressure_bar')] * num_frames,
-                        'injection_duration_us': [test_condition.get('injection_duration_us')] * num_frames,
+                        'injection_duration_us': [injection_duration_us] * num_frames,
                         'injection_pressure_bar': [test_condition.get('injection_pressure_bar')] * num_frames,
                         # File name
                     })

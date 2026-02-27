@@ -9,16 +9,21 @@ import matplotlib.pyplot as plt
 
 
 # Input/output roots
-root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\BC20220627 - Heinzman DS300 - Mie Top view")
-out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data\BC20220627 - Heinzman DS300 - Mie Top view")
+root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1")
+out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\MLP\synthetic_data\BC20241003_HZ_Nozzle1")
 
-FPS = 34000
-max_hydraulic_delay_frames = 25
 # Image processing settings
+
 # DS300
-OR_MM_PER_PX_REFERENCE = 412.0
+# OR_MM_PER_PX_REFERENCE = 412.0
+# FPS = 34000
+# max_hydraulic_delay_frames = 25
+
+
 # Otherwise
-# OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
+OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
+max_hydraulic_delay_frames = 15
+FPS=25000
 
 DIFF_THRESHOLD = 2.0  # px
 MM_PER_PX_SCALE = 90.0 / OR_MM_PER_PX_REFERENCE
@@ -216,7 +221,7 @@ def fit_sigmoid(t, y, ti, x0):
 def prepare_cleaned_series(df_file, diff_threshold=2.0):
     number_of_plumes = int(df_file["plumes"].iloc[0])
     fps = float(df_file["fps"].iloc[0])
-    if fps==np.nan:
+    if np.isnan(fps):
         fps = FPS
     frame_idx = np.asarray(df_file["frame_idx"]).astype(int)
 
@@ -227,8 +232,10 @@ def prepare_cleaned_series(df_file, diff_threshold=2.0):
     umbrella_angle_correction = 1.0 / np.cos(np.deg2rad(tilt_ang))
     pen_correction = MM_PER_PX_SCALE * umbrella_angle_correction
 
-    cleaned_series = np.full((number_of_plumes, int(frame_idx.max()) + 1), np.nan)
-    delays = np.zeros(number_of_plumes, dtype=float)
+    max_len = int(frame_idx.max()) + 1
+    cleaned_series = np.full((number_of_plumes, max_len), np.nan)
+    delays = np.full(number_of_plumes, np.nan, dtype=float)
+    temp_series = [None] * number_of_plumes
 
     for plume_idx in range(number_of_plumes):
         col = f"penetration_highpass_bw_plume_{plume_idx}"
@@ -239,12 +246,40 @@ def prepare_cleaned_series(df_file, diff_threshold=2.0):
         cleaned_serie, delay = penetration_cleaning(
             arr, pen_correction, diff_threshold=diff_threshold
         )
-
         delays[plume_idx] = delay
-        n = min(len(cleaned_serie), cleaned_series.shape[1])
-        cleaned_series[plume_idx, :n] = cleaned_serie[:n]
+        temp_series[plume_idx] = np.asarray(cleaned_serie, dtype=float)
 
-    return time_s, time_ms, cleaned_series, delays
+    valid_delays = delays[np.isfinite(delays)]
+    median_delay = int(np.round(np.nanmedian(valid_delays))) if valid_delays.size else 0
+    delays_used = np.full(number_of_plumes, median_delay, dtype=float)
+
+    # Align each plume to the same t_SOI using median delay, while preserving
+    # variable-length cleaned traces.
+    for plume_idx in range(number_of_plumes):
+        series = temp_series[plume_idx]
+        if series is None:
+            continue
+
+        plume_delay = int(np.round(delays[plume_idx])) if np.isfinite(delays[plume_idx]) else median_delay
+        delta = plume_delay - median_delay
+
+        if delta > 0:
+            # This plume was shifted too far left; shift right by delta.
+            aligned = np.full_like(series, np.nan, dtype=float)
+            if delta < series.size:
+                aligned[delta:] = series[:-delta]
+        elif delta < 0:
+            # This plume was not shifted enough; shift left by -delta.
+            shift_left = -delta
+            aligned = series[shift_left:]
+        else:
+            aligned = series
+
+        n = min(aligned.size, max_len)
+        if n > 0:
+            cleaned_series[plume_idx, :n] = aligned[:n]
+
+    return time_s, time_ms, cleaned_series, delays_used
 
 
 def save_clean_plot(folder, clean_df, csv_files):

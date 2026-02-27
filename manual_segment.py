@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
+from OSCC_postprocessing.utils import resolve_sam2_paths
 
 from OSCC_postprocessing.cine.cine_utils import CineReader
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density
@@ -15,8 +16,37 @@ from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
 from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
     rotate_video_nozzle_at_0_half_numpy,
 )
+from OSCC_postprocessing.binary_ops.functions_bw import (
+    keep_largest_component,
+    keep_largest_component_cuda,
+)
 from OSCC_postprocessing.binary_ops.masking import generate_plume_mask
 from OSCC_postprocessing.utils.zoom_utils import enlarge_image
+
+try:
+    import cupy as cp
+    from OSCC_postprocessing.rotation.rotate_with_alignment import (
+        rotate_video_nozzle_at_0_half_cupy,
+    )
+
+    _ = cp.cuda.runtime.getDeviceCount()
+    ROTATE_BACKEND = "cupy"
+except Exception:
+    cp = None
+    rotate_video_nozzle_at_0_half_cupy = None
+    ROTATE_BACKEND = "numpy"
+
+try:
+    import torch
+    from sam2.build_sam import build_sam2
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+
+    SAM2_AVAILABLE = True
+except Exception:
+    torch = None
+    build_sam2 = None
+    SAM2ImagePredictor = None
+    SAM2_AVAILABLE = False
 
 class ManualSegmenter:
     """Interactive tool to create and export pixel-wise masks for rotated plume videos."""
@@ -61,13 +91,22 @@ class ManualSegmenter:
         self.current_plume = 0
         self.zoom = 1
         self.tool = "grabcut"
-        self.brush_size = 5
+        self.brush_size = tk.IntVar(value=5)
         self.start_pos = None
         self.last_pos = None
         self.live_rect_id = None
 
         self.gain = tk.DoubleVar(value=1.0)
         self.gamma = tk.DoubleVar(value=1.0)
+        self.grabcut_iters = tk.IntVar(value=3)
+        self.sam_predictor = None
+        self.sam_model = None
+        self.sam_model_key = None
+        self.sam_device = None
+        self.sam_points_pos = []
+        self.sam_points_neg = []
+        self.sam_box = None
+        self.sam_dragging = False
 
         self.dataset_root = None
         self.dataset_dirs = {}
@@ -110,25 +149,46 @@ class ManualSegmenter:
         ttk.Button(row1, text="GrabCut Tool", command=lambda: self.set_tool("grabcut")).pack(
             side=tk.LEFT
         )
+        ttk.Button(row1, text="Load SAM", command=self.load_sam_model).pack(side=tk.LEFT)
+        ttk.Button(row1, text="SAM Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
+        ttk.Button(row1, text="Apply SAM", command=self.apply_sam_current).pack(side=tk.LEFT)
+        ttk.Button(row1, text="Clear SAM", command=self.clear_sam_prompts).pack(side=tk.LEFT)
+        ttk.Label(row1, text="Brush").pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Spinbox(
+            row1,
+            from_=1,
+            to=200,
+            increment=1,
+            width=5,
+            textvariable=self.brush_size,
+        ).pack(side=tk.LEFT)
 
         ttk.Label(row1, text="Gain").pack(side=tk.LEFT, padx=(10, 0))
-        ttk.Scale(
+        gain_box = ttk.Spinbox(
             row1,
             from_=0.1,
             to=10,
-            variable=self.gain,
-            orient=tk.HORIZONTAL,
-            command=lambda _e: self.update_image(),
-        ).pack(side=tk.LEFT)
+            increment=0.1,
+            width=6,
+            textvariable=self.gain,
+            command=self.update_image,
+        )
+        gain_box.pack(side=tk.LEFT)
         ttk.Label(row1, text="Gamma").pack(side=tk.LEFT)
-        ttk.Scale(
+        gamma_box = ttk.Spinbox(
             row1,
             from_=0.1,
             to=3,
-            variable=self.gamma,
-            orient=tk.HORIZONTAL,
-            command=lambda _e: self.update_image(),
-        ).pack(side=tk.LEFT)
+            increment=0.05,
+            width=6,
+            textvariable=self.gamma,
+            command=self.update_image,
+        )
+        gamma_box.pack(side=tk.LEFT)
+        gain_box.bind("<Return>", lambda _e: self.update_image())
+        gain_box.bind("<FocusOut>", lambda _e: self.update_image())
+        gamma_box.bind("<Return>", lambda _e: self.update_image())
+        gamma_box.bind("<FocusOut>", lambda _e: self.update_image())
 
         ttk.Button(row2, text="Set Dataset Dir", command=self.set_dataset_root).pack(side=tk.LEFT)
         ttk.Button(row2, text="Save Current", command=self.save_current_sample).pack(side=tk.LEFT)
@@ -175,6 +235,8 @@ class ManualSegmenter:
         self.master.bind("<Key-]>", lambda _e: self.next_plume())
         self.master.bind("<Key-[>", lambda _e: self.prev_plume())
         self.master.bind("<Key-s>", lambda _e: self.save_current_sample())
+        self.master.bind("<Key-a>", lambda _e: self.apply_sam_current())
+        self.master.bind("<Key-c>", lambda _e: self.clear_sam_prompts())
 
     # ---------------------------------------------------------------
     #                       Loading utilities
@@ -253,21 +315,28 @@ class ManualSegmenter:
             )
         angles = np.linspace(0, 360, n_plumes, endpoint=False) + offset
         self.plume_videos = []
+        use_cupy_rotate = ROTATE_BACKEND == "cupy" and cp is not None
+        video_input = cp.asarray(self.video) if use_cupy_rotate else self.video
         for ang in angles:
-            # print(ang)
-            seg, _, _ = rotate_video_nozzle_at_0_half_numpy(
-                self.video,
+            rotate_fn = (
+                rotate_video_nozzle_at_0_half_cupy
+                if use_cupy_rotate
+                else rotate_video_nozzle_at_0_half_numpy
+            )
+            seg, _, _ = rotate_fn(
+                video_input,
                 (cx, cy),
                 float(ang),
-                interpolation="bilinear",
+                interpolation="nearest",
                 border_mode="constant",
                 out_shape=out_shape,
                 calibration_point=calibration_point,
                 cval=0.0,
                 stack=True,
             )
-            # seg = (np.asarray(seg) * plume_mask[None, :, :]).astype(np.float32, copy=False)
-            seg = (np.asarray(seg) ).astype(np.float32, copy=False)
+            if use_cupy_rotate and hasattr(seg, "__cuda_array_interface__"):
+                seg = cp.asnumpy(seg)
+            seg = np.asarray(seg).astype(np.float32, copy=False)
             self.plume_videos.append(seg)
         self._set_plume_videos(self.plume_videos)
 
@@ -309,6 +378,7 @@ class ManualSegmenter:
         ]
         self.current_frame = 0
         self.current_plume = 0
+        self.clear_sam_prompts(update=False)
 
     # ---------------------------------------------------------------
     #                       Navigation
@@ -322,7 +392,17 @@ class ManualSegmenter:
     def next_frame(self):
         if not self.plume_videos:
             return
-        self.current_frame = min(self.plume_videos[0].shape[0] - 1, self.current_frame + 1)
+        old_frame = self.current_frame
+        new_frame = min(self.plume_videos[0].shape[0] - 1, self.current_frame + 1)
+        if new_frame == old_frame:
+            return
+
+        cur_mask = self.plume_masks[self.current_plume][old_frame]
+        next_mask = self.plume_masks[self.current_plume][new_frame]
+        if np.any(cur_mask) and not np.any(next_mask):
+            next_mask[:] = cur_mask
+
+        self.current_frame = new_frame
         self.update_image()
 
     def prev_plume(self):
@@ -372,6 +452,27 @@ class ManualSegmenter:
                     x2, y2 = pts[(i + 1) % len(pts)]
                     self.canvas.create_line(x1, y1, x2, y2, fill="yellow", dash=(4, 2))
 
+        for px, py in self.sam_points_pos:
+            sx, sy = px * self.zoom, py * self.zoom
+            r = max(3, int(self.zoom))
+            self.canvas.create_oval(sx - r, sy - r, sx + r, sy + r, outline="lime", width=2)
+        for px, py in self.sam_points_neg:
+            sx, sy = px * self.zoom, py * self.zoom
+            r = max(4, int(self.zoom) + 1)
+            self.canvas.create_line(sx - r, sy - r, sx + r, sy + r, fill="red", width=2)
+            self.canvas.create_line(sx - r, sy + r, sx + r, sy - r, fill="red", width=2)
+        if self.sam_box is not None:
+            x, y, w, h = self.sam_box
+            self.canvas.create_rectangle(
+                x * self.zoom,
+                y * self.zoom,
+                (x + w) * self.zoom,
+                (y + h) * self.zoom,
+                outline="cyan",
+                dash=(4, 2),
+                width=2,
+            )
+
     # ---------------------------------------------------------------
     #                       Mask editing
     # ---------------------------------------------------------------
@@ -380,10 +481,14 @@ class ManualSegmenter:
             return
         x = int(self.canvas.canvasx(event.x) / self.zoom)
         y = int(self.canvas.canvasy(event.y) / self.zoom)
+        if self.tool == "sam":
+            self.start_pos = (x, y)
+            self.sam_dragging = False
+            return
         if self.tool == "brush":
             self.last_pos = (x, y)
             mask = self.plume_masks[self.current_plume][self.current_frame]
-            cv2.circle(mask, (x, y), self.brush_size, 1, -1)
+            cv2.circle(mask, (x, y), int(self.brush_size.get()), 1, -1)
             self.update_image()
         else:
             self.start_pos = (x, y)
@@ -397,13 +502,32 @@ class ManualSegmenter:
             if self.last_pos is None:
                 return
             mask = self.plume_masks[self.current_plume][self.current_frame]
-            cv2.line(mask, self.last_pos, (x, y), 1, self.brush_size * 2)
+            width = max(1, int(self.brush_size.get()) * 2)
+            cv2.line(mask, self.last_pos, (x, y), 1, width)
             self.last_pos = (x, y)
             self.update_image()
+        elif self.tool == "sam" and self.start_pos is not None:
+            self.sam_dragging = True
+            self._draw_live_rect(self.start_pos, (x, y), outline="cyan")
         elif self.tool == "grabcut" and self.start_pos is not None:
             self._draw_live_rect(self.start_pos, (x, y), outline="lime")
 
     def on_left_release(self, event):
+        if not self.plume_videos:
+            return
+        if self.tool == "sam" and self.start_pos is not None:
+            x0, y0 = self.start_pos
+            x1 = int(self.canvas.canvasx(event.x) / self.zoom)
+            y1 = int(self.canvas.canvasy(event.y) / self.zoom)
+            if self.sam_dragging and abs(x1 - x0) >= 2 and abs(y1 - y0) >= 2:
+                self.sam_box = (min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
+            else:
+                self.sam_points_pos.append((x1, y1))
+            self.start_pos = None
+            self.sam_dragging = False
+            self._clear_live_rect()
+            self.update_image()
+            return
         if not self.plume_videos or self.tool != "grabcut" or self.start_pos is None:
             return
         x0, y0 = self.start_pos
@@ -419,10 +543,14 @@ class ManualSegmenter:
             return
         x = int(self.canvas.canvasx(event.x) / self.zoom)
         y = int(self.canvas.canvasy(event.y) / self.zoom)
+        if self.tool == "sam":
+            self.start_pos = (x, y)
+            self.sam_dragging = False
+            return
         if self.tool == "brush":
             self.last_pos = (x, y)
             mask = self.plume_masks[self.current_plume][self.current_frame]
-            cv2.circle(mask, (x, y), self.brush_size, 0, -1)
+            cv2.circle(mask, (x, y), int(self.brush_size.get()), 0, -1)
             self.update_image()
         else:
             self.start_pos = (x, y)
@@ -436,13 +564,28 @@ class ManualSegmenter:
             if self.last_pos is None:
                 return
             mask = self.plume_masks[self.current_plume][self.current_frame]
-            cv2.line(mask, self.last_pos, (x, y), 0, self.brush_size * 2)
+            width = max(1, int(self.brush_size.get()) * 2)
+            cv2.line(mask, self.last_pos, (x, y), 0, width)
             self.last_pos = (x, y)
             self.update_image()
+        elif self.tool == "sam" and self.start_pos is not None:
+            self.sam_dragging = True
         elif self.tool == "grabcut" and self.start_pos is not None:
             self._draw_live_rect(self.start_pos, (x, y), outline="red")
 
     def on_right_release(self, event):
+        if not self.plume_videos:
+            return
+        if self.tool == "sam" and self.start_pos is not None:
+            x1 = int(self.canvas.canvasx(event.x) / self.zoom)
+            y1 = int(self.canvas.canvasy(event.y) / self.zoom)
+            if not self.sam_dragging:
+                self.sam_points_neg.append((x1, y1))
+            self.start_pos = None
+            self.sam_dragging = False
+            self._clear_live_rect()
+            self.update_image()
+            return
         if not self.plume_videos or self.tool != "grabcut" or self.start_pos is None:
             return
         x0, y0 = self.start_pos
@@ -462,6 +605,139 @@ class ManualSegmenter:
     def set_tool(self, tool):
         self.tool = tool
         self._clear_live_rect()
+
+    def clear_sam_prompts(self, update=True):
+        self.sam_points_pos = []
+        self.sam_points_neg = []
+        self.sam_box = None
+        self.sam_dragging = False
+        if update:
+            self.update_image()
+
+    def load_sam_model(self):
+        if not SAM2_AVAILABLE:
+            messagebox.showerror(
+                "SAM2 Not Available",
+                "Missing SAM2 runtime. Install in this env:\n"
+                "pip install sam2 torch torchvision",
+            )
+            return False
+
+        try:
+            paths = resolve_sam2_paths()
+        except Exception as e:
+            messagebox.showerror("SAM2 Paths", str(e))
+            return False
+
+        model_key = str(paths.get("model_key", "unknown"))
+        config_path = str(paths["config"])
+        checkpoint_path = str(paths["checkpoint"])
+        device = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"
+
+        # Reuse existing predictor when already loaded with same model+device.
+        if (
+            self.sam_predictor is not None
+            and self.sam_model_key == model_key
+            and self.sam_device == device
+        ):
+            return True
+
+        try:
+            model = build_sam2(config_path, checkpoint_path, device=device)
+            predictor = SAM2ImagePredictor(model)
+        except Exception as e:
+            messagebox.showerror("SAM2 Load Error", f"Failed to load SAM2:\n{e}")
+            return False
+
+        self.sam_model = model
+        self.sam_predictor = predictor
+        self.sam_model_key = model_key
+        self.sam_device = device
+        messagebox.showinfo("SAM2", f"SAM2 loaded ({model_key}) on {device}.")
+        return True
+
+    def apply_sam_current(self):
+        if not self.plume_videos or self.current_img is None:
+            return
+        if not self.sam_points_pos and not self.sam_points_neg and self.sam_box is None:
+            messagebox.showinfo(
+                "SAM2 Prompts",
+                "Add prompt(s) first: left click=positive, right click=negative, left drag=box.",
+            )
+            return
+        if not self.load_sam_model():
+            return
+
+        frame = self.current_img
+        if frame.ndim == 2:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        else:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        kwargs = {"multimask_output": True}
+        pts = []
+        labels = []
+        for p in self.sam_points_pos:
+            pts.append([float(p[0]), float(p[1])])
+            labels.append(1)
+        for p in self.sam_points_neg:
+            pts.append([float(p[0]), float(p[1])])
+            labels.append(0)
+        if pts:
+            kwargs["point_coords"] = np.asarray(pts, dtype=np.float32)
+            kwargs["point_labels"] = np.asarray(labels, dtype=np.int32)
+        if self.sam_box is not None:
+            x, y, w, h = self.sam_box
+            kwargs["box"] = np.asarray([x, y, x + w, y + h], dtype=np.float32)
+
+        try:
+            self.sam_predictor.set_image(frame_rgb)
+            masks, scores, _logits = self.sam_predictor.predict(**kwargs)
+        except Exception as e:
+            messagebox.showerror("SAM2 Predict Error", f"SAM2 failed on current frame:\n{e}")
+            return
+
+        if masks is None:
+            return
+        masks = np.asarray(masks)
+        if masks.ndim == 2:
+            best_mask = masks
+        elif masks.ndim == 3:
+            if scores is not None and len(scores) == masks.shape[0]:
+                idx = int(np.argmax(scores))
+            else:
+                idx = 0
+            best_mask = masks[idx]
+        else:
+            messagebox.showerror("SAM2 Predict Error", f"Unexpected mask shape: {masks.shape}")
+            return
+
+        out = (best_mask > 0).astype(np.uint8)
+        # Keep only the dominant spray blob to suppress isolated SAM false positives.
+        try:
+            out = keep_largest_component_cuda(out, connectivity=2).astype(np.uint8, copy=False)
+        except Exception:
+            out = keep_largest_component(out, connectivity=2).astype(np.uint8, copy=False)
+        if out.shape != self.plume_masks[self.current_plume][self.current_frame].shape:
+            messagebox.showerror(
+                "SAM2 Predict Error",
+                f"Mask shape mismatch: SAM={out.shape}, target={self.plume_masks[self.current_plume][self.current_frame].shape}",
+            )
+            return
+        target_mask = self.plume_masks[self.current_plume][self.current_frame]
+        if self.sam_box is not None:
+            # Keep mask unchanged outside the user-selected SAM patch.
+            x, y, w, h = self.sam_box
+            x0 = max(0, int(x))
+            y0 = max(0, int(y))
+            x1 = min(target_mask.shape[1], x0 + int(w))
+            y1 = min(target_mask.shape[0], y0 + int(h))
+            if x1 > x0 and y1 > y0:
+                target_mask[y0:y1, x0:x1] = out[y0:y1, x0:x1]
+        else:
+            # Without a box prompt, preserve existing mask and only add SAM positives.
+            target_mask[:] = np.maximum(target_mask, out)
+        self.update_image()
 
     def _draw_live_rect(self, p0, p1, outline="lime"):
         x0, y0 = p0
@@ -487,22 +763,49 @@ class ManualSegmenter:
         if rect[2] < 2 or rect[3] < 2:
             return
 
+        # Use the display image (gain/gamma-adjusted uint8) for GrabCut to match what user sees.
         frame = self.current_img
         if frame.ndim == 2:
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         mask = self.plume_masks[self.current_plume][self.current_frame]
-        gc_mask = np.where(mask, cv2.GC_FGD, cv2.GC_BGD).astype("uint8")
+
+        x, y, w, h = rect
+        x0 = max(0, int(x))
+        y0 = max(0, int(y))
+        x1 = min(frame.shape[1], x0 + int(w))
+        y1 = min(frame.shape[0], y0 + int(h))
+        if x1 - x0 < 2 or y1 - y0 < 2:
+            return
+
+        pad = 16
+        rx0 = max(0, x0 - pad)
+        ry0 = max(0, y0 - pad)
+        rx1 = min(frame.shape[1], x1 + pad)
+        ry1 = min(frame.shape[0], y1 + pad)
+        roi_frame = frame[ry0:ry1, rx0:rx1]
+        roi_mask = mask[ry0:ry1, rx0:rx1]
+        gc_mask = np.where(roi_mask, cv2.GC_FGD, cv2.GC_BGD).astype(np.uint8)
+        roi_rect = (x0 - rx0, y0 - ry0, x1 - x0, y1 - y0)
+
         bgd = np.zeros((1, 65), np.float64)
         fgd = np.zeros((1, 65), np.float64)
         try:
-            cv2.grabCut(frame, gc_mask, rect, bgd, fgd, 5, cv2.GC_INIT_WITH_RECT)
+            cv2.grabCut(
+                roi_frame,
+                gc_mask,
+                roi_rect,
+                bgd,
+                fgd,
+                int(self.grabcut_iters.get()),
+                cv2.GC_INIT_WITH_RECT,
+            )
         except Exception:
             return
         new_mask = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 1, 0).astype(np.uint8)
         if add:
-            mask[:] = np.maximum(mask, new_mask)
+            roi_mask[:] = np.maximum(roi_mask, new_mask)
         else:
-            mask[:] = mask & (~new_mask)
+            roi_mask[:] = roi_mask & (~new_mask)
         self.update_image()
 
     # ---------------------------------------------------------------
