@@ -99,6 +99,7 @@ class ManualSegmenter:
 
         ttk.Button(row1, text="Load Video", command=self.load_video).pack(side=tk.LEFT)
         ttk.Button(row1, text="Load Config", command=self.load_config).pack(side=tk.LEFT)
+        ttk.Button(row1, text="No Config", command=self.load_no_config).pack(side=tk.LEFT)
         ttk.Button(row1, text="Prev Frame", command=self.prev_frame).pack(side=tk.LEFT)
         ttk.Button(row1, text="Next Frame", command=self.next_frame).pack(side=tk.LEFT)
         ttk.Button(row1, text="Prev Plume", command=self.prev_plume).pack(side=tk.LEFT)
@@ -268,12 +269,7 @@ class ManualSegmenter:
             # seg = (np.asarray(seg) * plume_mask[None, :, :]).astype(np.float32, copy=False)
             seg = (np.asarray(seg) ).astype(np.float32, copy=False)
             self.plume_videos.append(seg)
-        self.plume_masks = [
-            [np.zeros(seg[0].shape, dtype=np.uint8) for _ in range(seg.shape[0])]
-            for seg in self.plume_videos
-        ]
-        self.current_frame = 0
-        self.current_plume = 0
+        self._set_plume_videos(self.plume_videos)
 
         self.config_path = path
         self.config_values = cfg
@@ -285,6 +281,34 @@ class ManualSegmenter:
         self.rotation_offset_deg = float(offset)
 
         self.update_image()
+
+    def load_no_config(self):
+        if self.video is None:
+            messagebox.showinfo("Info", "Load a video first")
+            return
+
+        raw_video = np.asarray(self.video, dtype=np.float32)
+        self._set_plume_videos([raw_video])
+
+        self.config_path = None
+        self.config_values = {}
+        self.n_plumes = 1
+        self.centre_x = None
+        self.centre_y = None
+        self.inner_radius = 0
+        self.outer_radius = 0
+        self.rotation_offset_deg = 0.0
+
+        self.update_image()
+
+    def _set_plume_videos(self, plume_videos):
+        self.plume_videos = plume_videos
+        self.plume_masks = [
+            [np.zeros(seg[0].shape, dtype=np.uint8) for _ in range(seg.shape[0])]
+            for seg in self.plume_videos
+        ]
+        self.current_frame = 0
+        self.current_plume = 0
 
     # ---------------------------------------------------------------
     #                       Navigation
