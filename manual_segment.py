@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime, timezone
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import colorchooser, filedialog, messagebox, ttk
 
 import cv2
 import numpy as np
@@ -107,6 +107,10 @@ class ManualSegmenter:
         self.sam_points_neg = []
         self.sam_box = None
         self.sam_dragging = False
+        self.static_block_masks = []  # Per-plume static 2D block masks (1=blocked)
+        self.show_static_block = tk.BooleanVar(value=True)
+        self.static_block_alpha = tk.IntVar(value=110)
+        self.static_block_color = (255, 0, 0)
 
         self.dataset_root = None
         self.dataset_dirs = {}
@@ -135,37 +139,45 @@ class ManualSegmenter:
         row1.pack(side=tk.TOP, fill=tk.X)
         row2 = ttk.Frame(top)
         row2.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        row3 = ttk.Frame(top)
+        row3.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        row4 = ttk.Frame(top)
+        row4.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
 
-        ttk.Button(row1, text="Load Video", command=self.load_video).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Load Config", command=self.load_config).pack(side=tk.LEFT)
-        ttk.Button(row1, text="No Config", command=self.load_no_config).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Prev Frame", command=self.prev_frame).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Next Frame", command=self.next_frame).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Prev Plume", command=self.prev_plume).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Next Plume", command=self.next_plume).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Brush Tool", command=lambda: self.set_tool("brush")).pack(
-            side=tk.LEFT
-        )
-        ttk.Button(row1, text="GrabCut Tool", command=lambda: self.set_tool("grabcut")).pack(
-            side=tk.LEFT
-        )
-        ttk.Button(row1, text="Load SAM", command=self.load_sam_model).pack(side=tk.LEFT)
-        ttk.Button(row1, text="SAM Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Apply SAM", command=self.apply_sam_current).pack(side=tk.LEFT)
-        ttk.Button(row1, text="Clear SAM", command=self.clear_sam_prompts).pack(side=tk.LEFT)
-        ttk.Label(row1, text="Brush").pack(side=tk.LEFT, padx=(8, 0))
+        row1_left = ttk.Frame(row1)
+        row1_left.pack(side=tk.LEFT)
+        row1_right = ttk.Frame(row1)
+        row1_right.pack(side=tk.RIGHT)
+
+        row2_left = ttk.Frame(row2)
+        row2_left.pack(side=tk.LEFT)
+        row2_right = ttk.Frame(row2)
+        row2_right.pack(side=tk.RIGHT)
+
+        row3_left = ttk.Frame(row3)
+        row3_left.pack(side=tk.LEFT)
+        row3_right = ttk.Frame(row3)
+        row3_right.pack(side=tk.RIGHT)
+
+        row4_left = ttk.Frame(row4)
+        row4_left.pack(side=tk.LEFT)
+
+        ttk.Button(row1_left, text="Load Video", command=self.load_video).pack(side=tk.LEFT)
+        ttk.Button(row1_left, text="Load Config", command=self.load_config).pack(side=tk.LEFT)
+        ttk.Button(row1_left, text="No Config", command=self.load_no_config).pack(side=tk.LEFT)
+
+        ttk.Label(row1_right, text="Brush").pack(side=tk.LEFT, padx=(8, 0))
         ttk.Spinbox(
-            row1,
+            row1_right,
             from_=1,
             to=200,
             increment=1,
             width=5,
             textvariable=self.brush_size,
         ).pack(side=tk.LEFT)
-
-        ttk.Label(row1, text="Gain").pack(side=tk.LEFT, padx=(10, 0))
+        ttk.Label(row1_right, text="Gain").pack(side=tk.LEFT, padx=(10, 0))
         gain_box = ttk.Spinbox(
-            row1,
+            row1_right,
             from_=0.1,
             to=10,
             increment=0.1,
@@ -174,9 +186,9 @@ class ManualSegmenter:
             command=self.update_image,
         )
         gain_box.pack(side=tk.LEFT)
-        ttk.Label(row1, text="Gamma").pack(side=tk.LEFT)
+        ttk.Label(row1_right, text="Gamma").pack(side=tk.LEFT)
         gamma_box = ttk.Spinbox(
-            row1,
+            row1_right,
             from_=0.1,
             to=3,
             increment=0.05,
@@ -185,27 +197,70 @@ class ManualSegmenter:
             command=self.update_image,
         )
         gamma_box.pack(side=tk.LEFT)
+
+        ttk.Button(row2_left, text="Prev Frame", command=self.prev_frame).pack(side=tk.LEFT)
+        ttk.Button(row2_left, text="Next Frame", command=self.next_frame).pack(side=tk.LEFT)
+        ttk.Button(row2_left, text="Prev Plume", command=self.prev_plume).pack(side=tk.LEFT)
+        ttk.Button(row2_left, text="Next Plume", command=self.next_plume).pack(side=tk.LEFT)
+
+        ttk.Button(row2_right, text="Brush Tool", command=lambda: self.set_tool("brush")).pack(
+            side=tk.LEFT
+        )
+        ttk.Button(row2_right, text="GrabCut Tool", command=lambda: self.set_tool("grabcut")).pack(
+            side=tk.LEFT
+        )
+        ttk.Button(
+            row2_right, text="Static Block Tool", command=lambda: self.set_tool("static_block")
+        ).pack(side=tk.LEFT)
         gain_box.bind("<Return>", lambda _e: self.update_image())
         gain_box.bind("<FocusOut>", lambda _e: self.update_image())
         gamma_box.bind("<Return>", lambda _e: self.update_image())
         gamma_box.bind("<FocusOut>", lambda _e: self.update_image())
 
-        ttk.Button(row2, text="Set Dataset Dir", command=self.set_dataset_root).pack(side=tk.LEFT)
-        ttk.Button(row2, text="Save Current", command=self.save_current_sample).pack(side=tk.LEFT)
-        ttk.Button(row2, text="Save Plume", command=self.save_current_plume_labeled).pack(
+        ttk.Button(row3_left, text="Save Dataset Dir", command=self.set_dataset_root).pack(side=tk.LEFT)
+        ttk.Button(row3_left, text="Save Current", command=self.save_current_sample).pack(side=tk.LEFT)
+        ttk.Button(row3_left, text="Save Plume", command=self.save_current_plume_labeled).pack(
             side=tk.LEFT
         )
-        ttk.Button(row2, text="Save All Labeled", command=self.save_all_labeled).pack(
+        ttk.Button(row3_left, text="Save All Labeled", command=self.save_all_labeled).pack(
             side=tk.LEFT
         )
-        ttk.Button(row2, text="Generate Splits", command=self.generate_splits).pack(side=tk.LEFT)
-        ttk.Checkbutton(row2, text="Overwrite", variable=self.overwrite_existing).pack(
+        ttk.Button(row3_left, text="Generate Splits", command=self.generate_splits).pack(side=tk.LEFT)
+        ttk.Button(
+            row3_left, text="Apply Static Block", command=self.apply_static_block_current_plume
+        ).pack(side=tk.LEFT)
+        ttk.Button(row3_left, text="Clear Static Block", command=self.clear_static_block_current_plume).pack(
+            side=tk.LEFT
+        )
+
+        ttk.Button(row3_right, text="Load SAM", command=self.load_sam_model).pack(side=tk.LEFT)
+        ttk.Button(row3_right, text="SAM Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
+        ttk.Button(row3_right, text="Apply SAM", command=self.apply_sam_current).pack(side=tk.LEFT)
+        ttk.Button(row3_right, text="Clear SAM", command=self.clear_sam_prompts).pack(side=tk.LEFT)
+
+        ttk.Checkbutton(row4_left, text="Overwrite", variable=self.overwrite_existing).pack(
             side=tk.LEFT, padx=(8, 0)
         )
-        ttk.Checkbutton(row2, text="Save Empty Masks", variable=self.include_empty_masks).pack(
+        ttk.Checkbutton(row4_left, text="Save Empty Masks", variable=self.include_empty_masks).pack(
             side=tk.LEFT
         )
-        self.dataset_label = ttk.Label(row2, text="Dataset: (not set)")
+        ttk.Checkbutton(
+            row4_left, text="Show Static Block", variable=self.show_static_block, command=self.update_image
+        ).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Label(row4_left, text="Block Alpha").pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Spinbox(
+            row4_left,
+            from_=0,
+            to=255,
+            increment=5,
+            width=5,
+            textvariable=self.static_block_alpha,
+            command=self.update_image,
+        ).pack(side=tk.LEFT)
+        ttk.Button(row4_left, text="Block Color", command=self.choose_static_block_color).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+        self.dataset_label = ttk.Label(row4_left, text="Dataset: (not set)")
         self.dataset_label.pack(side=tk.LEFT, padx=(10, 0))
 
         cf = ttk.Frame(self.master)
@@ -232,6 +287,8 @@ class ManualSegmenter:
 
         self.master.bind("<Key-n>", lambda _e: self.next_frame())
         self.master.bind("<Key-p>", lambda _e: self.prev_frame())
+        self.master.bind("<Left>", lambda _e: self.prev_frame())
+        self.master.bind("<Right>", lambda _e: self.next_frame())
         self.master.bind("<Key-]>", lambda _e: self.next_plume())
         self.master.bind("<Key-[>", lambda _e: self.prev_plume())
         self.master.bind("<Key-s>", lambda _e: self.save_current_sample())
@@ -376,6 +433,7 @@ class ManualSegmenter:
             [np.zeros(seg[0].shape, dtype=np.uint8) for _ in range(seg.shape[0])]
             for seg in self.plume_videos
         ]
+        self.static_block_masks = [np.zeros(seg[0].shape, dtype=np.uint8) for seg in self.plume_videos]
         self.current_frame = 0
         self.current_plume = 0
         self.clear_sam_prompts(update=False)
@@ -438,7 +496,18 @@ class ManualSegmenter:
         img8 = self.apply_gain_gamma(frame)
         self.current_raw = frame
         self.current_img = img8
-        disp = enlarge_image(Image.fromarray(img8), int(self.zoom))
+
+        disp_rgb = np.stack([img8, img8, img8], axis=-1)
+        if self.show_static_block.get() and self.static_block_masks:
+            block = self.static_block_masks[self.current_plume].astype(bool)
+            if np.any(block):
+                a = float(self.static_block_alpha.get()) / 255.0
+                color = np.array(self.static_block_color, dtype=np.float32)
+                disp_rgb_f = disp_rgb.astype(np.float32)
+                disp_rgb_f[block] = (1.0 - a) * disp_rgb_f[block] + a * color
+                disp_rgb = np.clip(disp_rgb_f, 0, 255).astype(np.uint8)
+
+        disp = enlarge_image(Image.fromarray(disp_rgb), int(self.zoom))
         self.photo = ImageTk.PhotoImage(disp)
         self.canvas.create_image(0, 0, anchor="nw", image=self.photo)
         self.canvas.config(scrollregion=(0, 0, disp.width, disp.height))
@@ -485,6 +554,12 @@ class ManualSegmenter:
             self.start_pos = (x, y)
             self.sam_dragging = False
             return
+        if self.tool == "static_block":
+            self.last_pos = (x, y)
+            static_mask = self.static_block_masks[self.current_plume]
+            cv2.circle(static_mask, (x, y), int(self.brush_size.get()), 1, -1)
+            self.update_image()
+            return
         if self.tool == "brush":
             self.last_pos = (x, y)
             mask = self.plume_masks[self.current_plume][self.current_frame]
@@ -504,6 +579,14 @@ class ManualSegmenter:
             mask = self.plume_masks[self.current_plume][self.current_frame]
             width = max(1, int(self.brush_size.get()) * 2)
             cv2.line(mask, self.last_pos, (x, y), 1, width)
+            self.last_pos = (x, y)
+            self.update_image()
+        elif self.tool == "static_block":
+            if self.last_pos is None:
+                return
+            static_mask = self.static_block_masks[self.current_plume]
+            width = max(1, int(self.brush_size.get()) * 2)
+            cv2.line(static_mask, self.last_pos, (x, y), 1, width)
             self.last_pos = (x, y)
             self.update_image()
         elif self.tool == "sam" and self.start_pos is not None:
@@ -547,6 +630,12 @@ class ManualSegmenter:
             self.start_pos = (x, y)
             self.sam_dragging = False
             return
+        if self.tool == "static_block":
+            self.last_pos = (x, y)
+            static_mask = self.static_block_masks[self.current_plume]
+            cv2.circle(static_mask, (x, y), int(self.brush_size.get()), 0, -1)
+            self.update_image()
+            return
         if self.tool == "brush":
             self.last_pos = (x, y)
             mask = self.plume_masks[self.current_plume][self.current_frame]
@@ -566,6 +655,14 @@ class ManualSegmenter:
             mask = self.plume_masks[self.current_plume][self.current_frame]
             width = max(1, int(self.brush_size.get()) * 2)
             cv2.line(mask, self.last_pos, (x, y), 0, width)
+            self.last_pos = (x, y)
+            self.update_image()
+        elif self.tool == "static_block":
+            if self.last_pos is None:
+                return
+            static_mask = self.static_block_masks[self.current_plume]
+            width = max(1, int(self.brush_size.get()) * 2)
+            cv2.line(static_mask, self.last_pos, (x, y), 0, width)
             self.last_pos = (x, y)
             self.update_image()
         elif self.tool == "sam" and self.start_pos is not None:
@@ -613,6 +710,31 @@ class ManualSegmenter:
         self.sam_dragging = False
         if update:
             self.update_image()
+
+    def choose_static_block_color(self):
+        rgb, _hex = colorchooser.askcolor(color=self.static_block_color, title="Select static block color")
+        if rgb is None:
+            return
+        self.static_block_color = tuple(int(v) for v in rgb)
+        self.update_image()
+
+    def clear_static_block_current_plume(self):
+        if not self.plume_videos:
+            return
+        self.static_block_masks[self.current_plume][:] = 0
+        self.update_image()
+
+    def apply_static_block_current_plume(self):
+        if not self.plume_videos:
+            return
+        block = self.static_block_masks[self.current_plume].astype(bool)
+        if not np.any(block):
+            messagebox.showinfo("Static Block", "Static block mask is empty for current plume.")
+            return
+        keep = (~block).astype(np.uint8)
+        for f in range(self.plume_videos[self.current_plume].shape[0]):
+            self.plume_masks[self.current_plume][f] &= keep
+        self.update_image()
 
     def load_sam_model(self):
         if not SAM2_AVAILABLE:
