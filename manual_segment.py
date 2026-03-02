@@ -667,6 +667,7 @@ class ManualSegmenter:
             self.update_image()
         elif self.tool == "sam" and self.start_pos is not None:
             self.sam_dragging = True
+            self._draw_live_rect(self.start_pos, (x, y), outline="red")
         elif self.tool == "grabcut" and self.start_pos is not None:
             self._draw_live_rect(self.start_pos, (x, y), outline="red")
 
@@ -674,10 +675,18 @@ class ManualSegmenter:
         if not self.plume_videos:
             return
         if self.tool == "sam" and self.start_pos is not None:
+            x0, y0 = self.start_pos
             x1 = int(self.canvas.canvasx(event.x) / self.zoom)
             y1 = int(self.canvas.canvasy(event.y) / self.zoom)
             if not self.sam_dragging:
                 self.sam_points_neg.append((x1, y1))
+            else:
+                mask = self.plume_masks[self.current_plume][self.current_frame]
+                rx0 = min(x0, x1)
+                ry0 = min(y0, y1)
+                rx1 = max(x0, x1)
+                ry1 = max(y0, y1)
+                cv2.rectangle(mask, (rx0, ry0), (rx1, ry1), 0, -1)
             self.start_pos = None
             self.sam_dragging = False
             self._clear_live_rect()
@@ -784,7 +793,7 @@ class ManualSegmenter:
         if not self.sam_points_pos and not self.sam_points_neg and self.sam_box is None:
             messagebox.showinfo(
                 "SAM2 Prompts",
-                "Add prompt(s) first: left click=positive, right click=negative, left drag=box.",
+                "Add prompt(s) first: left click=positive, right click=negative, left drag=box, right drag=erase mask.",
             )
             return
         if not self.load_sam_model():
