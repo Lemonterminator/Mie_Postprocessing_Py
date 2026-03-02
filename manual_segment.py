@@ -375,6 +375,7 @@ class ManualSegmenter:
         use_cupy_rotate = ROTATE_BACKEND == "cupy" and cp is not None
         video_input = cp.asarray(self.video) if use_cupy_rotate else self.video
         for ang in angles:
+            print(ang)
             rotate_fn = (
                 rotate_video_nozzle_at_0_half_cupy
                 if use_cupy_rotate
@@ -383,7 +384,7 @@ class ManualSegmenter:
             seg, _, _ = rotate_fn(
                 video_input,
                 (cx, cy),
-                float(ang),
+                float(ang)%360.0,
                 interpolation="nearest",
                 border_mode="constant",
                 out_shape=out_shape,
