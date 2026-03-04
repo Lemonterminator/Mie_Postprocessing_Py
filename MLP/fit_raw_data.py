@@ -160,7 +160,7 @@ def penetration_cleaning(arr, scaling_factor, diff_threshold=1.0, hd_upper_lim=m
     return arr, penetration_delay
 
 
-def spray_penetration_model_sigmoid(params, t, ti):
+def spray_penetration_model_sigmoid(params, t):
     """
     params (log-space): [log_k_sqrt, log_k_quarter, log_t0, log_s]
     """
@@ -197,7 +197,7 @@ def fit_sigmoid(t, y, ti, x0):
     y_fit = y[valid]
 
     def residuals(params):
-        y_hat = spray_penetration_model_sigmoid(params, t_fit, ti)
+        y_hat = spray_penetration_model_sigmoid(params, t_fit)
         r = y_hat - y_fit
         if not np.all(np.isfinite(r)):
             return np.full_like(y_fit, 1e6, dtype=float)
@@ -339,7 +339,7 @@ def save_clean_plot(folder, clean_df, csv_files):
         t_end = float(np.nanmax(time_s) * PLOT_EXTRAP_FACTOR)
         t_extrap_s = np.linspace(0.0, t_end, PLOT_NUM_POINTS)
         log_params = [row.log_k_sqrt, row.log_k_quarter, row.log_t0, row.log_s]
-        y_extrap = spray_penetration_model_sigmoid(log_params, t_extrap_s, inj_dur_s)
+        y_extrap = spray_penetration_model_sigmoid(log_params, t_extrap_s)
 
         plt.plot(time_ms[valid_raw], raw_series[valid_raw], alpha=0.65, linewidth=1.0)
         plt.plot(1e3 * t_extrap_s, y_extrap, linestyle="--", alpha=0.45, linewidth=1.0)
@@ -392,7 +392,7 @@ def process_folder(folder):
             if np.any(valid):
                 y_true = series[valid]
                 y_hat = spray_penetration_model_sigmoid(
-                    [log_k_sqrt, log_k_quarter, log_t0, log_s], time_s[valid], inj_dur_s
+                    [log_k_sqrt, log_k_quarter, log_t0, log_s], time_s[valid]
                 )
                 rmse = float(np.sqrt(np.mean((y_hat - y_true) ** 2)))
                 ss_res = float(np.sum((y_true - y_hat) ** 2))
