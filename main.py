@@ -9,7 +9,7 @@ from OSCC_postprocessing.playback.video_playback import *
 import matplotlib.pyplot as plt
 # from main_utils_temp import *
 
-from examples.Schlieren_singlehole_pipeline import *
+# from examples.Schlieren_singlehole_pipeline import *
 import subprocess
 from scipy.signal import convolve2d
 import asyncio
@@ -33,6 +33,9 @@ global gamma
 global testpoint_name
 global video_name
 
+# =============================================================================
+# Experiment Config Loading and Results Management
+# =============================================================================
 
 # Define the parent folder and other global variables
 parent_folder = r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
@@ -40,12 +43,81 @@ parent_folder = r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
 # rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
 experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"
 
+# =============================================================================
+# Image processing config
+# =============================================================================
 
-# =============================================================================
-# Experiment Config Loading and Results Management
-# =============================================================================
 frame_limit = 80
 noise_floor_multiplier=2.0
+
+# =============================================================================
+# Default nozzle properties, safe fall back if not defined in test matrix.
+# =============================================================================
+FPS_default = 25000
+injection_pressure_bar_default = 2000
+control_backpressure_bar_default = 4
+umbrella_angle_deg_default = 180
+
+
+def _is_missing_value(value) -> bool:
+    return value is None or bool(pd.isna(value))
+
+
+def resolve_metadata_with_fallbacks(
+    *,
+    nozzle_props: dict,
+    test_condition: dict,
+    injection_duration_us,
+    num_rows: int,
+    context: str,
+) -> dict:
+    """
+    Resolve metadata fields for CSV output and apply hard-coded fallbacks
+    when values are missing.
+    """
+    raw_values = {
+        "plumes": nozzle_props.get("plumes"),
+        "diameter_mm": nozzle_props.get("diameter_mm"),
+        "umbrella_angle_deg": nozzle_props.get("umbrella_angle_deg"),
+        "fps": nozzle_props.get("fps"),
+        "chamber_pressure_bar": test_condition.get("chamber_pressure_bar"),
+        "injection_duration_us": injection_duration_us,
+        "injection_pressure_bar": test_condition.get("injection_pressure_bar"),
+        "control_backpressure_bar": test_condition.get("control_backpressure"),
+    }
+
+    fallback_defaults = {
+        "umbrella_angle_deg": umbrella_angle_deg_default,
+        "fps": FPS_default,
+        "injection_pressure_bar": injection_pressure_bar_default,
+        "control_backpressure_bar": control_backpressure_bar_default,
+    }
+
+    resolved = {}
+    for field, value in raw_values.items():
+        if _is_missing_value(value):
+            fallback_value = fallback_defaults.get(field)
+            if fallback_value is not None and not _is_missing_value(fallback_value):
+                print(
+                    f"[WARN] {context}: '{field}' missing for {num_rows} row(s). "
+                    f"Using fallback default={fallback_value}."
+                )
+                resolved[field] = fallback_value
+            else:
+                print(
+                    f"[WARN] {context}: '{field}' missing for {num_rows} row(s). "
+                    "No fallback default available; writing NaN."
+                )
+                resolved[field] = value
+        else:
+            resolved[field] = value
+
+    return resolved
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
 
 def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
@@ -524,18 +596,26 @@ async def main():
                         cine_number,
                         fallback=test_condition.get('injection_duration_us'),
                     )
+                    metadata = resolve_metadata_with_fallbacks(
+                        nozzle_props=nozzle_props,
+                        test_condition=test_condition,
+                        injection_duration_us=injection_duration_us,
+                        num_rows=num_frames,
+                        context=f"{save_path_subfolder / f'{video_name}.csv'}",
+                    )
                     df = pd.DataFrame({
                         # Frame index
                         'frame_idx': list(range(num_frames)),
                         # Nozzle properties (constant per row)
-                        'plumes': [nozzle_props.get('plumes')] * num_frames,
-                        'diameter_mm': [nozzle_props.get('diameter_mm')] * num_frames,
-                        'umbrella_angle_deg': [nozzle_props.get('umbrella_angle_deg')] * num_frames,
-                        'fps': [nozzle_props.get('fps')] * num_frames,
+                        'plumes': [metadata.get('plumes')] * num_frames,
+                        'diameter_mm': [metadata.get('diameter_mm')] * num_frames,
+                        'umbrella_angle_deg': [metadata.get('umbrella_angle_deg')] * num_frames,
+                        'fps': [metadata.get('fps')] * num_frames,
                         # Test conditions from subfolder
-                        'chamber_pressure_bar': [test_condition.get('chamber_pressure_bar')] * num_frames,
-                        'injection_duration_us': [injection_duration_us] * num_frames,
-                        'injection_pressure_bar': [test_condition.get('injection_pressure_bar')] * num_frames,
+                        'chamber_pressure_bar': [metadata.get('chamber_pressure_bar')] * num_frames,
+                        'injection_duration_us': [metadata.get('injection_duration_us')] * num_frames,
+                        'injection_pressure_bar': [metadata.get('injection_pressure_bar')] * num_frames,
+                        'control_backpressure_bar': [metadata.get('control_backpressure_bar')] * num_frames,
                         # File name
                     })
                     

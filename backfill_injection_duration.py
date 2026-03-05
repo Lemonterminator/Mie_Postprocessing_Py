@@ -1,9 +1,23 @@
-import argparse
 import json
 import re
 from pathlib import Path
 
 import pandas as pd
+
+# Runtime config (edit these directly)
+repo_root = Path(__file__).resolve().parent
+folder_name = "BC20241016_HZ_Nozzle8"
+config_name = "Nozzle8.json"
+
+injection_pressure_bar_default = 2000
+control_backpressure_bar_default = 4
+FPS_default = 25000
+
+DRY_RUN = False
+REPAIR_FROM_CONFIG = False
+
+ROOT_FOLDER = repo_root / folder_name
+CONFIG_PATH = repo_root / "test_matrix_json" / config_name
 
 
 def extract_cine_number(file_path: Path | str) -> int | None:
@@ -53,62 +67,110 @@ def load_config(path: Path) -> dict:
         return json.load(f)
 
 
-def backfill(root_folder: Path, config_path: Path, dry_run: bool = False) -> tuple[int, int]:
+def extract_group_id_from_path(path: Path | str) -> int | None:
+    p = Path(path)
+    for token in (p.name, p.stem):
+        m = re.search(r"[Tt](\d+)", token)
+        if m:
+            return int(m.group(1))
+        if token.isdigit():
+            return int(token)
+    return None
+
+
+def build_group_lookup(config: dict) -> dict[int, dict]:
+    groups = config.get("test_matrix", {}).get("groups", [])
+    lookup: dict[int, dict] = {}
+    for g in groups:
+        gid = g.get("id")
+        if gid is not None:
+            lookup[int(gid)] = g
+    return lookup
+
+
+def is_missing_column(df: pd.DataFrame, column: str) -> bool:
+    return column not in df.columns or df[column].isna().all()
+
+
+def backfill(
+    root_folder: Path,
+    config_path: Path,
+    dry_run: bool = False,
+    repair_from_config: bool = False,
+) -> tuple[int, int]:
     config = load_config(config_path)
+    groups_by_id = build_group_lookup(config)
+    nozzle_props = config.get("nozzle_properties", {})
     updated = 0
     skipped = 0
 
     for csv_path in sorted(root_folder.rglob("*.csv")):
+        df = pd.read_csv(csv_path)
+        changes: list[str] = []
+
+        group_id = extract_group_id_from_path(csv_path.parent)
+        group_cfg = groups_by_id.get(group_id or -1, {})
+
+        injection_pressure_value = group_cfg.get("injection_pressure_bar", injection_pressure_bar_default)
+        control_backpressure_value = group_cfg.get("control_backpressure", control_backpressure_bar_default)
+        fps_value = nozzle_props.get("fps", FPS_default)
+
         cine_number = extract_cine_number(csv_path)
         duration = compute_injection_duration_us(config, cine_number)
-        if duration is None:
+        if duration is not None:
+            if is_missing_column(df, "injection_duration_us"):
+                df["injection_duration_us"] = duration
+                changes.append(f"injection_duration_us={duration}")
+
+        if repair_from_config or is_missing_column(df, "injection_pressure_bar"):
+            df["injection_pressure_bar"] = injection_pressure_value
+            changes.append(f"injection_pressure_bar={injection_pressure_value}")
+
+        if "control_backpressure_bar" in df.columns:
+            if repair_from_config or is_missing_column(df, "control_backpressure_bar"):
+                df["control_backpressure_bar"] = control_backpressure_value
+                changes.append(f"control_backpressure_bar={control_backpressure_value}")
+        elif "control_backpressure" in df.columns:
+            if repair_from_config or is_missing_column(df, "control_backpressure"):
+                df["control_backpressure"] = control_backpressure_value
+                changes.append(f"control_backpressure={control_backpressure_value}")
+        else:
+            df["control_backpressure_bar"] = control_backpressure_value
+            changes.append(f"control_backpressure_bar={control_backpressure_value}")
+
+        if is_missing_column(df, "fps"):
+            df["fps"] = fps_value
+            changes.append(f"fps={fps_value}")
+
+        if not changes:
             skipped += 1
-            print(f"Skip (no duration): {csv_path}")
+            print(f"Skip (already populated): {csv_path}")
             continue
 
-        df = pd.read_csv(csv_path)
-        df["injection_duration_us"] = duration
-
         if dry_run:
-            print(f"[DRY-RUN] Would set injection_duration_us={duration} in {csv_path}")
+            change_summary = ", ".join(changes)
+            print(f"[DRY-RUN] Would set {change_summary} in {csv_path}")
         else:
             df.to_csv(csv_path, index=False)
-            print(f"Updated {csv_path} -> injection_duration_us={duration}")
+            change_summary = ", ".join(changes)
+            print(f"Updated {csv_path} -> {change_summary}")
         updated += 1
 
     return updated, skipped
 
 
 def main():
-    repo_root = Path(__file__).resolve().parent
-    parser = argparse.ArgumentParser(
-        description="Backfill injection_duration_us into existing CSV files."
-    )
-    parser.add_argument(
-        "--root-folder",
-        type=Path,
-        default=repo_root / "BC20220627 - Heinzman DS300 - Mie Top view",
-        help="Folder containing CSV files to patch.",
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=repo_root / "test_matrix_json" / "DS300.json",
-        help="Experiment config JSON containing injection_duration_lookup.",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview changes without writing files.",
-    )
-    args = parser.parse_args()
+    if not ROOT_FOLDER.exists():
+        raise SystemExit(f"Root folder not found: {ROOT_FOLDER}")
+    if not CONFIG_PATH.exists():
+        raise SystemExit(f"Config JSON not found: {CONFIG_PATH}")
 
-    if not args.root_folder.exists():
-        raise SystemExit(f"Root folder not found: {args.root_folder}")
-    if not args.config.exists():
-        raise SystemExit(f"Config JSON not found: {args.config}")
-
-    updated, skipped = backfill(args.root_folder, args.config, dry_run=args.dry_run)
+    updated, skipped = backfill(
+        ROOT_FOLDER,
+        CONFIG_PATH,
+        dry_run=DRY_RUN,
+        repair_from_config=REPAIR_FROM_CONFIG,
+    )
     print(f"Done. Updated: {updated}, Skipped: {skipped}")
 
 

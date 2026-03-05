@@ -33,7 +33,7 @@ try:  # pragma: no cover - convenient import when run as a module
         save_frame_stats,
     )
 except ImportError:  # pragma: no cover - fallback when executed as a script
-    from MLP.archive.penetration_data_utils import (
+    from MLP.old.archive.penetration_data_utils import (
         FrameStats,
         build_testpoint_dataframe,
         compute_correction_factor,

@@ -9,25 +9,30 @@ import matplotlib.pyplot as plt
 
 
 # Input/output roots
-root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\BC20241003_HZ_Nozzle1")
-out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\MLP\synthetic_data\BC20241003_HZ_Nozzle1")
+data_root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py")
+data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\MLP\synthetic_data")
+
 
 # Image processing settings
+name = "BC20241016_HZ_Nozzle8"
+OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
+max_hydraulic_delay_frames = 15
+FPS=25000
 
+# name = "BC20220627 - Heinzman DS300 - Mie Top view"
 # DS300
 # OR_MM_PER_PX_REFERENCE = 412.0
 # FPS = 34000
 # max_hydraulic_delay_frames = 25
 
 
-# Otherwise
-OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
-max_hydraulic_delay_frames = 15
-FPS=25000
-
 DIFF_THRESHOLD = 2.0  # px
 MM_PER_PX_SCALE = 90.0 / OR_MM_PER_PX_REFERENCE
 MIN_TI = 0.0
+
+root = data_root / name
+out_dir = data_out_dir/name
+
 
 # Filtering/masking settings (from notebook prototype defaults)
 MASK_GROUP_COLS = ("file_name",)
@@ -440,10 +445,10 @@ def process_folder(folder):
     flagged_df.to_csv(out_flagged_path, index=False)
 
     print(
-        f"Saved {out_all_path} ({len(masked_df)} total rows), "
-        f"{out_clean_path} ({len(clean_df)} clean), "
-        f"{out_flagged_path} ({len(flagged_df)} flagged), "
-        f"{out_plot_path} (clean-curve plot) from {len(csv_files)} files"
+        f"Saved {out_all_path.name} ({len(masked_df)} total rows), "
+        f"{out_clean_path.name} ({len(clean_df)} clean), "
+        f"{out_flagged_path.name} ({len(flagged_df)} flagged), "
+        f"{out_plot_path.name} (clean-curve plot) from {len(csv_files)} files"
     )
 
 
