@@ -1,0 +1,269 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+\title{From Raw Spray Trajectories to Stage-1 MLP\\and Next-Step NLL Curriculum}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Audience and Goal}
+\textbf{Audience:} Mechanical engineers + IT engineers with basic DL experience.
+
+\vspace{0.5em}
+\textbf{Goal of this talk:}
+\begin{itemize}
+  \item Explain how each spray penetration time series is compressed to 4 constants.
+  \item Explain why this saves storage and still supports high-fidelity reconstruction.
+  \item Explain Stage-1 median-curve MLP (MSE-based) as the presentation core.
+  \item Present curriculum plan: Stage-1 done, Stage-2 NLL, Stage-3 raw-sequence refinement.
+\end{itemize}
+\end{frame}
+
+\section{Part 1: Trajectory Compression}
+
+\begin{frame}{1.1 Raw Time Series $\rightarrow$ Four Constants}
+Each plume trajectory is fitted by a smooth two-regime model:
+\[
+S(t) = (1-w(t))\,k_{\sqrt{}}\,\sqrt{t} + w(t)\,k_{1/4}\,t^{1/4},
+\quad
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right)
+\]
+
+\vspace{0.3em}
+Stored constants per curve (log-space in code):
+\[
+\log k_{\sqrt{}},\ \log k_{1/4},\ \log t_0,\ \log s
+\]
+
+\vspace{0.3em}
+Implementation notes from \texttt{fit\_raw\_data.py}:
+\begin{itemize}
+  \item Robust least-squares solver (\texttt{scipy.optimize.least\_squares}, Huber loss).
+  \item No explicit physics constraints in this fit stage.
+  \item Fit success rate in current dataset: \textbf{80.9\%} (\num{34353}/\num{42487}).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{1.2 Initial-Time Alignment and Hydraulic Delay}
+\textbf{What is done in preprocessing:}
+\begin{itemize}
+  \item Scan early frames for zeros/NaNs to estimate plume-wise hydraulic delay.
+  \item Shift trajectories to align effective injection start.
+  \item Clip plume delay around group median delay (reduce outlier shift).
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Why this matters physically:}
+\begin{itemize}
+  \item Removes camera/nozzle triggering mismatch from learning target.
+  \item Keeps physically meaningful nozzle response lag as a variable.
+  \item Reduces artificial variance caused by timing jitter, not flow physics.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{1.3 Filtering and Fit Quality Gate}
+\textbf{Hard checks} (examples):
+\begin{itemize}
+  \item valid fit flag, finite RMSE/cost, enough points ($n\ge 10$)
+  \item $0 < t_0 < 0.8\,$ms,\quad $0 < s < 1\,$ms
+  \item far-time penetration at 5 ms within [25, 300] mm
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Robust outlier checks:}
+\begin{itemize}
+  \item group-wise robust z-score on $t_0$, $\log(1+\mathrm{RMSE})$, $\log(1+\mathrm{cost}/n)$
+  \item threshold: $|z| > 3$
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+{\LARGE Failed-fit examples (left intentionally blank)}\\[0.8em]
+{\large Switch to image gallery during live presentation}
+\vfill
+\end{frame}
+
+\section{Part 2: Why Compression Works}
+
+\begin{frame}{2.1 Storage Saving and Reversible Decoding}
+\textbf{Compression idea:}
+\begin{itemize}
+  \item Original: dense frame-wise sequence per plume.
+  \item Compressed: only 4 fitted constants + metadata.
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Why storage is saved:}
+\begin{itemize}
+  \item Sequence length can be hundreds/thousands of points.
+  \item Parameter count per curve is fixed (4), independent of frame count.
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Why training still works:}
+\begin{itemize}
+  \item Decode on-demand to any time grid:
+  \[
+  \{t_i\}_{i=1}^N \Rightarrow \{S(t_i)\}_{i=1}^N
+  \]
+  \item Grid density $N$ can be changed for speed vs. fidelity tradeoff.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{2.2 Arbitrary-Precision Reconstruction}
+\textbf{Practical meaning of ``arbitrary precision'':}
+\begin{itemize}
+  \item You choose reconstruction points (e.g., 128, 512, 1024 points in 0--5 ms).
+  \item More points produce smoother loss gradients but increase compute.
+  \item Fewer points speed training but may under-resolve early-time curvature.
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Engineering recommendation:}
+\begin{itemize}
+  \item Keep dense grid for Stage-1 baseline (current notebook uses 1024 points).
+  \item Downsample only after validating no degradation on RMSE/NLL/shape constraints.
+\end{itemize}
+\end{frame}
+
+\section{Part 3: Stage-1 Median Penetration MSE (Main Body)}
+
+\begin{frame}{3.1 How Median Representative Curves Are Chosen}
+For each group (file, and DS300 subgroup by injection duration):
+\begin{enumerate}
+  \item Evaluate each fitted row at comparison time $t_c=5\,$ms.
+  \item Compute group median penetration $m=\mathrm{median}(S_i(t_c))$.
+  \item Select row $i^\star = \arg\min_i |S_i(t_c)-m|$.
+\end{enumerate}
+
+\vspace{0.3em}
+\textbf{Result:}
+\begin{itemize}
+  \item One representative curve per group for stable stage-1 supervision.
+  \item 5 ms is used because far-time region is less noisy than transient start.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{3.2 Model Inputs, Outputs, and Architecture}
+\textbf{Input features (9):}
+\begin{itemize}
+  \item time\_norm\_0\_5ms
+  \item tilt\_angle\_radian\_z, plumes\_z, diameter\_mm\_z, injection\_duration\_us\_z
+  \item log\_injection\_pressure\_bar\_z, log\_chamber\_pressure\_bar\_z
+  \item log\_delta\_pressure\_bar\_z, control\_backpressure\_bar\_z
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Output (2):}
+\begin{itemize}
+  \item $\mu(t)$: predicted penetration mean
+  \item $\log \sigma^2(t)$: variance channel (regularized in Stage-1, not full NLL yet)
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{MLP backbone:}
+\begin{itemize}
+  \item hidden dims = [256,256,64,256,256,64], GELU, LayerNorm, Dropout(0.5)
+  \item optimizer: AdamW, LR=$4\times 10^{-3}$, weight decay=$2\times 10^{-4}$
+\end{itemize}
+\end{frame}
+
+\begin{frame}{3.3 Stage-1 Loss Design}
+Current training objective:
+\[
+\mathcal{L} =
+\underbrace{\mathrm{MSE}(\mu,y)}_{\text{data fit}}
+ + \lambda_{\mathrm{var}}\|\log\sigma^2 - c\|_2^2
+ + \lambda_{d1}\,\phi(d\mu/dt<0)
+ + \lambda_{d2}\,\phi(d^2\mu/dt^2>0,\ t\gtrsim 0.5\text{ ms})
+\]
+
+\vspace{0.3em}
+\textbf{Interpretation:}
+\begin{itemize}
+  \item MSE is the primary supervision term in Stage-1.
+  \item Variance channel is weakly anchored by prior (not yet data-driven heteroscedastic NLL).
+  \item Shape penalties enforce monotonic growth and late-time concavity tendency.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{3.4 Regularization and Why Train Loss Can Be Higher}
+\textbf{Regularization actually used:}
+\begin{itemize}
+  \item Dropout (0.5)
+  \item Weight decay (AdamW)
+  \item Gradient clipping (norm=1.0)
+  \item Early stopping (patience/min-delta)
+  \item Derivative penalties ($d1$, $d2$)
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Why train loss $>$ val loss can happen:}
+\begin{itemize}
+  \item Dropout only active in training.
+  \item Training objective includes penalty terms; validation may be effectively smoother/easier.
+  \item Split randomness can place more difficult operating points in train split.
+\end{itemize}
+
+\vspace{0.3em}
+So yes, \textbf{different effective losses between train/eval modes} is a major reason.
+\end{frame}
+
+\section{Part 4: Curriculum Plan}
+
+\begin{frame}{4.1 Curriculum Training Roadmap}
+\textbf{Stage-1 (done):}
+\begin{itemize}
+  \item Representative median trajectories + MSE-centered training.
+  \item Learn stable mean behavior across operating conditions.
+\end{itemize}
+
+\textbf{Stage-2 (next): Heteroscedastic NLL}
+\begin{itemize}
+  \item Upgrade objective to Gaussian NLL using both $\mu$ and $\log\sigma^2$.
+  \item Motivation: dataset prior is condition-dependent variance (heteroscedasticity).
+  \item Output uncertainty becomes physically meaningful under different nozzle conditions.
+\end{itemize}
+
+\textbf{Stage-3 (future): Raw-sequence refinement}
+\begin{itemize}
+  \item Bring back richer raw temporal details.
+  \item Learn finer initial-time dynamics (e.g., early acceleration, ignition-like onset behavior).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{4.2 Proposed Implementation Workflow for Stage-2}
+\begin{enumerate}
+  \item Keep current architecture and two-head output.
+  \item Warm-start from Stage-1 checkpoint.
+  \item Replace Stage-1 loss with Gaussian NLL:
+  \[
+  \mathcal{L}_{\mathrm{NLL}} = \frac{1}{2}\left(\log \sigma^2 + \frac{(y-\mu)^2}{\sigma^2}\right)
+  \]
+  \item Keep mild shape penalties ($d1,d2$) as soft constraints.
+  \item Report RMSE + NLL + calibration (coverage/reliability), not RMSE only.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Takeaway}
+\begin{itemize}
+  \item 4-parameter compression gives a compact and reconstructable spray representation.
+  \item Stage-1 already provides stable mean modeling with practical regularization.
+  \item Stage-2 NLL is the natural next step to model condition-dependent uncertainty.
+  \item Stage-3 can recover fine transient physics from raw data when needed.
+\end{itemize}
+\end{frame}
+
+\end{document}
+
