@@ -62,55 +62,86 @@ def draw_freehand_mask(video_strip):
     import numpy as np
 
     nframes, height, width = video_strip.shape[:3]
-    
-    drawing = False
-    points = []
-
-    def draw_mask(event, x, y, flags, param):
-        nonlocal drawing, points, mask
-
-        if event == cv2.EVENT_LBUTTONDOWN:
-            drawing = True
-            points = [(x, y)]
-
-        elif event == cv2.EVENT_MOUSEMOVE and drawing:
-            points.append((x, y))
-            cv2.line(mask, points[-2], points[-1], 255, thickness=2)
-
-        elif event == cv2.EVENT_LBUTTONUP:
-            drawing = False
-
-            if len(points) > 2:
-                contour = np.array(points, dtype=np.int32)
-                cv2.fillPoly(mask, [contour], 255)
-
-            points = []
-
     frame = video_strip[nframes // 2]
-
-    mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-
-    cv2.namedWindow("Draw Mask")
-    cv2.setMouseCallback("Draw Mask", draw_mask)
-
-    while True:
-        # Ensure overlay is 3-channel BGR (frame may be grayscale)
-        if frame.ndim == 2 or (frame.ndim == 3 and frame.shape[2] == 1):
-            overlay = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        else:
-            overlay = frame.copy()
-
-        # Apply red overlay safely (works even if mask has no 255 pixels)
-        mask_bool3 = (mask == 255)[:, :, None]
-        overlay = np.where(mask_bool3, np.array([0, 0, 255], dtype=overlay.dtype), overlay)
-
-        cv2.imshow("Draw Mask", overlay)
-
-        key = cv2.waitKey(40) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('r'):  # reset mask
-            mask[:] = 0
-
+    mask = edit_mask_overlay(frame, np.zeros(frame.shape[:2], dtype=np.uint8), window_name="Draw Mask")
     cv2.destroyAllWindows()
     cv2.imwrite("mask.png", mask)
+    return mask
+
+
+def edit_mask_overlay(frame, initial_mask, window_name="Edit Mask"):
+    import cv2
+    import numpy as np
+
+    mask = initial_mask.copy().astype(np.uint8)
+    drawing_mode = None
+    points = []
+
+    def ensure_bgr(img):
+        if img.ndim == 2 or (img.ndim == 3 and img.shape[2] == 1):
+            return cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        return img.copy()
+
+    def apply_contour(target_mask, contour_points, value):
+        if len(contour_points) < 3:
+            return
+        contour = np.array(contour_points, dtype=np.int32)
+        fill_value = 255 if value else 0
+        cv2.fillPoly(target_mask, [contour], fill_value)
+
+    def on_mouse(event, x, y, flags, param):
+        nonlocal drawing_mode, points, mask
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            drawing_mode = "add"
+            points = [(x, y)]
+        elif event == cv2.EVENT_RBUTTONDOWN:
+            drawing_mode = "remove"
+            points = [(x, y)]
+        elif event == cv2.EVENT_MOUSEMOVE and drawing_mode is not None:
+            if not points or points[-1] != (x, y):
+                points.append((x, y))
+        elif event == cv2.EVENT_LBUTTONUP and drawing_mode == "add":
+            if not points or points[-1] != (x, y):
+                points.append((x, y))
+            apply_contour(mask, points, value=True)
+            drawing_mode = None
+            points = []
+        elif event == cv2.EVENT_RBUTTONUP and drawing_mode == "remove":
+            if not points or points[-1] != (x, y):
+                points.append((x, y))
+            apply_contour(mask, points, value=False)
+            drawing_mode = None
+            points = []
+
+    cv2.namedWindow(window_name)
+    cv2.setMouseCallback(window_name, on_mouse)
+
+    while True:
+        overlay = ensure_bgr(frame)
+
+        mask_bool = mask > 0
+        overlay[mask_bool] = (
+            0.55 * overlay[mask_bool] + 0.45 * np.array([0, 0, 255], dtype=np.float32)
+        ).astype(np.uint8)
+
+        if len(points) >= 2 and drawing_mode is not None:
+            contour = np.array(points, dtype=np.int32)
+            line_color = (0, 0, 255) if drawing_mode == "add" else (255, 0, 0)
+            cv2.polylines(overlay, [contour], isClosed=False, color=line_color, thickness=2)
+
+        cv2.imshow(window_name, overlay)
+
+        if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+            break
+
+        key = cv2.waitKey(40) & 0xFF
+        if key in (ord('q'), 27):
+            break
+        if key == ord('r'):
+            mask[:] = 0
+            drawing_mode = None
+            points = []
+
+    cv2.destroyWindow(window_name)
+    return mask

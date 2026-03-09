@@ -1,14 +1,24 @@
-from shapely.geometry import Point, MultiPoint, Polygon
-from shapely.ops import triangulate
 import numpy as np
-from shapely.geometry import Polygon, MultiPolygon
 import cv2
-import numpy as np
 from sklearn.cluster import DBSCAN
-from scipy.spatial import Delaunay, ConvexHull
+from scipy.spatial import Delaunay, ConvexHull, QhullError
+
+try:
+    from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+    from shapely.ops import triangulate
+
+    SHAPELY_AVAILABLE = True
+except Exception:
+    MultiPoint = None
+    MultiPolygon = None
+    Polygon = None
+    triangulate = None
+    SHAPELY_AVAILABLE = False
 
 def get_polygon_outline(geom):
     """Return an exterior coordinate list from any Shapely geometry type."""
+    if not SHAPELY_AVAILABLE:
+        return None
     if geom.is_empty:
         return None
 
@@ -26,6 +36,8 @@ def get_polygon_outline(geom):
 
 
 def alpha_shape(points, alpha):
+    if not SHAPELY_AVAILABLE:
+        raise RuntimeError("alpha_shape requires shapely, but shapely is not installed.")
 
     if len(points) < 4:
         return points
@@ -66,8 +78,14 @@ def alpha_shape(points, alpha):
 
     return np.array(outline).astype(int)
 
-def QhullError(Exception):
-    pass
+
+def polygon_area(points):
+    pts = np.asarray(points, dtype=np.float64)
+    if pts.ndim != 2 or pts.shape[0] < 3:
+        return 0.0
+    x = pts[:, 0]
+    y = pts[:, 1]
+    return 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
 
 
 def fast_alpha_shape(points, alpha, max_points=2000):
@@ -186,7 +204,7 @@ def fast_alpha_shape(points, alpha, max_points=2000):
         return pts[hull.vertices].astype(int)
 
     # pick largest loop by polygon area
-    best = max(loops, key=lambda arr: Polygon(arr).area)
+    best = max(loops, key=polygon_area)
     return np.asarray(best).astype(int)
 
 

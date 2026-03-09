@@ -11,6 +11,91 @@ import tkinter as tk
 from tkinter import filedialog
 import json
 import os
+import cv2
+import numpy as np
+
+from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
+
+try:
+    import cupy as cp
+    from OSCC_postprocessing.rotation.rotate_with_alignment import (
+        rotate_video_nozzle_at_0_half_cupy,
+    )
+except Exception:
+    cp = None
+    rotate_video_nozzle_at_0_half_cupy = None
+
+
+def load_processing_config(video_path):
+    config_path = os.path.join(os.path.dirname(video_path), "config.json")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Missing config.json next to video: {video_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    required_fields = [
+        "plumes",
+        "offset",
+        "centre_x",
+        "centre_y",
+        "inner_radius",
+        "outer_radius",
+    ]
+    missing = [field for field in required_fields if field not in cfg]
+    if missing:
+        raise KeyError(f"config.json missing required fields {missing}: {config_path}")
+    return cfg, config_path
+
+
+def build_aligned_strip(video, cfg):
+    if rotate_video_nozzle_at_0_half_cupy is None or cp is None:
+        raise RuntimeError(
+            "CuPy rotation backend is unavailable. "
+            "Install/configure CuPy before running this pipeline."
+        )
+
+    n_plumes = int(cfg["plumes"])
+    cx = float(cfg["centre_x"])
+    cy = float(cfg["centre_y"])
+    offset_deg = float(cfg["offset"]) % 360.0
+    inner = int(float(cfg["inner_radius"]))
+    outer = int(float(cfg["outer_radius"]))
+
+    crop = generate_CropRect(inner, outer, n_plumes, cx, cy)
+    frame_h, frame_w = int(video.shape[1]), int(video.shape[2])
+    crop_h = int(min(max(1, crop[3]), frame_h))
+    crop_w = int(min(max(1, outer), frame_w))
+    out_shape = (crop_h, crop_w)
+    calibration_point = (0.0, float(cy))
+
+    if n_plumes > 1:
+        print(
+            f"Config specifies {n_plumes} plumes; using the first plume direction from offset={offset_deg:.3f} deg."
+        )
+
+    video_gpu = cp.asarray(video)
+    aligned_gpu, _, _ = rotate_video_nozzle_at_0_half_cupy(
+        video_gpu,
+        (cx, cy),
+        offset_deg,
+        interpolation="nearest",
+        border_mode="constant",
+        out_shape=out_shape,
+        calibration_point=calibration_point,
+        cval=0.0,
+        stack=True,
+    )
+    aligned = cp.asnumpy(aligned_gpu).astype(np.uint8, copy=False)
+    spray_origin = (0, aligned.shape[1] // 2)
+    return aligned, spray_origin
+
+
+def window_closed(window_name):
+    try:
+        return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
+    except cv2.error:
+        return True
 
 
 # TODO:
@@ -38,6 +123,8 @@ all_files = filedialog.askopenfilenames(title="Select one or more files")
 for file in all_files:
     print("Processing:", file)
     video = load_cine_video(file)  # Ensure load_cine_video is defined or imported
+    config, config_path = load_processing_config(file)
+    print(f"Loaded config: {config_path}")
 
     nframes, height, width = video.shape[:3]
     dtype = video[0].dtype
@@ -65,20 +152,10 @@ for file in all_files:
     ##############################
     # Video Rotation and Stripping
     ##############################
-    rotation_angle = 60  # degrees clockwise, adjust as needed
-    rotated_video = vpf.createRotatedVideo(video, rotation_angle) # Rotate 60 degrees clockwise
-    firstFrameNumber = vpf.findFirstFrame(rotated_video, threshold=10) # Find first frame with intensity above threshold
-
-    spray_origin = set_spray_origin(file, rotated_video, firstFrameNumber, nframes, height) # Get spray origin from user input or saved data, expects (x, y) format
-
-    if True: # Set to False to disable stripping and use full rotated video
-        video_strip = vpf.createVideoStrip(rotated_video, spray_origin, strip_half_height=200)
-        nframes, height, width = video_strip.shape[:3]
-        # After stripping, reset spray origin to center vertically while keeping x unchanged
-        spray_origin = (spray_origin[0], height // 2)
-    else:
-        video_strip = rotated_video
-        nframes, height, width = video_strip.shape[:3]
+    rotation_angle = float(config["offset"]) % 360.0
+    video_strip, spray_origin = build_aligned_strip(video, config)
+    nframes, height, width = video_strip.shape[:3]
+    firstFrameNumber = vpf.findFirstFrame(video_strip, threshold=10)
 
     first_frame = video_strip[firstFrameNumber]
 
@@ -96,6 +173,11 @@ for file in all_files:
 
     background_mask_test = vpf.createBackgroundMask(first_frame, threshold=20)
 
+    tags_window_names = [
+        "TAGS Segmentation",
+        "TAGS Segmentation Diff",
+        "Current Frame",
+    ]
     for i in range(nframes):
         current_frame = video_strip[i]
         current_frame[background_mask_test == 0] = 0  # Apply background mask to current frame before segmentation
@@ -113,6 +195,9 @@ for file in all_files:
         tags_diff_vis = cv2.normalize(tags_diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         cv2.imshow("TAGS Segmentation Diff", tags_diff_vis) # Display rotated video strip for verification
         cv2.imshow("Current Frame", current_frame) # Display current frame for verification
+
+        if any(window_closed(name) for name in tags_window_names):
+            break
 
         key = cv2.waitKey(30) & 0xFF
         if key == ord('q'):
@@ -149,9 +234,11 @@ for file in all_files:
 
 
     background_mask = vpf.createBackgroundMask(first_frame, threshold=20) # Threshold to remove chamber walls
-    cv2.imshow("Background Mask", background_mask) # Display background mask for verification, press any key to continue
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    background_mask = edit_mask_overlay(
+        first_frame,
+        background_mask,
+        window_name="Background Mask",
+    )
 
 
     ##############################
@@ -243,7 +330,7 @@ for file in all_files:
     cone_angle = np.zeros(nframes, dtype=np.float32)
     cone_angle_reg = np.zeros(nframes, dtype=np.float32)
     close_point_distance = np.zeros(nframes, dtype=np.float32)
-    angle_d = rotation_angle  # rotation angle in degrees
+    angle_d = 0.0  # strip is already nozzle-aligned to the horizontal axis
     spray_area = np.zeros(nframes, dtype=np.float32)
 
     # Load freehand mask created earlier by the user (expects single-channel binary image "mask.png")
