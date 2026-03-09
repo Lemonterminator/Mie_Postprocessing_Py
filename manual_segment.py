@@ -1,3 +1,11 @@
+"""Manual segmentation UI for plume masks.
+
+Local changes:
+- keep the original brush workflow for local touch-up
+- add contour-fill and contour-erase tools for fast large-area editing with lower UI cost
+- preserve the rest of the export/review pipeline so auto masks can be refined manually
+"""
+
 import csv
 import json
 import os
@@ -95,6 +103,7 @@ class ManualSegmenter:
         self.start_pos = None
         self.last_pos = None
         self.live_rect_id = None
+        self.contour_points = []
 
         self.gain = tk.DoubleVar(value=1.0)
         self.gamma = tk.DoubleVar(value=1.0)
@@ -206,6 +215,12 @@ class ManualSegmenter:
         ttk.Button(row2_right, text="Brush Tool", command=lambda: self.set_tool("brush")).pack(
             side=tk.LEFT
         )
+        ttk.Button(
+            row2_right, text="Contour Fill", command=lambda: self.set_tool("contour_fill")
+        ).pack(side=tk.LEFT)
+        ttk.Button(
+            row2_right, text="Contour Erase", command=lambda: self.set_tool("contour_erase")
+        ).pack(side=tk.LEFT)
         ttk.Button(row2_right, text="GrabCut Tool", command=lambda: self.set_tool("grabcut")).pack(
             side=tk.LEFT
         )
@@ -542,6 +557,13 @@ class ManualSegmenter:
                 dash=(4, 2),
                 width=2,
             )
+        if len(self.contour_points) >= 2 and self.tool in {"contour_fill", "contour_erase"}:
+            pts = np.asarray(self.contour_points, dtype=np.float32) * float(self.zoom)
+            line_color = "lime" if self.tool == "contour_fill" else "red"
+            for i in range(len(pts) - 1):
+                x1, y1 = pts[i]
+                x2, y2 = pts[i + 1]
+                self.canvas.create_line(x1, y1, x2, y2, fill=line_color, width=2)
 
     # ---------------------------------------------------------------
     #                       Mask editing
@@ -565,6 +587,9 @@ class ManualSegmenter:
             self.last_pos = (x, y)
             mask = self.plume_masks[self.current_plume][self.current_frame]
             cv2.circle(mask, (x, y), int(self.brush_size.get()), 1, -1)
+            self.update_image()
+        elif self.tool in {"contour_fill", "contour_erase"}:
+            self.contour_points = [(x, y)]
             self.update_image()
         else:
             self.start_pos = (x, y)
@@ -590,6 +615,10 @@ class ManualSegmenter:
             cv2.line(static_mask, self.last_pos, (x, y), 1, width)
             self.last_pos = (x, y)
             self.update_image()
+        elif self.tool in {"contour_fill", "contour_erase"}:
+            if not self.contour_points or self.contour_points[-1] != (x, y):
+                self.contour_points.append((x, y))
+                self.update_image()
         elif self.tool == "sam" and self.start_pos is not None:
             self.sam_dragging = True
             self._draw_live_rect(self.start_pos, (x, y), outline="cyan")
@@ -611,6 +640,9 @@ class ManualSegmenter:
             self.sam_dragging = False
             self._clear_live_rect()
             self.update_image()
+            return
+        if self.tool in {"contour_fill", "contour_erase"}:
+            self._finish_contour(event)
             return
         if not self.plume_videos or self.tool != "grabcut" or self.start_pos is None:
             return
@@ -642,6 +674,9 @@ class ManualSegmenter:
             mask = self.plume_masks[self.current_plume][self.current_frame]
             cv2.circle(mask, (x, y), int(self.brush_size.get()), 0, -1)
             self.update_image()
+        elif self.tool in {"contour_fill", "contour_erase"}:
+            self.contour_points = [(x, y)]
+            self.update_image()
         else:
             self.start_pos = (x, y)
 
@@ -666,6 +701,10 @@ class ManualSegmenter:
             cv2.line(static_mask, self.last_pos, (x, y), 0, width)
             self.last_pos = (x, y)
             self.update_image()
+        elif self.tool in {"contour_fill", "contour_erase"}:
+            if not self.contour_points or self.contour_points[-1] != (x, y):
+                self.contour_points.append((x, y))
+                self.update_image()
         elif self.tool == "sam" and self.start_pos is not None:
             self.sam_dragging = True
             self._draw_live_rect(self.start_pos, (x, y), outline="red")
@@ -693,6 +732,9 @@ class ManualSegmenter:
             self._clear_live_rect()
             self.update_image()
             return
+        if self.tool in {"contour_fill", "contour_erase"}:
+            self._finish_contour(event)
+            return
         if not self.plume_videos or self.tool != "grabcut" or self.start_pos is None:
             return
         x0, y0 = self.start_pos
@@ -712,6 +754,27 @@ class ManualSegmenter:
     def set_tool(self, tool):
         self.tool = tool
         self._clear_live_rect()
+        self.contour_points = []
+        self.last_pos = None
+        self.start_pos = None
+        self.update_image()
+
+    def _finish_contour(self, event):
+        if not self.plume_videos:
+            return
+        x = int(self.canvas.canvasx(event.x) / self.zoom)
+        y = int(self.canvas.canvasy(event.y) / self.zoom)
+        if not self.contour_points:
+            return
+        if self.contour_points[-1] != (x, y):
+            self.contour_points.append((x, y))
+        if len(self.contour_points) >= 3:
+            contour = np.asarray(self.contour_points, dtype=np.int32)
+            mask = self.plume_masks[self.current_plume][self.current_frame]
+            fill_value = 1 if self.tool == "contour_fill" else 0
+            cv2.fillPoly(mask, [contour], fill_value)
+        self.contour_points = []
+        self.update_image()
 
     def clear_sam_prompts(self, update=True):
         self.sam_points_pos = []

@@ -1,3 +1,11 @@
+"""Interactive OpenCV helpers used by the fused Masters-thesis workflow.
+
+Local changes:
+- support contour-fill editing with left-drag to add and right-drag to erase
+- render masks as color overlays instead of opaque binary debug windows
+- allow OpenCV windows to exit via `q`, `Esc`, or direct window close
+"""
+
 def set_spray_origin(file, rotated_video, firstFrameNumber, nframes, height):    
     import cv2
     import json    
@@ -58,6 +66,7 @@ def set_spray_origin(file, rotated_video, firstFrameNumber, nframes, height):
     return spray_origin
 
 def draw_freehand_mask(video_strip):
+    """Create a binary mask from a contour-fill overlay editor on the middle strip frame."""
     import cv2
     import numpy as np
 
@@ -70,6 +79,7 @@ def draw_freehand_mask(video_strip):
 
 
 def edit_mask_overlay(frame, initial_mask, window_name="Edit Mask"):
+    """Edit a mask with contour add/remove gestures rendered as live red/blue overlays."""
     import cv2
     import numpy as np
 

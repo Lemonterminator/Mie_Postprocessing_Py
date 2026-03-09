@@ -1,3 +1,10 @@
+"""Cluster and contour utilities for spray-mask cleanup.
+
+Local changes:
+- make `shapely` optional instead of a hard import-time dependency
+- provide NumPy-based polygon area fallback so alpha-shape paths still work without shapely
+"""
+
 import numpy as np
 import cv2
 from sklearn.cluster import DBSCAN

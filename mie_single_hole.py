@@ -7,7 +7,7 @@ from OSCC_postprocessing.filters.bilateral_filter import *
 from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.analysis.multihole_utils import * 
 import cupy as cp
-from OSCC_postprocessing.analysis.single_plume import _binary_fill_holes_gpu
+from OSCC_postprocessing.analysis.single_plume import _binary_fill_holes_cpu, _binary_fill_holes_gpu
 from OSCC_postprocessing.analysis.multihole_utils import (
     preprocess_multihole,
     resolve_backend,
@@ -337,8 +337,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                              quantize_npz: bool = False,
                              quant_float_upper_bound: float = 1.0,
                              quant_clip_negative: bool = True,
-                             quant_store_metadata: bool = True,
-                             ): 
+                              quant_store_metadata: bool = True,
+                              ): 
     
 
     
@@ -629,6 +629,10 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         # Distance based filtering
         filtered_props = props[props["y-dist"] <= maximum_bw_spray_tolerance_y_axis]
 
+        # Fall back to all regions when no 3D blob passes the y-axis proximity filter.
+        if len(filtered_props) == 0:
+            filtered_props = props.copy()
+
         # Retain the largest blob
         filtered_props = filtered_props.sort_values("volume", ascending=False)
 
@@ -638,11 +642,53 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         # Reconstruct the video based on filtered labels
         largest_blob = reconstruct_blob(labels, label_id)
 
-        # Per frame keep the largest white 2d blob. Reason: Connected in 3D != Connected in 2D
-        for f in range(F):
-            largest_blob[f] = keep_largest_component_cuda(largest_blob[f])
+        def _filter_frame_components_by_axis(frame_bw, tolerance_px, y_mid):
+            frame_u8 = np.asarray(frame_bw, dtype=np.uint8)
+            if frame_u8.ndim != 2 or not np.any(frame_u8):
+                return frame_u8.astype(bool)
 
-        bw_video = _binary_fill_holes_gpu(largest_blob, mode="2D")  # or (labels == label_id)
+            num_labels, label_img, stats, centroids = cv2.connectedComponentsWithStats(
+                frame_u8, connectivity=8
+            )
+            if num_labels <= 1:
+                return frame_u8.astype(bool)
+
+            candidates = []
+            fallback = []
+            for label_id_2d in range(1, num_labels):
+                area = int(stats[label_id_2d, cv2.CC_STAT_AREA])
+                cy = float(centroids[label_id_2d][1])
+                y_dist = abs(cy - y_mid)
+                entry = (area, -y_dist, label_id_2d)
+                fallback.append(entry)
+                if y_dist <= tolerance_px:
+                    candidates.append(entry)
+
+            if candidates:
+                selected_label = max(candidates)[2]
+            else:
+                selected_label = max(fallback)[2]
+
+            return (label_img == selected_label)
+
+        # Per-frame keep the component that is both large and sufficiently close to the centerline.
+        y_mid = largest_blob.shape[1] / 2.0
+        filtered_frames = []
+        for f in range(F):
+            frame_host = _as_numpy(largest_blob[f]).astype(np.uint8, copy=False)
+            filtered_frame = _filter_frame_components_by_axis(
+                frame_host,
+                tolerance_px=maximum_bw_spray_tolerance_y_axis,
+                y_mid=y_mid,
+            )
+            filtered_frames.append(filtered_frame)
+
+        largest_blob = xp.asarray(np.stack(filtered_frames, axis=0))
+
+        if USING_CUPY and hasattr(largest_blob, "__cuda_array_interface__"):
+            bw_video = _binary_fill_holes_gpu(largest_blob, mode="2D")
+        else:
+            bw_video = _binary_fill_holes_cpu(largest_blob, mode="2D")
 
 
         full_metrics = _compute_full_solver_metrics_from_bw(

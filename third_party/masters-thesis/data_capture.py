@@ -1,9 +1,16 @@
+"""Boundary metrics extracted from the final binary spray mask.
+
+Local changes:
+- add `penetration_x`, defined from x-columns whose foreground count exceeds a configurable threshold
+- keep the original contour-based geometry metrics for cone angle and radial penetration
+"""
+
 import math
 from typing import List, Tuple
 import cv2
 import numpy as np
 
-def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray,) -> Tuple[np.ndarray, float, float, float, float]:
+def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray, threshold_num_px_per_col=10) -> Tuple[np.ndarray, float, float, float, float, float]:
     """
     Analyze the spray boundary to extract cone geometry and penetration metrics.
     
@@ -16,6 +23,7 @@ def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray,
         Tuple of:
         - coords_rc: Boundary contour coordinates (row, col)
         - penetration: Maximum distance from nozzle to boundary
+        - penetration_x: Right-most x-column that has enough foreground pixels
         - cone_angle: Spray cone angle from extreme points
         - cone_angle_reg: Spray cone angle from regression fit
         - close_point_distance: Minimum distance from nozzle to boundary
@@ -23,7 +31,19 @@ def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray,
     # Handle empty mask case
     if not mask.any():
         empty = np.empty((0, 2), dtype=np.float32)
-        return empty, 0.0, 0.0, 0.0, 0.0
+        return empty, 0.0, 0.0, 0.0, 0.0, 0.0
+
+    # Collapse the 2D foreground mask along y so each x-column stores its foreground pixel count.
+    # This should operate on a boolean mask; summing uint8 255-valued masks would overcount by 255x.
+    mask_bool = mask.astype(bool)
+    mask_y_sum = np.count_nonzero(mask_bool, axis=0)
+    col_has_spray = mask_y_sum > threshold_num_px_per_col
+    if np.any(col_has_spray):
+        last_col = int(np.flatnonzero(col_has_spray)[-1])
+        penetration_x = float(max(0, last_col - float(nozzle_point[1])))
+    else:
+        penetration_x = 0.0
+
 
     # Extract contours from the spray mask
     contours, _ = cv2.findContours(
@@ -31,7 +51,7 @@ def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray,
     )
     if not contours:
         empty = np.empty((0, 2), dtype=np.float32)
-        return empty, 0.0, 0.0, 0.0, 0.0
+        return empty, 0.0, 0.0, 0.0, 0.0, 0.0
 
     # Combine all contours into a single boundary
     all_coords = np.vstack([contour[:, 0, :] for contour in contours])
@@ -47,7 +67,7 @@ def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray,
     # Calculate distances from nozzle to each boundary point
     distances = np.linalg.norm(relative_math, axis=1)
     if distances.size == 0:
-        return coords_rc, 0.0, 0.0, 0.0, 0.0
+        return coords_rc, 0.0, penetration_x, 0.0, 0.0, 0.0
 
     # Penetration: maximum distance from nozzle (spray reaches farthest at this distance)
     penetration = float(distances.max())
@@ -82,7 +102,7 @@ def analyze_boundary(mask: np.ndarray,*,angle_d: float,nozzle_point: np.ndarray,
     # Calculate cone angle using linear regression for more robust estimate
     cone_angle_reg = regression_cone_angle(x_forward, y_forward)
 
-    return coords_rc, penetration, cone_angle, cone_angle_reg, close_point_distance
+    return coords_rc, penetration, penetration_x, cone_angle, cone_angle_reg, close_point_distance
 
 
 def regression_cone_angle(x_forward: np.ndarray, y_forward: np.ndarray) -> float:

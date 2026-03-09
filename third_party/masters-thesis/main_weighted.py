@@ -1,3 +1,14 @@
+"""Weighted spray-segmentation pipeline adapted for repo fusion.
+
+Key local changes:
+- load per-video `config.json` produced by the local GUI instead of prompting for nozzle origin
+- replace fixed-angle CPU rotate+crop with nozzle-aligned CuPy inverse affine rotation when available
+- support interactive overlay editing for background masks and freehand masks
+- add background-driven two-stage normalization before CLAHE
+- add GPU-first mask post-processing with CPU fallback
+- export additional penetration_x metrics and keep tuning constants grouped at the top
+"""
+
 from GUI_functions import *
 from clustering import *
 from functions_videos import load_cine_video
@@ -15,6 +26,8 @@ import cv2
 import numpy as np
 
 from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
+from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component_cuda
+from OSCC_postprocessing.analysis.single_plume import _binary_fill_holes_gpu
 
 try:
     import cupy as cp
@@ -26,7 +39,138 @@ except Exception:
     rotate_video_nozzle_at_0_half_cupy = None
 
 
+#
+# Pipeline tuning parameters
+# Edit these values here to adjust the workflow globally.
+#
+
+# Preprocessing and visualization
+FIRST_FRAME_THRESHOLD = 10
+BACKGROUND_MASK_THRESHOLD = 20
+RUN_TAGS_DEBUG_VIEW = True
+VIDEO_FPS = 30
+APPLY_BACKGROUND_TWO_STAGE_NORMALIZATION = True
+BACKGROUND_GLOBAL_Q_MIN = 1.0
+BACKGROUND_GLOBAL_Q_MAX = 99.0
+BACKGROUND_FRAME_Q_MIN = 1.0
+BACKGROUND_FRAME_Q_MAX = 99.0
+
+# Optical-flow / intensity fusion
+USE_INTENSITY_ONLY = False
+USE_CUMULATIVE_AS_MASK = True
+WEIGHT_INTENSITY = 0.4
+WEIGHT_MAGNITUDE = 0.8
+WEIGHT_FREEHAND = 0.1
+WEIGHT_CONE = 0.6
+WEIGHT_INTENSITY_CUMULATIVE = 2.0
+WEIGHT_CONE_AFTER_START = 1.0
+INTENSITY_GAMMA = 3.0
+MAG_CLIP = 0.4
+MOTION_START_THRESHOLD = 0.5
+
+# Geometric priors
+CONE_ANGLE_DEG = 20
+FALLOFF_ANGLE_DEG = 30
+MIN_CONE_LENGTH_PX = 100
+PENETRATION_LOOKAHEAD_PX = 50
+ROI_RADIUS_PX = 100
+PENETRATION_X_MIN_PIXELS_PER_COL = 10
+
+# Mask post-processing
+LARGEST_BLOB_HORIZONTAL_THRESHOLD = 50
+CLUSTER_DISTANCE = 40
+CLUSTER_ALPHA = 30
+
+
+def postprocess_mask_intensity_mode(mask_u8, spray_origin):
+    """Post-process intensity/cumulative masks with GPU-first connected-component cleanup."""
+    mask_bool = np.asarray(mask_u8) > 0
+
+    if cp is not None:
+        try:
+            mask_cp = cp.asarray(mask_bool)
+            largest_cp = keep_largest_component_cuda(mask_cp, connectivity=2).astype(bool, copy=False)
+            filled_cp = _binary_fill_holes_gpu(largest_cp, mode="2D")
+            filled_u8 = (cp.asnumpy(filled_cp).astype(np.uint8) * 255)
+            return keep_largest_blob(
+                filled_u8,
+                horizontal_threshold=LARGEST_BLOB_HORIZONTAL_THRESHOLD,
+                spray_origin=spray_origin,
+            )
+        except Exception as exc:
+            print(f"GPU mask post-processing failed, falling back to CPU: {exc}")
+
+    final_mask = fill_holes_in_mask(mask_u8)
+    return keep_largest_blob(
+        final_mask,
+        horizontal_threshold=LARGEST_BLOB_HORIZONTAL_THRESHOLD,
+        spray_origin=spray_origin,
+    )
+
+
+def _xp_for(arr):
+    if cp is not None and hasattr(arr, "__cuda_array_interface__"):
+        return cp
+    return np
+
+
+def _robust_scale_from_bounds(arr, p_low, p_high, clip=True, eps=1e-8):
+    xp = _xp_for(arr)
+    denominator = p_high - p_low
+    denominator = xp.maximum(denominator, eps)
+    scaled = (arr - p_low) / denominator
+    if clip:
+        scaled = xp.clip(scaled, 0.0, 1.0)
+    return scaled
+
+
+def background_two_stage_normalize(video_u8, background_mask):
+    """Apply global background percentile scaling, then frame-wise background normalization."""
+    bg_mask_bool = np.asarray(background_mask) > 0
+    if not np.any(bg_mask_bool):
+        print("Background normalization skipped: background mask is empty.")
+        return video_u8
+
+    use_gpu = cp is not None
+    try:
+        if use_gpu:
+            video_xp = cp.asarray(video_u8, dtype=cp.float32)
+            bg_mask_xp = cp.asarray(bg_mask_bool)
+            xp = cp
+        else:
+            video_xp = np.asarray(video_u8, dtype=np.float32)
+            bg_mask_xp = bg_mask_bool
+            xp = np
+
+        bg_pixels_all = video_xp[:, bg_mask_xp]
+        global_low, global_high = xp.percentile(
+            bg_pixels_all,
+            [BACKGROUND_GLOBAL_Q_MIN, BACKGROUND_GLOBAL_Q_MAX],
+        )
+        globally_scaled = _robust_scale_from_bounds(video_xp, global_low, global_high)
+
+        frame_bg_pixels = globally_scaled[:, bg_mask_xp]
+        frame_low = xp.percentile(frame_bg_pixels, BACKGROUND_FRAME_Q_MIN, axis=1)
+        frame_high = xp.percentile(frame_bg_pixels, BACKGROUND_FRAME_Q_MAX, axis=1)
+        normalized = _robust_scale_from_bounds(
+            globally_scaled,
+            frame_low[:, None, None],
+            frame_high[:, None, None],
+        )
+        normalized_u8 = xp.clip(normalized * 255.0, 0, 255).astype(xp.uint8)
+
+        if use_gpu:
+            print("Applied two-stage background normalization with CuPy.")
+            return cp.asnumpy(normalized_u8)
+        print("Applied two-stage background normalization on CPU.")
+        return normalized_u8
+    except Exception as exc:
+        print(f"Background normalization failed, falling back to original video: {exc}")
+        return video_u8
+
+
 def load_processing_config(video_path):
+    """Load the GUI-generated `config.json` sitting next to the selected video."""
     config_path = os.path.join(os.path.dirname(video_path), "config.json")
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Missing config.json next to video: {video_path}")
@@ -49,6 +193,7 @@ def load_processing_config(video_path):
 
 
 def build_aligned_strip(video, cfg):
+    """Create the nozzle-aligned strip using local config geometry and CuPy rotation when possible."""
     if rotate_video_nozzle_at_0_half_cupy is None or cp is None:
         raise RuntimeError(
             "CuPy rotation backend is unavailable. "
@@ -92,6 +237,7 @@ def build_aligned_strip(video, cfg):
 
 
 def window_closed(window_name):
+    """Return True once an OpenCV window has been closed by the user."""
     try:
         return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
     except cv2.error:
@@ -155,7 +301,7 @@ for file in all_files:
     rotation_angle = float(config["offset"]) % 360.0
     video_strip, spray_origin = build_aligned_strip(video, config)
     nframes, height, width = video_strip.shape[:3]
-    firstFrameNumber = vpf.findFirstFrame(video_strip, threshold=10)
+    firstFrameNumber = vpf.findFirstFrame(video_strip, threshold=FIRST_FRAME_THRESHOLD)
 
     first_frame = video_strip[firstFrameNumber]
 
@@ -171,40 +317,41 @@ for file in all_files:
     bg_init_idx = max(0, firstFrameNumber-1)
     tags_background = video_strip[bg_init_idx].copy()
 
-    background_mask_test = vpf.createBackgroundMask(first_frame, threshold=20)
+    background_mask_test = vpf.createBackgroundMask(first_frame, threshold=BACKGROUND_MASK_THRESHOLD)
 
-    tags_window_names = [
-        "TAGS Segmentation",
-        "TAGS Segmentation Diff",
-        "Current Frame",
-    ]
-    for i in range(nframes):
-        current_frame = video_strip[i]
-        current_frame[background_mask_test == 0] = 0  # Apply background mask to current frame before segmentation
+    if RUN_TAGS_DEBUG_VIEW:
+        tags_window_names = [
+            "TAGS Segmentation",
+            "TAGS Segmentation Diff",
+            "Current Frame",
+        ]
+        for i in range(nframes):
+            current_frame = video_strip[i]
+            current_frame[background_mask_test == 0] = 0  # Apply background mask to current frame before segmentation
 
-        tags_mask, tags_diff = vpf.tags_segmentation(current_frame, tags_background)
+            tags_mask, tags_diff = vpf.tags_segmentation(current_frame, tags_background)
 
-        TAGS_segmentation[i] = tags_mask
-        TAGS_segmentation_diff[i] = tags_diff
+            TAGS_segmentation[i] = tags_mask
+            TAGS_segmentation_diff[i] = tags_diff
 
-        # Background class in binary mask is 0, foreground/spray is 255.
-        background_pixels = tags_mask == 0
-        tags_background[background_pixels] = current_frame[background_pixels]
+            # Background class in binary mask is 0, foreground/spray is 255.
+            background_pixels = tags_mask == 0
+            tags_background[background_pixels] = current_frame[background_pixels]
 
-        cv2.imshow("TAGS Segmentation", TAGS_segmentation[i]) # Display rotated video strip for verification
-        tags_diff_vis = cv2.normalize(tags_diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        cv2.imshow("TAGS Segmentation Diff", tags_diff_vis) # Display rotated video strip for verification
-        cv2.imshow("Current Frame", current_frame) # Display current frame for verification
+            cv2.imshow("TAGS Segmentation", TAGS_segmentation[i]) # Display rotated video strip for verification
+            tags_diff_vis = cv2.normalize(tags_diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+            cv2.imshow("TAGS Segmentation Diff", tags_diff_vis) # Display rotated video strip for verification
+            cv2.imshow("Current Frame", current_frame) # Display current frame for verification
 
-        if any(window_closed(name) for name in tags_window_names):
-            break
+            if any(window_closed(name) for name in tags_window_names):
+                break
 
-        key = cv2.waitKey(30) & 0xFF
-        if key == ord('q'):
-            break
-        if key == ord('p'):
-            cv2.waitKey(-1)
-    cv2.destroyAllWindows()
+            key = cv2.waitKey(30) & 0xFF
+            if key == ord('q'):
+                break
+            if key == ord('p'):
+                cv2.waitKey(-1)
+        cv2.destroyAllWindows()
 
 
     ##############################
@@ -215,11 +362,21 @@ for file in all_files:
     # User can draw multiple separate regions if needed, just make sure to connect them with a line so they are included in the same cluster. 
     # Press and hold left mouse button to draw, release to stop drawing, press 'q' to finish and save mask.
 
+    background_mask = vpf.createBackgroundMask(first_frame, threshold=BACKGROUND_MASK_THRESHOLD) # Threshold to remove chamber walls
+    background_mask = edit_mask_overlay(
+        first_frame,
+        background_mask,
+        window_name="Background Mask",
+    )
+
+
     ##############################
     # Filter Visualization
     ###############################
 
     # video_strip2 = video_strip.copy()  # avoid modifying original rotated video for other processing
+    if APPLY_BACKGROUND_TWO_STAGE_NORMALIZATION:
+        video_strip = background_two_stage_normalize(video_strip, background_mask)
     video_strip = vpf.applyCLAHE(video_strip)
 
     # for i in range(nframes):
@@ -233,21 +390,11 @@ for file in all_files:
     # cv2.destroyAllWindows()
 
 
-    background_mask = vpf.createBackgroundMask(first_frame, threshold=20) # Threshold to remove chamber walls
-    background_mask = edit_mask_overlay(
-        first_frame,
-        background_mask,
-        window_name="Background Mask",
-    )
-
-
     ##############################
     # Optical Flow Visualization
     ##############################
-    use_intensity_only = False  # If True, set w_magnitude=0 and use otsu as thresholding, CONSIDER REMOVING AS CUMULATIVE MASK DOES THE SAME THING BUT BETTER PROBABLY
-
-    use_cumulative_as_mask = True  # if True, use cumulative_mask to restrict areas for intensity score, and set w_magnitude=0,
-                                    # effectively using cumulative motion detection as a mask for intensity-based detection
+    use_intensity_only = USE_INTENSITY_ONLY  # If True, set w_magnitude=0 and use otsu as thresholding.
+    use_cumulative_as_mask = USE_CUMULATIVE_AS_MASK  # Restrict intensity score to cumulative motion mask.
     
     if use_intensity_only:
         print("Using intensity-only mode (no optical flow contribution).")
@@ -284,24 +431,24 @@ for file in all_files:
     # --- Combine per-pixel intensity, optical-flow magnitude, and freehand mask ---
     # Parameters: weights (normalized internally) and binary threshold on combined score (0.0 - 1.0)
 
-    w_intensity = 0.4   # weight for per-pixel light intensity
-    w_magnitude = 0.8  # weight for optical flow magnitude
-    w_freehand = 0.1    # weight for freehand mask
-    w_cone = 0.6    # weight for cone mask
-    intensity_gamma = 3.0  # gamma correction for intensity score to amplify differences in dark areas, higher = more contrast
+    w_intensity = WEIGHT_INTENSITY
+    w_magnitude = WEIGHT_MAGNITUDE
+    w_freehand = WEIGHT_FREEHAND
+    w_cone = WEIGHT_CONE
+    intensity_gamma = INTENSITY_GAMMA
 
     
     if use_intensity_only:
         w_magnitude = 0
     if use_cumulative_as_mask:
         w_magnitude = 0
-        w_intensity = 2.0
+        w_intensity = WEIGHT_INTENSITY_CUMULATIVE
 
     # Precompute full cone mask once; trim per frame based on penetration
     origin_x, origin_y = spray_origin
-    cone_angle_deg = 20  # degrees (renamed to avoid conflict with cone_angle array)
-    falloff_angle = 30  # degrees over which it decreases to 0
-    min_cone_length = 100  # minimum cone length in pixels
+    cone_angle_deg = CONE_ANGLE_DEG
+    falloff_angle = FALLOFF_ANGLE_DEG
+    min_cone_length = MIN_CONE_LENGTH_PX
     max_cone_length = max(0, width - origin_x - 1)
     yy_full, xx_full = np.ogrid[:height, :width]
     dx_full = xx_full - origin_x
@@ -327,6 +474,7 @@ for file in all_files:
 
     boundaries = []
     penetration = np.zeros(nframes, dtype=np.float32)
+    penetration_x = np.zeros(nframes, dtype=np.float32)
     cone_angle = np.zeros(nframes, dtype=np.float32)
     cone_angle_reg = np.zeros(nframes, dtype=np.float32)
     close_point_distance = np.zeros(nframes, dtype=np.float32)
@@ -358,7 +506,7 @@ for file in all_files:
     write_masks_started = False
     # Precompute circular ROI around spray origin (radius = 100 px)
     # Consider changing circle to cone shape later
-    roi_radius = 100
+    roi_radius = ROI_RADIUS_PX
     yy, xx = np.ogrid[:height, :width]
     circle_mask = (xx - origin_x) ** 2 + (yy - origin_y) ** 2 <= roi_radius ** 2
 
@@ -399,7 +547,7 @@ for file in all_files:
 
         # --- Optical flow magnitude: cap at mag_clip then normalize to 0..1 (values >= mag_clip -> 1) ---
         mag = mag_array[idx].astype(np.float32)
-        mag_clip = 0.4  # absolute motion cutoff: anything higher considered motion and mapped to 1.0
+        mag_clip = MAG_CLIP  # absolute motion cutoff: anything higher considered motion and mapped to 1.0
         mag_clipped = np.clip(mag, 0.0, mag_clip)
         mag_n = mag_clipped / (mag_clip + eps)
 
@@ -414,18 +562,18 @@ for file in all_files:
 
         # Check for high magnitude values near the spray origin to start writing masks
         if idx >= firstFrameNumber:
-            motion_near_origin = np.any(mag[circle_mask] >= 0.5)
+            motion_near_origin = np.any(mag[circle_mask] >= MOTION_START_THRESHOLD)
             if motion_near_origin:
                 write_masks_started = True
-                w_cone = 1.0  # once motion is detected, set cone weight to normal
+                w_cone = WEIGHT_CONE_AFTER_START  # once motion is detected, set cone weight to normal
         else:
             motion_near_origin = False
 
         # --- Trim precomputed cone mask based on previous frame penetration ---
         if idx > 0:
-            cone_length = max(penetration[idx - 1] + 50, min_cone_length)
+            cone_length = max(penetration[idx - 1] + PENETRATION_LOOKAHEAD_PX, min_cone_length)
         else:
-            cone_length = min_cone_length + 50
+            cone_length = min_cone_length + PENETRATION_LOOKAHEAD_PX
         cone_length = min(cone_length, max_cone_length)
 
         cone_mask_f = full_cone_mask.copy()
@@ -489,32 +637,41 @@ for file in all_files:
 
         if use_intensity_only or use_cumulative_as_mask:
             # skip clustering for intensity-only mode and cumulative mask mode
-            final_mask = fill_holes_in_mask(threshold_mask)
-            # Keep only largest blob, connects multiple disjoint regions if present, horizontal threshold determines how far apart blobs can be to be considered connected
-            final_mask = keep_largest_blob(final_mask, horizontal_threshold=50, spray_origin=spray_origin) 
+            final_mask = postprocess_mask_intensity_mode(threshold_mask, spray_origin)
             final_cluster_masks[idx] = final_mask
         else:
             # --- Clustering to get final clean outline ---
             # Cluster distance determines how close points have to be to be considered part of the same cluster, higher = larger clusters
             # Alpha determines concaveness of the hull, higher = more convex, infinity would be full convex, lower = more concave, too low = holes
-            final_mask = create_cluster_mask(threshold_mask, cluster_distance=40, alpha=30) 
+            final_mask = create_cluster_mask(
+                threshold_mask,
+                cluster_distance=CLUSTER_DISTANCE,
+                alpha=CLUSTER_ALPHA,
+            )
             final_cluster_masks[idx] = final_mask
 
         # Store only after motion is detected near the spray origin (latched)
         if write_masks_started:
             combined_masks[idx] = threshold_mask
             # --- Analyze boundary ---
-            frame_boundaries, frame_pen, frame_ang, frame_ang_reg, frame_cpd = analyze_boundary(final_mask, angle_d=angle_d, nozzle_point=nozzle_point_rc)
+            frame_boundaries, frame_pen, frame_pen_x, frame_ang, frame_ang_reg, frame_cpd = analyze_boundary(
+                final_mask,
+                angle_d=angle_d,
+                nozzle_point=nozzle_point_rc,
+                threshold_num_px_per_col=PENETRATION_X_MIN_PIXELS_PER_COL,
+            )
         else:
             combined_masks[idx] = np.zeros_like(threshold_mask)
             frame_boundaries = []
             frame_pen = 0.0
+            frame_pen_x = 0.0
             frame_ang = 0.0
             frame_ang_reg = 0.0
             frame_cpd = 0.0
 
         boundaries.append(frame_boundaries)
         penetration[idx] = frame_pen
+        penetration_x[idx] = frame_pen_x
         cone_angle[idx] = frame_ang # may need adjustment based on research paper standard
         cone_angle_reg[idx] = frame_ang_reg
         close_point_distance[idx] = frame_cpd
@@ -542,7 +699,7 @@ for file in all_files:
     # Show combined masks (press 'q' to quit, 'p' to pause)
     intensity_values = [] # store average intensities
     video_writer = None
-    video_fps = 30
+    video_fps = VIDEO_FPS
     for i in range(nframes):
         frame = video_strip[i]
         combined = combined_masks[i]
@@ -683,26 +840,28 @@ for file in all_files:
     axes[0, 0].set_title("Penetration")
     axes[0, 0].set_ylabel("Pixels")
 
-    axes[0, 1].plot(frames, cone_angle)
-    axes[0, 1].set_title("Cone Angle")
-    axes[0, 1].set_ylabel("Degrees")
+    axes[0, 1].plot(frames, penetration_x)
+    axes[0, 1].set_title("Penetration X")
+    axes[0, 1].set_ylabel("Pixels")
 
-    axes[0, 2].plot(frames, cone_angle_reg)
-    axes[0, 2].set_title("Regularized Cone Angle")
+    axes[0, 2].plot(frames, cone_angle)
+    axes[0, 2].set_title("Cone Angle")
     axes[0, 2].set_ylabel("Degrees")
 
-    axes[1, 0].plot(frames, close_point_distance)
-    axes[1, 0].set_title("Close Point Distance")
-    axes[1, 0].set_ylabel("Pixels")
+    axes[1, 0].plot(frames, cone_angle_reg)
+    axes[1, 0].set_title("Regularized Cone Angle")
+    axes[1, 0].set_ylabel("Degrees")
     axes[1, 0].set_xlabel("Frame Number")
 
-    axes[1, 1].plot(frames, spray_area)
-    axes[1, 1].set_title("Spray Area")
-    axes[1, 1].set_ylabel("Pixels$^2$")
+    axes[1, 1].plot(frames, close_point_distance)
+    axes[1, 1].set_title("Close Point Distance")
+    axes[1, 1].set_ylabel("Pixels")
     axes[1, 1].set_xlabel("Frame Number")
 
-    # Hide unused subplot (2x3 grid but only 5 metrics)
-    axes[1, 2].axis("off")
+    axes[1, 2].plot(frames, spray_area)
+    axes[1, 2].set_title("Spray Area")
+    axes[1, 2].set_ylabel("Pixels$^2$")
+    axes[1, 2].set_xlabel("Frame Number")
 
     fig.suptitle("Spray Metrics Over Time")
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])  # type: ignore
@@ -710,9 +869,11 @@ for file in all_files:
 
     # Generate output CSV in a local Results folder
     with open(output_csv, 'w') as f:
-        f.write("Frame,Penetration (pixels), Cone Angle (degrees), Regularized Cone Angle (degrees), Close Point Distance (pixels), Spray Area (pixels^2)\n")
+        f.write("Frame,Penetration (pixels), Penetration X (pixels), Cone Angle (degrees), Regularized Cone Angle (degrees), Close Point Distance (pixels), Spray Area (pixels^2)\n")
         for i in range(nframes):
-            f.write(f"{i},{penetration[i]},{cone_angle[i]},{cone_angle_reg[i]},{close_point_distance[i]},{spray_area[i]}\n")
+            f.write(
+                f"{i},{penetration[i]},{penetration_x[i]},{cone_angle[i]},{cone_angle_reg[i]},{close_point_distance[i]},{spray_area[i]}\n"
+            )
 
 
 print("Processing complete.")
