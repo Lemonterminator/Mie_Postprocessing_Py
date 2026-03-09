@@ -9,29 +9,21 @@ import matplotlib.pyplot as plt
 
 
 # Input/output roots
-data_root = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py")
-data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\MLP\synthetic_data")
+data_root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py")
+data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data")
 
 
-# Image processing settings
-name = "BC20241016_HZ_Nozzle8"
-OR_MM_PER_PX_REFERENCE = 376.0  # 90 mm reference in px
-max_hydraulic_delay_frames = 15
-FPS=25000
-
-# name = "BC20220627 - Heinzman DS300 - Mie Top view"
-# DS300
-# OR_MM_PER_PX_REFERENCE = 412.0
-# FPS = 34000
-# max_hydraulic_delay_frames = 25
-
-
-DIFF_THRESHOLD = 2.0  # px
-MM_PER_PX_SCALE = 90.0 / OR_MM_PER_PX_REFERENCE
-MIN_TI = 0.0
-
-root = data_root / name
-out_dir = data_out_dir/name
+names = [
+    "BC20241003_HZ_Nozzle1",
+    "BC20241017_HZ_Nozzle2",
+    "BC20241014_HZ_Nozzle3",
+    "BC20241007_HZ_Nozzle4",
+    "BC20241010_HZ_Nozzle5",
+    "BC20241011_HZ_Nozzle6",
+    "BC20241015_HZ_Nozzle7",
+    "BC20241016_HZ_Nozzle8",
+    "BC20220627 - Heinzman DS300 - Mie Top view"
+]
 
 
 # Filtering/masking settings (from notebook prototype defaults)
@@ -40,19 +32,20 @@ MASK_Z_THRESH = 3.0
 MASK_MIN_N = 10
 MASK_S_UPPER = 1e-3  # < 1 ms
 MASK_T0_UPPER = 0.8e-3 
+MASK_FAR_TIME_MS = 5.0
+MASK_PENETRATION_LOWER_MM = 25.0
+MASK_PENETRATION_UPPER_MM = 300.0
 
 PLOT_EXTRAP_FACTOR = 1.6
 PLOT_NUM_POINTS = 300
 PLOT_YLIM_MM = 200.0
 
 
-out_dir.mkdir(parents=True, exist_ok=True)
-out_all_dir = out_dir / "all"
-out_clean_dir = out_dir / "clean"
-out_plots_clean_dir = out_dir / "plots_clean"
-out_all_dir.mkdir(parents=True, exist_ok=True)
-out_clean_dir.mkdir(parents=True, exist_ok=True)
-out_plots_clean_dir.mkdir(parents=True, exist_ok=True)
+
+
+DIFF_THRESHOLD_LOWER = 2.0  # px
+DIFF_THRESHOLD_UPPER = 40.0  # px
+MIN_TI = 0.0
 
 
 
@@ -81,10 +74,12 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
     out = df.copy()
     if out.empty:
         out["cost_per_point"] = np.nan
+        out["penetration_far_mm"] = np.nan
         out["z_t0"] = np.nan
         out["z_rmse"] = np.nan
         out["z_cost"] = np.nan
         out["mask_basic"] = False
+        out["mask_penetration_far"] = False
         out["mask_outlier"] = False
         out["flag_bad_fit"] = False
         return out, out.copy(), out.copy()
@@ -92,6 +87,31 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
     out["cost_per_point"] = 2.0 * pd.to_numeric(out["cost"], errors="coerce") / pd.to_numeric(
         out["n"], errors="coerce"
     ).clip(lower=1)
+    t_far_s = MASK_FAR_TIME_MS * 1e-3
+    log_params_far = out[["log_k_sqrt", "log_k_quarter", "log_t0", "log_s"]].apply(
+        pd.to_numeric, errors="coerce"
+    )
+    out["penetration_far_mm"] = np.nan
+    valid_far = (
+        out["success"].fillna(False)
+        & np.isfinite(log_params_far["log_k_sqrt"])
+        & np.isfinite(log_params_far["log_k_quarter"])
+        & np.isfinite(log_params_far["log_t0"])
+        & np.isfinite(log_params_far["log_s"])
+    )
+    if valid_far.any():
+        lp_far = log_params_far.loc[
+            valid_far, ["log_k_sqrt", "log_k_quarter", "log_t0", "log_s"]
+        ].to_numpy(dtype=float)
+        k_sqrt_far = np.exp(lp_far[:, 0])
+        k_quarter_far = np.exp(lp_far[:, 1])
+        t0_far = np.exp(lp_far[:, 2]) + MIN_TI
+        s_far = np.exp(lp_far[:, 3])
+        w_far = expit((t_far_s - t0_far) / s_far)
+        far_vals = (1.0 - w_far) * (k_sqrt_far * np.sqrt(t_far_s)) + w_far * (
+            k_quarter_far * np.power(t_far_s, 0.25)
+        )
+        out.loc[valid_far, "penetration_far_mm"] = np.asarray(far_vals, dtype=float)
 
     if "t_max_s" in out.columns:
         t_max = pd.to_numeric(out["t_max_s"], errors="coerce")
@@ -113,6 +133,12 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
         & (pd.to_numeric(out["s"], errors="coerce") < MASK_S_UPPER)
         & (pd.to_numeric(out["t0"], errors="coerce") < MASK_T0_UPPER)
     )
+    out["mask_penetration_far"] = (
+        np.isfinite(pd.to_numeric(out["penetration_far_mm"], errors="coerce"))
+        & pd.to_numeric(out["penetration_far_mm"], errors="coerce").between(
+            MASK_PENETRATION_LOWER_MM, MASK_PENETRATION_UPPER_MM
+        )
+    )
 
     # robust outlier checks (prototype: grouped by file_name)
     out["z_t0"] = out.groupby(list(group_cols), dropna=False)["t0"].transform(robust_z)
@@ -129,14 +155,20 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
         | out["z_cost"].abs().gt(z_thresh)
     ).fillna(False)
 
-    out["flag_bad_fit"] = (~out["mask_basic"]) | out["mask_outlier"]
+    out["flag_bad_fit"] = (~out["mask_basic"]) | (~out["mask_penetration_far"]) | out["mask_outlier"]
 
     clean_df = out.loc[~out["flag_bad_fit"]].copy()
     flagged_df = out.loc[out["flag_bad_fit"]].copy()
     return out, clean_df, flagged_df
 
 
-def penetration_cleaning(arr, scaling_factor, diff_threshold=1.0, hd_upper_lim=max_hydraulic_delay_frames):
+def penetration_cleaning(
+    arr,
+    scaling_factor,
+    diff_threshold_lower=1.0,
+    diff_threshold_upper=np.inf,
+    hd_upper_lim=15,
+):
     arr = np.asarray(arr, dtype=float).copy()
     penetration_delay = 0
 
@@ -157,9 +189,15 @@ def penetration_cleaning(arr, scaling_factor, diff_threshold=1.0, hd_upper_lim=m
         arr = arr_shifted
 
     arr_diff = np.diff(arr)
-    valid_idx = np.where(arr_diff < diff_threshold)[0]
-    if valid_idx.size > 0:
-        arr = arr[: valid_idx[0].item()]
+    lower_cut_idx = np.where(arr_diff < diff_threshold_lower)[0]
+    if lower_cut_idx.size > 0:
+        arr = arr[: lower_cut_idx[0].item()]
+
+    # Remove frames onward if a sudden unrealistically large jump appears.
+    arr_diff = np.diff(arr)
+    upper_cut_idx = np.where(arr_diff > diff_threshold_upper)[0]
+    if upper_cut_idx.size > 0:
+        arr = arr[: upper_cut_idx[0].item()]
 
     arr *= scaling_factor
     return arr, penetration_delay
@@ -223,11 +261,19 @@ def fit_sigmoid(t, y, ti, x0):
     }
 
 
-def prepare_cleaned_series(df_file, diff_threshold=2.0):
+def prepare_cleaned_series(
+    df_file,
+    mm_per_px_scale,
+    fps_default,
+    max_hydraulic_delay_frames,
+    delay_clip_half_window,
+    diff_threshold_lower=DIFF_THRESHOLD_LOWER,
+    diff_threshold_upper=DIFF_THRESHOLD_UPPER,
+):
     number_of_plumes = int(df_file["plumes"].iloc[0])
     fps = float(df_file["fps"].iloc[0])
     if np.isnan(fps):
-        fps = FPS
+        fps = fps_default
     frame_idx = np.asarray(df_file["frame_idx"]).astype(int)
 
     time_s = frame_idx / fps
@@ -235,11 +281,11 @@ def prepare_cleaned_series(df_file, diff_threshold=2.0):
 
     tilt_ang = (180.0 - float(df_file["umbrella_angle_deg"].iloc[0])) / 2.0
     umbrella_angle_correction = 1.0 / np.cos(np.deg2rad(tilt_ang))
-    pen_correction = MM_PER_PX_SCALE * umbrella_angle_correction
+    pen_correction = mm_per_px_scale * umbrella_angle_correction
 
     max_len = int(frame_idx.max()) + 1
     cleaned_series = np.full((number_of_plumes, max_len), np.nan)
-    delays = np.full(number_of_plumes, np.nan, dtype=float)
+    delays_raw = np.full(number_of_plumes, np.nan, dtype=float)
     temp_series = [None] * number_of_plumes
 
     for plume_idx in range(number_of_plumes):
@@ -249,24 +295,40 @@ def prepare_cleaned_series(df_file, diff_threshold=2.0):
 
         arr = np.asarray(df_file[col], dtype=float).copy()
         cleaned_serie, delay = penetration_cleaning(
-            arr, pen_correction, diff_threshold=diff_threshold
+            arr,
+            pen_correction,
+            diff_threshold_lower=diff_threshold_lower,
+            diff_threshold_upper=diff_threshold_upper,
+            hd_upper_lim=max_hydraulic_delay_frames,
         )
-        delays[plume_idx] = delay
+        delays_raw[plume_idx] = delay
         temp_series[plume_idx] = np.asarray(cleaned_serie, dtype=float)
 
-    valid_delays = delays[np.isfinite(delays)]
+    valid_delays = delays_raw[np.isfinite(delays_raw)]
     median_delay = int(np.round(np.nanmedian(valid_delays))) if valid_delays.size else 0
+    lower_bound = median_delay - int(delay_clip_half_window)
+    upper_bound = median_delay + int(delay_clip_half_window)
     delays_used = np.full(number_of_plumes, median_delay, dtype=float)
+    valid_raw_mask = np.isfinite(delays_raw)
+    if np.any(valid_raw_mask):
+        delays_used[valid_raw_mask] = np.clip(
+            np.round(delays_raw[valid_raw_mask]),
+            lower_bound,
+            upper_bound,
+        )
 
-    # Align each plume to the same t_SOI using median delay, while preserving
-    # variable-length cleaned traces.
+    # Align each plume using clipped raw delay to limit outlier shifts while
+    # preserving plume-level delay variability.
     for plume_idx in range(number_of_plumes):
         series = temp_series[plume_idx]
         if series is None:
             continue
 
-        plume_delay = int(np.round(delays[plume_idx])) if np.isfinite(delays[plume_idx]) else median_delay
-        delta = plume_delay - median_delay
+        plume_delay_raw = (
+            int(np.round(delays_raw[plume_idx])) if np.isfinite(delays_raw[plume_idx]) else median_delay
+        )
+        plume_delay_used = int(np.round(delays_used[plume_idx]))
+        delta = plume_delay_raw - plume_delay_used
 
         if delta > 0:
             # This plume was shifted too far left; shift right by delta.
@@ -284,10 +346,20 @@ def prepare_cleaned_series(df_file, diff_threshold=2.0):
         if n > 0:
             cleaned_series[plume_idx, :n] = aligned[:n]
 
-    return time_s, time_ms, cleaned_series, delays_used
+    return time_s, time_ms, cleaned_series, delays_raw, delays_used
 
 
-def save_clean_plot(folder, clean_df, csv_files):
+def save_fit_plot(
+    folder,
+    plot_df,
+    csv_files,
+    out_plot_dir,
+    plot_kind,
+    mm_per_px_scale,
+    fps_default,
+    max_hydraulic_delay_frames,
+    delay_clip_half_window,
+):
     cache = {}  # csv_path -> (time_s, time_ms, cleaned_series, inj_dur_s)
 
     # map filename and stem to path for fallback resolution
@@ -316,8 +388,9 @@ def save_clean_plot(folder, clean_df, csv_files):
 
     plt.figure(figsize=(10, 6))
     has_curve = False
+    rng = np.random.default_rng()
 
-    for row in clean_df.itertuples(index=False):
+    for row in plot_df.itertuples(index=False):
         csv_path = resolve_csv(row)
         if csv_path is None:
             continue
@@ -325,8 +398,14 @@ def save_clean_plot(folder, clean_df, csv_files):
         cache_key = str(csv_path.resolve())
         if cache_key not in cache:
             df_file = pd.read_csv(csv_path)
-            time_s, time_ms, cleaned_series, _ = prepare_cleaned_series(
-                df_file, diff_threshold=DIFF_THRESHOLD
+            time_s, time_ms, cleaned_series, _, _ = prepare_cleaned_series(
+                df_file,
+                mm_per_px_scale=mm_per_px_scale,
+                fps_default=fps_default,
+                max_hydraulic_delay_frames=max_hydraulic_delay_frames,
+                delay_clip_half_window=delay_clip_half_window,
+                diff_threshold_lower=DIFF_THRESHOLD_LOWER,
+                diff_threshold_upper=DIFF_THRESHOLD_UPPER,
             )
             inj_dur_s = float(df_file["injection_duration_us"].iloc[0]) * 1e-6
             cache[cache_key] = (time_s, time_ms, cleaned_series, inj_dur_s)
@@ -341,32 +420,58 @@ def save_clean_plot(folder, clean_df, csv_files):
         if not np.any(valid_raw):
             continue
 
-        t_end = float(np.nanmax(time_s) * PLOT_EXTRAP_FACTOR)
-        t_extrap_s = np.linspace(0.0, t_end, PLOT_NUM_POINTS)
-        log_params = [row.log_k_sqrt, row.log_k_quarter, row.log_t0, row.log_s]
-        y_extrap = spray_penetration_model_sigmoid(log_params, t_extrap_s)
+        color = rng.random(3)
 
-        plt.plot(time_ms[valid_raw], raw_series[valid_raw], alpha=0.65, linewidth=1.0)
-        plt.plot(1e3 * t_extrap_s, y_extrap, linestyle="--", alpha=0.45, linewidth=1.0)
+        plt.plot(time_ms[valid_raw], raw_series[valid_raw], alpha=0.65, linewidth=1.0, color=color)
+        draw_fit = (
+            bool(getattr(row, "success", False))
+            and np.isfinite(getattr(row, "log_k_sqrt", np.nan))
+            and np.isfinite(getattr(row, "log_k_quarter", np.nan))
+            and np.isfinite(getattr(row, "log_t0", np.nan))
+            and np.isfinite(getattr(row, "log_s", np.nan))
+        )
+        if draw_fit:
+            t_end = float(np.nanmax(time_s) * PLOT_EXTRAP_FACTOR)
+            t_extrap_s = np.linspace(0.0, t_end, PLOT_NUM_POINTS)
+            log_params = [row.log_k_sqrt, row.log_k_quarter, row.log_t0, row.log_s]
+            y_extrap = spray_penetration_model_sigmoid(log_params, t_extrap_s)
+            plt.plot(
+                1e3 * t_extrap_s,
+                y_extrap,
+                linestyle="--",
+                alpha=0.45,
+                linewidth=1.0,
+                color=color,
+            )
         has_curve = True
 
     if not has_curve:
-        plt.text(0.5, 0.5, "No clean fits for this folder", ha="center", va="center")
+        plt.text(0.5, 0.5, f"No {plot_kind} traces for this folder", ha="center", va="center")
 
-    plt.title(f"{folder.name}: clean raw traces (solid) vs clean fitted curves (dashed)")
+    plt.title(f"{folder.name}: {plot_kind} raw traces (solid) vs fitted curves (dashed)")
     plt.xlabel("Time (ms)")
     plt.ylabel("Penetration (mm)")
     plt.grid(alpha=0.25)
     plt.ylim(0, PLOT_YLIM_MM)
 
-    out_plot_path = out_plots_clean_dir / f"{folder.name}.png"
+    out_plot_path = out_plot_dir / f"{folder.name}.png"
     plt.tight_layout()
     plt.savefig(out_plot_path, dpi=140)
     plt.close()
     return out_plot_path
 
 
-def process_folder(folder):
+def process_folder(
+    folder,
+    out_all_dir,
+    out_clean_dir,
+    out_plots_clean_dir,
+    out_plots_flagged_dir,
+    mm_per_px_scale,
+    fps_default,
+    max_hydraulic_delay_frames,
+    delay_clip_half_window,
+):
     csv_files = sorted(folder.glob("*.csv"))
     if not csv_files:
         print(f"Skip {folder.name}: no csv files.")
@@ -375,8 +480,14 @@ def process_folder(folder):
     rows = []
     for file_path in csv_files:
         df_file = pd.read_csv(file_path)
-        time_s, _, cleaned_series, delays = prepare_cleaned_series(
-            df_file, diff_threshold=DIFF_THRESHOLD
+        time_s, _, cleaned_series, delays_raw, delays_used = prepare_cleaned_series(
+            df_file,
+            mm_per_px_scale=mm_per_px_scale,
+            fps_default=fps_default,
+            max_hydraulic_delay_frames=max_hydraulic_delay_frames,
+            delay_clip_half_window=delay_clip_half_window,
+            diff_threshold_lower=DIFF_THRESHOLD_LOWER,
+            diff_threshold_upper=DIFF_THRESHOLD_UPPER,
         )
 
         meta = {}
@@ -413,7 +524,9 @@ def process_folder(folder):
                     "file_name": file_path.name,
                     "file_stem": file_path.stem,
                     "plume_idx": plume_idx,
-                    "delay_frames": delays[plume_idx],
+                    "delay_frames": delays_used[plume_idx],
+                    "delay_frames_raw": delays_raw[plume_idx],
+                    "delay_frames_used": delays_used[plume_idx],
                     "k_sqrt": fit["k_sqrt"],
                     "k_quarter": fit["k_quarter"],
                     "t0": fit["t0"],
@@ -438,7 +551,28 @@ def process_folder(folder):
     out_all_path = out_all_dir / f"{folder.name}.csv"
     out_clean_path = out_clean_dir / f"{folder.name}.csv"
     out_flagged_path = out_all_dir / f"{folder.name}_flagged.csv"
-    out_plot_path = save_clean_plot(folder, clean_df, csv_files)
+    out_plot_clean_path = save_fit_plot(
+        folder,
+        clean_df,
+        csv_files,
+        out_plots_clean_dir,
+        "clean",
+        mm_per_px_scale=mm_per_px_scale,
+        fps_default=fps_default,
+        max_hydraulic_delay_frames=max_hydraulic_delay_frames,
+        delay_clip_half_window=delay_clip_half_window,
+    )
+    out_plot_flagged_path = save_fit_plot(
+        folder,
+        flagged_df,
+        csv_files,
+        out_plots_flagged_dir,
+        "flagged",
+        mm_per_px_scale=mm_per_px_scale,
+        fps_default=fps_default,
+        max_hydraulic_delay_frames=max_hydraulic_delay_frames,
+        delay_clip_half_window=delay_clip_half_window,
+    )
 
     masked_df.to_csv(out_all_path, index=False)
     clean_df.to_csv(out_clean_path, index=False)
@@ -448,18 +582,60 @@ def process_folder(folder):
         f"Saved {out_all_path.name} ({len(masked_df)} total rows), "
         f"{out_clean_path.name} ({len(clean_df)} clean), "
         f"{out_flagged_path.name} ({len(flagged_df)} flagged), "
-        f"{out_plot_path.name} (clean-curve plot) from {len(csv_files)} files"
+        f"{out_plot_clean_path.name} (clean-curve plot), "
+        f"{out_plot_flagged_path.name} (flagged-curve plot) from {len(csv_files)} files"
     )
 
 
-def main():
-    subdirs = sorted([p for p in root.iterdir() if p.is_dir()])
-    if not subdirs:
-        raise FileNotFoundError(f"No subdirs found in {root}")
+def get_dataset_settings(name):
+    if name == "BC20220627 - Heinzman DS300 - Mie Top view":
+        return {
+            "or_mm_per_px_reference": 412.0,
+            "fps_default": 34000,
+            "max_hydraulic_delay_frames": 25,
+            "delay_clip_half_window": 2,
+        }
+    return {
+        "or_mm_per_px_reference": 376.0,  # 90 mm reference in px
+        "fps_default": 25000,
+        "max_hydraulic_delay_frames": 15,
+        "delay_clip_half_window": 2,
+    }
 
-    print(f"Found {len(subdirs)} subdirs in {root}")
-    for folder in subdirs:
-        process_folder(folder)
+
+def main():
+    for name in names:
+        settings = get_dataset_settings(name)
+        mm_per_px_scale = 90.0 / settings["or_mm_per_px_reference"]
+        root = data_root / name
+        out_dir = data_out_dir / name
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_all_dir = out_dir / "all"
+        out_clean_dir = out_dir / "clean"
+        out_plots_clean_dir = out_dir / "plots_clean"
+        out_plots_flagged_dir = out_dir / "plots_flagged"
+        out_all_dir.mkdir(parents=True, exist_ok=True)
+        out_clean_dir.mkdir(parents=True, exist_ok=True)
+        out_plots_clean_dir.mkdir(parents=True, exist_ok=True)
+        out_plots_flagged_dir.mkdir(parents=True, exist_ok=True)
+
+        subdirs = sorted([p for p in root.iterdir() if p.is_dir()])
+        if not subdirs:
+            raise FileNotFoundError(f"No subdirs found in {root}")
+
+        print(f"Found {len(subdirs)} subdirs in {root}")
+        for folder in subdirs:
+            process_folder(
+                folder,
+                out_all_dir=out_all_dir,
+                out_clean_dir=out_clean_dir,
+                out_plots_clean_dir=out_plots_clean_dir,
+                out_plots_flagged_dir=out_plots_flagged_dir,
+                mm_per_px_scale=mm_per_px_scale,
+                fps_default=settings["fps_default"],
+                max_hydraulic_delay_frames=settings["max_hydraulic_delay_frames"],
+                delay_clip_half_window=settings["delay_clip_half_window"],
+            )
 
 
 if __name__ == "__main__":

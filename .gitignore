@@ -47,6 +47,8 @@ Thumbs.db
 
 # Project data/artifacts
 ex.npy
+MLP/synthetic_data/
+MLP/synthetic_data.zip
 *.npy
 *.npz
 *.pkl
