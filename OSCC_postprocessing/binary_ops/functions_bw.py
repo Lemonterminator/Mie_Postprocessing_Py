@@ -190,6 +190,15 @@ def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
     return (filled_gpu.astype(bw_video.dtype) * 255
             if bw_video.max() > 1
             else filled_gpu.astype(bw_video.dtype))
+
+
+def _to_numpy_host(arr):
+    """Return a NumPy view/copy on host memory."""
+    if hasattr(arr, "__cuda_array_interface__"):
+        return cp.asnumpy(arr)
+    return np.asarray(arr)
+
+
 '''
 def triangle_binarize(ang_float32, blur=True):
     # 1. Clean / normalize to [0,255] uint8
@@ -1040,3 +1049,148 @@ def load_boundary_file(file_path, return_BW_video=False, F:int=0, H:int=0, W:int
         bw_video[frame] = cv2.bitwise_or(edge, filled)
 
     return bw_video, boundary_list
+
+
+def spary_features_from_bw_video(
+        bw_video:np.ndarray,
+        nozzle_opening_detection_height,
+        nozzle_opening_detection_width, 
+        umbrella_angle=180.0, 
+        thres_penetration_num_pix=5,
+        parallel_boundary=False,
+        boundary_max_workers=None):
+    """
+    Compute single-plume metrics from a binarized video.
+
+    This function is intentionally CPU/NumPy based so it can be called safely
+    from an outer multi-process pipeline without nesting process pools or
+    sending GPU arrays deep into worker code.
+    """
+    from OSCC_postprocessing.analysis.single_plume import (
+        bw_boundaries_all_points_single_plume,
+        bw_boundaries_xband_filter_single_plume,
+        linear_regression_fixed_intercept,
+    )
+
+    bw_video_host = _to_numpy_host(bw_video)
+    if bw_video_host.ndim != 3:
+        raise ValueError(f"bw_video must be 3D (F, H, W), got shape {bw_video_host.shape}")
+    
+    if umbrella_angle == 180.0:
+        x_scale = 1.0
+    else:
+        tilt_angle = (180.0 - umbrella_angle) / 2.0
+        tilt_angle_rad = tilt_angle / 180.0 * np.pi
+        x_scale = 1.0 / np.cos(tilt_angle_rad)
+
+    F, H, W = bw_video_host.shape
+  
+    bw_video_col_sum = np.sum(bw_video_host, axis=1)
+    area = bw_video_col_sum.sum(axis=-1)
+    penetration_bw_x = penetration_bw_to_index(bw_video_col_sum > thres_penetration_num_pix)
+
+    # Boundary extraction stays opt-in to avoid nested parallelism when the
+    # caller already distributes many plume videos across processes.
+    boundary_split_points = bw_boundaries_all_points_single_plume(
+        bw_video_host,
+        parallel=parallel_boundary,
+        max_workers=boundary_max_workers,
+        umbrella_angle=umbrella_angle,
+    )
+
+    # Volume Estimation
+    
+    upper_bw_width = bw_video_host[:, : H // 2, :].sum(axis=1)
+    lower_bw_width = bw_video_host[:, H // 2 :, :].sum(axis=1)
+
+    estimated_volume = x_scale * np.pi * 0.25 * np.sum((upper_bw_width + lower_bw_width) ** 2, axis=1)
+
+    max_plume_radius = np.maximum(upper_bw_width, lower_bw_width)
+    min_plume_radius = np.minimum(upper_bw_width, lower_bw_width)
+
+    estimated_volume_max = np.pi * x_scale * np.sum(max_plume_radius**2, axis=1)
+    estimated_volume_min = np.pi * x_scale * np.sum(min_plume_radius**2, axis=1)
+
+    # Polar penetration 
+    penetration_bw_polar = np.zeros(F)
+    for i in range(F):
+        pts = boundary_split_points[i]
+
+        if pts is None or len(pts) < 2:
+            boundary_split_points[i] = None 
+            continue
+
+        if len(pts[0]) > 0 and len(pts[1]) > 0:
+            uy, ux = pts[1][:, 0], pts[1][:, 1]
+            ly, lx = pts[0][:, 0], pts[0][:, 1]
+
+            max_r_upper = np.max(np.hypot(uy, ux))
+            max_r_lower = np.max(np.hypot(ly, lx))
+            penetration_bw_polar[i] = max(max_r_upper, max_r_lower)
+
+    
+    # boudary points 10-60% penetration 
+    points_all_frames = bw_boundaries_xband_filter_single_plume(
+        boundary_split_points,
+        _to_numpy_host(penetration_bw_x),
+    )
+
+    lg_up = np.full(F, np.nan)
+    lg_low = np.full(F, np.nan)
+    avg_up = np.full(F, np.nan)
+    avg_low = np.full(F, np.nan)
+
+    for i in range(F):
+        points = points_all_frames[i]
+        if points is None:
+            continue 
+        
+        elif (len(points[0]) > 0) and (len(points[1]) > 0) and (penetration_bw_polar[i] > 0):
+            uy, ux = points[1][:, 0], points[1][:, 1]
+            ly, lx = points[0][:, 0], points[0][:, 1]
+
+            ang_up = np.atan(uy / ux) * 180.0 / np.pi
+            ang_low = np.atan(ly / lx) * 180.0 / np.pi
+
+            avg_up[i] = np.nanmean(ang_up)
+            avg_low[i] = np.nanmean(ang_low)
+
+            try:
+                lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0)) * 180.0 / np.pi
+                lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0)) * 180.0 / np.pi
+            except ValueError:
+                pass
+
+    cone_angle_average = avg_up - avg_low
+    cone_angle_linear_regression = lg_up - lg_low
+
+    
+    H00 = (H - nozzle_opening_detection_height) // 2
+    H01 = (H + nozzle_opening_detection_height) // 2
+
+    W00 = 0
+    W01 = int(nozzle_opening_detection_width)
+
+    near_nozzle_signal = np.sum(bw_video_host[:, H00:H01, W00:W01], axis=(1,2))
+
+    from OSCC_postprocessing.analysis.hysteresis import detect_single_high_interval
+
+    (_,_, opening, closing), _, _ = detect_single_high_interval(near_nozzle_signal)
+
+    return {
+        "area": area,
+        "penetration_bw_x": penetration_bw_x,
+        "boundary": boundary_split_points,
+        "estimated_volume": estimated_volume,
+        "estimated_volume_max": estimated_volume_max,
+        "estimated_volume_min": estimated_volume_min,
+        "penetration_bw_polar": penetration_bw_polar,
+        "cone_angle_average": cone_angle_average,
+        "avg_up": avg_up,
+        "avg_low": avg_low,
+        "cone_angle_linear_regression": cone_angle_linear_regression,
+        "lg_up": lg_up,
+        "lg_low": lg_low,
+        "nozzle_opening": opening,
+        "nozzle_closing": closing
+    }

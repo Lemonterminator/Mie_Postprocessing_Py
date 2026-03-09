@@ -145,10 +145,11 @@ def _compute_full_solver_metrics_from_bw(
     H: int,
     F: int,
     umbrella_angle: float,
+    thres_penetration_num_pix=5
 ):
     bw_video_col_sum = bw_video.sum(axis=1)
     area = bw_video_col_sum.sum(axis=-1)
-    penetration_bw_x = penetration_bw_to_index(bw_video_col_sum > 0)
+    penetration_bw_x = penetration_bw_to_index(bw_video_col_sum > thres_penetration_num_pix)
     boundary = bw_boundaries_all_points_single_plume(bw_video, parallel=True, umbrella_angle=180.0)
 
     if umbrella_angle == 180.0:
@@ -180,7 +181,7 @@ def _compute_full_solver_metrics_from_bw(
             max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
             penetration_bw_polar[i] = max(max_r_upper, max_r_lower)
 
-    points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, penetration_bw_x.get())
+    points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, _as_numpy(penetration_bw_x))
 
     lg_up = np.full(F, np.nan)
     lg_low = np.full(F, np.nan)
@@ -334,6 +335,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                              maximum_bw_spray_tolerance_y_axis = 50, #px,
                              nozzle_open_threshold_low=0.1,
                              nozzle_open_threshold_high=0.5,
+                             nozzle_opening_detection_height=40, 
+                             nozzle_opening_detection_width=15,
                              quantize_npz: bool = False,
                              quant_float_upper_bound: float = 1.0,
                              quant_clip_negative: bool = True,
@@ -690,12 +693,21 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         else:
             bw_video = _binary_fill_holes_cpu(largest_blob, mode="2D")
 
-
+        '''
         full_metrics = _compute_full_solver_metrics_from_bw(
             bw_video=bw_video,
             H=H,
             F=F,
             umbrella_angle=umbrella_angle,
+        )
+        '''
+
+        full_metrics = spary_features_from_bw_video(
+            bw_video, 
+            nozzle_opening_detection_height, 
+            nozzle_opening_detection_width,
+            umbrella_angle=umbrella_angle,
+            thres_penetration_num_pix=5
         )
         area = full_metrics["area"]
         penetration_bw_x = full_metrics["penetration_bw_x"]

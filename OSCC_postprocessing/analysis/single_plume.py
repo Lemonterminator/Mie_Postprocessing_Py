@@ -772,6 +772,8 @@ def bw_boundaries_xband_filter_single_plume(boundary_results, penetration_old, l
 
     filtered = [None] * F
     for j in range(F):
+        if boundary_results[j] is None:
+            continue
         coords_top_all, coords_bot_all = boundary_results[j]
         xlo = lo * float(penetration_arr[j])
         xhi = hi * float(penetration_arr[j])
