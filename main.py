@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import subprocess
 from scipy.signal import convolve2d
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 import os
 import re
 import gc
@@ -49,6 +49,10 @@ experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix
 
 frame_limit = 80
 noise_floor_multiplier=2.0
+nozzle_opening_detection_height = 20
+nozzle_opening_detection_width = 30
+thres_penetration_num_pix = 5 # minimum width of the binarizaed spary for x-axis penetration detection
+save_boundary_points_csv = False
 
 # =============================================================================
 # Default nozzle properties, safe fall back if not defined in test matrix.
@@ -61,6 +65,27 @@ umbrella_angle_deg_default = 180
 
 def _is_missing_value(value) -> bool:
     return value is None or bool(pd.isna(value))
+
+
+def _to_json_scalar(value):
+    if _is_missing_value(value):
+        return None
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
+    return value
+
+
+def _save_metrics_and_metadata_csv(
+    df: pd.DataFrame,
+    csv_path: Path,
+    metadata: dict,
+    metadata_path: Path,
+):
+    df.to_csv(csv_path, index=False)
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
 
 
 def resolve_metadata_with_fallbacks(
@@ -123,6 +148,44 @@ def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
         return cp.asnumpy(arr)
     return np.asarray(arr)
+
+
+def _empty_spray_metrics(num_frames: int) -> dict:
+    nan_series = np.full(num_frames, np.nan)
+    return {
+        "area": nan_series.copy(),
+        "penetration_bw_x": nan_series.copy(),
+        "boundary": None,
+        "estimated_volume": nan_series.copy(),
+        "estimated_volume_max": nan_series.copy(),
+        "estimated_volume_min": nan_series.copy(),
+        "penetration_bw_polar": nan_series.copy(),
+        "cone_angle_average": nan_series.copy(),
+        "avg_up": nan_series.copy(),
+        "avg_low": nan_series.copy(),
+        "cone_angle_linear_regression": nan_series.copy(),
+        "lg_up": nan_series.copy(),
+        "lg_low": nan_series.copy(),
+        "nozzle_opening": np.nan,
+        "nozzle_closing": np.nan,
+    }
+
+
+def _compute_spray_metrics_for_segment(args):
+    idx, segment_bw, opening_h, opening_w, umbrella_angle, penetration_pix = args
+    num_frames = int(segment_bw.shape[0]) if hasattr(segment_bw, "shape") and len(segment_bw.shape) > 0 else 0
+    try:
+        metrics = spary_features_from_bw_video(
+            segment_bw,
+            opening_h,
+            opening_w,
+            umbrella_angle=umbrella_angle,
+            thres_penetration_num_pix=penetration_pix,
+        )
+    except Exception as e:
+        print(f"[WARN] metric extraction failed for plume {idx}: {e}")
+        metrics = _empty_spray_metrics(num_frames)
+    return idx, metrics
 
 def load_experiment_config(json_path: str | Path) -> dict:
     """
@@ -606,24 +669,112 @@ async def main():
                     df = pd.DataFrame({
                         # Frame index
                         'frame_idx': list(range(num_frames)),
-                        # Nozzle properties (constant per row)
-                        'plumes': [metadata.get('plumes')] * num_frames,
-                        'diameter_mm': [metadata.get('diameter_mm')] * num_frames,
-                        'umbrella_angle_deg': [metadata.get('umbrella_angle_deg')] * num_frames,
-                        'fps': [metadata.get('fps')] * num_frames,
-                        # Test conditions from subfolder
-                        'chamber_pressure_bar': [metadata.get('chamber_pressure_bar')] * num_frames,
-                        'injection_duration_us': [metadata.get('injection_duration_us')] * num_frames,
-                        'injection_pressure_bar': [metadata.get('injection_pressure_bar')] * num_frames,
-                        'control_backpressure_bar': [metadata.get('control_backpressure_bar')] * num_frames,
-                        # File name
                     })
                     
                     # Add penetration data per plume
                     for plume_idx in range(P):
-                        df[f'penetration_highpass_bw_plume_{plume_idx}'] = _as_numpy(penetration_highpass_cleaned[plume_idx])
+                        df[f'penetration_cdf_plume_{plume_idx}'] = _as_numpy(penetration_highpass_cleaned[plume_idx])
 
-                    df.to_csv(save_path_subfolder / f'{video_name}.csv', index=False)
+
+                    #============================================================
+                    #==============================     BW  
+                    #============================================================
+                    hp_segments_bw = triangle_binarize_gpu(robust_scale(hp_segments, 5, 99.9))
+
+                    metric_columns = {}
+                    num_segments = len(hp_segments_bw)
+                    all_boundaries = [None] * num_segments
+                    umbrella_angle = float(metadata.get('umbrella_angle_deg'))
+                    metric_jobs = [
+                        (
+                            idx,
+                            _as_numpy(segment_bw),
+                            nozzle_opening_detection_height,
+                            nozzle_opening_detection_width,
+                            umbrella_angle,
+                            thres_penetration_num_pix,
+                        )
+                        for idx, segment_bw in enumerate(hp_segments_bw)
+                    ]
+                    max_metric_workers = min(num_segments, os.cpu_count() or 1)
+                    if max_metric_workers > 1:
+                        with ProcessPoolExecutor(max_workers=max_metric_workers) as executor:
+                            metric_results = executor.map(_compute_spray_metrics_for_segment, metric_jobs, chunksize=1)
+                            for idx, metrics in metric_results:
+                                for feature_name, values in metrics.items():
+                                    if feature_name == "boundary":
+                                        if save_boundary_points_csv:
+                                            all_boundaries[idx] = values
+                                        continue
+
+                                    col_name = f"{feature_name}_plume_{idx}"
+                                    if np.isscalar(values):
+                                        metric_columns[col_name] = np.full(num_frames, values)
+                                    else:
+                                        metric_columns[col_name] = _as_numpy(values)
+                    else:
+                        for idx, metrics in map(_compute_spray_metrics_for_segment, metric_jobs):
+                            for feature_name, values in metrics.items():
+                                if feature_name == "boundary":
+                                    if save_boundary_points_csv:
+                                        all_boundaries[idx] = values
+                                    continue
+
+                                col_name = f"{feature_name}_plume_{idx}"
+                                if np.isscalar(values):
+                                    metric_columns[col_name] = np.full(num_frames, values)
+                                else:
+                                    metric_columns[col_name] = _as_numpy(values)
+                    if metric_columns:
+                        df = pd.concat([df, pd.DataFrame(metric_columns, index=df.index)], axis=1)
+
+
+                    #============================================================
+                    #===========            Save Metrics CSV
+                    #============================================================
+                    metrics_csv_path = save_path_subfolder / f"{video_name}.csv"
+                    metadata_path = save_path_subfolder / f"{video_name}.meta.json"
+                    metadata_payload = {
+                        key: _to_json_scalar(value)
+                        for key, value in metadata.items()
+                    }
+                    with ThreadPoolExecutor(max_workers=1) as metrics_executor:
+                        metrics_future = metrics_executor.submit(
+                            _save_metrics_and_metadata_csv,
+                            df,
+                            metrics_csv_path,
+                            metadata_payload,
+                            metadata_path,
+                        )
+
+                        #============================================================
+                        #===========            Save Boudnary Points CSV
+                        #============================================================
+                        if save_boundary_points_csv and any(boundary is not None for boundary in all_boundaries):
+                            boundary_path_subfolder = save_path_subfolder / "boundary_points"
+                            boundary_path_subfolder.mkdir(parents=True, exist_ok=True)
+                            valid_boundaries = [
+                                (plume_idx, boundary)
+                                for plume_idx, boundary in enumerate(all_boundaries)
+                                if boundary is not None
+                            ]
+                            max_workers = min(4, len(valid_boundaries))
+                            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                                futures = [
+                                    executor.submit(
+                                        save_boundary_csv,
+                                        boundary,
+                                        boundary_path_subfolder / f"{video_name}_plume_{plume_idx}_boundary_points.csv",
+                                    )
+                                    for plume_idx, boundary in valid_boundaries
+                                ]
+                                for future in as_completed(futures):
+                                    future.result()
+
+                        metrics_future.result()
+
+
+
     except Exception as e:
         print(f"Error processing: {e}")
         raise

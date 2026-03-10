@@ -888,7 +888,7 @@ def bw_boundaries_all_plumes(
     return result
 
 # --- Split: filter previously computed boundary points by x-band ---
-def bw_boundaries_xband_filter__single_plume(boundary_results, penetration, lo=0.1, hi=0.6):
+def bw_boundaries_xband_filter_single_plume(boundary_results, penetration, lo=0.1, hi=0.6):
     """
     Filter precomputed boundary points by an x-band defined by lo/hi fractions of penetration.
 
@@ -1175,7 +1175,12 @@ def spary_features_from_bw_video(
 
     from OSCC_postprocessing.analysis.hysteresis import detect_single_high_interval
 
-    (_,_, opening, closing), _, _ = detect_single_high_interval(near_nozzle_signal)
+    interval, _, _ = detect_single_high_interval(near_nozzle_signal)
+    if interval is None:
+        opening = np.nan
+        closing = np.nan
+    else:
+        (_, _, opening, closing) = interval
 
     return {
         "area": area,

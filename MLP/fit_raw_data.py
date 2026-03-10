@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import numpy as np
 import pandas as pd
@@ -52,11 +53,67 @@ MIN_TI = 0.0
 META_COLS = [
     "plumes",
     "diameter_mm",
+    "umbrella_angle_deg",
     "fps",
     "chamber_pressure_bar",
     "injection_duration_us",
     "injection_pressure_bar",
+    "control_backpressure_bar",
 ]
+
+
+def _is_missing_value(value):
+    if value is None:
+        return True
+    try:
+        return bool(pd.isna(value))
+    except Exception:
+        return False
+
+
+def _first_non_missing(series):
+    s = pd.Series(series)
+    valid = s[~s.isna()]
+    if valid.empty:
+        return np.nan
+    return valid.iloc[0]
+
+
+def _read_csv_with_expanded_static_meta(csv_path):
+    df = pd.read_csv(csv_path)
+
+    meta_path = csv_path.with_suffix(".meta.json")
+    meta = {}
+    if meta_path.exists():
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+
+    for col in META_COLS:
+        first_val = _first_non_missing(df[col]) if col in df.columns else np.nan
+        resolved = meta.get(col, first_val)
+        if _is_missing_value(resolved):
+            resolved = first_val
+        if _is_missing_value(resolved):
+            if col not in df.columns:
+                df[col] = np.nan
+            continue
+        df[col] = resolved
+
+    return df
+
+
+def _infer_num_plumes_from_columns(df_file):
+    prefix = "penetration_cdf_plume_"
+    plume_indices = []
+    for col in df_file.columns:
+        if not col.startswith(prefix):
+            continue
+        suffix = col[len(prefix):]
+        if suffix.isdigit():
+            plume_indices.append(int(suffix))
+    if not plume_indices:
+        return 0
+    return max(plume_indices) + 1
 
 
 def robust_z(series):
@@ -270,8 +327,14 @@ def prepare_cleaned_series(
     diff_threshold_lower=DIFF_THRESHOLD_LOWER,
     diff_threshold_upper=DIFF_THRESHOLD_UPPER,
 ):
-    number_of_plumes = int(df_file["plumes"].iloc[0])
-    fps = float(df_file["fps"].iloc[0])
+    if "plumes" in df_file.columns and np.isfinite(pd.to_numeric(df_file["plumes"].iloc[0], errors="coerce")):
+        number_of_plumes = int(pd.to_numeric(df_file["plumes"].iloc[0], errors="coerce"))
+    else:
+        number_of_plumes = _infer_num_plumes_from_columns(df_file)
+    if number_of_plumes <= 0:
+        raise ValueError("Unable to infer plume count from metadata or penetration columns.")
+
+    fps = float(pd.to_numeric(df_file["fps"].iloc[0], errors="coerce")) if "fps" in df_file.columns else np.nan
     if np.isnan(fps):
         fps = fps_default
     frame_idx = np.asarray(df_file["frame_idx"]).astype(int)
@@ -279,7 +342,15 @@ def prepare_cleaned_series(
     time_s = frame_idx / fps
     time_ms = time_s * 1e3
 
-    tilt_ang = (180.0 - float(df_file["umbrella_angle_deg"].iloc[0])) / 2.0
+    umbrella_angle_deg = (
+        float(pd.to_numeric(df_file["umbrella_angle_deg"].iloc[0], errors="coerce"))
+        if "umbrella_angle_deg" in df_file.columns
+        else 180.0
+    )
+    if not np.isfinite(umbrella_angle_deg):
+        umbrella_angle_deg = 180.0
+
+    tilt_ang = (180.0 - umbrella_angle_deg) / 2.0
     umbrella_angle_correction = 1.0 / np.cos(np.deg2rad(tilt_ang))
     pen_correction = mm_per_px_scale * umbrella_angle_correction
 
@@ -289,7 +360,7 @@ def prepare_cleaned_series(
     temp_series = [None] * number_of_plumes
 
     for plume_idx in range(number_of_plumes):
-        col = f"penetration_highpass_bw_plume_{plume_idx}"
+        col = f"penetration_cdf_plume_{plume_idx}"
         if col not in df_file.columns:
             continue
 
@@ -397,7 +468,7 @@ def save_fit_plot(
 
         cache_key = str(csv_path.resolve())
         if cache_key not in cache:
-            df_file = pd.read_csv(csv_path)
+            df_file = _read_csv_with_expanded_static_meta(csv_path)
             time_s, time_ms, cleaned_series, _, _ = prepare_cleaned_series(
                 df_file,
                 mm_per_px_scale=mm_per_px_scale,
@@ -479,7 +550,7 @@ def process_folder(
 
     rows = []
     for file_path in csv_files:
-        df_file = pd.read_csv(file_path)
+        df_file = _read_csv_with_expanded_static_meta(file_path)
         time_s, _, cleaned_series, delays_raw, delays_used = prepare_cleaned_series(
             df_file,
             mm_per_px_scale=mm_per_px_scale,
