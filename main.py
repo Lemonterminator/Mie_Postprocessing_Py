@@ -48,7 +48,7 @@ experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier=2.0
+noise_floor_multiplier=2.5
 nozzle_opening_detection_height = 20
 nozzle_opening_detection_width = 30
 thres_penetration_num_pix = 5 # minimum width of the binarizaed spary for x-axis penetration detection
@@ -57,7 +57,7 @@ save_boundary_points_csv = False
 # =============================================================================
 # Default nozzle properties, safe fall back if not defined in test matrix.
 # =============================================================================
-FPS_default = 25000
+FPS_default = 34000 # 25000
 injection_pressure_bar_default = 2000
 control_backpressure_bar_default = 4
 umbrella_angle_deg_default = 180
