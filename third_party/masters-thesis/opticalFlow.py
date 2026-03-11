@@ -9,6 +9,65 @@ Local changes:
 from concurrent.futures import ThreadPoolExecutor
 import os
 
+from OSCC_postprocessing.motion import compute_optical_flows
+
+
+def _resolve_backend_name(method):
+    backend_map = {
+        "farneback": "farneback",
+        "raft": "raft",
+        "deepflow": "deepflow",
+        "nvidia_hw": "nvidia_hw",
+        "nvidia_hw_of": "nvidia_hw",
+    }
+    return backend_map.get(str(method).lower(), str(method).lower())
+
+
+def _scale_float_frame_to_uint8(frame):
+    import numpy as np
+
+    arr = np.asarray(frame)
+    if np.issubdtype(arr.dtype, np.integer):
+        return np.clip(arr, 0, 255).astype(np.uint8, copy=False)
+
+    arr = arr.astype(np.float32, copy=False)
+    finite_mask = np.isfinite(arr)
+    if not np.any(finite_mask):
+        return np.zeros(arr.shape, dtype=np.uint8)
+
+    finite_vals = arr[finite_mask]
+    max_val = float(finite_vals.max())
+    if max_val <= 1.0 + 1e-6:
+        scaled = arr * 255.0
+    elif max_val <= 255.0 + 1e-6:
+        scaled = arr
+    else:
+        scaled = arr * (255.0 / max_val)
+    return np.clip(scaled, 0.0, 255.0).astype(np.uint8)
+
+
+def _prepare_nvidia_hw_video(video):
+    import numpy as np
+
+    arr = np.asarray(video)
+    if arr.ndim != 3:
+        raise ValueError(f"NVIDIA_HW expects a grayscale video stack shaped (F, H, W), got {arr.shape}")
+
+    if np.issubdtype(arr.dtype, np.integer):
+        arr = np.clip(arr, 0, 255).astype(np.float32, copy=False)
+    else:
+        arr = arr.astype(np.float32, copy=False)
+        finite_mask = np.isfinite(arr)
+        if not np.any(finite_mask):
+            arr = np.zeros(arr.shape, dtype=np.float32)
+        else:
+            finite_vals = arr[finite_mask]
+            max_val = float(finite_vals.max())
+            if max_val > 255.0 + 1e-6:
+                arr = arr * (255.0 / max_val)
+            arr = np.clip(arr, 0.0, 255.0)
+    return arr
+
 
 def opticalFlowFarnebackCalculation(prev_frame, frame):
     import cv2
@@ -32,6 +91,16 @@ def opticalFlowFarnebackCalculation(prev_frame, frame):
                                         0)    # type: ignore # flags
 
     return flow
+
+
+def opticalFlowUnifiedCalculation(prev_frame, frame, method="Farneback", **kwargs):
+    """Compatibility wrapper around the unified OSCC optical-flow backend."""
+    import numpy as np
+
+    video = np.stack([prev_frame, frame], axis=0)
+    backend = _resolve_backend_name(method)
+    flow = compute_optical_flows(video, backend=backend, out_hw_last=True, **kwargs)
+    return flow[0]
 
 
 def _default_max_workers():
@@ -87,14 +156,17 @@ def _process_deepflow_cluster_task(task, deepflow):
 
 def opticalFlowDeepFlowCalculation(prev_frame, frame, deepflow):
     import cv2
-    
-    # Convert to grayscale
-    if len(frame.shape) == 3:
-        prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # DeepFlow is the most restrictive path in OpenCV: feed single-channel uint8.
+    prev_u8 = _scale_float_frame_to_uint8(prev_frame)
+    frame_u8 = _scale_float_frame_to_uint8(frame)
+
+    if len(frame_u8.shape) == 3:
+        prev_gray = cv2.cvtColor(prev_u8, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(frame_u8, cv2.COLOR_BGR2GRAY)
     else:
-        prev_gray = prev_frame.copy()
-        gray = frame.copy()
+        prev_gray = prev_u8.copy()
+        gray = frame_u8.copy()
 
     flow = deepflow.calc(prev_gray, gray, None) # type: ignore
 
@@ -143,20 +215,72 @@ def runOpticalFlowCalculation(firstFrameNumber, video, method, deepflow=None):
 
 
 def runOpticalFlowCalculationWeighted(firstFrameNumber, video, method, deepflow=None):
-    """Compute only flow magnitudes for weighted fusion, using the same threaded frame-pair model."""
+    """Compute flow magnitudes with solver-specific input preparation.
+
+    Backend input expectations handled here:
+    - farneback: (F, H, W) numpy/cupy, integer or float. Backend normalizes internally.
+    - raft: (F, H, W) numpy/cupy, integer or float. Backend normalizes and pads internally.
+    - nvidia_hw: (F, H, W) cupy float16/float32. This wrapper converts to float32 and clips/scales to <=255.
+    - deepflow: per-pair single-channel uint8. Legacy path converts each frame internally.
+    """
     import numpy as np
 
     nframes = video.shape[0]
     mag_array = np.zeros_like(video, dtype=np.float32)
-    tasks = list(_frame_pairs(video, firstFrameNumber))
-    max_workers = _default_max_workers()
+    if firstFrameNumber < 0 or firstFrameNumber >= nframes:
+        raise ValueError(
+            f"firstFrameNumber out of range: {firstFrameNumber} for video with {nframes} frames"
+        )
 
-    if method == 'Farneback':
+    if firstFrameNumber + 1 >= nframes:
+        return mag_array
+
+    # Keep DeepFlow on the legacy per-pair path. The unified backend covers the
+    # maintained solvers: Farneback, RAFT, and NVIDIA hardware optical flow.
+    if method == 'DeepFlow':
+        if deepflow is None:
+            raise ValueError("DeepFlow instance must be provided for DeepFlow method.")
+
+        tasks = list(_frame_pairs(video, firstFrameNumber))
+        max_workers = _default_max_workers()
+
+        def _process_deepflow_weighted_task(task):
+            i, prev_frame, frame = task
+            import cv2
+
+            flow = opticalFlowDeepFlowCalculation(prev_frame, frame, deepflow)
+            mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+            return i, mag
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            for i, mag in executor.map(_process_farneback_weighted_task, tasks):
+            for i, mag in executor.map(_process_deepflow_weighted_task, tasks):
                 mag_array[i] = mag
                 print(f"Processed frame {i+1}/{nframes}")
+        return mag_array
 
-        return mag_array # return only magnitude for weighted processing
+    backend = _resolve_backend_name(method)
+
+    if backend == "nvidia_hw":
+        try:
+            import cupy as cp
+        except Exception as exc:
+            raise RuntimeError("CuPy is required for NVIDIA_HW optical flow") from exc
+        prepared = _prepare_nvidia_hw_video(video[firstFrameNumber:])
+        video_input = cp.asarray(prepared, dtype=cp.float32)
     else:
-        raise ValueError(f"Unsupported optical flow method: {method}")
+        video_input = video[firstFrameNumber:]
+
+    flows = compute_optical_flows(video_input, backend=backend, out_hw_last=True)
+
+    try:
+        import cupy as cp
+        if isinstance(flows, cp.ndarray):
+            mags = cp.linalg.norm(flows, axis=-1)
+            mag_array[firstFrameNumber + 1:] = cp.asnumpy(mags).astype(np.float32, copy=False)
+            return mag_array
+    except Exception:
+        pass
+
+    mags = np.linalg.norm(np.asarray(flows), axis=-1).astype(np.float32, copy=False)
+    mag_array[firstFrameNumber + 1:] = mags
+    return mag_array

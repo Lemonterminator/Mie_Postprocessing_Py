@@ -1,9 +1,25 @@
 import os
 import sys
 import inspect
-from typing import Optional, Tuple, List
+from typing import Any, Optional, Tuple, List
 
 import numpy as np
+
+from .nvidia_hw_optical_flow import compute_nvidia_hw_flows
+
+
+def _filter_kwargs_for_callable(func, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Keep only keyword arguments accepted by ``func``."""
+    sig = inspect.signature(func)
+    accepted = {
+        name
+        for name, param in sig.parameters.items()
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+    }
+    return {key: value for key, value in kwargs.items() if key in accepted}
 
 
 def _maybe_to_numpy(arr):
@@ -190,6 +206,7 @@ def compute_raft_flows(
                 padder = InputPadder(prev.shape)
             i1, i2 = padder.pad(prev, cur)
             _, flow_up = model(i1, i2, iters=iters, test_mode=True)
+            flow_up = padder.unpad(flow_up)
             if out_hw_last:
                 flows.append(flow_up[0].permute(1, 2, 0).contiguous())
             else:
@@ -286,3 +303,91 @@ def compute_farneback_flows(
         except Exception:
             pass
     return stacked
+
+
+def compute_optical_flows(
+    video: "np.ndarray | any",
+    *,
+    backend: str = "auto",
+    out_hw_last: bool = True,
+    return_cupy: bool | None = None,
+    bits: Optional[int] = None,
+    **kwargs: Any,
+):
+    """Unified optical-flow frontend.
+
+    Parameters
+    ----------
+    video:
+        Array of shape ``(F, H, W)``. NumPy or CuPy input is accepted depending on
+        the selected backend.
+    backend:
+        One of ``auto``, ``farneback``, ``raft``, ``nvidia_hw``.
+        ``auto`` prefers ``nvidia_hw`` for CuPy float16/float32 inputs, otherwise
+        falls back to ``farneback``.
+    out_hw_last:
+        Return ``(F-1, H, W, 2)`` if True, else ``(F-1, 2, H, W)``.
+    return_cupy:
+        For CPU-oriented backends, optionally convert the output to CuPy.
+        ``nvidia_hw`` always returns CuPy output.
+    bits:
+        Passed to CPU-oriented normalization helpers.
+    kwargs:
+        Additional backend-specific keyword arguments.
+    """
+    backend_key = backend.lower()
+    backend_kwargs = dict(kwargs)
+
+    is_cupy = False
+    cp = None
+    try:
+        import cupy as cp  # type: ignore
+        is_cupy = isinstance(video, cp.ndarray)
+    except Exception:
+        cp = None
+
+    if backend_key == "auto":
+        if is_cupy and video.dtype in (cp.float16, cp.float32):  # type: ignore[union-attr]
+            backend_key = "nvidia_hw"
+        else:
+            backend_key = "farneback"
+
+    if backend_key == "nvidia_hw":
+        if cp is None or not is_cupy:
+            raise TypeError("backend='nvidia_hw' requires a CuPy array input")
+        flows = compute_nvidia_hw_flows(
+            video,
+            **_filter_kwargs_for_callable(compute_nvidia_hw_flows, backend_kwargs),
+        )
+        if out_hw_last:
+            return flows
+        return cp.transpose(flows, (0, 3, 1, 2))
+
+    if backend_key == "farneback":
+        result = compute_farneback_flows(
+            video,
+            bits=bits,
+            out_hw_last=out_hw_last,
+            return_cupy=bool(return_cupy),
+            **_filter_kwargs_for_callable(compute_farneback_flows, backend_kwargs),
+        )
+        return result
+
+    if backend_key == "raft":
+        result = compute_raft_flows(
+            video,
+            bits=bits,
+            out_hw_last=out_hw_last,
+            return_numpy=not bool(return_cupy),
+            **_filter_kwargs_for_callable(compute_raft_flows, backend_kwargs),
+        )
+        if return_cupy:
+            try:
+                import cupy as cp  # type: ignore
+                if isinstance(result, np.ndarray):
+                    return cp.asarray(result)
+            except Exception:
+                pass
+        return result
+
+    raise ValueError("backend must be one of: auto, farneback, raft, nvidia_hw")

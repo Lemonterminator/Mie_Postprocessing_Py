@@ -28,6 +28,7 @@ import numpy as np
 from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
 from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component_cuda
 from OSCC_postprocessing.analysis.single_plume import _binary_fill_holes_gpu
+from OSCC_postprocessing.analysis.single_plume import robust_scale
 
 try:
     import cupy as cp
@@ -45,6 +46,7 @@ except Exception:
 #
 
 # Preprocessing and visualization
+FRAME_LIMIT=200
 FIRST_FRAME_THRESHOLD = 10
 BACKGROUND_MASK_THRESHOLD = 20
 RUN_TAGS_DEBUG_VIEW = True
@@ -56,17 +58,28 @@ BACKGROUND_FRAME_Q_MIN = 1.0
 BACKGROUND_FRAME_Q_MAX = 99.0
 
 # Optical-flow / intensity fusion
+# FLOW_SOLVER input expectations:
+# - "farneback": grayscale stack (F,H,W), numpy/cupy, integer or float
+# - "raft": grayscale stack (F,H,W), numpy/cupy, integer or float
+# - "nvidia_hw": grayscale stack (F,H,W), internally converted to cupy float32
+# - "deepflow": grayscale stack (F,H,W), internally converted frame-wise to uint8
+FLOW_SOLVER = "raft"
+FLOW_INPUT = "intensity_score" #  "raw" or "intensity_score"
 USE_INTENSITY_ONLY = False
-USE_CUMULATIVE_AS_MASK = True
-WEIGHT_INTENSITY = 0.4
-WEIGHT_MAGNITUDE = 0.8
-WEIGHT_FREEHAND = 0.1
-WEIGHT_CONE = 0.6
-WEIGHT_INTENSITY_CUMULATIVE = 2.0
-WEIGHT_CONE_AFTER_START = 1.0
+USE_CUMULATIVE_AS_MASK = False
+WEIGHT_INTENSITY = 0.8
+WEIGHT_MAGNITUDE = 0.1
+WEIGHT_FREEHAND = 0.8
+WEIGHT_CONE = 0
+WEIGHT_INTENSITY_CUMULATIVE = 3.0
+WEIGHT_CONE_AFTER_START = 1.5
 INTENSITY_GAMMA = 3.0
-MAG_CLIP = 0.4
-MOTION_START_THRESHOLD = 0.5
+INTENSITY_SCORE_Q_MIN = 50.0
+INTENSITY_SCORE_Q_MAX = 90.0
+FLOW_MAG_Q_MIN = 5.0
+FLOW_MAG_Q_MAX = 99.0
+CUMULATIVE_MOTION_THRESHOLD = 0.95
+MOTION_START_THRESHOLD = 0.4
 
 # Geometric priors
 CONE_ANGLE_DEG = 20
@@ -77,6 +90,7 @@ ROI_RADIUS_PX = 100
 PENETRATION_X_MIN_PIXELS_PER_COL = 10
 
 # Mask post-processing
+ENABLE_CLUSTERING = False
 LARGEST_BLOB_HORIZONTAL_THRESHOLD = 50
 CLUSTER_DISTANCE = 40
 CLUSTER_ALPHA = 30
@@ -169,6 +183,59 @@ def background_two_stage_normalize(video_u8, background_mask):
         return video_u8
 
 
+def build_intensity_score_video(video_strip, intensity_gamma):
+    """Build a per-frame intensity score volume in [0, 1]."""
+    score_video = np.zeros(video_strip.shape[:3], dtype=np.float32)
+
+    for idx in range(video_strip.shape[0]):
+        frame = video_strip[idx]
+        if frame.ndim == 3 and frame.shape[2] == 3:
+            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            frame_gray = frame
+
+        intensity = frame_gray.astype(np.float32)
+        intensity_n = robust_scale(
+            intensity,
+            q_min=INTENSITY_SCORE_Q_MIN,
+            q_max=INTENSITY_SCORE_Q_MAX,
+        )
+        intensity_n = 1.0 - intensity_n
+        intensity_n = np.clip(intensity_n ** intensity_gamma, 0.0, 1.0)
+
+        score_video[idx] = intensity_n.astype(np.float32, copy=False)
+
+    return score_video
+
+
+def print_video_stats(name, arr, start_idx=0):
+    data = np.asarray(arr[start_idx:], dtype=np.float32)
+    if data.size == 0:
+        print(f"{name}: empty")
+        return
+
+    flat = data.reshape(-1)
+    print(
+        f"{name}: shape={data.shape}, min={flat.min():.6f}, "
+        f"max={flat.max():.6f}, mean={flat.mean():.6f}, "
+        f"p95={np.percentile(flat, 95):.6f}, p99={np.percentile(flat, 99):.6f}"
+    )
+
+
+def print_consecutive_diff_stats(name, arr, start_idx=0):
+    data = np.asarray(arr[start_idx:], dtype=np.float32)
+    if data.shape[0] < 2:
+        print(f"{name} consecutive diff: insufficient frames")
+        return
+
+    diffs = np.abs(np.diff(data, axis=0))
+    flat = diffs.reshape(-1)
+    print(
+        f"{name} consecutive diff: mean={flat.mean():.6f}, "
+        f"p95={np.percentile(flat, 95):.6f}, p99={np.percentile(flat, 99):.6f}"
+    )
+
+
 def load_processing_config(video_path):
     """Load the GUI-generated `config.json` sitting next to the selected video."""
     config_path = os.path.join(os.path.dirname(video_path), "config.json")
@@ -209,8 +276,8 @@ def build_aligned_strip(video, cfg):
 
     crop = generate_CropRect(inner, outer, n_plumes, cx, cy)
     frame_h, frame_w = int(video.shape[1]), int(video.shape[2])
-    crop_h = int(min(max(1, crop[3]), frame_h))
-    crop_w = int(min(max(1, outer), frame_w))
+    crop_h = int(min(max(1, crop[3]), frame_h)/2)# half
+    crop_w = int(min(max(1, outer), frame_w)) 
     out_shape = (crop_h, crop_w)
     calibration_point = (0.0, float(cy))
 
@@ -268,7 +335,7 @@ root.withdraw()
 all_files = filedialog.askopenfilenames(title="Select one or more files")
 for file in all_files:
     print("Processing:", file)
-    video = load_cine_video(file)  # Ensure load_cine_video is defined or imported
+    video = load_cine_video(file, frame_limit=FRAME_LIMIT)  # Ensure load_cine_video is defined or imported
     config, config_path = load_processing_config(file)
     print(f"Loaded config: {config_path}")
 
@@ -326,7 +393,7 @@ for file in all_files:
             "Current Frame",
         ]
         for i in range(nframes):
-            current_frame = video_strip[i]
+            current_frame = video_strip[i].copy()
             current_frame[background_mask_test == 0] = 0  # Apply background mask to current frame before segmentation
 
             tags_mask, tags_diff = vpf.tags_segmentation(current_frame, tags_background)
@@ -358,8 +425,8 @@ for file in all_files:
     # Freehand Mask Creation
     ##############################
 
-    draw_freehand_mask(video_strip) # Allows user to draw a freehand mask on the video strip, saves as "mask.png" for later use in the combined score. 
-    # User can draw multiple separate regions if needed, just make sure to connect them with a line so they are included in the same cluster. 
+    draw_freehand_mask(video_strip) # Allows user to draw a freehand exclusion mask on the video strip, saves as "mask.png" for later use in the combined score. 
+    # Drawn red regions are treated as a negative mask and suppressed in the combined score. 
     # Press and hold left mouse button to draw, release to stop drawing, press 'q' to finish and save mask.
 
     background_mask = vpf.createBackgroundMask(first_frame, threshold=BACKGROUND_MASK_THRESHOLD) # Threshold to remove chamber walls
@@ -378,6 +445,21 @@ for file in all_files:
     if APPLY_BACKGROUND_TWO_STAGE_NORMALIZATION:
         video_strip = background_two_stage_normalize(video_strip, background_mask)
     video_strip = vpf.applyCLAHE(video_strip)
+    base_intensity_scores = build_intensity_score_video(video_strip, INTENSITY_GAMMA)
+
+    if FLOW_INPUT == "raw":
+        flow_input_video = video_strip
+    elif FLOW_INPUT == "intensity_score":
+        flow_input_video = base_intensity_scores
+    else:
+        raise ValueError(f"Unsupported FLOW_INPUT: {FLOW_INPUT}. Use 'raw' or 'intensity_score'.")
+
+    print_video_stats("Base intensity scores", base_intensity_scores, start_idx=firstFrameNumber)
+    print_consecutive_diff_stats("Base intensity scores", base_intensity_scores, start_idx=firstFrameNumber)
+    if FLOW_INPUT == "intensity_score":
+        print("FLOW_INPUT='intensity_score': optical flow input is identical to base intensity scores.")
+    else:
+        print("FLOW_INPUT='raw': optical flow input uses preprocessed video_strip frames.")
 
     # for i in range(nframes):
     #     cv2.imshow("CLAHE Video Strip", video_strip[i]) # Display CLAHE result for verification, press any key to continue
@@ -399,12 +481,28 @@ for file in all_files:
     if use_intensity_only:
         print("Using intensity-only mode (no optical flow contribution).")
         mag_array = np.ones_like(video_strip, dtype=np.float32)
+        mag_array_scaled = mag_array.astype(np.float32, copy=False)
     else:
-        print("Using combined intensity and optical flow mode.")
-        mag_array = of.runOpticalFlowCalculationWeighted(firstFrameNumber, video_strip, method='Farneback')
+        print(f"Using combined intensity and optical flow mode. FLOW_INPUT={FLOW_INPUT}")
+        print(
+            "FLOW_SOLVER input handling: "
+            "Farneback/RAFT accept grayscale stacks directly; "
+            "NVIDIA_HW is converted internally to CuPy float32; "
+            "DeepFlow is converted internally to uint8 grayscale."
+        )
+        mag_array = of.runOpticalFlowCalculationWeighted(firstFrameNumber, flow_input_video, method=FLOW_SOLVER)
+        print_video_stats("Optical flow magnitude", mag_array, start_idx=firstFrameNumber + 1)
+        mag_array_scaled = np.zeros_like(mag_array, dtype=np.float32)
+        if firstFrameNumber + 1 < nframes:
+            mag_array_scaled[firstFrameNumber + 1:] = robust_scale(
+                mag_array[firstFrameNumber + 1:],
+                q_min=FLOW_MAG_Q_MIN,
+                q_max=FLOW_MAG_Q_MAX,
+            ).astype(np.float32, copy=False)
+        print_video_stats("Optical flow magnitude scaled", mag_array_scaled, start_idx=firstFrameNumber + 1)
 
     
-    # mag values above 0.4 are considered motion
+    # Motion magnitude is robust-scaled to [0, 1] before downstream use.
     # IDEAS:
     #       For cumulative mask, do a morphological erosion every few frames to restrict to areas with consistent motion
     #
@@ -465,6 +563,7 @@ for file in all_files:
 
     # Prepare combined masks array (final binary masks) and a diagnostic combined score array
     combined_masks = np.zeros_like(video_strip, dtype=np.uint8)
+    combined_score_maps = np.zeros_like(video_strip, dtype=np.uint8)
     final_cluster_masks = np.zeros_like(video_strip, dtype=np.uint8)
     intensity_scores = np.zeros_like(video_strip, dtype=np.float32)
     mag_scores = np.zeros_like(video_strip, dtype=np.float32)
@@ -485,13 +584,13 @@ for file in all_files:
     freehand_mask = cv2.imread("mask.png", cv2.IMREAD_GRAYSCALE)
     if freehand_mask is None:
         print("Warning: 'mask.png' not found — proceeding without freehand mask")
-        freehand_mask_f = np.zeros((height, width), dtype=np.float32)
+        freehand_mask_f = np.ones((height, width), dtype=np.float32)
     else:
         # Resize to match frames if necessary, keep nearest neighbour to preserve binary nature
         if freehand_mask.shape != (height, width):
             freehand_mask = cv2.resize(freehand_mask, (width, height), interpolation=cv2.INTER_NEAREST)
-        # Normalize to 0.0-1.0
-        freehand_mask_f = (freehand_mask > 0).astype(np.float32)
+        # Negative mask: drawn/nonzero pixels are excluded (0), untouched pixels are kept (1).
+        freehand_mask_f = (freehand_mask == 0).astype(np.float32)
 
     # Normalize weights
     total_w = w_intensity + w_magnitude + w_freehand + w_cone
@@ -511,33 +610,8 @@ for file in all_files:
     circle_mask = (xx - origin_x) ** 2 + (yy - origin_y) ** 2 <= roi_radius ** 2
 
     for idx in range(nframes):
-        # --- Intensity: per-frame robust normalization invariant to lighting ---
         frame = video_strip[idx]
-        if frame.ndim == 3 and frame.shape[2] == 3:
-            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            frame_gray = frame.copy()
-        intensity = frame_gray.astype(np.float32)
-        # Use percentile-based clipping (1st/99th) per frame so global brightness/contrast changes are normalized out
-        if use_cumulative_as_mask:
-            masked_pixels = intensity[cumulative_mask > 0]
-            if len(masked_pixels) > 0:
-                p_low, p_high = np.percentile(masked_pixels, (1.0, 99.0))
-            else:
-                p_low, p_high = np.percentile(intensity, (1.0, 99.0))  # fallback if no masked pixels
-        else:
-            p_low, p_high = np.percentile(intensity, (1.0, 99.0))
-        if p_high - p_low > 1e-6:
-            intensity_n = (intensity - p_low) / (p_high - p_low)
-            intensity_n = np.clip(intensity_n, 0.0, 1.0)
-            # invert so darker pixels -> higher score
-            intensity_n = 1.0 - intensity_n
-            # apply gamma to amplify differences in dark areas
-            intensity_n = np.clip(intensity_n ** intensity_gamma, 0.0, 1.0)
-        else:
-            # fallback to absolute inversion if percentiles degenerate
-            intensity_n = 1.0 - (np.clip(intensity, 0.0, 255.0) / 255.0)
-            intensity_n = np.clip(intensity_n ** intensity_gamma, 0.0, 1.0)
+        intensity_n = base_intensity_scores[idx].copy()
 
         # Restrict intensity score to areas within cumulative_mask
         if use_cumulative_as_mask:
@@ -545,16 +619,13 @@ for file in all_files:
 
         intensity_scores[idx] = intensity_n
 
-        # --- Optical flow magnitude: cap at mag_clip then normalize to 0..1 (values >= mag_clip -> 1) ---
-        mag = mag_array[idx].astype(np.float32)
-        mag_clip = MAG_CLIP  # absolute motion cutoff: anything higher considered motion and mapped to 1.0
-        mag_clipped = np.clip(mag, 0.0, mag_clip)
-        mag_n = mag_clipped / (mag_clip + eps)
+        # --- Optical flow magnitude: robust percentile scaling to 0..1 ---
+        mag_n = mag_array_scaled[idx].astype(np.float32)
 
         mag_scores[idx] = mag_n
 
-        # Accumulate areas with mag_n == 1.0
-        new_areas = (mag_n > 0.99).astype(np.uint8) * 255
+        # Accumulate areas with high normalized motion response.
+        new_areas = (mag_n >= CUMULATIVE_MOTION_THRESHOLD).astype(np.uint8) * 255
         cumulative_mask = np.maximum(cumulative_mask, new_areas)
         # cumulative_mask = cv2.erode(cumulative_mask, np.ones((5,5), np.uint8), iterations=1)  # erode to keep only consistent areas
 
@@ -562,7 +633,7 @@ for file in all_files:
 
         # Check for high magnitude values near the spray origin to start writing masks
         if idx >= firstFrameNumber:
-            motion_near_origin = np.any(mag[circle_mask] >= MOTION_START_THRESHOLD)
+            motion_near_origin = np.any(mag_n[circle_mask] >= MOTION_START_THRESHOLD)
             if motion_near_origin:
                 write_masks_started = True
                 w_cone = WEIGHT_CONE_AFTER_START  # once motion is detected, set cone weight to normal
@@ -584,12 +655,12 @@ for file in all_files:
 
         cone_masks[idx] = (cone_mask_f * 255).astype(np.uint8) # for diagnostics, to be removed later
 
-        freehand = freehand_mask_f  # already 0.0 or 1.0
+        freehand = freehand_mask_f  # already 0.0 or 1.0; drawn red regions are 0.0
 
         # --- Cone mask normalized ---
         cone = cone_mask_f  # already 0.0 or 1.0
 
-        # Replace empty freehand (no drawing) with ones so it doesn't zero-out the product
+        # Replace empty freehand with ones so it doesn't zero-out the product
         if np.count_nonzero(freehand) == 0:
             freehand = np.ones_like(freehand, dtype=np.float32)
 
@@ -606,6 +677,7 @@ for file in all_files:
 
         # Optional: map combined_score to 0..255 for diagnostics
         combined_255 = np.clip((combined_score * 255.0), 0, 255).astype(np.uint8)
+        combined_score_maps[idx] = combined_255
 
         # --- Dynamic Thresholding ---
         if use_intensity_only or use_cumulative_as_mask:
@@ -635,8 +707,8 @@ for file in all_files:
         # Convert spray_origin from (x, y) to (row, col) format for analyze_boundary
         nozzle_point_rc = np.array([spray_origin[1], spray_origin[0]], dtype=np.float32)
 
-        if use_intensity_only or use_cumulative_as_mask:
-            # skip clustering for intensity-only mode and cumulative mask mode
+        if use_intensity_only or use_cumulative_as_mask or not ENABLE_CLUSTERING:
+            # Skip clustering for intensity-only, cumulative-mask, or explicit no-clustering mode.
             final_mask = postprocess_mask_intensity_mode(threshold_mask, spray_origin)
             final_cluster_masks[idx] = final_mask
         else:
@@ -703,6 +775,7 @@ for file in all_files:
     for i in range(nframes):
         frame = video_strip[i]
         combined = combined_masks[i]
+        combined_score_map = combined_score_maps[i]
         cluster = final_cluster_masks[i]
         cone = cone_masks[i]
 
@@ -737,6 +810,7 @@ for file in all_files:
 
         frame_disp = ensure_bgr(resize(frame))
         combined_disp = ensure_bgr(resize(combined))
+        combined_score_disp = ensure_bgr(resize(combined_score_map))
         cluster_disp = ensure_bgr(resize(cluster))
         intensity_disp = ensure_bgr(resize((intensity_scores[i] * 255).astype(np.uint8)))
         mag_disp = ensure_bgr(resize((mag_scores[i] * 255).astype(np.uint8)))
@@ -751,6 +825,7 @@ for file in all_files:
         # Draw black border first (thicker)
         cv2.putText(frame_disp, f"Frame {i}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
         cv2.putText(combined_disp, "Combined Weighted Mask", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
+        cv2.putText(combined_score_disp, "Combined Score", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
         cv2.putText(cluster_disp, "Clustered Mask", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
         cv2.putText(intensity_disp, "Intensity Score", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
         cv2.putText(mag_disp, "Optical Flow Magnitude", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 4)
@@ -762,6 +837,7 @@ for file in all_files:
         # Draw yellow text on top (thinner)
         cv2.putText(frame_disp, f"Frame {i}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
         cv2.putText(combined_disp, "Combined Weighted Mask", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
+        cv2.putText(combined_score_disp, "Combined Score", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
         cv2.putText(cluster_disp, "Clustered Mask", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
         cv2.putText(intensity_disp, "Intensity Score", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
         cv2.putText(mag_disp, "Optical Flow Magnitude", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
@@ -771,10 +847,11 @@ for file in all_files:
         cv2.putText(overlay_disp, "Overlay", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, text_color, 2)
 
         # Now stack and show as before
-        row1 = np.hstack([frame_disp, combined_disp, cluster_disp])
-        row2 = np.hstack([intensity_disp, mag_disp, cumulative_disp])
-        row3 = np.hstack([cone_disp, freehand_disp, overlay_disp])
-        grid = np.vstack([row1, row2, row3])
+        row1 = np.hstack([frame_disp, combined_disp, combined_score_disp])
+        row2 = np.hstack([cluster_disp, intensity_disp, mag_disp])
+        row3 = np.hstack([cumulative_disp, cone_disp, freehand_disp])
+        row4 = np.hstack([overlay_disp, overlay_disp, overlay_disp])
+        grid = np.vstack([row1, row2, row3, row4])
 
         cv2.imshow('All Results', grid)
 

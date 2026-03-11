@@ -113,10 +113,19 @@ def _windows_add_cuda_dll_dirs() -> None:
 
 
 _windows_add_cuda_dll_dirs()
-from .motion.optical_flow import compute_raft_flows, compute_farneback_flows  # Optical flow wrappers
+from .motion.optical_flow import compute_raft_flows, compute_farneback_flows, compute_optical_flows  # Optical flow wrappers
+from .motion.nvidia_hw_optical_flow import (
+    build_nvidia_hw_optical_flow_bridge,
+    compute_nvidia_hw_flows,
+    get_nvidia_hw_optical_flow_caps,
+)
 
 __all__ = [
     'compute_raft_flows',
     'compute_farneback_flows',
+    'compute_optical_flows',
+    'build_nvidia_hw_optical_flow_bridge',
+    'compute_nvidia_hw_flows',
+    'get_nvidia_hw_optical_flow_caps',
 ]
 
