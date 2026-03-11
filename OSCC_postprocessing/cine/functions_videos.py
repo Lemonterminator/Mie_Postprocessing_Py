@@ -19,13 +19,22 @@ import sklearn.cluster
 # -----------------------------
 # Cine video reading and playback
 # -----------------------------
+_CINE_FRAME_HEADER_BYTES = 8
+
+
 def read_frame(cine_file_path, frame_offset, width, height):
+    """Read one Phantom Cine frame into a 2D ``uint16`` array."""
     with open(cine_file_path, "rb") as f:
         f.seek(frame_offset)
+        # ``pImage`` points to the per-frame block, which begins with a small
+        # frame header before the pixel payload.
+        f.read(_CINE_FRAME_HEADER_BYTES)
         frame_data = np.fromfile(f, dtype=np.uint16, count=width * height).reshape(height, width)
     return frame_data
 
+
 def load_cine_video(cine_file_path, frame_limit=None):
+    """Load a full Cine video into memory as ``(frame, height, width)``."""
     # Read the header
     header = cine.read_header(cine_file_path)
     # Extract width, height, and total frame count
@@ -33,13 +42,21 @@ def load_cine_video(cine_file_path, frame_limit=None):
     height = header['bitmapinfoheader'].biHeight
     frame_offsets = header['pImage']  # List of frame offsets
     frame_count = len(frame_offsets)
-    frame_count= min(frame_count, frame_limit) if frame_limit else frame_count
+    frame_count = min(frame_count, frame_limit) if frame_limit else frame_count
     print(f"Video Info - Width: {width}, Height: {height}, Frames: {frame_count}")
 
-    # Initialize an empty 3D NumPy array to store all frames
-    video_data = np.zeros((frame_count, height, width), dtype=np.uint16)
-    # Use ThreadPoolExecutor to read frames in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+    if frame_count == 0:
+        return np.empty((0, height, width), dtype=np.uint16)
+
+    # ``empty`` avoids the up-front zero-fill cost. Every frame slot is
+    # overwritten during loading, so zero-initialization is wasted work.
+    video_data = np.empty((frame_count, height, width), dtype=np.uint16)
+    worker_count = min(frame_count, os.cpu_count() or 4)
+
+    # Parallel frame reads overlap I/O and decoding cost without changing the
+    # returned memory layout, because frames are written directly into the
+    # preallocated output buffer.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
         future_to_index = {
             executor.submit(read_frame, cine_file_path, frame_offsets[i], width, height): i
             for i in range(frame_count)
@@ -50,6 +67,9 @@ def load_cine_video(cine_file_path, frame_limit=None):
                 video_data[index] = future.result()
             except Exception as e:
                 print(f"Error reading frame {index}: {e}")
+
+    # ``video_data`` is already a contiguous ndarray; ``np.asarray`` would only
+    # return the same object and does not provide any extra compaction benefit.
     return video_data
 
 def get_subfolder_names(parent_folder):

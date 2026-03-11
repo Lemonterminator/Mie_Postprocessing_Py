@@ -3,6 +3,7 @@ from clustering import *
 from extrapolation import SprayConeBackfill, extrapolate_cone
 from functions_videos import *
 from Legacy.functions_optical_flow import *
+from OSCC_postprocessing.cine.functions_videos import load_cine_video
 
 import opticalFlow as of
 import videoProcessingFunctions as vpf

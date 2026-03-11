@@ -3,7 +3,7 @@ from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.filters.video_filters import median_filter_video_auto, sobel_5x5_kernels, filter_video_fft
 from OSCC_postprocessing.filters.svd_background_removal import godec_like
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.filters.bilateral_filter import (
+from OSCC_postprocessing.filters.bilateral_filter_rawKernel import (
     bilateral_filter_video_cpu,
     bilateral_filter_video_cupy,
     bilateral_filter_video_volumetric_chunked_halo,

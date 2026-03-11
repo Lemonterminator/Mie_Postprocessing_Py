@@ -1,4 +1,4 @@
-from functions_videos import load_cine_video
+from OSCC_postprocessing.cine.functions_videos import load_cine_video
 import numpy as np
 import tkinter as tk 
 from tkinter import filedialog

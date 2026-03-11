@@ -38,5 +38,12 @@ gui = [
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.exclude-package-data]
+"OSCC_postprocessing.dewe" = [
+  "DeweFileLibrary/*.dll",
+  "DeweFileLibrary/*.so",
+  "DeweFileLibrary/*.zip"
+]
+
 [tool.setuptools.packages.find]
 include = ["OSCC_postprocessing*"]

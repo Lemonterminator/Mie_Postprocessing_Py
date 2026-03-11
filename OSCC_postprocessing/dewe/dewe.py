@@ -168,7 +168,13 @@ def read_with_dwdatareaderlib(path: Path) -> Tuple[Optional[Dict[str, Any]], Opt
             break
 
     if dll_path is None:
-        return None, f"DWDataReaderLib DLL not found under {lib_dir}"
+        return (
+            None,
+            "DWDataReaderLib DLL not found under "
+            f"{lib_dir}. Download the official archive with "
+            "`python -m OSCC_postprocessing.dewe.download_dwdatareader`, "
+            "then extract the required binaries into DeweFileLibrary.",
+        )
 
     class DWFileInfo(ctypes.Structure):
         _fields_ = [
@@ -786,6 +792,10 @@ def plot_reactive(
     gamma: float = 1.35,  # Heat capacity ratio
     fc_p: float = 1000.0,  # Pre-filter cutoff for pressure [Hz]
     fc_hrr: float = 600.0,  # Post-filter cutoff for HRR [Hz]
+    hrr_filter: Optional[str] = "butterworth",
+    fir_taps_p: int = 101,
+    fir_taps_hrr: int = 101,
+    fir_window: str = "hamming",
     smooth: bool = True,
     smoothing_factor: float = 0.2,
     show_std: bool = False,
@@ -826,9 +836,15 @@ def plot_reactive(
     gamma : float
         Heat capacity ratio. Default 1.35 (matching MATLAB).
     fc_p : float
-        Butterworth low-pass cutoff for pressure before differentiation [Hz].
+        Low-pass cutoff for pressure before differentiation [Hz].
     fc_hrr : float
-        Butterworth low-pass cutoff for HRR after differentiation [Hz].
+        Low-pass cutoff for HRR after differentiation [Hz].
+    hrr_filter : {"butterworth", "fir", "none", None}
+        Filter family passed to ``hrr_calc``.
+    fir_taps_p, fir_taps_hrr : int
+        FIR tap counts used when ``hrr_filter="fir"``.
+    fir_window : str
+        FIR window used when ``hrr_filter="fir"``.
     smooth : bool
         Apply Gaussian smoothing to pressure/temperature data.
     smoothing_factor : float
@@ -976,6 +992,10 @@ def plot_reactive(
                 gamma=gamma,
                 fc_p=fc_p,
                 fc_hrr=fc_hrr,
+                filter=hrr_filter,
+                fir_taps_p=fir_taps_p,
+                fir_taps_hrr=fir_taps_hrr,
+                fir_window=fir_window,
                 return_dataframe=True,
             )
             # hrr_result contains HRR_W in Watts, convert to kJ/s (kW)

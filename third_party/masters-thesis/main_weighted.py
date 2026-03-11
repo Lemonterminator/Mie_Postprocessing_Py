@@ -11,7 +11,7 @@ Key local changes:
 
 from GUI_functions import *
 from clustering import *
-from functions_videos import load_cine_video
+from OSCC_postprocessing.cine.functions_videos import load_cine_video
 from data_capture import *
 
 import opticalFlow as of

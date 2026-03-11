@@ -8,7 +8,7 @@ from pathlib import Path
 from OSCC_postprocessing.io.async_npz_saver import AsyncNPZSaver
 from OSCC_postprocessing.io.async_avi_saver import *
 from OSCC_postprocessing.filters.video_filters import *
-from OSCC_postprocessing.filters.bilateral_filter import (
+from OSCC_postprocessing.filters.bilateral_filter_rawKernel import (
     bilateral_filter_video_cupy,
     bilateral_filter_video_cpu,
 )

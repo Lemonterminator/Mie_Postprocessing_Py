@@ -1,57 +1,70 @@
 from __future__ import annotations
+
 import numpy as np
 
+
+def _effective_sample_rate(Fs: float, time: np.ndarray | None, t: np.ndarray) -> float:
+    """Return the effective sample rate used for digital filter design."""
+    if time is None:
+        return float(Fs)
+    return 1.0 / np.median(np.diff(t))
+
+
 def hrr_calc(
-    chmbP_bar,                    # 1D array-like pressure in bar
-    Fs: float = 1e5,              # sampling rate [Hz]
-    V_m3: float = 8.5e-3,         # chamber volume [m^3]
-    gamma: float = 1.35,          # heat capacity ratio
+    chmbP_bar,
+    Fs: float = 1e5,
+    V_m3: float = 8.5e-3,
+    gamma: float = 1.35,
     *,
-    fc_p: float = 1000.0,         # pre-filter cutoff for P [Hz]
-    order_p: int = 3,             # pre-filter order
-    fc_hrr: float = 600.0,        # post-filter cutoff for HRR [Hz]
-    order_hrr: int = 5,           # post-filter order
-    time: np.ndarray | None = None,  # optional time vector [s]; if None uses Fs
-    return_dataframe: bool = True,     # if pandas is available, return a DataFrame
-    filter="butterworth"         # Filter type (for compatibility)
+    fc_p: float = 1000.0,
+    order_p: int = 3,
+    fc_hrr: float = 600.0,
+    order_hrr: int = 5,
+    fir_taps_p: int = 101,
+    fir_taps_hrr: int = 101,
+    fir_window: str = "hamming",
+    time: np.ndarray | None = None,
+    return_dataframe: bool = True,
+    filter: str | None = "butterworth",
 ):
     """
-    Compute heat-release rate (constant-volume model):
-        HRR(t) = (V / (gamma-1)) * dP/dt
-    and cumulative heat via trapezoidal integration.
+    Compute heat-release rate from chamber pressure using a constant-volume model.
 
-    Inputs
-    ------
+    Parameters
+    ----------
     chmbP_bar : array-like, shape (N,)
         Chamber pressure in bar.
     Fs : float
-        Sampling frequency [Hz]. Ignored if `time` is provided.
+        Sampling frequency [Hz]. Ignored if ``time`` is provided.
     V_m3 : float
         Chamber volume [m^3].
     gamma : float
         Heat capacity ratio.
     fc_p, order_p : float, int
-        Butterworth low-pass for pressure before differentiation.
+        Pressure low-pass settings before differentiation.
     fc_hrr, order_hrr : float, int
-        Butterworth low-pass for HRR after differentiation.
+        HRR low-pass settings after differentiation.
+    fir_taps_p, fir_taps_hrr : int
+        FIR tap counts used when ``filter="fir"``.
+    fir_window : str
+        Window passed to ``scipy.signal.firwin`` when ``filter="fir"``.
     time : array-like or None
-        Time vector [s]. If None, uniform sampling with dt=1/Fs is assumed.
-    filter: any
-        Default to a butterworth filter
-        (Not used; for compatibility with other functions)
+        Time vector [s]. If None, uniform sampling with dt = 1 / Fs is assumed.
     return_dataframe : bool
-        If True and pandas is installed, returns a DataFrame with columns:
-        ["time_s", "P_bar", "HRR_W", "Q_J"]. Otherwise returns dict of arrays.
+        If True and pandas is available, returns a DataFrame. Otherwise returns
+        a dict of arrays.
+    filter : {"butterworth", "fir", "none", None}
+        Filter family used for both pressure and HRR smoothing. ``"butterworth"``
+        preserves the historical behavior.
 
     Returns
     -------
     pandas.DataFrame or dict
-        time_s [s], P_bar [bar], HRR_W [W], Q_J [J].
+        Keys/columns: ``time_s``, ``P_bar``, ``HRR_W``, ``Q_J``.
     """
-    # --- Imports that may not be present everywhere
     try:
-        from scipy.signal import butter, filtfilt
         from scipy.integrate import cumulative_trapezoid
+        from scipy.signal import butter, filtfilt, firwin
     except Exception as exc:
         raise RuntimeError("This function requires SciPy: pip install scipy") from exc
 
@@ -61,58 +74,68 @@ def hrr_calc(
 
     N = P_bar.size
     if time is None:
-        dt = 1.0 / float(Fs)
-        t = np.arange(N, dtype=float) * dt
+        t = np.arange(N, dtype=float) / float(Fs)
     else:
         t = np.asarray(time, dtype=float).reshape(-1)
         if t.size != N:
             raise ValueError("time and chmbP_bar must have the same length.")
         if not np.all(np.isfinite(np.diff(t))) or np.any(np.diff(t) <= 0):
             raise ValueError("time must be strictly increasing and finite.")
-        # dt not constant; we will use t directly for gradient/integration
-        dt = None
 
-    # Units: bar -> Pa
-    P = P_bar * 1e5  # [Pa]
+    filter_name = "none" if filter is None else str(filter).strip().lower()
 
-    # --- Pre-filter pressure (zero-phase)
-    if fc_p is not None and fc_p > 0:
-        if time is not None:
-            # Use local Nyquist from median dt
-            fs_eff = 1.0 / np.median(np.diff(t))
-        else:
-            fs_eff = Fs
-        wn_p = float(fc_p) / (fs_eff / 2.0)
-        if not (0 < wn_p < 1):
-            raise ValueError(f"Pressure cutoff fc_p={fc_p} invalid for Fs={fs_eff}")
-        
-        if filter=="butterworth":
-            bP, aP = butter(order_p, wn_p, btype="low")
-            P = filtfilt(bP, aP, P, axis=0)
+    def apply_lowpass(
+        signal: np.ndarray,
+        *,
+        cutoff_hz: float | None,
+        order: int,
+        fir_taps: int,
+        stage: str,
+    ) -> np.ndarray:
+        if cutoff_hz is None or cutoff_hz <= 0:
+            return signal
 
-    # --- Differentiate pressure
+        fs_eff = _effective_sample_rate(Fs, time, t)
+        wn = float(cutoff_hz) / (fs_eff / 2.0)
+        if not (0 < wn < 1):
+            raise ValueError(f"{stage} cutoff {cutoff_hz} invalid for Fs={fs_eff}")
+
+        if filter_name in {"none", "off"}:
+            return signal
+        if filter_name == "butterworth":
+            b, a = butter(order, wn, btype="low")
+            return filtfilt(b, a, signal, axis=0)
+        if filter_name == "fir":
+            if fir_taps < 3:
+                raise ValueError(f"{stage} FIR requires fir_taps >= 3, got {fir_taps}")
+            b = firwin(fir_taps, cutoff_hz, window=fir_window, fs=fs_eff)
+            return filtfilt(b, [1.0], signal, axis=0)
+        raise ValueError(
+            f"Unsupported filter='{filter}'. Use 'butterworth', 'fir', or None."
+        )
+
+    P = apply_lowpass(
+        P_bar * 1e5,
+        cutoff_hz=fc_p,
+        order=order_p,
+        fir_taps=fir_taps_p,
+        stage="Pressure",
+    )
+
     if time is None:
-        dPdt = np.gradient(P, 1.0 / Fs)  # Pa/s
+        dPdt = np.gradient(P, 1.0 / Fs)
     else:
-        dPdt = np.gradient(P, t)         # Pa/s for nonuniform t
+        dPdt = np.gradient(P, t)
 
-    # --- Heat-release rate (Watts)
-    HRR = (V_m3 / (gamma - 1.0)) * dPdt  # [W] = J/s
+    HRR = (V_m3 / (gamma - 1.0)) * dPdt
+    HRR = apply_lowpass(
+        HRR,
+        cutoff_hz=fc_hrr,
+        order=order_hrr,
+        fir_taps=fir_taps_hrr,
+        stage="HRR",
+    )
 
-    # --- Post-filter HRR (optional)
-    if fc_hrr is not None and fc_hrr > 0:
-        if time is not None:
-            fs_eff = 1.0 / np.median(np.diff(t))
-        else:
-            fs_eff = Fs
-        wn_q = float(fc_hrr) / (fs_eff / 2.0)
-        if not (0 < wn_q < 1):
-            raise ValueError(f"HRR cutoff fc_hrr={fc_hrr} invalid for Fs={fs_eff}")
-        bQ, aQ = butter(order_hrr, wn_q, btype="low")
-        HRR = filtfilt(bQ, aQ, HRR, axis=0)
-
-    # --- Integrate HRR to cumulative heat [J]
-    # cumulative_trapezoid returns length N-1; prepend 0 to align
     Q = cumulative_trapezoid(HRR, t, initial=0.0)
 
     result = {
@@ -125,9 +148,8 @@ def hrr_calc(
     if return_dataframe:
         try:
             import pandas as pd  # type: ignore
+
             return pd.DataFrame(result)
         except Exception:
-            # Fall back to dict if pandas not available
             return result
-    else:
-        return result
+    return result

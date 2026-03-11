@@ -1,0 +1,3 @@
+exclude OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
+exclude OSCC_postprocessing/dewe/DeweFileLibrary/*.so
+exclude OSCC_postprocessing/dewe/DeweFileLibrary/*.zip

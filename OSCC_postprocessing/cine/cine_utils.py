@@ -1,5 +1,9 @@
+"""On-demand Phantom Cine reading helpers used by the GUI stack."""
+
 import numpy as np
 import pycine.file as cine
+
+_CINE_FRAME_HEADER_BYTES = 8
 
 class CineReader:
     """Utility to open a Phantom ``.cine`` file and read frames on demand."""
@@ -29,9 +33,24 @@ class CineReader:
         offset = self.frame_offsets[idx]
         with open(self.path, 'rb') as f:
             f.seek(offset)
-            f.read(8)  # skip per-frame header
-            data = np.fromfile(f, dtype=np.uint16,
-                               count=self.width * self.height)
+            # ``pImage`` points to the per-frame block, which begins with a
+            # small frame header before the pixel payload.
+            header = f.read(_CINE_FRAME_HEADER_BYTES)
+            if len(header) != _CINE_FRAME_HEADER_BYTES:
+                raise ValueError(
+                    f'Failed to read {_CINE_FRAME_HEADER_BYTES}-byte frame header '
+                    f'for frame {idx}.'
+                )
+            data = np.fromfile(
+                f,
+                dtype=np.uint16,
+                count=self.width * self.height,
+            )
+        if data.size != self.width * self.height:
+            raise ValueError(
+                f'Incomplete frame payload for frame {idx}: expected '
+                f'{self.width * self.height} pixels, got {data.size}.'
+            )
         frame = data.reshape(self.height, self.width)
         # return np.flipud(frame)
         return frame

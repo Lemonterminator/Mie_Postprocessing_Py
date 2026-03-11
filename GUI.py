@@ -10,7 +10,7 @@ import sys
 from typing import Optional
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 from pathlib import Path
 
 from OSCC_postprocessing.cine.cine_utils import CineReader
@@ -43,6 +43,40 @@ def _pil_rgba_to_qimage(img: Image.Image) -> QtGui.QImage:
         data, img.width, img.height, img.width * 4, QtGui.QImage.Format_RGBA8888
     )
     return qimg.copy()
+
+
+def _apply_rectangle_to_mask(mask: np.ndarray, points: list[tuple[float, float]], value: int) -> None:
+    """Fill a clipped rectangle defined by two opposite corners."""
+    if len(points) != 2:
+        raise ValueError("Rectangle mask requires exactly two points.")
+
+    height, width = mask.shape[:2]
+    x0 = int(round(min(points[0][0], points[1][0])))
+    x1 = int(round(max(points[0][0], points[1][0])))
+    y0 = int(round(min(points[0][1], points[1][1])))
+    y1 = int(round(max(points[0][1], points[1][1])))
+
+    x0 = max(0, min(x0, width - 1))
+    x1 = max(0, min(x1, width - 1))
+    y0 = max(0, min(y0, height - 1))
+    y1 = max(0, min(y1, height - 1))
+    if x1 < x0 or y1 < y0:
+        return
+
+    mask[y0 : y1 + 1, x0 : x1 + 1] = value
+
+
+def _apply_triangle_to_mask(mask: np.ndarray, points: list[tuple[float, float]], value: int) -> None:
+    """Fill a triangle defined by three vertices."""
+    if len(points) != 3:
+        raise ValueError("Triangle mask requires exactly three points.")
+
+    height, width = mask.shape[:2]
+    tri_img = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(tri_img)
+    draw.polygon([(float(x), float(y)) for x, y in points], outline=1, fill=1)
+    tri_mask = np.asarray(tri_img, dtype=bool)
+    mask[tri_mask] = value
 
 
 class TiledCompositedView(QtWidgets.QGraphicsView):
@@ -574,7 +608,19 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         grid.addWidget(QtWidgets.QLabel("Alpha:"), 3, 7)
         grid.addWidget(self.alpha_slider, 3, 8, 1, 2)
 
-        # Row 4: Ring mask parameters
+        # Row 4: Shape tools
+        self.rect_add_btn = QtWidgets.QPushButton("Add Rect")
+        self.rect_erase_btn = QtWidgets.QPushButton("Erase Rect")
+        self.tri_add_btn = QtWidgets.QPushButton("Add Tri")
+        self.tri_erase_btn = QtWidgets.QPushButton("Erase Tri")
+
+        grid.addWidget(QtWidgets.QLabel("Shape Tools:"), 4, 0)
+        grid.addWidget(self.rect_add_btn, 4, 1)
+        grid.addWidget(self.rect_erase_btn, 4, 2)
+        grid.addWidget(self.tri_add_btn, 4, 3)
+        grid.addWidget(self.tri_erase_btn, 4, 4)
+
+        # Row 5: Ring mask parameters
         self.inner_radius = QtWidgets.QSpinBox()
         self.inner_radius.setRange(0, 10_000_000)
         self.inner_radius.setValue(0)
@@ -585,11 +631,11 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self.outer_radius.setFixedWidth(90)
         self.add_ring_btn = QtWidgets.QPushButton("Add Ring")
 
-        grid.addWidget(QtWidgets.QLabel("Inner R:"), 4, 0)
-        grid.addWidget(self.inner_radius, 4, 1)
-        grid.addWidget(QtWidgets.QLabel("Outer R:"), 4, 2)
-        grid.addWidget(self.outer_radius, 4, 3)
-        grid.addWidget(self.add_ring_btn, 4, 4)
+        grid.addWidget(QtWidgets.QLabel("Inner R:"), 5, 0)
+        grid.addWidget(self.inner_radius, 5, 1)
+        grid.addWidget(QtWidgets.QLabel("Outer R:"), 5, 2)
+        grid.addWidget(self.outer_radius, 5, 3)
+        grid.addWidget(self.add_ring_btn, 5, 4)
         grid.setColumnStretch(12, 1)
 
         self.load_btn.clicked.connect(self.load_video)
@@ -609,6 +655,10 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self.show_mask.toggled.connect(self._on_mask_style_changed)
         self.alpha_slider.valueChanged.connect(self._on_mask_style_changed)
         self.color_btn.clicked.connect(self.choose_color)
+        self.rect_add_btn.clicked.connect(lambda: self.open_shape_selector("rectangle", True))
+        self.rect_erase_btn.clicked.connect(lambda: self.open_shape_selector("rectangle", False))
+        self.tri_add_btn.clicked.connect(lambda: self.open_shape_selector("triangle", True))
+        self.tri_erase_btn.clicked.connect(lambda: self.open_shape_selector("triangle", False))
         self.add_ring_btn.clicked.connect(self.add_ring_mask)
         self.inner_radius.valueChanged.connect(self._on_ring_changed)
         self.outer_radius.valueChanged.connect(self._on_ring_changed)
@@ -652,6 +702,10 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
             self.apply_btn,
             self.select_btn,
             self.export_btn,
+            self.rect_add_btn,
+            self.rect_erase_btn,
+            self.tri_add_btn,
+            self.tri_erase_btn,
         ):
             w.setEnabled(enabled)
         self._update_calib_button()
@@ -901,6 +955,32 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         self.brush_color = (color.red(), color.green(), color.blue())
         self._on_mask_style_changed()
 
+    def open_shape_selector(self, shape: str, paint: bool):
+        if self.total_frames == 0 or self.orig_img is None or self.mask is None:
+            return
+        dlg = ShapeMaskDialog(
+            self,
+            self.orig_img,
+            self.mask,
+            shape=shape,
+            paint=paint,
+        )
+        dlg.exec()
+
+    def apply_shape_mask(self, shape: str, points: list[tuple[float, float]], paint: bool):
+        if self.mask is None:
+            return
+
+        value = 1 if paint else 0
+        if shape == "rectangle":
+            _apply_rectangle_to_mask(self.mask, points, value)
+        elif shape == "triangle":
+            _apply_triangle_to_mask(self.mask, points, value)
+        else:
+            raise ValueError(f"Unsupported shape tool: {shape}")
+
+        self.view.schedule_redraw()
+
     def _on_paint(self, x: int, y: int, paint: bool):
         if self.mask is None:
             return
@@ -1004,7 +1084,7 @@ class VideoAnnotatorUI(QtWidgets.QMainWindow):
         cfg = {
             "plumes": int(self.num_plumes.value()),
             "offset": float(self.plume_offset.value()),
-            "centre_x": float(self.coord_x.value() + 3.0),        # Error spotted. 3 pxs
+            "centre_x": float(self.coord_x.value() ),        #+ 3.0 Error spotted. 3 pxs
             "centre_y": float(self.coord_y.value()),
             "inner_radius": float(self.ring_inner_radius),
             "outer_radius": float(self.ring_outer_radius),
@@ -1222,6 +1302,122 @@ class CircleSelectorDialog(QtWidgets.QDialog):
             it.setBrush(QtCore.Qt.BrushStyle.NoBrush)
             self.scene.addItem(it)
             self._point_items.append(it)
+
+
+class ShapeMaskDialog(QtWidgets.QDialog):
+    def __init__(
+        self,
+        parent: "VideoAnnotatorUI",
+        image: Image.Image,
+        mask: np.ndarray,
+        *,
+        shape: str,
+        paint: bool,
+    ):
+        super().__init__(parent)
+        self.parent_ui = parent
+        self.image = image
+        self.mask = np.asarray(mask, dtype=np.uint8)
+        self.shape = shape
+        self.paint = bool(paint)
+        self.zoom_factor = 1
+        self.points: list[tuple[float, float]] = []
+        self.required_points = 2 if shape == "rectangle" else 3
+
+        action = "Add" if self.paint else "Erase"
+        shape_name = "Rectangle" if shape == "rectangle" else "Triangle"
+        self.setWindowTitle(f"{action} {shape_name}")
+        self.resize(900, 700)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        ctrl = QtWidgets.QHBoxLayout()
+        layout.addLayout(ctrl)
+
+        self.info = QtWidgets.QLabel(
+            f"{action} {shape_name}: click {self.required_points} point(s). Right click resets."
+        )
+        ctrl.addWidget(self.info)
+        ctrl.addStretch(1)
+
+        self.view = QtWidgets.QGraphicsView()
+        self.view.setBackgroundBrush(QtGui.QBrush(QtGui.QColor("black")))
+        self.view.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, False)
+        self.scene = QtWidgets.QGraphicsScene(self.view)
+        self.view.setScene(self.scene)
+        self.pix_item = QtWidgets.QGraphicsPixmapItem()
+        self.scene.addItem(self.pix_item)
+        layout.addWidget(self.view, 1)
+
+        self.view.viewport().installEventFilter(self)
+        self.show_frame()
+
+    def eventFilter(self, obj, event):
+        if obj is self.view.viewport():
+            if event.type() == QtCore.QEvent.Type.Wheel:
+                delta = event.angleDelta().y()
+                direction = 1 if delta > 0 else -1
+                self.zoom_factor = max(1, self.zoom_factor + direction)
+                self.show_frame()
+                return True
+            if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+                if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                    scene_pos = self.view.mapToScene(event.position().toPoint())
+                    x = float(scene_pos.x() / self.zoom_factor)
+                    y = float(scene_pos.y() / self.zoom_factor)
+                    self.points.append((x, y))
+                    if len(self.points) >= self.required_points:
+                        self.parent_ui.apply_shape_mask(self.shape, self.points, self.paint)
+                        self.accept()
+                    else:
+                        self.show_frame()
+                    return True
+                if event.button() == QtCore.Qt.MouseButton.RightButton:
+                    self.points.clear()
+                    self.show_frame()
+                    return True
+        return super().eventFilter(obj, event)
+
+    def show_frame(self):
+        img = enlarge_image(self.image, int(self.zoom_factor)).convert("RGBA")
+
+        mask_img = Image.fromarray((self.mask > 0).astype(np.uint8) * 255)
+        mask_img = enlarge_image(mask_img, int(self.zoom_factor)).convert("L")
+        overlay_color = (*self.parent_ui.brush_color, 90)
+        overlay = Image.new("RGBA", img.size, overlay_color)
+        img.paste(overlay, (0, 0), mask_img)
+
+        draw = ImageDraw.Draw(img)
+        preview_color = (0, 255, 0, 255) if self.paint else (0, 128, 255, 255)
+        scaled_points = [
+            (x * self.zoom_factor, y * self.zoom_factor)
+            for x, y in self.points
+        ]
+
+        if len(scaled_points) >= 2:
+            if self.shape == "rectangle":
+                x0, y0 = scaled_points[0]
+                x1, y1 = scaled_points[-1]
+                draw.rectangle((x0, y0, x1, y1), outline=preview_color, width=2)
+            else:
+                draw.line(scaled_points, fill=preview_color, width=2)
+                if len(scaled_points) == self.required_points:
+                    draw.line(
+                        [scaled_points[-1], scaled_points[0]],
+                        fill=preview_color,
+                        width=2,
+                    )
+
+        radius = 4
+        for x, y in scaled_points:
+            draw.ellipse(
+                (x - radius, y - radius, x + radius, y + radius),
+                outline=preview_color,
+                width=2,
+            )
+
+        pixmap = QtGui.QPixmap.fromImage(_pil_rgba_to_qimage(img))
+        self.pix_item.setPixmap(pixmap)
+        self.scene.setSceneRect(QtCore.QRectF(0, 0, pixmap.width(), pixmap.height()))
 
 
 def main() -> int:

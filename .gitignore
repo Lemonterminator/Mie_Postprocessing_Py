@@ -67,6 +67,9 @@ MLP/synthetic_data.zip
 *.jpeg
 *.tif
 *.tiff
+OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
+OSCC_postprocessing/dewe/DeweFileLibrary/*.so
+OSCC_postprocessing/dewe/DeweFileLibrary/*.zip
 
 # IDE/editor
 .vscode/
