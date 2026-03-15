@@ -59,6 +59,11 @@ MLP/synthetic_data.zip
 *.h5
 .models/
 
+# Keep NVIDIA Optical Flow SDK contents versioned
+optical_flow_packages/
+optical_flow_packages/Optical_Flow_SDK*/
+optical_flow_packages/Optical_Flow_SDK*/**
+
 # Images/videos and heavy outputs (adjust as needed)
 *.mp4
 *.avi

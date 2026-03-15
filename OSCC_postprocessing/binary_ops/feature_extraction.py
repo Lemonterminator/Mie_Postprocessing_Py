@@ -20,10 +20,10 @@ def extract_single_plume_features(
     bw_video_col_sum=None,
 ):
     """Compute single-plume geometric features from a binarized video."""
+    from OSCC_postprocessing.analysis.regression import linear_regression_fixed_intercept
     from OSCC_postprocessing.analysis.single_plume import (
         bw_boundaries_all_points_single_plume,
         bw_boundaries_xband_filter_single_plume,
-        linear_regression_fixed_intercept,
     )
 
     bw_video_host = to_numpy_host(bw_video)
