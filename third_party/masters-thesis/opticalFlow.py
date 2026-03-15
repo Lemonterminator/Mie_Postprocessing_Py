@@ -9,7 +9,16 @@ Local changes:
 from concurrent.futures import ThreadPoolExecutor
 import os
 
-from OSCC_postprocessing.motion import compute_optical_flows
+from OSCC_postprocessing.motion import (
+    compute_optical_flow_magnitude,
+    compute_optical_flows,
+    normalize_flow_magnitude,
+)
+
+
+FLOW_NORM_LOWER_PERCENTILE = 5.0
+FLOW_NORM_UPPER_PERCENTILE = 99.0
+FLOW_MASK_THRESHOLD = 0.6
 
 
 def _resolve_backend_name(method):
@@ -108,6 +117,33 @@ def _default_max_workers():
     return max(1, min(8, cpu_count))
 
 
+def _normalize_weighted_magnitude_array(
+    mag_array,
+    firstFrameNumber,
+    *,
+    normalize,
+    lower_percentile,
+    upper_percentile,
+):
+    import numpy as np
+
+    result = np.asarray(mag_array, dtype=np.float32).copy()
+    if not normalize:
+        return result
+
+    active = result[firstFrameNumber + 1 :]
+    if active.size == 0:
+        return result
+
+    result[firstFrameNumber + 1 :] = normalize_flow_magnitude(
+        active,
+        lower_percentile=lower_percentile,
+        upper_percentile=upper_percentile,
+    )
+    result[: firstFrameNumber + 1] = 0.0
+    return result
+
+
 def _frame_pairs(video, firstFrameNumber):
     """Yield independent `(frame_idx, prev_frame, frame)` tasks for parallel flow evaluation."""
     first_frame = video[firstFrameNumber]
@@ -133,7 +169,12 @@ def _process_farneback_cluster_task(task):
 
     flow = opticalFlowFarnebackCalculation(prev_frame, frame)
     mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-    mask = (mag > 0.4).astype(np.uint8) * 255
+    mag_n = normalize_flow_magnitude(
+        mag,
+        lower_percentile=FLOW_NORM_LOWER_PERCENTILE,
+        upper_percentile=FLOW_NORM_UPPER_PERCENTILE,
+    )
+    mask = (mag_n > FLOW_MASK_THRESHOLD).astype(np.uint8) * 255
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     cluster_mask = create_cluster_mask(mask, cluster_distance=50, alpha=40)
     clustered_overlay = overlay_cluster_outline(frame, cluster_mask)
@@ -148,7 +189,12 @@ def _process_deepflow_cluster_task(task, deepflow):
 
     flow = opticalFlowDeepFlowCalculation(prev_frame, frame, deepflow)
     mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-    mask = (mag > 1.0).astype(np.uint8) * 255
+    mag_n = normalize_flow_magnitude(
+        mag,
+        lower_percentile=FLOW_NORM_LOWER_PERCENTILE,
+        upper_percentile=FLOW_NORM_UPPER_PERCENTILE,
+    )
+    mask = (mag_n > FLOW_MASK_THRESHOLD).astype(np.uint8) * 255
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     cluster_mask = create_cluster_mask(mask, cluster_distance=50, alpha=40)
     clustered_overlay = overlay_cluster_outline(frame, cluster_mask)
@@ -214,7 +260,16 @@ def runOpticalFlowCalculation(firstFrameNumber, video, method, deepflow=None):
     
 
 
-def runOpticalFlowCalculationWeighted(firstFrameNumber, video, method, deepflow=None):
+def runOpticalFlowCalculationWeighted(
+    firstFrameNumber,
+    video,
+    method,
+    deepflow=None,
+    *,
+    normalize=True,
+    lower_percentile=FLOW_NORM_LOWER_PERCENTILE,
+    upper_percentile=FLOW_NORM_UPPER_PERCENTILE,
+):
     """Compute flow magnitudes with solver-specific input preparation.
 
     Backend input expectations handled here:
@@ -222,6 +277,8 @@ def runOpticalFlowCalculationWeighted(firstFrameNumber, video, method, deepflow=
     - raft: (F, H, W) numpy/cupy, integer or float. Backend normalizes and pads internally.
     - nvidia_hw: (F, H, W) cupy float16/float32. This wrapper converts to float32 and clips/scales to <=255.
     - deepflow: per-pair single-channel uint8. Legacy path converts each frame internally.
+    - return value: raw pixels/frame if ``normalize=False``; otherwise robustly
+      normalized to ``[0, 1]`` across the active video window.
     """
     import numpy as np
 
@@ -235,9 +292,24 @@ def runOpticalFlowCalculationWeighted(firstFrameNumber, video, method, deepflow=
     if firstFrameNumber + 1 >= nframes:
         return mag_array
 
+    if str(method).lower() == "farneback":
+        tasks = list(_frame_pairs(video, firstFrameNumber))
+        max_workers = _default_max_workers()
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for i, mag in executor.map(_process_farneback_weighted_task, tasks):
+                mag_array[i] = mag
+                print(f"Processed frame {i+1}/{nframes}")
+        return _normalize_weighted_magnitude_array(
+            mag_array,
+            firstFrameNumber,
+            normalize=normalize,
+            lower_percentile=lower_percentile,
+            upper_percentile=upper_percentile,
+        )
+
     # Keep DeepFlow on the legacy per-pair path. The unified backend covers the
     # maintained solvers: Farneback, RAFT, and NVIDIA hardware optical flow.
-    if method == 'DeepFlow':
+    if str(method).lower() == "deepflow":
         if deepflow is None:
             raise ValueError("DeepFlow instance must be provided for DeepFlow method.")
 
@@ -256,10 +328,15 @@ def runOpticalFlowCalculationWeighted(firstFrameNumber, video, method, deepflow=
             for i, mag in executor.map(_process_deepflow_weighted_task, tasks):
                 mag_array[i] = mag
                 print(f"Processed frame {i+1}/{nframes}")
-        return mag_array
+        return _normalize_weighted_magnitude_array(
+            mag_array,
+            firstFrameNumber,
+            normalize=normalize,
+            lower_percentile=lower_percentile,
+            upper_percentile=upper_percentile,
+        )
 
     backend = _resolve_backend_name(method)
-
     if backend == "nvidia_hw":
         try:
             import cupy as cp
@@ -270,17 +347,22 @@ def runOpticalFlowCalculationWeighted(firstFrameNumber, video, method, deepflow=
     else:
         video_input = video[firstFrameNumber:]
 
-    flows = compute_optical_flows(video_input, backend=backend, out_hw_last=True)
+    mags = compute_optical_flow_magnitude(
+        video_input,
+        backend=backend,
+        normalize=normalize,
+        lower_percentile=lower_percentile,
+        upper_percentile=upper_percentile,
+    )
 
     try:
         import cupy as cp
-        if isinstance(flows, cp.ndarray):
-            mags = cp.linalg.norm(flows, axis=-1)
-            mag_array[firstFrameNumber + 1:] = cp.asnumpy(mags).astype(np.float32, copy=False)
+
+        if isinstance(mags, cp.ndarray):
+            mag_array[firstFrameNumber + 1 :] = cp.asnumpy(mags).astype(np.float32, copy=False)
             return mag_array
     except Exception:
         pass
 
-    mags = np.linalg.norm(np.asarray(flows), axis=-1).astype(np.float32, copy=False)
-    mag_array[firstFrameNumber + 1:] = mags
+    mag_array[firstFrameNumber + 1 :] = np.asarray(mags, dtype=np.float32)
     return mag_array

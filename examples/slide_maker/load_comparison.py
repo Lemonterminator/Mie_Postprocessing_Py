@@ -4,6 +4,8 @@ Load Comparison - Load processed data for testpoint comparison
 
 Reads saved data from process_all.py and locates files for comparison.
 In "sample" mode, finds the first repetition (rep 1) for each testpoint.
+In "average" mode, finds all repetitions for each test point. 
+
 
 Input Structure (created by process_all.py):
     {video_dir}/Processed_Results/
@@ -141,6 +143,144 @@ def find_files_for_testpoint(
     return sorted(matches)
 
 
+def get_related_file_key(path: Path) -> str:
+    """Return a repetition-agnostic key for grouping related files."""
+    parts = [
+        part
+        for part in path.stem.split("_")
+        if not (len(part) == 4 and part.isdigit())
+    ]
+    return "_".join(parts)
+
+
+def group_related_files(files: List[Path]) -> Dict[str, List[Path]]:
+    """Group repetition files that represent the same processed output."""
+    groups: Dict[str, List[Path]] = {}
+    for path in sorted(files):
+        groups.setdefault(get_related_file_key(path), []).append(path)
+    return groups
+
+
+def _load_first_npz_array(path: Path) -> np.ndarray:
+    """Load the first array stored in an NPZ file."""
+    with np.load(path) as npz:
+        key = npz.files[0]
+        return np.asarray(npz[key])
+
+
+def _average_loaded_arrays(files: List[Path], loader) -> np.ndarray:
+    """Average same-shaped 2D/3D arrays with a streaming float32 accumulator."""
+    total = np.asarray(loader(files[0]), dtype=np.float32)
+    if total.ndim < 2:
+        raise ValueError(f"Expected 2D or 3D array for averaging, got shape {total.shape} from {files[0]}")
+    total = total.copy()
+
+    for path in files[1:]:
+        arr = np.asarray(loader(path), dtype=np.float32)
+        if arr.shape != total.shape:
+            raise ValueError(
+                f"Cannot average arrays with different shapes: {files[0].name} {total.shape} vs {path.name} {arr.shape}"
+            )
+        np.add(total, arr, out=total)
+
+    total /= np.float32(len(files))
+    return total
+
+
+def _load_heatmap_csv(path: Path) -> np.ndarray:
+    """Load a raw 2D heatmap CSV."""
+    return np.loadtxt(path, delimiter=",", dtype=np.float32)
+
+
+def _average_tabular_csvs(files: List[Path]) -> pd.DataFrame:
+    """Average numeric columns across matching CSV tables."""
+    base = pd.read_csv(files[0])
+    if len(files) == 1:
+        return base
+
+    numeric_columns = list(base.select_dtypes(include=[np.number]).columns)
+    numeric_total = None
+    if numeric_columns:
+        numeric_total = base[numeric_columns].to_numpy(dtype=np.float32, copy=True)
+
+    for path in files[1:]:
+        current = pd.read_csv(path)
+        if current.shape != base.shape or list(current.columns) != list(base.columns):
+            raise ValueError(
+                f"Cannot average CSV tables with different layouts: {files[0].name} vs {path.name}"
+            )
+        if numeric_total is not None:
+            np.add(
+                numeric_total,
+                current[numeric_columns].to_numpy(dtype=np.float32, copy=False),
+                out=numeric_total,
+            )
+
+    if numeric_total is not None:
+        numeric_total /= np.float32(len(files))
+        base.loc[:, numeric_columns] = numeric_total
+    return base
+
+
+def load_related_files(
+    file_map: Dict[str, Dict[str, List[Path]]],
+    mode: str = "sample",
+    align_config: Optional[dict] = None,
+) -> Dict[str, Dict[str, object]]:
+    """Load located comparison files, averaging repetitions in ``average`` mode."""
+    mode = mode.lower()
+    if mode not in {"sample", "average"}:
+        raise ValueError(f"Unsupported mode: {mode!r}")
+
+    loaded: Dict[str, Dict[str, object]] = {data_type: {} for data_type in file_map}
+    align_config = align_config or {}
+
+    for data_type, testpoint_map in file_map.items():
+        for tp_str, files in testpoint_map.items():
+            if not files:
+                loaded[data_type][tp_str] = None if data_type == "dewe_csv" else {}
+                continue
+
+            if data_type == "dewe_csv":
+                df = pd.read_csv(files[0], index_col=0)
+                if align_config:
+                    df = align_dewe_dataframe_to_soe(
+                        df,
+                        injection_current_col=align_config.get(
+                            "injection_current_col",
+                            "Main Injector - Current Profile",
+                        ),
+                        grad_threshold=align_config.get("grad_threshold", 5),
+                        pre_samples=align_config.get("pre_samples", 50),
+                        window_ms=align_config.get("window_ms", 10.0),
+                    )
+                loaded[data_type][tp_str] = df
+                continue
+
+            grouped = group_related_files(files)
+            loaded_groups: Dict[str, object] = {}
+            for group_key, group_files in grouped.items():
+                first_path = group_files[0]
+                if first_path.suffix.lower() == ".npz":
+                    if mode == "average" and len(group_files) > 1:
+                        loaded_groups[group_key] = _average_loaded_arrays(group_files, _load_first_npz_array)
+                    else:
+                        loaded_groups[group_key] = _load_first_npz_array(first_path)
+                elif "_heatmap" in first_path.stem.lower():
+                    if mode == "average" and len(group_files) > 1:
+                        loaded_groups[group_key] = _average_loaded_arrays(group_files, _load_heatmap_csv)
+                    else:
+                        loaded_groups[group_key] = _load_heatmap_csv(first_path)
+                elif mode == "average":
+                    loaded_groups[group_key] = _average_tabular_csvs(group_files)
+                else:
+                    loaded_groups[group_key] = pd.read_csv(first_path)
+
+            loaded[data_type][tp_str] = loaded_groups
+
+    return loaded
+
+
 # =============================================================================
 # Data Loading
 # =============================================================================
@@ -159,13 +299,14 @@ def locate_comparison_files(
     testpoints : list of int
         Testpoint numbers to compare (e.g., [2, 56])
     mode : str
-        "sample" = first repetition only, "all" = all repetitions
+        "sample" = first repetition only, "average" = average repeated outputs
     
     Returns
     -------
     dict
         Nested dict: {data_type: {testpoint: [file_paths]}}
     """
+    mode = mode.lower()
     result = {
         "dewe_csv": {},
         "mie_data": {},
@@ -176,7 +317,11 @@ def locate_comparison_files(
         "schlieren_video": {},
     }
     
+    if mode not in {"sample", "average"}:
+        raise ValueError(f"Unsupported mode: {mode!r}")
+
     repetition = 1 if mode == "sample" else None
+    dewe_repetition = 1
     
     for tp in testpoints:
         tp_str = str(tp)
@@ -185,7 +330,7 @@ def locate_comparison_files(
         dewe_dir = Path(config["directories"].get("dewe", ""))
         if dewe_dir.exists():
             dewe_data_dir = dewe_dir / "Processed_Results" / "Postprocessed_Data"
-            files = find_files_for_testpoint(dewe_data_dir, tp_str, ".csv", repetition)
+            files = find_files_for_testpoint(dewe_data_dir, tp_str, ".csv", dewe_repetition)
             result["dewe_csv"][tp_str] = files
         
         # Mie files

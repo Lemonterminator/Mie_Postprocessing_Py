@@ -181,7 +181,7 @@ def compute_nvidia_hw_flows(
     video: "cp.ndarray",
     *,
     input_max: float | None = None,
-    preset: str = "medium",
+    preset: str = "slow",
     grid_size: int = 1,
     enable_temporal_hints: bool = True,
     device_id: int | None = None,

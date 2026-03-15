@@ -8,6 +8,24 @@ import numpy as np
 from .nvidia_hw_optical_flow import compute_nvidia_hw_flows
 
 
+def _get_array_module(arr):
+    try:
+        import cupy as cp  # type: ignore
+
+        if isinstance(arr, cp.ndarray):
+            return cp
+    except Exception:
+        pass
+    return np
+
+
+def _scalar_to_float(value: Any) -> float:
+    try:
+        return float(value.item())
+    except Exception:
+        return float(value)
+
+
 def _filter_kwargs_for_callable(func, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Keep only keyword arguments accepted by ``func``."""
     sig = inspect.signature(func)
@@ -67,6 +85,68 @@ def _normalize_to_255(arr: np.ndarray, bits: Optional[int]):
     if input_max and input_max > 0:
         arr = arr * (255.0 / input_max)
     return np.clip(arr, 0.0, 255.0)
+
+
+def compute_flow_magnitude(flows: "np.ndarray | any") -> "np.ndarray | any":
+    """Return optical-flow magnitude in pixels per frame.
+
+    Accepts either ``(F-1, H, W, 2)`` or ``(F-1, 2, H, W)`` flow stacks and
+    returns a magnitude stack shaped ``(F-1, H, W)`` in the same array backend
+    (NumPy or CuPy).
+    """
+    xp = _get_array_module(flows)
+    arr = flows.astype(xp.float32, copy=False)
+    if arr.ndim != 4:
+        raise ValueError(f"Expected a 4D flow stack, got shape {arr.shape}")
+    if arr.shape[-1] == 2:
+        return xp.linalg.norm(arr, axis=-1)
+    if arr.shape[1] == 2:
+        return xp.linalg.norm(arr, axis=1)
+    raise ValueError(f"Flow stack must have a vector axis of length 2, got shape {arr.shape}")
+
+
+def normalize_flow_magnitude(
+    magnitudes: "np.ndarray | any",
+    *,
+    lower_percentile: float = 5.0,
+    upper_percentile: float = 99.0,
+    eps: float = 1e-6,
+) -> "np.ndarray | any":
+    """Robustly scale optical-flow magnitudes to ``[0, 1]``.
+
+    The input is assumed to already be in physical pixel-displacement units.
+    Scaling is global over the provided stack so different optical-flow
+    backends can be consumed on the same downstream score scale.
+    """
+    if not 0.0 <= lower_percentile < upper_percentile <= 100.0:
+        raise ValueError("Expected 0 <= lower_percentile < upper_percentile <= 100")
+
+    xp = _get_array_module(magnitudes)
+    arr = magnitudes.astype(xp.float32, copy=False)
+    finite_mask = xp.isfinite(arr)
+    positive_mask = finite_mask & (arr > 0)
+
+    if not _scalar_to_float(xp.any(positive_mask)):
+        return xp.zeros_like(arr, dtype=xp.float32)
+
+    samples = arr[positive_mask]
+    lo = _scalar_to_float(xp.percentile(samples, lower_percentile))
+    hi = _scalar_to_float(xp.percentile(samples, upper_percentile))
+    max_sample = _scalar_to_float(xp.max(samples))
+
+    if not np.isfinite(lo):
+        lo = 0.0
+    if not np.isfinite(hi):
+        hi = max_sample
+    if hi <= lo + eps:
+        lo = 0.0
+        hi = max_sample
+    if hi <= lo + eps:
+        return xp.zeros_like(arr, dtype=xp.float32)
+
+    normalized = xp.clip((arr - lo) / (hi - lo + eps), 0.0, 1.0)
+    normalized = xp.where(finite_mask, normalized, 0.0)
+    return normalized.astype(xp.float32, copy=False)
 
 
 def _frame_to_tensor(frame: np.ndarray, bits: Optional[int], device: str):
@@ -391,3 +471,38 @@ def compute_optical_flows(
         return result
 
     raise ValueError("backend must be one of: auto, farneback, raft, nvidia_hw")
+
+
+def compute_optical_flow_magnitude(
+    video: "np.ndarray | any",
+    *,
+    backend: str = "auto",
+    normalize: bool = False,
+    lower_percentile: float = 5.0,
+    upper_percentile: float = 99.0,
+    return_cupy: bool | None = None,
+    bits: Optional[int] = None,
+    **kwargs: Any,
+):
+    """Compute pairwise optical-flow magnitude.
+
+    The raw magnitude is in pixels per frame for all supported backends.
+    Set ``normalize=True`` to robustly map the stack onto ``[0, 1]``.
+    """
+    magnitudes = compute_flow_magnitude(
+        compute_optical_flows(
+            video,
+            backend=backend,
+            out_hw_last=True,
+            return_cupy=return_cupy,
+            bits=bits,
+            **kwargs,
+        )
+    )
+    if not normalize:
+        return magnitudes
+    return normalize_flow_magnitude(
+        magnitudes,
+        lower_percentile=lower_percentile,
+        upper_percentile=upper_percentile,
+    )

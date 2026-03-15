@@ -6,6 +6,14 @@ import cv2
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
+from .stdfilt import (
+    stdfilt,
+    stdfilt_cupy,
+    stdfilt_video_auto,
+    stdfilt_video_cpu,
+    stdfilt_video_cupy,
+)
+
 # Optional GPU acceleration via CuPy.
 # Fall back to NumPy/SciPy on machines without CUDA (e.g. laptops).
 try:  # pragma: no cover - runtime hardware dependent
