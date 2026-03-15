@@ -13,7 +13,21 @@ This repository contains scripts for processing spray and schlieren videos, extr
 - `Results/`: Example output CSV files.
 - `Legacy/`: Older scripts kept for reference.
 
-## Requirements
+## Packaged usage
+
+Preferred installation for external users:
+
+```bash
+pip install oscc-postprocessing[masters-thesis]
+```
+
+Run the packaged CLI:
+
+```bash
+oscc-masters-thesis --video path/to/video.cine
+```
+
+## Local development requirements
 
 Install dependencies from:
 
@@ -21,7 +35,7 @@ Install dependencies from:
 pip install -r requirements.txt
 ```
 
-## Typical usage
+## Local repository usage
 
 Run the main pipeline:
 

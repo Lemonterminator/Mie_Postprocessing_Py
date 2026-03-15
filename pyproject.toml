@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mie-postprocessing"
+name = "oscc-postprocessing"
 version = "0.1.0"
 description = "Utilities for Mie imaging post-processing (masking, filters, plotting, I/O)."
 readme = "README.md"
@@ -31,12 +31,26 @@ dependencies = [
 cine = [
   "pycine>=0.2.0"
 ]
+masters-thesis = [
+  "pycine>=0.2.0"
+]
 gui = [
   "PySide6>=6.6"
 ]
+gpu = [
+  "cupy>=13"
+]
+
+[project.scripts]
+oscc-masters-thesis = "OSCC_postprocessing.masters_thesis.cli:main"
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.package-data]
+"OSCC_postprocessing.masters_thesis.resources" = [
+  "*.json"
+]
 
 [tool.setuptools.exclude-package-data]
 "OSCC_postprocessing.dewe" = [

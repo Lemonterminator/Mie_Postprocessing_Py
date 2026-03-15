@@ -673,8 +673,8 @@ def rotate_video_nozzle_at_0_half_numpy(
 
 def plot_inverse_maps(mapx, mapy):
     # bring back to NumPy if needed
-    mapx_np = np.asnumpy(mapx)
-    mapy_np = np.asnumpy(mapy)
+    mapx_np = np.asarray(mapx)
+    mapy_np = np.asarray(mapy)
 
     fig, axs = plt.subplots(1, 2, figsize=(12, 5))
 

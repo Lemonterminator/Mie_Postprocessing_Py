@@ -1,3 +1,4 @@
 exclude OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
 exclude OSCC_postprocessing/dewe/DeweFileLibrary/*.so
 exclude OSCC_postprocessing/dewe/DeweFileLibrary/*.zip
+recursive-include OSCC_postprocessing/masters_thesis/resources *.json

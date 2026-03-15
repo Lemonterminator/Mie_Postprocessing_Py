@@ -6,7 +6,12 @@ import cv2
 import concurrent.futures
 
 from concurrent.futures import as_completed, ProcessPoolExecutor
-import pycine.file as cine  # Ensure the pycine package is installed
+try:
+    import pycine.file as cine  # Ensure the pycine package is installed
+    _PYCINE_IMPORT_ERROR = None
+except Exception as exc:  # pragma: no cover - dependency availability
+    cine = None  # type: ignore[assignment]
+    _PYCINE_IMPORT_ERROR = exc
 # from scipy.ndimage import median_filter as ndi_median_filter
 # from scipy.ndimage import generic_filter, binary_opening, binary_fill_holes
 # from skimage.filters import threshold_otsu
@@ -35,6 +40,11 @@ def read_frame(cine_file_path, frame_offset, width, height):
 
 def load_cine_video(cine_file_path, frame_limit=None):
     """Load a full Cine video into memory as ``(frame, height, width)``."""
+    if cine is None:
+        raise RuntimeError(
+            "pycine is required to load .cine files. "
+            "Install the masters-thesis or cine extra, e.g. `pip install oscc-postprocessing[masters-thesis]`."
+        ) from _PYCINE_IMPORT_ERROR
     # Read the header
     header = cine.read_header(cine_file_path)
     # Extract width, height, and total frame count
