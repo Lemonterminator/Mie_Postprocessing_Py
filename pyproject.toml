@@ -11,9 +11,22 @@ version = "0.1.0"
 description = "Utilities for Mie imaging post-processing (masking, filters, plotting, I/O)."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "Proprietary" }
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 authors = [
   { name = "Jiang" }
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Image Processing"
 ]
 dependencies = [
   "numpy>=1.23",
@@ -43,6 +56,11 @@ gpu = [
 
 [project.scripts]
 oscc-masters-thesis = "OSCC_postprocessing.masters_thesis.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Lemonterminator/Mie_Postprocessing_Py"
+Repository = "https://github.com/Lemonterminator/Mie_Postprocessing_Py"
+Issues = "https://github.com/Lemonterminator/Mie_Postprocessing_Py/issues"
 
 [tool.setuptools]
 include-package-data = true
