@@ -7,7 +7,12 @@ under ``cine.dewe``.
 """
 
 from .cine_utils import CineReader
-from .functions_videos import *  # noqa: F401,F403
+try:
+    from .functions_videos import *  # noqa: F401,F403
+except Exception:
+    # Keep ``CineReader`` importable even when optional video-processing
+    # dependencies are not installed in the current environment.
+    pass
 
 __all__ = [
     "CineReader",

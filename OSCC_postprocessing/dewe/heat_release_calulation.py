@@ -96,9 +96,21 @@ def hrr_calc(
             return signal
 
         fs_eff = _effective_sample_rate(Fs, time, t)
-        wn = float(cutoff_hz) / (fs_eff / 2.0)
+        nyquist_hz = fs_eff / 2.0
+        if not np.isfinite(fs_eff) or fs_eff <= 0:
+            raise ValueError(f"{stage} effective sample rate is invalid: Fs={fs_eff}")
+
+        cutoff = float(cutoff_hz)
+        if cutoff >= nyquist_hz:
+            # Clamp slightly below Nyquist so borderline user config does not
+            # fail on floating-point roundoff or low-rate data.
+            cutoff = max(np.nextafter(nyquist_hz, 0.0), nyquist_hz * 0.999)
+
+        wn = cutoff / nyquist_hz
         if not (0 < wn < 1):
-            raise ValueError(f"{stage} cutoff {cutoff_hz} invalid for Fs={fs_eff}")
+            raise ValueError(
+                f"{stage} cutoff {cutoff_hz} invalid for Fs={fs_eff} (Nyquist={nyquist_hz})"
+            )
 
         if filter_name in {"none", "off"}:
             return signal
@@ -108,7 +120,7 @@ def hrr_calc(
         if filter_name == "fir":
             if fir_taps < 3:
                 raise ValueError(f"{stage} FIR requires fir_taps >= 3, got {fir_taps}")
-            b = firwin(fir_taps, cutoff_hz, window=fir_window, fs=fs_eff)
+            b = firwin(fir_taps, cutoff, window=fir_window, fs=fs_eff)
             return filtfilt(b, [1.0], signal, axis=0)
         raise ValueError(
             f"Unsupported filter='{filter}'. Use 'butterworth', 'fir', or None."

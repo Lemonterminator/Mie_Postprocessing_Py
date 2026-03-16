@@ -161,6 +161,151 @@ def find_file_for_testpoint(
     return None
 
 
+def find_files_for_testpoint(
+    directory: Path,
+    testpoint: str,
+    suffix: str = ".csv",
+    name_contains: Optional[str] = None,
+) -> List[Path]:
+    """Find all files matching a testpoint and suffix, sorted by name."""
+    if not directory.exists():
+        return []
+
+    matches: List[Path] = []
+    for f in sorted(directory.iterdir()):
+        if not f.is_file() or f.suffix.lower() != suffix.lower():
+            continue
+        if name_contains and name_contains not in f.name:
+            continue
+        tp = parse_testpoint_from_filename(f.name)
+        if tp == testpoint:
+            matches.append(f)
+    return matches
+
+
+def load_first_npz_array(path: Path) -> np.ndarray:
+    """Load the first stored array from an NPZ file."""
+    with np.load(path) as npz:
+        key = npz.files[0]
+        return np.asarray(npz[key])
+
+
+def average_arrays(paths: List[Path], loader) -> np.ndarray:
+    """Average arrays with conservative shape reconciliation.
+
+    Strategy:
+    - keep only the most common non-time shape
+    - if only the leading dimension differs, truncate to the shortest length
+    """
+    if not paths:
+        raise ValueError("average_arrays requires at least one path")
+
+    loaded = [(path, np.asarray(loader(path), dtype=np.float32)) for path in paths]
+
+    ndim_values = {arr.ndim for _, arr in loaded}
+    if len(ndim_values) != 1:
+        raise ValueError(
+            "Cannot average arrays with different ranks: "
+            + ", ".join(f"{path.name} {arr.shape}" for path, arr in loaded)
+        )
+
+    if loaded[0][1].ndim == 0:
+        raise ValueError(f"Expected array input, got scalar from {loaded[0][0].name}")
+
+    shape_groups: Dict[Tuple[int, ...], List[Tuple[Path, np.ndarray]]] = {}
+    for path, arr in loaded:
+        trailing_shape = tuple(arr.shape[1:]) if arr.ndim >= 2 else tuple()
+        shape_groups.setdefault(trailing_shape, []).append((path, arr))
+
+    if len(shape_groups) > 1:
+        selected_shape, selected_group = max(
+            shape_groups.items(),
+            key=lambda item: (len(item[1]), item[0]),
+        )
+        skipped = [
+            f"{path.name} {arr.shape}"
+            for trailing_shape, group in shape_groups.items()
+            if trailing_shape != selected_shape
+            for path, arr in group
+        ]
+        print(
+            "  Warning: averaging arrays with different spatial shapes; "
+            f"keeping shape {selected_shape} and skipping: {', '.join(skipped)}"
+        )
+        loaded = selected_group
+
+    leading_lengths = [arr.shape[0] for _, arr in loaded]
+    min_len = min(leading_lengths)
+    max_len = max(leading_lengths)
+    if min_len != max_len:
+        print(
+            "  Warning: averaging arrays with different frame counts; "
+            f"truncating to {min_len}. Files: "
+            + ", ".join(f"{path.name} ({arr.shape[0]})" for path, arr in loaded)
+        )
+        loaded = [(path, arr[:min_len].copy()) for path, arr in loaded]
+
+    total = loaded[0][1].copy()
+    for _, current in loaded[1:]:
+        np.add(total, current, out=total)
+    total /= np.float32(len(loaded))
+    return total
+
+
+def average_dataframes(paths: List[Path], *, index_col: Optional[int] = None) -> pd.DataFrame:
+    """Average numeric columns across CSV files, tolerating missing columns."""
+    if not paths:
+        raise ValueError("average_dataframes requires at least one path")
+
+    base = pd.read_csv(paths[0], index_col=index_col)
+    if len(paths) == 1:
+        return base
+
+    frames = [base]
+    for path in paths[1:]:
+        current = pd.read_csv(path, index_col=index_col)
+        frames.append(current)
+
+    row_counts = [frame.shape[0] for frame in frames]
+    min_rows = min(row_counts)
+    max_rows = max(row_counts)
+    if min_rows != max_rows:
+        print(
+            "  Warning: averaging CSV files with different row counts; "
+            f"truncating to {min_rows} rows. Files: "
+            + ", ".join(f"{path.name} ({count})" for path, count in zip(paths, row_counts))
+        )
+        frames = [frame.iloc[:min_rows].copy() for frame in frames]
+        base = frames[0]
+
+    result = base.copy()
+    all_columns = []
+    for frame in frames:
+        for col in frame.columns:
+            if col not in all_columns:
+                all_columns.append(col)
+
+    for col in all_columns:
+        numeric_series = []
+        for frame in frames:
+            if col not in frame.columns:
+                continue
+            series = frame[col]
+            if pd.api.types.is_numeric_dtype(series):
+                numeric_series.append(series.to_numpy(dtype=np.float32, copy=False))
+
+        if numeric_series:
+            stacked = np.stack(numeric_series, axis=0)
+            result[col] = stacked.mean(axis=0, dtype=np.float32)
+        elif col not in result.columns:
+            for frame in frames:
+                if col in frame.columns:
+                    result[col] = frame[col]
+                    break
+
+    return result
+
+
 # =============================================================================
 # Data Loading
 # =============================================================================
@@ -173,6 +318,9 @@ class ComparisonData:
         self.testpoints = testpoints
         self.testpoint_strs = [str(tp) for tp in testpoints]
         self.num_cases = len(testpoints)
+        self.mode = str(config.get("processing", {}).get("mode", "sample")).lower()
+        if self.mode not in {"sample", "average"}:
+            raise ValueError(f"Unsupported processing mode: {self.mode!r}")
         
         # Data storage
         self.dewe_data: Dict[str, pd.DataFrame] = {}
@@ -205,10 +353,14 @@ class ComparisonData:
         dewe_dir = Path(self.config["directories"].get("dewe", ""))
         if dewe_dir.exists():
             dewe_data_dir = dewe_dir / "Processed_Results" / "Postprocessed_Data"
-            dewe_file = find_file_for_testpoint(dewe_data_dir, tp_str, ".csv", 1)
-            if dewe_file:
-                print(f"  Dewe CSV: {dewe_file}")
-                df = pd.read_csv(dewe_file, index_col=0)
+            dewe_files = (
+                find_files_for_testpoint(dewe_data_dir, tp_str, ".csv")
+                if self.mode == "average"
+                else ([find_file_for_testpoint(dewe_data_dir, tp_str, ".csv", 1)] if find_file_for_testpoint(dewe_data_dir, tp_str, ".csv", 1) else [])
+            )
+            if dewe_files:
+                print(f"  Dewe CSV ({self.mode}): {len(dewe_files)} file(s)")
+                df = average_dataframes(dewe_files, index_col=0) if self.mode == "average" else pd.read_csv(dewe_files[0], index_col=0)
                 df.index.name = "time_s"
                 self.dewe_data[tp_str] = df
             else:
@@ -218,53 +370,80 @@ class ComparisonData:
         mie_dir = Path(self.config["directories"].get("mie", ""))
         if mie_dir.exists():
             mie_data_dir = mie_dir / "Processed_Results" / "Postprocessed_Data"
-            mie_file = find_file_for_testpoint(mie_data_dir, tp_str, ".csv", 1, name_contains="_metrics")
-            if mie_file:
-                print(f"  Mie CSV: {mie_file}")
-                self.mie_data[tp_str] = pd.read_csv(mie_file)
+            mie_files = (
+                find_files_for_testpoint(mie_data_dir, tp_str, ".csv", name_contains="_metrics")
+                if self.mode == "average"
+                else ([find_file_for_testpoint(mie_data_dir, tp_str, ".csv", 1, name_contains="_metrics")] if find_file_for_testpoint(mie_data_dir, tp_str, ".csv", 1, name_contains="_metrics") else [])
+            )
+            if mie_files:
+                print(f"  Mie CSV ({self.mode}): {len(mie_files)} file(s)")
+                self.mie_data[tp_str] = average_dataframes(mie_files) if self.mode == "average" else pd.read_csv(mie_files[0])
             else:
                 print(f"  Mie CSV: NOT FOUND (looking for *_metrics.csv in {mie_data_dir})")
             
             # Load Mie video
             mie_video_dir = mie_dir / "Processed_Results" / "Rotated_Videos"
-            mie_video_file = find_file_for_testpoint(mie_video_dir, tp_str, ".npz", 1)
-            if mie_video_file:
-                print(f"  Mie video: {mie_video_file}")
-                npz = np.load(mie_video_file)
-                # Get the first array in the npz file
-                key = list(npz.keys())[0]
-                self.mie_videos[tp_str] = npz[key]
+            mie_video_files = (
+                find_files_for_testpoint(mie_video_dir, tp_str, ".npz")
+                if self.mode == "average"
+                else ([find_file_for_testpoint(mie_video_dir, tp_str, ".npz", 1)] if find_file_for_testpoint(mie_video_dir, tp_str, ".npz", 1) else [])
+            )
+            if mie_video_files:
+                print(f"  Mie video ({self.mode}): {len(mie_video_files)} file(s)")
+                self.mie_videos[tp_str] = (
+                    average_arrays(mie_video_files, load_first_npz_array)
+                    if self.mode == "average"
+                    else load_first_npz_array(mie_video_files[0])
+                )
         
         # Load Schlieren video
         sch_dir = Path(self.config["directories"].get("schlieren", ""))
         if sch_dir.exists():
             sch_video_dir = sch_dir / "Processed_Results" / "Rotated_Videos"
-            sch_video_file = find_file_for_testpoint(sch_video_dir, tp_str, ".npz", 1)
-            if sch_video_file:
-                print(f"  Schlieren video: {sch_video_file}")
-                npz = np.load(sch_video_file)
-                key = list(npz.keys())[0]
-                self.schlieren_videos[tp_str] = npz[key]
+            sch_video_files = (
+                find_files_for_testpoint(sch_video_dir, tp_str, ".npz")
+                if self.mode == "average"
+                else ([find_file_for_testpoint(sch_video_dir, tp_str, ".npz", 1)] if find_file_for_testpoint(sch_video_dir, tp_str, ".npz", 1) else [])
+            )
+            if sch_video_files:
+                print(f"  Schlieren video ({self.mode}): {len(sch_video_files)} file(s)")
+                self.schlieren_videos[tp_str] = (
+                    average_arrays(sch_video_files, load_first_npz_array)
+                    if self.mode == "average"
+                    else load_first_npz_array(sch_video_files[0])
+                )
         
         # Load Luminescence video (optional)
         lum_dir = Path(self.config["directories"].get("luminescence", ""))
         if lum_dir.exists():
             lum_video_dir = lum_dir / "Processed_Results" / "Rotated_Videos"
-            lum_video_file = find_file_for_testpoint(lum_video_dir, tp_str, ".npz", 1)
-            if lum_video_file:
-                print(f"  Luminescence video: {lum_video_file}")
-                npz = np.load(lum_video_file)
-                key = list(npz.keys())[0]
-                self.luminescence_videos[tp_str] = npz[key]
+            lum_video_files = (
+                find_files_for_testpoint(lum_video_dir, tp_str, ".npz")
+                if self.mode == "average"
+                else ([find_file_for_testpoint(lum_video_dir, tp_str, ".npz", 1)] if find_file_for_testpoint(lum_video_dir, tp_str, ".npz", 1) else [])
+            )
+            if lum_video_files:
+                print(f"  Luminescence video ({self.mode}): {len(lum_video_files)} file(s)")
+                self.luminescence_videos[tp_str] = (
+                    average_arrays(lum_video_files, load_first_npz_array)
+                    if self.mode == "average"
+                    else load_first_npz_array(lum_video_files[0])
+                )
             
             # Load pre-computed luminescence heatmap (if available)
             lum_data_dir = lum_dir / "Processed_Results" / "Postprocessed_Data"
-            heatmap_file = find_file_for_testpoint(lum_data_dir, tp_str, ".npz", 1, name_contains="_heatmap")
-            if heatmap_file:
-                print(f"  Luminescence heatmap: {heatmap_file}")
-                npz = np.load(heatmap_file)
-                key = list(npz.keys())[0]
-                self.luminescence_heatmaps[tp_str] = npz[key]
+            heatmap_files = (
+                find_files_for_testpoint(lum_data_dir, tp_str, ".npz", name_contains="_heatmap")
+                if self.mode == "average"
+                else ([find_file_for_testpoint(lum_data_dir, tp_str, ".npz", 1, name_contains="_heatmap")] if find_file_for_testpoint(lum_data_dir, tp_str, ".npz", 1, name_contains="_heatmap") else [])
+            )
+            if heatmap_files:
+                print(f"  Luminescence heatmap ({self.mode}): {len(heatmap_files)} file(s)")
+                self.luminescence_heatmaps[tp_str] = (
+                    average_arrays(heatmap_files, load_first_npz_array)
+                    if self.mode == "average"
+                    else load_first_npz_array(heatmap_files[0])
+                )
 
 
 # =============================================================================
