@@ -364,12 +364,13 @@ def penetration_bw_to_index(bw):
     This is commonly used on column-summed plume masks:
     ``penetration_bw_to_index(mask.sum(axis=1) > threshold)``.
 
-    Rows without any foreground return ``-1``.
+    Rows without any foreground return ``0`` so exported penetration traces
+    stay non-negative and can be interpreted as "no downstream extent yet".
     """
     arr = np.asarray(bw, dtype=bool)
     any_true = arr.any(axis=1)
     last_true = arr.shape[1] - 1 - arr[:, ::-1].argmax(axis=1)
-    last_true[~any_true] = -1
+    last_true[~any_true] = 0
     return last_true
 
 

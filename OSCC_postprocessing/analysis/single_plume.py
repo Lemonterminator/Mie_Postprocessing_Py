@@ -187,7 +187,7 @@ def binarize_single_plume_video(
     labels, num = ndi.label(bw_cpu)
     if int(num) == 0:
         empty_mask = np.zeros_like(bw_cpu, dtype=bool)
-        penetration = np.full(F, -1, dtype=int)
+        penetration = np.zeros(F, dtype=int)
         return empty_mask, penetration
 
     volumes = ndi.sum(bw_cpu, labels, range(1, num + 1))

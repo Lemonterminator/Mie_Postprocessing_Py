@@ -1,0 +1,251 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+\title{Toy Inference From a Saved Run Directory}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Audience and Goal}
+\textbf{Audience:} Engineers who want a quick post-training sanity check without rebuilding the full dataset.
+
+\vspace{0.5em}
+\textbf{Goal of this talk:}
+\begin{itemize}
+  \item Explain what \texttt{toy\_inference\_from\_run.ipynb} does.
+  \item Show how manual physical inputs are transformed into model-compatible features.
+  \item Interpret the notebook outputs: mean penetration, uncertainty band, and simple collision proxies.
+  \item Clarify what is useful now and what is still only a geometric approximation.
+\end{itemize}
+\end{frame}
+
+\section{Part 1: Inference Workflow}
+
+\begin{frame}{1.1 Notebook Workflow}
+\textbf{Core workflow:}
+\begin{enumerate}
+  \item Set \texttt{RUN\_DIR} and manual physical inputs.
+  \item Load \texttt{train\_config\_used.json}, \texttt{scaler\_state.json}, and model checkpoint.
+  \item Rebuild the exact training-time feature scaling.
+  \item Sweep time from \SI{0}{ms} to \SI{5}{ms} and predict $\mu(t)$ and $\log \sigma^2(t)$.
+  \item Visualize uncertainty and project the result into a simple 2D chamber geometry.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{1.2 Run Artifacts Used by the Notebook}
+\textbf{Observed default run directory in the notebook:}
+\begin{itemize}
+  \item \texttt{MLP/runs\_mlp/stage2\_NLL\_penetration\_20260317\_194155}
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Artifacts loaded from that run:}
+\begin{itemize}
+  \item network architecture and hyperparameters from \texttt{train\_config\_used.json}
+  \item scaling statistics from \texttt{scaler\_state.json}
+  \item model weights from the best available checkpoint
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Observed notebook output:}
+\begin{itemize}
+  \item device: \textbf{cuda}
+  \item feature dimension: \textbf{9}
+  \item checkpoint found in the example run: \texttt{best\_model\_stage1.pt}
+\end{itemize}
+\end{frame}
+
+\section{Part 2: Manual Inputs to Network Features}
+
+\begin{frame}{2.1 Example Toy Input Condition}
+\textbf{Default manual inputs in the notebook:}
+\begin{itemize}
+  \item tilt angle = $20^\circ$
+  \item plumes = 10
+  \item nozzle diameter = \SI{0.355}{mm}
+  \item injection duration = \SI{1000}{\micro\second}
+  \item injection pressure = \SI{2000}{bar}
+  \item chamber pressure = \SI{25}{bar}
+  \item control backpressure = \SI{4}{bar}
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Time sweep:}
+\begin{itemize}
+  \item \num{300} points over \SIrange{0}{5}{ms}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{2.2 How Raw Inputs Are Scaled}
+\textbf{The notebook reuses the same preprocessing logic as training:}
+\begin{itemize}
+  \item time is normalized to $[0,1]$ using the saved min/max
+  \item pressure terms use $\log P_{\text{inj}}$, $\log P_{\text{ch}}$, and $\log(P_{\text{inj}}-P_{\text{ch}})$
+  \item geometry and condition terms are z-scored using the saved train statistics
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Resulting feature vector per time point:}
+\[
+x_t =
+[
+\text{time\_norm},
+\text{tilt}_z,
+\text{plumes}_z,
+\text{diameter}_z,
+\text{duration}_z,
+\log P_{\text{inj},z},
+\log P_{\text{ch},z},
+\log \Delta P_z,
+\text{backpressure}_z
+]
+\]
+
+\vspace{0.3em}
+This guarantees inference uses the same input space as training.
+\end{frame}
+
+\section{Part 3: Penetration and Uncertainty Output}
+
+\begin{frame}{3.1 What the MLP Predicts}
+The loaded model outputs two channels:
+\[
+[\mu(t), \log \sigma^2(t)]
+\]
+
+\vspace{0.3em}
+\textbf{Post-processing in the notebook:}
+\[
+\sigma(t) = \max\!\left(\sqrt{e^{\log \sigma^2(t)}},\ \sigma_{\min}\right)
+\]
+
+\vspace{0.3em}
+\textbf{Then the notebook plots:}
+\begin{itemize}
+  \item predicted mean penetration $\mu(t)$
+  \item predictive interval $\mu(t)\pm \sigma(t)$
+  \item an optional \SI{90}{mm} reference line
+  \item where $\sigma_{\min}$ is the saved floor from \texttt{std\_clamp\_min}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{3.2 Example Numerical Output}
+\textbf{Observed time-sweep output from the notebook:}
+\begin{itemize}
+  \item feature matrix shape: \textbf{(300, 9)}
+  \item predicted std range: \textbf{6.27 mm to 15.15 mm}
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Example single-time query from the same run at \SI{0.5}{ms}:}
+\begin{itemize}
+  \item predicted mean penetration $\mu \approx \SI{32.74}{mm}$
+  \item predicted axial std $\sigma \approx \SI{10.18}{mm}$
+\end{itemize}
+
+\vspace{0.3em}
+This is the simplest way to check whether the Stage-2 model produces plausible uncertainty magnitudes under manually chosen conditions.
+\end{frame}
+
+\section{Part 4: 2D Geometry Proxy}
+
+\begin{frame}{4.1 Simple Mask-Based Overlap Solver}
+After 1D inference, the notebook builds a coarse 2D geometry:
+\begin{itemize}
+  \item cylinder radius = \SI{120}{mm}
+  \item cylinder height = \SI{60}{mm}
+  \item cylinder head offset = \SI{50}{mm}
+  \item grid size = \SI{1}{mm}
+  \item wall mask starts at $x \ge \SI{120}{mm}$
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{A simple deterministic proxy is formed by:}
+\begin{itemize}
+  \item projecting the predicted penetration along the spray tilt direction
+  \item turning the predicted mean length and $+1\sigma$ length into binary masks
+  \item measuring overlap area with wall and cylinder masks
+\end{itemize}
+\end{frame}
+
+\begin{frame}{4.2 Gaussian Collision Proxy}
+The notebook then upgrades the simple mask idea to a rotated 2D Gaussian:
+\[
+p(u,v) \propto
+\exp\!\left(
+-\frac{1}{2}\left[
+\left(\frac{u}{\sigma_{\text{axis}}}\right)^2 +
+\left(\frac{v}{\sigma_{\perp}}\right)^2
+\right]
+\right)
+\]
+
+\vspace{0.3em}
+\textbf{How the widths are chosen:}
+\begin{itemize}
+  \item axial spread: $\sigma_{\text{axis}} = \sigma$ from model output
+  \item orthogonal spread: plume width $\approx \mu \tan(\theta/2)$
+  \item notebook assumption: $\sigma_{\perp} \approx \text{width}/3$
+\end{itemize}
+
+\vspace{0.3em}
+The Gaussian is rotated by the spray tilt angle and integrated over wall/cylinder masks to get probability mass.
+\end{frame}
+
+\begin{frame}{4.3 Example Geometry Result}
+\textbf{Observed notebook outputs for the default test condition:}
+\begin{itemize}
+  \item simple wall collision area: \textbf{0}
+  \item simple cylinder collision area: \textbf{0}
+  \item $+1\sigma$ simple overlaps: also \textbf{0}
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Gaussian-mask probability masses:}
+\begin{itemize}
+  \item wall mass $\approx 1.07 \times 10^{-20}$
+  \item cylinder mass $\approx 6.09 \times 10^{-23}$
+  \item any collision mass $\approx 1.08 \times 10^{-20}$
+\end{itemize}
+
+\vspace{0.3em}
+For this operating condition, the toy case is effectively far from collision.
+\end{frame}
+
+\begin{frame}{4.4 What This Notebook Is Good For}
+\textbf{Current strengths:}
+\begin{itemize}
+  \item fast sanity check for trained runs
+  \item manual sensitivity study over pressure, duration, tilt, and diameter
+  \item quick interpretation of predicted uncertainty in physical units
+  \item simple geometry screening before building a more complete solver
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Current limitations:}
+\begin{itemize}
+  \item 2D spread is assumed, not learned directly from images
+  \item orthogonal Gaussian width is a heuristic from cone angle
+  \item collision metric is only a proxy, not a CFD or multiphase transport model
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Takeaway}
+\begin{itemize}
+  \item \texttt{toy\_inference\_from\_run.ipynb} turns a saved run directory into a practical engineering demo tool.
+  \item It exactly reuses the saved scaler and model interface, so toy inputs stay training-compatible.
+  \item The notebook does more than draw $\mu \pm \sigma$: it also maps 1D uncertainty into a simple 2D collision proxy.
+  \item This makes it a useful bridge between learned penetration prediction and geometry-aware downstream reasoning.
+\end{itemize}
+\end{frame}
+
+\end{document}

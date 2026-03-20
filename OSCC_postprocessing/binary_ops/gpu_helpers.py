@@ -55,7 +55,7 @@ def penetration_gpu(bw_cp):
     any_true = arr.any(axis=1)
     rev_idx = arr.shape[1] - 1 - arr[:, ::-1].argmax(axis=1)
     rev_idx = rev_idx.astype(int)
-    return cp.where(any_true, rev_idx, -1)
+    return cp.where(any_true, rev_idx, 0)
 
 
 def regionprops_gpu(label_img, intensity_img=None):

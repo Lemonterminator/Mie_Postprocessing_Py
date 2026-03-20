@@ -59,6 +59,9 @@ from OSCC_postprocessing.analysis.single_plume import (
 )
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
 from OSCC_postprocessing.binary_ops.binarized_metrics import processing_from_binarized_video
+from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component_cuda
+from OSCC_postprocessing.binary_ops._backend import cndi
+from OSCC_postprocessing.utils.scaling import robust_scale
 import pandas as pd
 
 
@@ -86,6 +89,8 @@ else:
     from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
+
+triangle_binarize_gpu = _triangle_binarize_gpu
 
 
 def _as_numpy(arr):

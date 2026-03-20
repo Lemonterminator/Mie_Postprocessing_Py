@@ -1,5 +1,15 @@
 {
     "files.watcherExclude": {
         "**/target": true
+    },
+    "chat.tools.terminal.autoApprove": {
+        "/^python -c \"\nimport sys\nsys\\.path\\.insert\\(0, 'C:/Users/Jiang/Documents/Mie_Postprocessing_Py'\\)\nimport main\nprint\\('Main module imported successfully'\\)\nprint\\('Available functions:'\\)\nprint\\(\\[func for func in dir\\(main\\) if not func\\.startswith\\('_'\\)\\]\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"\nimport sys\nsys\\.path\\.insert\\(0, 'C:/Users/Jiang/Documents/Mie_Postprocessing_Py'\\)\nimport main\nprint\\('=== Mie Postprocessing Pipeline Analysis ==='\\)\nprint\\(\\)\nprint\\('This script processes \\.cine video files for Mie scattering analysis\\.'\\)\nprint\\(\\)\nprint\\('Key features:'\\)\nprint\\('- Asynchronous processing of video files'\\)\nprint\\('- Multi-threaded and multi-process execution'\\)\nprint\\('- Support for CUDA acceleration \\(when available\\)'\\)\nprint\\('- Processing of multiple plumes in spray analysis'\\)\nprint\\('- Penetration profile calculations'\\)\nprint\\('- Spray metrics computation'\\)\nprint\\(\\)\nprint\\('Main function: main\\(\\)'\\)\nprint\\('Dependencies: numpy, pandas, scipy, scikit-image, opencv-python, cupy'\\)\nprint\\(\\)\nprint\\('To run the script:'\\)\nprint\\('1\\. Ensure all dependencies are installed'\\)\nprint\\('2\\. Set the parent folder containing \\.cine files'\\)\nprint\\('3\\. Run: python main\\.py -p \\\\\"path/to/parent/folder\\\\\"'\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
