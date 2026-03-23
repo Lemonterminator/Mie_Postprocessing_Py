@@ -2,6 +2,30 @@
     "files.watcherExclude": {
         "**/target": true
     },
+    "latex-workshop.view.pdf.viewer": "tab",
+    "latex-workshop.latex.autoBuild.run": "onSave",
+    "latex-workshop.latex.outDir": "%DIR%",
+    "latex-workshop.latex.tools": [
+        {
+            "name": "xelatex",
+            "command": "xelatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        }
+    ],
+    "latex-workshop.latex.recipes": [
+        {
+            "name": "xelatex",
+            "tools": [
+                "xelatex"
+            ]
+        }
+    ],
+    "latex-workshop.latex.recipe.default": "first",
     "chat.tools.terminal.autoApprove": {
         "/^python -c \"\nimport sys\nsys\\.path\\.insert\\(0, 'C:/Users/Jiang/Documents/Mie_Postprocessing_Py'\\)\nimport main\nprint\\('Main module imported successfully'\\)\nprint\\('Available functions:'\\)\nprint\\(\\[func for func in dir\\(main\\) if not func\\.startswith\\('_'\\)\\]\\)\n\"$/": {
             "approve": true,
