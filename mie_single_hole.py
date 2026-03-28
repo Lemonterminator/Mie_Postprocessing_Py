@@ -710,7 +710,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
             nozzle_opening_detection_height, 
             nozzle_opening_detection_width,
             umbrella_angle=umbrella_angle,
-            thres_penetration_num_pix=5
+            thres_penetration_num_pix=5,
+            inner_radius=inner_radius,
         )
         area = full_metrics["area"]
         penetration_bw_x = full_metrics["penetration_bw_x"]

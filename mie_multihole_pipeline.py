@@ -336,10 +336,12 @@ def penetration_cdf_all_plumes(arr_4d, inner_radius, quantile = 1.0-3e-2, frames
     # Sum over H axis
     heatmaps = xp.sum(arr_4d, axis=2) # P, F, W
 
-
-    # 1. Initialize the storage array with the same shape as penetration_td
-    # We assume penetration_td is already defined in your context
-    penetration_cdf_all = np.zeros((heatmaps.shape[0], heatmaps.shape[1]))
+    use_gpu = hasattr(heatmaps, "__cuda_array_interface__")
+    xhat_all = (cp.empty if use_gpu else np.empty)(
+        (heatmaps.shape[0], heatmaps.shape[1]),
+        dtype=np.int32,
+    )
+    opening_structure = cp.ones((7, 3)) if use_gpu else np.ones((7, 3), dtype=bool)
 
     # 2. Iterate through all available indices
     # We use the length of the map list to determine the range
@@ -358,17 +360,15 @@ def penetration_cdf_all_plumes(arr_4d, inner_radius, quantile = 1.0-3e-2, frames
         # Process mask
         mask = 1 - (keep_largest_component_cuda(1 - mask))
 
-        mask = cndi.binary_opening(mask, cp.ones((7, 3)))
+        mask = cndi.binary_opening(mask, opening_structure)
 
         # Compute penetration curve
         xhat = penetration_cdf_front(I, mask=mask, q=quantile, min_x=10)
-        pen0 = np.maximum.accumulate(xhat.get())
-
-        # Store the result in the array
-        # penetration_cdf_all[idx] = pen0
-        penetration_cdf_all[idx] = pen0
+        xhat_all[idx] = xhat
 
     # Now penetration_cdf_all contains the computed curves for all indices
+    penetration_cdf_all = cp.asnumpy(xhat_all) if use_gpu else np.asarray(xhat_all)
+    penetration_cdf_all = np.maximum.accumulate(penetration_cdf_all, axis=1)
     
     # Offset: inner radius 
     return np.maximum(0, penetration_cdf_all-inner_radius)
