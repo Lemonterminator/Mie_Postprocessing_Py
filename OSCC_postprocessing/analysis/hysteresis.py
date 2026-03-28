@@ -1,5 +1,8 @@
-from OSCC_postprocessing.analysis.multihole_utils import resolve_backend 
-from OSCC_postprocessing.analysis.single_plume import * 
+import numpy as np
+
+from OSCC_postprocessing.analysis.multihole_utils import resolve_backend
+from OSCC_postprocessing.utils.backend import USING_CUPY, cp
+
 use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
 
 def longest_true_run(mask): # type:ignore

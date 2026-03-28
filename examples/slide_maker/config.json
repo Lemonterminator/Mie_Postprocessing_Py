@@ -1,7 +1,8 @@
 {
     "directories": {
-        "schlieren": "G:\\MeOH_test\\Schlieren",
+        
         "mie": "G:\\MeOH_test\\Mie",
+        "schlieren": "G:\\MeOH_test\\Schlieren",
         "luminescence": "G:\\MeOH_test\\NFL",
         "dewe": "G:\\MeOH_test\\Dewe"
     },
@@ -35,7 +36,7 @@
         "Duration - Cold": [15, 16, 17]
     },
     "processing": {
-        "mode": "sample",
+        "mode": "average",
         "save_processed_video_strips": false,
         "saved_video_fps": 20,
         "video_bits": 12,

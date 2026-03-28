@@ -38,7 +38,9 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 # Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from OSCC_postprocessing.dewe.dewe import (
     load_dataframe,
@@ -46,12 +48,21 @@ from OSCC_postprocessing.dewe.dewe import (
     plot_dataframe,
     plot_reactive,
 )
-from OSCC_postprocessing.cine.functions_videos import load_cine_video
 
-# Video processing pipelines
-from mie_single_hole import mie_single_hole_pipeline
-from luminesence import luminescence_pipeline
-from examples.archieve.singlehole_pipeline import singlehole_pipeline
+
+def _load_video_dependencies():
+    from OSCC_postprocessing.cine.functions_videos import load_cine_video
+    from OSCC_postprocessing.utils.scaling import robust_scale
+    from examples.archieve.singlehole_pipeline import singlehole_pipeline
+    from luminesence import luminescence_pipeline
+    from mie_single_hole import mie_single_hole_pipeline
+
+    return (
+        load_cine_video,
+        mie_single_hole_pipeline,
+        luminescence_pipeline,
+        singlehole_pipeline,
+    )
 
 
 # =============================================================================
@@ -164,6 +175,17 @@ def process_video_data(config: dict, video_type: str) -> None:
 
     print(f"\n{'='*60}\nProcessing {video_type.capitalize()} videos: {video_dir}\n{'='*60}")
 
+    try:
+        (
+            load_cine_video,
+            mie_single_hole_pipeline,
+            luminescence_pipeline,
+            singlehole_pipeline,
+        ) = _load_video_dependencies()
+    except Exception as exc:
+        print(f"  Unable to load {video_type} video dependencies: {exc}")
+        return
+
     # Setup output directories
     results_dir = video_dir / "Processed_Results"
     rotated_dir = results_dir / "Rotated_Videos"
@@ -275,8 +297,12 @@ def process_dewe_data(config: dict) -> None:
         csv_out = data_dir / f"{dxd_file.stem}.csv"
         if not csv_out.exists():
             print(f"Converting: {dxd_file.name} -> CSV")
-            df = load_dataframe(dxd_file)
-            df.to_csv(csv_out)
+            try:
+                df = load_dataframe(dxd_file)
+                df.to_csv(csv_out)
+            except Exception as exc:
+                print(f"Skipping Dewesoft processing: {exc}")
+                return
 
     # Get all CSV files
     csv_files = list(iter_files(data_dir, ".csv"))

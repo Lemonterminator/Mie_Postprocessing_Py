@@ -1,0 +1,4 @@
+\beamer@sectionintoc {1}{Part 1: Inference Workflow}{3}{0}{1}
+\beamer@sectionintoc {2}{Part 2: Manual Inputs to Network Features}{5}{0}{2}
+\beamer@sectionintoc {3}{Part 3: Penetration and Uncertainty Output}{7}{0}{3}
+\beamer@sectionintoc {4}{Part 4: 2D Geometry Proxy}{9}{0}{4}

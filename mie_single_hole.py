@@ -3,7 +3,7 @@ from OSCC_postprocessing.cine.functions_videos import *
 from pathlib import Path
 import json
 import os
-from OSCC_postprocessing.filters.bilateral_filter import *
+from OSCC_postprocessing.filters.bilateral_filter_rawKernel import *
 from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.analysis.multihole_utils import * 
 import cupy as cp
@@ -78,6 +78,7 @@ from OSCC_postprocessing.analysis.single_plume import (
     save_boundary_csv,
     to_numpy,
 )
+from OSCC_postprocessing.utils.scaling import robust_scale
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
 from OSCC_postprocessing.binary_ops.binarized_metrics import processing_from_binarized_video
 import pandas as pd
@@ -428,6 +429,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
 
 
     Lo_Hi = cp.zeros_like(near_nozzle_intensity_sums, dtype=cp.bool_)
+    hd = xp.asarray(np.nan, dtype=xp.float32)
+    nc = xp.asarray(np.nan, dtype=xp.float32)
 
 
     # y =_min_max_scale( near_nozzle_intensity_sums.T) # cupy -> numpy
@@ -753,8 +756,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
     df["Cone_Angle_Angular_Density"]            = _as_numpy(cone_angle_AD)
     df["Cone_Angle_Angular_Density_Upper"]      = _as_numpy(cone_angle_AD_up)
     df["Cone_Angle_Angular_Density_Lower"]      = _as_numpy(cone_angle_AD_down)
-    df["Hydraulic Delay"]                       = _as_numpy(hd)
-    df["Nozzle Closing"]                        = _as_numpy(nc)
+    df["Hydraulic Delay"] = np.full(F, hydraulic_delay, dtype=np.float32)
+    df["Nozzle Closing"] = np.full(F, nozzle_closing, dtype=np.float32)
 
     executor = None
     if solver == "full":

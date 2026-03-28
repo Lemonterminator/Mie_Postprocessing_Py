@@ -27,16 +27,25 @@ from typing import Iterable, Tuple
 
 import numpy as np
 
-# Add parent directories to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from OSCC_postprocessing.cine.functions_videos import load_cine_video
 from OSCC_postprocessing.dewe.dewe import load_dataframe
 
-# Video processing pipelines
-from mie_single_hole import mie_single_hole_pipeline
-from luminesence import luminescence_pipeline
-from examples.archieve.singlehole_pipeline import singlehole_pipeline
+
+def _load_video_dependencies():
+    from OSCC_postprocessing.cine.functions_videos import load_cine_video
+    from examples.archieve.singlehole_pipeline import singlehole_pipeline
+    from luminesence import luminescence_pipeline
+    from mie_single_hole import mie_single_hole_pipeline
+
+    return (
+        load_cine_video,
+        mie_single_hole_pipeline,
+        luminescence_pipeline,
+        singlehole_pipeline,
+    )
 
 
 # =============================================================================
@@ -125,6 +134,17 @@ def process_video_files(config: dict, video_type: str) -> None:
         return
 
     print(f"\n{'='*60}\nProcessing {video_type.capitalize()} videos: {video_dir}\n{'='*60}")
+
+    try:
+        (
+            load_cine_video,
+            mie_single_hole_pipeline,
+            luminescence_pipeline,
+            singlehole_pipeline,
+        ) = _load_video_dependencies()
+    except Exception as exc:
+        print(f"  Unable to load {video_type} video dependencies: {exc}")
+        return
 
     # Setup output directories
     _, rotated_dir, data_dir, plots_dir = setup_output_dirs(video_dir)
@@ -227,10 +247,10 @@ def process_video_files(config: dict, video_type: str) -> None:
                     quant_store_metadata=quant_store_metadata,
                 )
             
-            print(f"    ✓ Done: {cine_file.name}")
+            print(f"    [OK] Done: {cine_file.name}")
         except Exception as e:
             import traceback
-            print(f"    ✗ Error processing {cine_file.name}: {e}")
+            print(f"    [ERROR] Error processing {cine_file.name}: {e}")
             traceback.print_exc()
 
 
@@ -268,9 +288,12 @@ def process_dewe_files(config: dict) -> None:
         try:
             df = load_dataframe(dxd_file)
             df.to_csv(csv_out)
-            print(f"    ✓ Saved: {csv_out.name}")
+            print(f"    [OK] Saved: {csv_out.name}")
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            print(f"    [ERROR] Error: {e}")
+            if "pandas is required" in str(e):
+                print("    Skipping remaining Dewesoft conversion because pandas is not installed.")
+                return
 
 
 # =============================================================================
@@ -302,7 +325,7 @@ def main():
     process_dewe_files(config)
 
     print("\n" + "="*60)
-    print("✓ All processing complete!")
+    print("[OK] All processing complete!")
     print("="*60)
     return 0
 

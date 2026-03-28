@@ -5,57 +5,39 @@ from OSCC_postprocessing.metrics.ssim import *
 from OSCC_postprocessing.filters.video_filters import *
 from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.playback.video_playback import *
-# from mie_multihole_pipeline import *
-import matplotlib.pyplot as plt
-# from main_utils_temp import *
-
-# from examples.Schlieren_singlehole_pipeline import *
-import subprocess
-from scipy.signal import convolve2d
+from OSCC_postprocessing.utils.scaling import *
 import asyncio
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import re
 import gc
 import json
 from pathlib import Path
-from OSCC_postprocessing.io.async_npz_saver import AsyncNPZSaver
 import pandas as pd
 from mie_multihole_pipeline import * 
-
-global parent_folder
-global plumes
-global offset
-global centre
-global hydraulic_delay
-global gain 
-global gamma
-global testpoint_name
-global video_name
 
 # =============================================================================
 # Experiment Config Loading and Results Management
 # =============================================================================
 
 # Define the parent folder and other global variables
-parent_folder = r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"
-# res_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\results"
-# rotated_vid_dir = r"G:\OSCC\LubeOil\BC20241003_HZ_Nozzle1\rotated"
-experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"
+parent_folder = r"F:\LubeOil\BC20241016_HZ_Nozzle8\cine"
+
+experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json"
 
 # =============================================================================
 # Image processing config
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier=2.5
+noise_floor_multiplier=2
 nozzle_opening_detection_height = 20
 nozzle_opening_detection_width = 30
 thres_penetration_num_pix = 5 # minimum width of the binarizaed spary for x-axis penetration detection
 save_boundary_points_csv = False
 
 # =============================================================================
-# Default nozzle properties, safe fall back if not defined in test matrix.
+# Default nozzle properties, safe fall back if not defined in test matrix or in cine.
 # =============================================================================
 FPS_default = 34000 # 25000
 injection_pressure_bar_default = 2000
@@ -93,6 +75,7 @@ def resolve_metadata_with_fallbacks(
     nozzle_props: dict,
     test_condition: dict,
     injection_duration_us,
+    cine_fps=None,
     num_rows: int,
     context: str,
 ) -> dict:
@@ -104,7 +87,7 @@ def resolve_metadata_with_fallbacks(
         "plumes": nozzle_props.get("plumes"),
         "diameter_mm": nozzle_props.get("diameter_mm"),
         "umbrella_angle_deg": nozzle_props.get("umbrella_angle_deg"),
-        "fps": nozzle_props.get("fps"),
+        "fps": cine_fps if not _is_missing_value(cine_fps) else nozzle_props.get("fps"),
         "chamber_pressure_bar": test_condition.get("chamber_pressure_bar"),
         "injection_duration_us": injection_duration_us,
         "injection_pressure_bar": test_condition.get("injection_pressure_bar"),
@@ -516,14 +499,403 @@ def numeric_then_alpha_key(p: Path):
         return (0, int(m.group(0)))          # group 0 = first number
     else:
         return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
+
+
+def _ensure_directory(path: Path):
+    """Create a directory if missing and keep reruns quiet when it already exists."""
+    try:
+        os.mkdir(path)
+    except FileExistsError:
+        print(f"Directory {path} already exists. Using existing directory.")
+
+
+def _append_processing_log(log_path: Path, message: str):
+    """Append a one-line timestamped progress record to the run log."""
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {message}\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _write_checkpoint(
+    checkpoint_path: Path,
+    *,
+    status: str,
+    file_path: Path | None = None,
+    outputs: dict | None = None,
+    error: str | None = None,
+):
+    """Persist the latest processing state so reruns can resume safely."""
+    payload = {
+        "status": status,
+        "file": str(file_path) if file_path is not None else None,
+        "outputs": outputs or {},
+        "error": error,
+        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    with open(checkpoint_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _load_subfolder_config(files: list[Path]) -> tuple[int, tuple[float, float], float, float]:
+    """
+    Load the per-testpoint geometry from ``config.json``.
+
+    Each subfolder contains one config file describing the injector layout used
+    by all ``.cine`` files inside that folder. We parse it once and reuse the
+    values for every video in the folder.
+    """
+    for file in files:
+        if file.name != "config.json":
+            continue
+        with open(file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return (
+            int(data["plumes"]),
+            (float(data["centre_x"]), float(data["centre_y"])),
+            float(data["inner_radius"]),
+            float(data["outer_radius"]),
+        )
+    raise FileNotFoundError("config.json not found in subfolder")
+
+
+def _load_video_to_backend(file: Path):
+    """
+    Load one video and normalize it into the active array backend.
+
+    The pipeline uses ``xp`` from the imported processing modules, so this
+    helper mirrors that choice:
+    - GPU path: move to CuPy and normalize in device memory
+    - CPU path: keep a NumPy array and normalize on host
+    """
+    video_cpu = load_cine_video(file, frame_limit=frame_limit)
+    if xp is cp:
+        video = cp.asarray(video_cpu)
+        video = video.astype(cp.float16, copy=False)
+        video /= cp.float16(4096)
+        cp.cuda.Stream.null.synchronize()
+        return video
+
+    video = np.asarray(video_cpu, dtype=np.float16)
+    video /= np.float16(4096)
+    return video
+
+
+def _read_cine_fps(file: Path) -> float | int | None:
+    """
+    Read FPS directly from the Phantom ``.cine`` header when available.
+
+    ``pycine`` exposes the acquisition metadata through ``setup``. We prefer
+    the file-native frame rate over the JSON nozzle config because it is tied
+    to the actual recording.
+    """
+    if cine is None:
+        return None
+
+    try:
+        header = cine.read_header(file)
+    except Exception:
+        return None
+
+    setup = header.get("setup")
+    if setup is None:
+        return None
+
+    for attr in ("FrameRate", "FrameRate16", "fPbRate"):
+        value = getattr(setup, attr, None)
+        if not _is_missing_value(value) and float(value) > 0:
+            return value
+    return None
+
+
+def _cleanup_iteration_state(state: dict):
+    """
+    Release large per-file objects after each ``.cine`` is processed.
+
+    ``state`` stores temporary arrays and DataFrames created during one file's
+    processing. Clearing it in one place makes success, early-return, and error
+    paths behave the same way.
+    """
+    if xp is cp:
+        # Make sure queued GPU work is finished before releasing memory blocks.
+        cp.cuda.Stream.null.synchronize()
+
+    state.clear()
+    gc.collect()
+
+    if xp is cp:
+        # CuPy keeps freed blocks in its memory pools for reuse. We explicitly
+        # return them here because this script runs many files back-to-back and
+        # we want predictable long-run behavior, not maximum reuse.
+        cp.get_default_memory_pool().free_all_blocks()
+        cp.get_default_pinned_memory_pool().free_all_blocks()
+
+
+def _collect_metric_columns(hp_segments_bw, num_frames: int, umbrella_angle: float):
+    """
+    Extract spray metrics for every plume segment.
+
+    ``hp_segments_bw`` is already binarized per plume. We process one plume at
+    a time in the current process to avoid Windows ``spawn`` overhead and large
+    memory spikes from duplicating plume videos across worker processes.
+    """
+    metric_columns = {}
+    num_segments = len(hp_segments_bw)
+    all_boundaries = [None] * num_segments
+
+    for idx, segment_bw in enumerate(hp_segments_bw):
+        _, metrics = _compute_spray_metrics_for_segment(
+            (
+                idx,
+                _as_numpy(segment_bw),
+                nozzle_opening_detection_height,
+                nozzle_opening_detection_width,
+                umbrella_angle,
+                thres_penetration_num_pix,
+            )
+        )
+        for feature_name, values in metrics.items():
+            if feature_name == "boundary":
+                if save_boundary_points_csv:
+                    all_boundaries[idx] = values
+                continue
+
+            col_name = f"{feature_name}_plume_{idx}"
+            if np.isscalar(values):
+                metric_columns[col_name] = np.full(num_frames, values)
+            else:
+                metric_columns[col_name] = _as_numpy(values)
+
+    return metric_columns, all_boundaries
+
+
+def _save_boundary_points(save_path_subfolder: Path, video_name: str, all_boundaries: list):
+    """Persist optional boundary-point CSVs for plumes that produced contours."""
+    if not save_boundary_points_csv or not any(boundary is not None for boundary in all_boundaries):
+        return
+
+    boundary_path_subfolder = save_path_subfolder / "boundary_points"
+    boundary_path_subfolder.mkdir(parents=True, exist_ok=True)
+    valid_boundaries = [
+        (plume_idx, boundary)
+        for plume_idx, boundary in enumerate(all_boundaries)
+        if boundary is not None
+    ]
+    max_workers = min(4, len(valid_boundaries))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                save_boundary_csv,
+                boundary,
+                boundary_path_subfolder / f"{video_name}_plume_{plume_idx}_boundary_points.csv",
+            )
+            for plume_idx, boundary in valid_boundaries
+        ]
+        for future in as_completed(futures):
+            future.result()
+
+
+def _process_cine_file(
+    *,
+    file: Path,
+    directory_path: Path,
+    save_path_subfolder: Path,
+    exp_config: dict,
+    nozzle_props: dict,
+    test_condition: dict,
+    number_of_plumes: int,
+    centre: tuple[float, float],
+    ir_: float,
+    or_: float,
+    ring_mask,
+    log_path: Path,
+    checkpoint_path: Path,
+):
+    """
+    Process one ``.cine`` file end-to-end and return the reusable ring mask.
+
+    The returned ``ring_mask`` lets the caller reuse the same annular mask for
+    the rest of the files in the same subfolder, which avoids rebuilding it for
+    every video.
+    """
+    # ``state`` intentionally holds every large temporary object created during
+    # this file's processing so ``finally`` can release them uniformly.
+    state = {"ring_mask": ring_mask}
+    retained_ring_mask = ring_mask
+
+    try:
+        video_name = file.stem
+        relative_label = f"{file.parts[-3]} / {file.parts[-2]} / {file.parts[-1]}"
+        metrics_csv_path = save_path_subfolder / f"{video_name}.csv"
+        metadata_path = save_path_subfolder / f"{video_name}.meta.json"
+
+        if metrics_csv_path.exists() and metadata_path.exists():
+            skip_message = f"Skipping completed file: {relative_label}"
+            print(skip_message)
+            _append_processing_log(log_path, skip_message)
+            _write_checkpoint(
+                checkpoint_path,
+                status="skipped_existing",
+                file_path=file,
+                outputs={"metrics_csv": str(metrics_csv_path), "metadata": str(metadata_path)},
+            )
+            return retained_ring_mask
+
+        print("Procssing:", relative_label)
+        _append_processing_log(log_path, f"Procssing: {relative_label}")
+        _write_checkpoint(
+            checkpoint_path,
+            status="started",
+            file_path=file,
+            outputs={"metrics_csv": str(metrics_csv_path), "metadata": str(metadata_path)},
+        )
+
+        start_time = time.time()
+        state["video"] = _load_video_to_backend(file)
+
+        # The raw loader can legally return an empty array for malformed or
+        # unreadable inputs. In that case we skip the rest of the pipeline.
+        F, W, H = state["video"].shape
+        if F == 0:
+            return retained_ring_mask
+
+        # The annular mask depends only on geometry, not on the actual video
+        # content, so we build it once per subfolder and reuse it.
+        if state["ring_mask"] is None:
+            state["ring_mask"] = generate_ring_mask(H, W, centre, ir_, or_)
+        retained_ring_mask = state["ring_mask"]
+
+        # Preprocessing and postprocessing remain on the active backend
+        # (CuPy or NumPy). This keeps the heavy array work in one memory space.
+        state["foreground"], state["highpass_filtered"] = mie_multihole_preprocessing(
+            state["video"],
+            state["ring_mask"],
+            wsize=3,
+            sigma=1,
+            noise_floor_multiplier=noise_floor_multiplier,
+        )
+
+        state["hp_segments"] = mie_multihole_postprocessing(
+            state["foreground"],
+            state["highpass_filtered"],
+            centre,
+            number_of_plumes,
+            ir_,
+            or_,
+        )
+        state["hp_segments_bw"] = triangle_binarize_gpu(robust_scale(state["hp_segments"], 5, 99.9))
+        state["penetration_highpass"] = penetration_cdf_all_plumes(
+            state["hp_segments"], ir_, quantile=1.0 - 5e-3
+        )
+
+        print("GPU work completed in {:.2f}s".format(time.time() - start_time))
+
+        # From here on we mostly do bookkeeping and tabular assembly. The
+        # penetration cleaning is kept explicit because these few steps define
+        # the final exported time series.
+        state["penetration_diff"] = np.diff(state["penetration_highpass"], axis=1)
+        diff_threshold = 0
+        x_loc, y_loc = np.where(state["penetration_diff"] < diff_threshold)
+
+        for plume_idx, frame_idx in zip(x_loc, y_loc):
+            state["penetration_highpass"][plume_idx, frame_idx - 1 :] = np.nan
+
+        state["valid_penetration_mask"] = ~np.isnan(state["penetration_highpass"])
+
+        P, _ = state["valid_penetration_mask"].shape
+        for p in range(P):
+            state["valid_penetration_mask"][p] = remove_short_true_runs(
+                state["valid_penetration_mask"][p], min_len=5
+            )
+
+        state["cleaned_penetration_highpass"] = (
+            state["penetration_highpass"] * state["valid_penetration_mask"]
+        )
+
+        num_frames = state["cleaned_penetration_highpass"].shape[1]
+        cine_number = extract_cine_number(file)
+        cine_fps = _read_cine_fps(file)
+        injection_duration_us = compute_injection_duration_us(
+            exp_config,
+            cine_number,
+            fallback=test_condition.get("injection_duration_us"),
+        )
+        state["metadata"] = resolve_metadata_with_fallbacks(
+            nozzle_props=nozzle_props,
+            test_condition=test_condition,
+            injection_duration_us=injection_duration_us,
+            cine_fps=cine_fps,
+            num_rows=num_frames,
+            context=f"{save_path_subfolder / f'{video_name}.csv'}",
+        )
+
+        # Build the exported table in two phases:
+        # 1. penetration traces
+        # 2. derived spray metrics from the binarized plume videos
+        state["df"] = pd.DataFrame({"frame_idx": list(range(num_frames))})
+
+        for plume_idx in range(P):
+            state["df"][f"penetration_cdf_plume_{plume_idx}"] = _as_numpy(
+                state["cleaned_penetration_highpass"][plume_idx]
+            )
+
+        umbrella_angle = float(state["metadata"].get("umbrella_angle_deg"))
+        metric_columns, all_boundaries = _collect_metric_columns(
+            state["hp_segments_bw"], num_frames, umbrella_angle
+        )
+        if metric_columns:
+            state["df"] = pd.concat(
+                [state["df"], pd.DataFrame(metric_columns, index=state["df"].index)],
+                axis=1,
+            )
+
+        metadata_payload = {
+            key: _to_json_scalar(value)
+            for key, value in state["metadata"].items()
+        }
+        _save_metrics_and_metadata_csv(
+            state["df"],
+            metrics_csv_path,
+            metadata_payload,
+            metadata_path,
+        )
+        _save_boundary_points(save_path_subfolder, video_name, all_boundaries)
+
+        elapsed = time.time() - start_time
+        done_message = f"Completed: {relative_label} in {elapsed:.2f}s"
+        print(done_message)
+        _append_processing_log(log_path, done_message)
+        _write_checkpoint(
+            checkpoint_path,
+            status="completed",
+            file_path=file,
+            outputs={"metrics_csv": str(metrics_csv_path), "metadata": str(metadata_path)},
+        )
+
+    except Exception as exc:
+        _append_processing_log(log_path, f"FAILED: {relative_label} :: {type(exc).__name__}: {exc}")
+        _write_checkpoint(
+            checkpoint_path,
+            status="failed",
+            file_path=file,
+            outputs={"metrics_csv": str(metrics_csv_path), "metadata": str(metadata_path)},
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
+
+    finally:
+        retained_ring_mask = state.get("ring_mask", retained_ring_mask)
+        _cleanup_iteration_state(state)
+
+    return retained_ring_mask
     
 
 async def main():
-
+    """Walk every testpoint folder and process each ``.cine`` file in order."""
     subfolders = get_subfolder_names(parent_folder)  # Ensure get_subfolder_names is defined or imported
-
-    # Initialize background NPZ saver for penetration outputs
-    saver = AsyncNPZSaver(max_workers=2)
 
     # Load experiment configuration
     exp_config = load_experiment_config(experiment_config)
@@ -531,247 +903,51 @@ async def main():
 
     # General folder for saving results
     save_path = Path(parent_folder).parts[-2]
-    try:
-        os.mkdir(save_path)
-    except FileExistsError:
-        print(f"Directory {save_path} already exists. Using existing directory.") 
+    _ensure_directory(Path(save_path))
+    log_path = Path(save_path) / "processing.log"
+    checkpoint_path = Path(save_path) / "processing_checkpoint.json"
+    _append_processing_log(log_path, f"Session started for parent folder: {parent_folder}")
 
     try:
         for subfolder in subfolders:
             print(subfolder)
         
-            # Specify the directory path
+            # Each subfolder corresponds to one testpoint and has its own
+            # geometry/config metadata plus a list of cine files.
             directory_path = Path(parent_folder + "\\" + subfolder)
             save_path_subfolder = Path(save_path) / subfolder
-            try:
-                os.mkdir(save_path_subfolder)
-            except FileExistsError:
-                print(f"Directory {save_path_subfolder} already exists. Using existing directory.")
+            _ensure_directory(save_path_subfolder)
 
 
-            # Get a list of all files in the directory
+            # Sort once so repeated runs process files in a deterministic order.
             files = [file for file in directory_path.iterdir() if file.is_file()]
             files = sorted(files, key=numeric_then_alpha_key)  
+            number_of_plumes, centre, ir_, or_ = _load_subfolder_config(files)
 
-            for file in files:
-                # Find and read config.json
-                if file.name == 'config.json':
-                    with open(file, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-
-                        # process the data
-                        # for item in data:
-                            # print(item)
-                        number_of_plumes = int(data['plumes'])
-                        # offset = float(data['offset']) # Not used in mie_multihole_pipeline
-                        centre = (float(data['centre_x']), float(data['centre_y']))
-
-                        ir_ = float(data['inner_radius'])
-                        or_ = float(data['outer_radius'])
-                        
-
-
-            # Get test condition from subfolder name (e.g., T1, T01, Group_01)
+            # Map folder name (T1, T01, Group_01, ...) back to the matching test
+            # condition in the experiment matrix.
             group_id = extract_group_id_from_path(subfolder)
             test_condition = get_test_condition_by_id(exp_config, group_id) or {}
+            ring_mask = None  # Lazily initialized by the first valid cine file.
 
-            # print(files)
             for file in files:
-                if file.suffix == '.cine':
-
-
-
-                    
-                    testpoint_name = directory_path.stem
-                    video_name = file.stem
-        
-                    print("Procssing:", file.parts[-3], "/", file.parts[-2], "/", file.parts[-1])
-                    # start_time = time.time()
-
-
-                    
-                    video = load_cine_video(file, frame_limit=80).astype(np.float32)/4096
-                    video = xp.asarray(video)  # Ensure load_cine_video is defined or imported
-                    F, W, H = video.shape
-                    if F==0:
-                        continue
-
-                    
-                    centre_x = float(centre[0]) 
-                    centre_y = float(centre[1])
-
-                    # Create annular mask between inner and outer radius to focus on spray region
-                    ring_mask = generate_ring_mask(H, W, centre, ir_, or_)
-                    
-                    fg, hp = mie_multihole_preprocessing(
-                                video, 
-                                ring_mask,
-                                wsize=3,
-                                sigma=1,
-                                noise_floor_multiplier=noise_floor_multiplier
-                                )
-                    # Executions part
-
-                    # Nozzle 1
-                    # hp[hp < 3e-2] = 0.0
-
-                    # Nozzle 2
-                    # hp[hp < 2e-2] = 0.0
-                    # hp = hp ** 0.9
-
-                    # Nozzle 3
-                    # hp[hp< 1.5e-2] = 0.0
-                    # hp = hp ** 0.9
-
-                    # Nozzle 4
-                    # hp[hp < 5e-2] = 0.0
-                    # hp = hp ** 0.7
-
-                    hp_segments= mie_multihole_postprocessing(fg, hp, 
-                                 centre, number_of_plumes, ir_, or_)
-                    
-                    penetration_highpass = penetration_cdf_all_plumes(hp_segments, ir_, quantile=1.0-5e-3)
-
-                    # Calculate the first derivative of the penetration
-                    penetration_diff = np.diff(penetration_highpass, axis=1)
-
-                    # Remove the negative penetration difference
-                    diff_threshold = 0
-                    x_loc, y_loc = np.where(penetration_diff < diff_threshold)
-
-                    for plume_idx, frame_idx in zip(x_loc, y_loc):
-                        penetration_highpass[plume_idx, frame_idx-1:] = np.nan
-
-                    TF = ~ np.isnan(penetration_highpass)
-
-                    P, F = TF.shape
-                    for p in range(P):
-                        
-                        TF[p] = remove_short_true_runs(TF[p], min_len=5)
-
-                    penetration_highpass_cleaned = penetration_highpass * TF
-                    
-                    # Build DataFrame with experiment config and penetration data
-                    num_frames = penetration_highpass_cleaned.shape[1]
-                    cine_number = extract_cine_number(file)
-                    injection_duration_us = compute_injection_duration_us(
-                        exp_config,
-                        cine_number,
-                        fallback=test_condition.get('injection_duration_us'),
-                    )
-                    metadata = resolve_metadata_with_fallbacks(
-                        nozzle_props=nozzle_props,
-                        test_condition=test_condition,
-                        injection_duration_us=injection_duration_us,
-                        num_rows=num_frames,
-                        context=f"{save_path_subfolder / f'{video_name}.csv'}",
-                    )
-                    df = pd.DataFrame({
-                        # Frame index
-                        'frame_idx': list(range(num_frames)),
-                    })
-                    
-                    # Add penetration data per plume
-                    for plume_idx in range(P):
-                        df[f'penetration_cdf_plume_{plume_idx}'] = _as_numpy(penetration_highpass_cleaned[plume_idx])
-
-
-                    #============================================================
-                    #==============================     BW  
-                    #============================================================
-                    hp_segments_bw = triangle_binarize_gpu(robust_scale(hp_segments, 5, 99.9))
-
-                    metric_columns = {}
-                    num_segments = len(hp_segments_bw)
-                    all_boundaries = [None] * num_segments
-                    umbrella_angle = float(metadata.get('umbrella_angle_deg'))
-                    metric_jobs = [
-                        (
-                            idx,
-                            _as_numpy(segment_bw),
-                            nozzle_opening_detection_height,
-                            nozzle_opening_detection_width,
-                            umbrella_angle,
-                            thres_penetration_num_pix,
-                        )
-                        for idx, segment_bw in enumerate(hp_segments_bw)
-                    ]
-                    max_metric_workers = min(num_segments, os.cpu_count() or 1)
-                    if max_metric_workers > 1:
-                        with ProcessPoolExecutor(max_workers=max_metric_workers) as executor:
-                            metric_results = executor.map(_compute_spray_metrics_for_segment, metric_jobs, chunksize=1)
-                            for idx, metrics in metric_results:
-                                for feature_name, values in metrics.items():
-                                    if feature_name == "boundary":
-                                        if save_boundary_points_csv:
-                                            all_boundaries[idx] = values
-                                        continue
-
-                                    col_name = f"{feature_name}_plume_{idx}"
-                                    if np.isscalar(values):
-                                        metric_columns[col_name] = np.full(num_frames, values)
-                                    else:
-                                        metric_columns[col_name] = _as_numpy(values)
-                    else:
-                        for idx, metrics in map(_compute_spray_metrics_for_segment, metric_jobs):
-                            for feature_name, values in metrics.items():
-                                if feature_name == "boundary":
-                                    if save_boundary_points_csv:
-                                        all_boundaries[idx] = values
-                                    continue
-
-                                col_name = f"{feature_name}_plume_{idx}"
-                                if np.isscalar(values):
-                                    metric_columns[col_name] = np.full(num_frames, values)
-                                else:
-                                    metric_columns[col_name] = _as_numpy(values)
-                    if metric_columns:
-                        df = pd.concat([df, pd.DataFrame(metric_columns, index=df.index)], axis=1)
-
-
-                    #============================================================
-                    #===========            Save Metrics CSV
-                    #============================================================
-                    metrics_csv_path = save_path_subfolder / f"{video_name}.csv"
-                    metadata_path = save_path_subfolder / f"{video_name}.meta.json"
-                    metadata_payload = {
-                        key: _to_json_scalar(value)
-                        for key, value in metadata.items()
-                    }
-                    with ThreadPoolExecutor(max_workers=1) as metrics_executor:
-                        metrics_future = metrics_executor.submit(
-                            _save_metrics_and_metadata_csv,
-                            df,
-                            metrics_csv_path,
-                            metadata_payload,
-                            metadata_path,
-                        )
-
-                        #============================================================
-                        #===========            Save Boudnary Points CSV
-                        #============================================================
-                        if save_boundary_points_csv and any(boundary is not None for boundary in all_boundaries):
-                            boundary_path_subfolder = save_path_subfolder / "boundary_points"
-                            boundary_path_subfolder.mkdir(parents=True, exist_ok=True)
-                            valid_boundaries = [
-                                (plume_idx, boundary)
-                                for plume_idx, boundary in enumerate(all_boundaries)
-                                if boundary is not None
-                            ]
-                            max_workers = min(4, len(valid_boundaries))
-                            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                                futures = [
-                                    executor.submit(
-                                        save_boundary_csv,
-                                        boundary,
-                                        boundary_path_subfolder / f"{video_name}_plume_{plume_idx}_boundary_points.csv",
-                                    )
-                                    for plume_idx, boundary in valid_boundaries
-                                ]
-                                for future in as_completed(futures):
-                                    future.result()
-
-                        metrics_future.result()
+                if file.suffix != ".cine":
+                    continue
+                ring_mask = _process_cine_file(
+                    file=file,
+                    directory_path=directory_path,
+                    save_path_subfolder=save_path_subfolder,
+                    exp_config=exp_config,
+                    nozzle_props=nozzle_props,
+                    test_condition=test_condition,
+                    number_of_plumes=number_of_plumes,
+                    centre=centre,
+                    ir_=ir_,
+                    or_=or_,
+                    ring_mask=ring_mask,
+                    log_path=log_path,
+                    checkpoint_path=checkpoint_path,
+                )
 
 
 

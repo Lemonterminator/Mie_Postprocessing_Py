@@ -17,7 +17,12 @@ except Exception as exc:  # pragma: no cover - dependency availability
 # from skimage.filters import threshold_otsu
 # from skimage.morphology import disk
 
-import sklearn.cluster
+try:
+    import sklearn.cluster as sklearn_cluster
+    _SKLEARN_IMPORT_ERROR = None
+except Exception as exc:  # pragma: no cover - dependency availability
+    sklearn_cluster = None  # type: ignore[assignment]
+    _SKLEARN_IMPORT_ERROR = exc
 
 
 
@@ -293,10 +298,16 @@ def kmeans_label_video(video: np.ndarray, k: int) -> np.ndarray:
     np.ndarray
         Video of integer labels with the same shape as ``video``.
     """
+    if sklearn_cluster is None:
+        raise RuntimeError(
+            "scikit-learn is required for kmeans_label_video(). "
+            "Install project dependencies from pyproject.toml."
+        ) from _SKLEARN_IMPORT_ERROR
+
     orig_shape = video.shape
     flat = video.reshape(-1, 1).astype(float)
 
-    kmeans = sklearn.cluster.KMeans(n_clusters=k, n_init='auto', random_state=0)
+    kmeans = sklearn_cluster.KMeans(n_clusters=k, n_init='auto', random_state=0)
     kmeans.fit(flat)
 
     centers = kmeans.cluster_centers_.ravel()

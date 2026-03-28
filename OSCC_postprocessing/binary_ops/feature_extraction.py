@@ -20,10 +20,10 @@ def extract_single_plume_features(
     bw_video_col_sum=None,
 ):
     """Compute single-plume geometric features from a binarized video."""
+    from OSCC_postprocessing.analysis.regression import linear_regression_fixed_intercept
     from OSCC_postprocessing.analysis.single_plume import (
         bw_boundaries_all_points_single_plume,
         bw_boundaries_xband_filter_single_plume,
-        linear_regression_fixed_intercept,
     )
 
     bw_video_host = to_numpy_host(bw_video)
@@ -101,8 +101,8 @@ def extract_single_plume_features(
         except ValueError:
             pass
 
-    opening = None
-    closing = None
+    opening = np.nan
+    closing = np.nan
     if nozzle_opening_detection_height is not None and nozzle_opening_detection_width is not None:
         from OSCC_postprocessing.analysis.hysteresis import detect_single_high_interval
 
@@ -110,7 +110,9 @@ def extract_single_plume_features(
         h1 = (height + nozzle_opening_detection_height) // 2
         w1 = int(nozzle_opening_detection_width)
         near_nozzle_signal = np.sum(bw_video_host[:, h0:h1, :w1], axis=(1, 2))
-        (_, _, opening, closing), _, _ = detect_single_high_interval(near_nozzle_signal)
+        result, _, _ = detect_single_high_interval(near_nozzle_signal)
+        if result is not None:
+            _, _, opening, closing = result
 
     return {
         "area": area,

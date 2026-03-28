@@ -8,6 +8,12 @@ from scipy.special import expit
 import matplotlib.pyplot as plt
 
 
+# Penetration-series switches.
+FIT_PENETRATION_CDF = True
+FIT_PENETRATION_BW_X = True
+FIT_PENETRATION_BW_POLAR = True
+
+
 
 # Input/output roots
 data_root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py")
@@ -62,6 +68,35 @@ META_COLS = [
 ]
 
 
+PENETRATION_SOURCES = [
+    {
+        "enabled": FIT_PENETRATION_CDF,
+        "key": "cdf",
+        "column_prefix": "penetration_cdf_plume_",
+        "label": "penetration_cdf",
+        "replace_negative_with_zero": False,
+    },
+    {
+        "enabled": FIT_PENETRATION_BW_X,
+        "key": "bw_x",
+        "column_prefix": "penetration_bw_x_plume_",
+        "label": "penetration_bw_x",
+        "replace_negative_with_zero": True,
+    },
+    {
+        "enabled": FIT_PENETRATION_BW_POLAR,
+        "key": "bw_polar",
+        "column_prefix": "penetration_bw_polar_plume_",
+        "label": "penetration_bw_polar",
+        "replace_negative_with_zero": False,
+    },
+]
+
+
+def get_enabled_penetration_sources():
+    return [source for source in PENETRATION_SOURCES if source["enabled"]]
+
+
 def _is_missing_value(value):
     if value is None:
         return True
@@ -102,8 +137,8 @@ def _read_csv_with_expanded_static_meta(csv_path):
     return df
 
 
-def _infer_num_plumes_from_columns(df_file):
-    prefix = "penetration_cdf_plume_"
+def _infer_num_plumes_from_columns(df_file, column_prefix):
+    prefix = column_prefix
     plume_indices = []
     for col in df_file.columns:
         if not col.startswith(prefix):
@@ -324,13 +359,15 @@ def prepare_cleaned_series(
     fps_default,
     max_hydraulic_delay_frames,
     delay_clip_half_window,
+    penetration_column_prefix,
+    replace_negative_with_zero=False,
     diff_threshold_lower=DIFF_THRESHOLD_LOWER,
     diff_threshold_upper=DIFF_THRESHOLD_UPPER,
 ):
     if "plumes" in df_file.columns and np.isfinite(pd.to_numeric(df_file["plumes"].iloc[0], errors="coerce")):
         number_of_plumes = int(pd.to_numeric(df_file["plumes"].iloc[0], errors="coerce"))
     else:
-        number_of_plumes = _infer_num_plumes_from_columns(df_file)
+        number_of_plumes = _infer_num_plumes_from_columns(df_file, penetration_column_prefix)
     if number_of_plumes <= 0:
         raise ValueError("Unable to infer plume count from metadata or penetration columns.")
 
@@ -360,11 +397,13 @@ def prepare_cleaned_series(
     temp_series = [None] * number_of_plumes
 
     for plume_idx in range(number_of_plumes):
-        col = f"penetration_cdf_plume_{plume_idx}"
+        col = f"{penetration_column_prefix}{plume_idx}"
         if col not in df_file.columns:
             continue
 
         arr = np.asarray(df_file[col], dtype=float).copy()
+        if replace_negative_with_zero:
+            arr[arr < 0] = 0.0
         cleaned_serie, delay = penetration_cleaning(
             arr,
             pen_correction,
@@ -426,6 +465,7 @@ def save_fit_plot(
     csv_files,
     out_plot_dir,
     plot_kind,
+    penetration_source,
     mm_per_px_scale,
     fps_default,
     max_hydraulic_delay_frames,
@@ -475,6 +515,8 @@ def save_fit_plot(
                 fps_default=fps_default,
                 max_hydraulic_delay_frames=max_hydraulic_delay_frames,
                 delay_clip_half_window=delay_clip_half_window,
+                penetration_column_prefix=penetration_source["column_prefix"],
+                replace_negative_with_zero=penetration_source["replace_negative_with_zero"],
                 diff_threshold_lower=DIFF_THRESHOLD_LOWER,
                 diff_threshold_upper=DIFF_THRESHOLD_UPPER,
             )
@@ -519,7 +561,10 @@ def save_fit_plot(
     if not has_curve:
         plt.text(0.5, 0.5, f"No {plot_kind} traces for this folder", ha="center", va="center")
 
-    plt.title(f"{folder.name}: {plot_kind} raw traces (solid) vs fitted curves (dashed)")
+    plt.title(
+        f"{folder.name}: {penetration_source['label']} {plot_kind} traces "
+        f"(solid) vs fitted curves (dashed)"
+    )
     plt.xlabel("Time (ms)")
     plt.ylabel("Penetration (mm)")
     plt.grid(alpha=0.25)
@@ -538,6 +583,7 @@ def process_folder(
     out_clean_dir,
     out_plots_clean_dir,
     out_plots_flagged_dir,
+    penetration_source,
     mm_per_px_scale,
     fps_default,
     max_hydraulic_delay_frames,
@@ -557,6 +603,8 @@ def process_folder(
             fps_default=fps_default,
             max_hydraulic_delay_frames=max_hydraulic_delay_frames,
             delay_clip_half_window=delay_clip_half_window,
+            penetration_column_prefix=penetration_source["column_prefix"],
+            replace_negative_with_zero=penetration_source["replace_negative_with_zero"],
             diff_threshold_lower=DIFF_THRESHOLD_LOWER,
             diff_threshold_upper=DIFF_THRESHOLD_UPPER,
         )
@@ -591,6 +639,7 @@ def process_folder(
 
             rows.append(
                 {
+                    "penetration_source": penetration_source["key"],
                     "file_path": str(file_path.resolve()),
                     "file_name": file_path.name,
                     "file_stem": file_path.stem,
@@ -628,6 +677,7 @@ def process_folder(
         csv_files,
         out_plots_clean_dir,
         "clean",
+        penetration_source,
         mm_per_px_scale=mm_per_px_scale,
         fps_default=fps_default,
         max_hydraulic_delay_frames=max_hydraulic_delay_frames,
@@ -639,6 +689,7 @@ def process_folder(
         csv_files,
         out_plots_flagged_dir,
         "flagged",
+        penetration_source,
         mm_per_px_scale=mm_per_px_scale,
         fps_default=fps_default,
         max_hydraulic_delay_frames=max_hydraulic_delay_frames,
@@ -650,7 +701,7 @@ def process_folder(
     flagged_df.to_csv(out_flagged_path, index=False)
 
     print(
-        f"Saved {out_all_path.name} ({len(masked_df)} total rows), "
+        f"[{penetration_source['key']}] Saved {out_all_path.name} ({len(masked_df)} total rows), "
         f"{out_clean_path.name} ({len(clean_df)} clean), "
         f"{out_flagged_path.name} ({len(flagged_df)} flagged), "
         f"{out_plot_clean_path.name} (clean-curve plot), "
@@ -663,32 +714,28 @@ def get_dataset_settings(name):
         return {
             "or_mm_per_px_reference": 412.0,
             "fps_default": 34000,
-            "max_hydraulic_delay_frames": 25,
-            "delay_clip_half_window": 2,
+            "max_hydraulic_delay_frames": 30,
+            "delay_clip_half_window": 3,
         }
     return {
-        "or_mm_per_px_reference": 376.0,  # 90 mm reference in px
+        "or_mm_per_px_reference": 377.0,  # 90 mm reference in px
         "fps_default": 25000,
-        "max_hydraulic_delay_frames": 15,
-        "delay_clip_half_window": 2,
+        "max_hydraulic_delay_frames": 17,
+        "delay_clip_half_window": 4,
     }
 
 
 def main():
+    enabled_sources = get_enabled_penetration_sources()
+    if not enabled_sources:
+        raise ValueError("At least one penetration-series switch must be enabled.")
+
     for name in names:
         settings = get_dataset_settings(name)
         mm_per_px_scale = 90.0 / settings["or_mm_per_px_reference"]
         root = data_root / name
         out_dir = data_out_dir / name
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_all_dir = out_dir / "all"
-        out_clean_dir = out_dir / "clean"
-        out_plots_clean_dir = out_dir / "plots_clean"
-        out_plots_flagged_dir = out_dir / "plots_flagged"
-        out_all_dir.mkdir(parents=True, exist_ok=True)
-        out_clean_dir.mkdir(parents=True, exist_ok=True)
-        out_plots_clean_dir.mkdir(parents=True, exist_ok=True)
-        out_plots_flagged_dir.mkdir(parents=True, exist_ok=True)
 
         subdirs = sorted([p for p in root.iterdir() if p.is_dir()])
         if not subdirs:
@@ -696,17 +743,29 @@ def main():
 
         print(f"Found {len(subdirs)} subdirs in {root}")
         for folder in subdirs:
-            process_folder(
-                folder,
-                out_all_dir=out_all_dir,
-                out_clean_dir=out_clean_dir,
-                out_plots_clean_dir=out_plots_clean_dir,
-                out_plots_flagged_dir=out_plots_flagged_dir,
-                mm_per_px_scale=mm_per_px_scale,
-                fps_default=settings["fps_default"],
-                max_hydraulic_delay_frames=settings["max_hydraulic_delay_frames"],
-                delay_clip_half_window=settings["delay_clip_half_window"],
-            )
+            for penetration_source in enabled_sources:
+                metric_out_dir = out_dir / penetration_source["key"]
+                out_all_dir = metric_out_dir / "all"
+                out_clean_dir = metric_out_dir / "clean"
+                out_plots_clean_dir = metric_out_dir / "plots_clean"
+                out_plots_flagged_dir = metric_out_dir / "plots_flagged"
+                out_all_dir.mkdir(parents=True, exist_ok=True)
+                out_clean_dir.mkdir(parents=True, exist_ok=True)
+                out_plots_clean_dir.mkdir(parents=True, exist_ok=True)
+                out_plots_flagged_dir.mkdir(parents=True, exist_ok=True)
+
+                process_folder(
+                    folder,
+                    out_all_dir=out_all_dir,
+                    out_clean_dir=out_clean_dir,
+                    out_plots_clean_dir=out_plots_clean_dir,
+                    out_plots_flagged_dir=out_plots_flagged_dir,
+                    penetration_source=penetration_source,
+                    mm_per_px_scale=mm_per_px_scale,
+                    fps_default=settings["fps_default"],
+                    max_hydraulic_delay_frames=settings["max_hydraulic_delay_frames"],
+                    delay_clip_half_window=settings["delay_clip_half_window"],
+                )
 
 
 if __name__ == "__main__":
