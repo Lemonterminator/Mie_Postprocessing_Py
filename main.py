@@ -155,7 +155,7 @@ def _empty_spray_metrics(num_frames: int) -> dict:
 
 
 def _compute_spray_metrics_for_segment(args):
-    idx, segment_bw, opening_h, opening_w, umbrella_angle, penetration_pix, inner_radius = args
+    idx, segment_bw, opening_h, opening_w, umbrella_angle, penetration_pix = args
     num_frames = int(segment_bw.shape[0]) if hasattr(segment_bw, "shape") and len(segment_bw.shape) > 0 else 0
     try:
         metrics = spary_features_from_bw_video(
@@ -164,7 +164,6 @@ def _compute_spray_metrics_for_segment(args):
             opening_w,
             umbrella_angle=umbrella_angle,
             thres_penetration_num_pix=penetration_pix,
-            inner_radius=inner_radius,
         )
     except Exception as e:
         print(f"[WARN] metric extraction failed for plume {idx}: {e}")
@@ -635,7 +634,7 @@ def _cleanup_iteration_state(state: dict):
         cp.get_default_pinned_memory_pool().free_all_blocks()
 
 
-def _collect_metric_columns(hp_segments_bw, num_frames: int, umbrella_angle: float, inner_radius: float):
+def _collect_metric_columns(hp_segments_bw, num_frames: int, umbrella_angle: float):
     """
     Extract spray metrics for every plume segment.
 
@@ -656,7 +655,6 @@ def _collect_metric_columns(hp_segments_bw, num_frames: int, umbrella_angle: flo
                 nozzle_opening_detection_width,
                 umbrella_angle,
                 thres_penetration_num_pix,
-                inner_radius,
             )
         )
         for feature_name, values in metrics.items():
@@ -846,7 +844,7 @@ def _process_cine_file(
 
         umbrella_angle = float(state["metadata"].get("umbrella_angle_deg"))
         metric_columns, all_boundaries = _collect_metric_columns(
-            state["hp_segments_bw"], num_frames, umbrella_angle, ir_
+            state["hp_segments_bw"], num_frames, umbrella_angle
         )
         if metric_columns:
             state["df"] = pd.concat(
