@@ -1,0 +1,671 @@
+\documentclass[english,12pt,a4paper,elec,utf8,online]{aaltothesis}
+
+\usepackage[backend=bibtex,style=numeric]{biblatex}
+\addbibresource{thesisreferences.bib}
+
+\degreeprogram{Electronics and Nanotechnology}
+\major{Microelectronic Circuit Design}
+\univdegree{MSc}
+\thesisauthor{Linan Jiang}
+\thesistitle{Evidence-Grounded Processing and Penetration Prediction of Mie-Scattering Spray Videos}
+\thesissubtitle{From calibration and feature extraction to baseline and uncertainty-aware surrogate models}
+\place{Espoo}
+\date{27 March 2026}
+\supervisor{Prof.\ Ossi Kaario}
+\advisor{Dr Zeeshan Ahmad}
+\advisor{Dr Qiang Cheng}
+\collaborativepartner{Wartsila}
+\keywords{Mie scattering\spc spray imaging\spc penetration\spc computer vision\spc surrogate modeling}
+\thesisabstract{This thesis documents an evidence-grounded workflow for turning high-speed Mie-scattering spray videos into plume-resolved penetration observables and data-driven penetration predictions. The implemented chain consists of manual nozzle-center calibration in GUI.py, batch video processing in main.py, penetration cleaning and reduced-order fitting in MLP/fit_raw_data.py, deterministic baseline training in MLP/median_penetration_MSE.ipynb, a partially completed heteroscedastic extension in MLP/median_penetration_NLL.ipynb, and a prototype inference notebook in MLP/toy_inference_from_run.ipynb. The current workspace contains ten campaign folders and 295 cleaned fitted CSV files produced by the extraction stages. Archived notebook outputs report a stage-1 representative dataset of 589 trajectories and a stage-2 dataset of 21,177 trajectories. Stored run logs show a best validation loss of 23.26 for the deterministic baseline and a best validation negative log likelihood of 2.449 for the uncertainty-aware extension. However, the stage-2 run directory does not contain a dedicated stage-2 checkpoint, and the current workspace does not retain the intermediate training folder referenced by the archived run configuration. For that reason the uncertainty-aware model is reported as a partial archived result rather than as the final publication model. The thesis concludes that the implemented workflow is already a useful engineering tool for extracting and modeling penetration-oriented spray observables, while deployment-grade uncertainty modeling and collision analysis remain future work.}
+
+\begin{document}
+
+\makecoverpage
+\makecopyrightpage
+
+\begin{abstractpage}[english]
+This thesis documents an evidence-grounded workflow for turning high-speed Mie-scattering spray videos into plume-resolved penetration observables and data-driven penetration predictions. The implemented chain consists of manual nozzle-center calibration in \texttt{GUI.py}, batch video processing in \texttt{main.py}, penetration cleaning and reduced-order fitting in \texttt{MLP/fit\_raw\_data.py}, deterministic baseline training in \texttt{MLP/median\_penetration\_MSE.ipynb}, a partially completed heteroscedastic extension in \texttt{MLP/median\_penetration\_NLL.ipynb}, and a prototype inference notebook in \texttt{MLP/toy\_inference\_from\_run.ipynb}.
+
+The current workspace contains ten campaign folders and 295 cleaned fitted CSV files produced by the extraction stages. Archived notebook outputs report a stage-1 representative dataset of 589 trajectories and a stage-2 dataset of 21,177 trajectories. Stored run logs show a best validation loss of 23.26 for the deterministic baseline and a best validation negative log likelihood of 2.449 for the uncertainty-aware extension. However, the stage-2 run directory does not contain a dedicated stage-2 checkpoint, and the current workspace does not retain the intermediate training folder referenced by the archived run configuration. For that reason the uncertainty-aware model is reported as a partial archived result rather than as the final publication model.
+
+The thesis concludes that the implemented workflow is already a useful engineering tool for extracting and modeling penetration-oriented spray observables, while deployment-grade uncertainty modeling and collision analysis remain future work.
+\end{abstractpage}
+
+\mysection{Preface}
+I thank Professor Ossi Kaario for supervision, Dr Zeeshan Ahmad and Dr Qiang Cheng for technical guidance, and the collaborators around the spray-imaging workflow for helping shape the practical direction of this work.
+
+\thesistableofcontents
+\dothesispagenumbering{}
+
+\section{Introduction}
+
+\subsection{Research relevance}
+
+International shipping is under increasing pressure to reduce greenhouse-gas emissions while maintaining fuel flexibility and operational reliability. The 2023 IMO greenhouse-gas strategy sets both continued carbon-intensity reduction targets and an uptake target for zero- or near-zero-emission energy by 2030, which has accelerated practical interest in alternative-fuel propulsion systems \cite{imo2023ghgstrategy}. Industry tracking also shows that liquefied natural gas, methanol, ammonia, and other alternative fuels have already moved from concept discussion into concrete vessel and orderbook decisions \cite{classnk2025alternativefuels}.
+
+Within that transition, dual-fuel and multi-fuel marine engines depend not only on fuel availability but also on reliable ignition and stable combustion. For many of these engines, a small pilot-fuel injection provides the ignition source for the main fuel. In low-pressure gas operation, for example, WinGD X-DF engines use a small pilot-fuel quantity for ignition and can revert to diesel mode if gas supply is lost \cite{wingd_xdf_manual_2021,wingd_lng_faq_2025}. Similar logic extends to methanol and ammonia concepts, where pilot fuel remains necessary because the main fuel does not readily auto-ignite under the same conditions \cite{classnk_methanol_2024,wingd_ammonia_faq_2025}.
+
+However, pilot diesel spray is not only an ignition aid. Its spatial development also matters. If liquid fuel reaches the piston bowl or cylinder wall before forming a useful ignition kernel, wall wetting, deteriorated combustion, higher emissions, and lubricant dilution may follow \cite{peraza2022swi,ahmad2025fueldilution}. For injector development and early design screening, it is therefore valuable to estimate the liquid spray envelope and its potential impingement risk before moving directly to costly engine testing or high-fidelity combustion simulation.
+
+\subsection{Current engineering practice}
+
+In engineering practice, spray behavior and impingement risk are usually assessed through three broad routes: engine test campaigns, computational fluid dynamics and spray-combustion simulations, and optical spray experiments. Engine tests are closest to real operation, but they are expensive, slow, and difficult to use for isolating one spray-design factor at a time. High-fidelity simulations can provide richer internal flow information, but they require complex modeling choices, many input assumptions, and substantial computational effort \cite{liu2020sprayreview,peraza2022swi}.
+
+Optical experiments occupy a different role. They provide controlled and repeatable observations that are well suited to comparing many candidate injectors, settings, or operating points. At the same time, optical data do not automatically translate into engineering decisions. In particular, liquid-phase boundaries observed in spray imaging depend on the diagnostic method and on post-processing choices. ECN guidance explicitly notes that liquid-penetration measurements are method-dependent and that optical boundaries should be interpreted as experimentally defined quantities rather than as direct access to a hidden physical ground truth \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}.
+
+\subsection{Existing solutions}
+
+Diesel-spray research already offers a broad set of experimental and modeling approaches. On the experimental side, high-speed imaging and optical diagnostics are widely used to characterize penetration, spreading angle, and spray morphology. On the modeling side, empirical correlations, phenomenological formulations, and CFD-based methods are commonly used to describe spray development \cite{Linne2013SprayImaging,HiroyasuArai1990,NaberSiebers1996,liu2020sprayreview}. These approaches have established an important foundation for injector design and combustion-system analysis.
+
+Nevertheless, each class of solution has limitations for the present use case. Empirical and phenomenological models are attractive because they are compact and interpretable, but their assumptions are often strongest under quasi-steady conditions and become less reliable under short-pulse, strongly transient, or multiple-injection cases \cite{liu2020sprayreview}. High-fidelity CFD is information-rich, yet it is rarely the most efficient tool for early-stage screening across many design candidates. Purely image-based measurements, in turn, describe what is observed in a specific optical setup, but they do not by themselves provide a predictive intermediate-layer model for engineering comparison.
+
+\subsection{Problem statement}
+
+The central problem addressed in this thesis is therefore not whether diesel spray has been studied, but whether a practical intermediate-layer model can be built between optical experiments and high-cost validation. More specifically, the missing element is a fast and repeatable method for predicting the time-evolving non-reacting liquid envelope of pilot diesel spray so that later impingement-risk analysis has a defensible geometric input.
+
+This gap matters because short pilot injections are strongly transient. Spray angle and penetration cannot always be treated as fixed constants, and transient spreading behavior influences downstream penetration and mixing \cite{JungManinSkeenPickett2015}. At the same time, spray-wall interaction remains physically important and not fully resolved, particularly when one moves from laboratory diagnostics toward engine-relevant consequences such as wall film formation and reliability concerns \cite{peraza2022swi}. In marine engines, the situation is further complicated by geometry and scale, because large-bore conditions may differ from the more familiar automotive liquid-impingement picture \cite{liu2024marine_impingement}. What is currently lacking is not another isolated image measurement, but a practical predictor that supports early risk screening before full reacting-spray or engine-level analysis.
+
+\subsection{Research aim}
+
+Based on the above problem, this thesis aims to develop a data-driven non-reacting liquid-envelope prediction model for pilot diesel spray. The intention is to predict the evolution of the spray envelope and penetration trend from injection-condition and time information, together with an uncertainty-aware description that is suitable for engineering interpretation.
+
+The thesis does not claim to solve real-engine wall wetting or reacting spray-wall interaction in full. Instead, it positions the resulting model as a front-end surrogate for early-stage impingement-risk screening in marine dual-fuel engine development. In other words, the target contribution is a practical engineering tool that narrows the candidate space and supports later, higher-fidelity validation rather than replacing CFD or engine testing.
+
+\subsection{Research methods}
+
+To support that aim, this thesis uses high-speed visualization of diesel sprays in a room-temperature pressurized-air chamber. The resulting image sequences are processed to extract penetration and liquid-envelope-related geometric features, forming a dataset for later modeling.
+
+On that basis, the study applies data-driven regression to learn the time-varying liquid-envelope behavior from experimental observations. The model is treated as a surrogate function approximator rather than as a new closed-form spray law. Its outputs are then intended for later geometric risk mapping, that is, for estimating whether a given spray condition is more likely to approach a potential wall-impingement region. Throughout this workflow, the extracted boundary is interpreted as an optical liquid-envelope definition under the chosen diagnostic setup, not as a direct absolute truth of the in-cylinder liquid field \cite{ecn_liquid_penetration}.
+
+\subsection{Research scope}
+
+The scope of this thesis is limited to non-reacting, non-evaporating pilot diesel spray under controlled pressurized-chamber conditions. The focus is on the macroscopic liquid-envelope geometry and its temporal evolution as observed in the optical setup, rather than on a complete in-cylinder combustion process.
+
+Consequently, combustion chemistry, evaporation, dual-fuel ignition coupling, real piston-bowl and cylinder-wall thermal interaction, and real-engine wall-film truth prediction are outside the scope of this work. The proposed model should therefore be understood as an early-stage screening surrogate, not as a final truth model for engine wall impingement.
+
+\subsection{Thesis structure}
+
+The remainder of this thesis is organized as follows. Section~2 reviews prior work on diesel pilot spray, marine dual-fuel engines, optical spray diagnostics, and modeling approaches relevant to the present study. Section~3 presents the research materials and methods, including the experimental setup, image-processing workflow, feature extraction, and dataset construction procedure. Section~4 reports the modeling and evaluation results. Finally, Section~5 summarizes the thesis, discusses the main limitations of the present work, and outlines directions for future work.
+
+\section{Literature Review and Technical Rationale}
+
+\subsection{Why penetration-oriented observables are used in Mie imaging}
+
+Mie scattering is useful for visualizing dense liquid sprays because it offers high temporal resolution and comparatively simple experimental implementation \cite{Linne2013SprayImaging}. At the same time, the recorded intensity field is not a direct measurement of fuel mass or liquid volume fraction. The scattering response depends on droplet size, refractive index, wavelength, and viewing geometry, while dense regions introduce multiple scattering and shadowing \cite{BohrenHuffman2004,Linne2013SprayImaging}. Because of those effects, direct inversion from pixel intensity to a full physical spray state is ill-posed.
+
+For that reason this thesis adopts the same practical stance used in much of experimental spray analysis: intensity is treated as a carrier of geometric cues, not as a direct thermodynamic field. Operational observables such as penetration, cone angle, projected area, and boundary location are therefore more defensible than claims about exact liquid distribution \cite{Linne2013SprayImaging,LefebvreMcDonell2017}. In diesel spray research, penetration and cone angle remain standard descriptors precisely because they are interpretable and comparatively robust across controlled experimental campaigns \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
+
+This emphasis is also consistent with prior optical spray studies. Two-dimensional Mie-scattering work inside optical diesel engines already reported jet-tip penetration and cone-angle information as the practical outputs of image analysis rather than attempting to reconstruct a complete liquid-state field \cite{MuenchLeipertz1992}. More recent imaging studies still organize liquid-spray comparison around penetration and spreading-angle measurements, even when the instrumentation and synchronization become more sophisticated \cite{JungManinSkeenPickett2015}. The literature therefore supports the idea that a thesis based on Mie videos should be evaluated primarily by the quality and robustness of its extracted observables.
+
+Classical spray-penetration modeling also explains why penetration is such a central descriptor. In the widely used Hiroyasu--Arai picture, the tip penetration is written in stage-wise form with one branch before breakup and another after breakup. In simplified proportional form,
+\[
+S_{\mathrm{tip}}(t)\propto
+\begin{cases}
+t, & t<t_b,\\
+t^{1/2}, & t\ge t_b,
+\end{cases}
+\]
+where \(t_b\) is the breakup time and the prefactors depend on pressure difference, nozzle diameter, and fluid properties \cite{HiroyasuArai1990}. This type of model is attractive because it gives an interpretable low-order law for the gross penetration history. However, the more recent start-of-injection transient analysis by Zhou et al.\ shows that the early-time behavior can be more complicated than the classical two-stage law when sac pressurization and needle-opening transients are important. In that study, the SOI stages were found to scale approximately as \(t^{3/2}\) initially, then \(t^{3/4}\), and only later approach the more familiar \(t^{1/2}\) behavior \cite{ZhouLiYi2021}. That observation is directly relevant to the present thesis: pilot diesel injections are short enough that the transient early stage occupies a non-negligible part of the observed signal, so a single rigid empirical law is not always an adequate descriptor of the full trace.
+
+End-of-injection studies extend the same idea further by showing that the relevant time variable itself can change across regimes. In the extended formulation reported by Zhou et al.\ for tip and tail penetration after EOI, the pre-transition branches are still written against the ASOI clock \(t\), but the decelerating branches include terms in \((t-t_i)^{1/2}\) and \((t-t_i)^{1/4}\), where \(t_i\) denotes the injection duration \cite{ZhouLiLaiWei2019}. Their combined expression for the liquid length scale \(S_L(t)\) can be written as
+\[
+S_L(t)=
+\begin{cases}
+K_v \left( \dfrac{2\Delta P}{\rho_f} \right)^{1/2} t,
+& 0 < t \le t_b,\\[6pt]
+K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t^{1/2},
+& t_b < t \le t_i,\\[6pt]
+K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t^{1/2}
+- k d_n^{1/2}(t-t_i)^{1/2}(\tan\theta)^{-1/2}\rho_a^{-1/4},
+& t_i < t \le 2t_i,\\[6pt]
+2^{1/2} K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t_i^{1/4}(t-t_i)^{1/4}
+- k d_n^{1/2}(t-t_i)^{1/2}(\tan\theta)^{-1/2}\rho_a^{-1/4},
+& 2t_i < t.
+\end{cases}
+\]
+In simplified notation, this means that one part of the penetration law is indexed by elapsed time since the beginning of injection, while another part is indexed by elapsed time since the end of injection or, more precisely, since the decelerating entrainment-wave state starts to matter at the tip. That distinction is useful in the present thesis because it clarifies why the power-law exponent alone is not the full story: the effective time origin also carries physical meaning. It also motivates a softer engineering parameterization, because in short pilot injections the data window may contain both clocks at once and the precise switching instant is not directly observable from a noisy Mie-derived trace.
+
+\subsection{Supporting theories from computer vision and signal processing}
+
+The implemented image-processing chain uses manual calibration, log-domain foreground construction, gradient-based enhancement, polar aggregation, spectral alignment, inverse warping, and binary-shape measurement. Those steps are not arbitrary heuristics; each one is supported by well-established ideas from computer vision and signal processing.
+
+Manual nozzle calibration is justified because the downstream angular analysis assumes a fixed injector center in image coordinates. The calibration task is a noisy circle-fitting problem, for which least-squares circle estimation is a standard tool \cite{Pratt1987CircleFit,Taubin1991CircleFit}. Once the center is known, the multihole spray can be described relative to a physically meaningful origin instead of by unstable image coordinates that change with cropping or glare.
+
+The log-ratio preprocessing stage is conceptually related to homomorphic signal processing. When image formation contains multiplicative components, applying a logarithm converts multiplicative variations into additive ones, after which background subtraction and filtering become more stable \cite{OppenheimSchaferStockham1968,GonzalezWoodsDIP}. The implementation in this thesis does not claim to be a full homomorphic filter in the classical sense, but it follows the same theoretical motivation: illumination and gain variations should be attenuated before plume geometry is measured.
+
+After foreground construction, the pipeline emphasizes edges and suppresses diffuse low-frequency background structure. Gradient-magnitude operators such as Sobel filters are standard tools for emphasizing boundary transitions, while percentile scaling, automatic thresholding, and morphology are standard ways to stabilize segmentation under non-uniform contrast \cite{GonzalezWoodsDIP,Szeliski2010Vision,ZackRogersLatt1977}. This is particularly relevant for Mie videos, where the boundary of interest is often visible first as a change in local contrast rather than as a globally consistent absolute intensity level.
+
+The angular-density stage can be interpreted as a polar-coordinate resampling of the image around the nozzle center. In computer-vision terms, this converts a repeated directional structure in the 2D image into a one-dimensional signal on the angular axis, which is easier to compare across frames and recordings. Once that angular signal is available, using its harmonic structure for alignment is a standard signal-processing idea: periodic patterns are naturally revealed in the Fourier domain, and the phase of the plume-count harmonic provides a compact estimate of rotational offset \cite{CooleyTukey1965FFT}. Likewise, the subsequent remapping stage follows standard inverse-warping theory, in which output pixels query source coordinates through an inverse transform so that the resampled strip is dense and free of forward-mapping holes \cite{Szeliski2010Vision}.
+
+The reduced-order penetration fit used later in the workflow is also grounded in standard estimation theory. When a parametric curve \(S(t;\theta)\) is used to summarize noisy observations \(y_i\), the natural formulation is nonlinear least squares, possibly with a robust penalty when a few samples are contaminated by segmentation noise, early-time ambiguity, or truncated trajectories. Huber's loss is a classical compromise between quadratic least squares and absolute-error fitting: it behaves like squared error near zero residual and like absolute error for large residuals, which makes it less sensitive to outliers while preserving smooth optimization \cite{Huber1964,NocedalWright2006}. This directly matches the role of \texttt{fit\_raw\_data.py}, which uses a robust nonlinear fit to convert noisy plume traces into compact parameters for the later learning stages.
+
+These theories support the design choice made in this thesis: before any downstream modeling, the raw video should be transformed into a coordinate system and signal representation in which the plumes are easier to compare, threshold, and measure consistently.
+
+\subsection{Metric definition and boundary extraction in spray imaging}
+
+Fuel-imaging literature also shows that the numerical definition of a spray metric matters. Magnotti and Genzale demonstrated that different liquid-penetration metrics can lead to materially different conclusions when validating diesel spray models, because different observables respond to different aspects of the underlying liquid distribution \cite{MagnottiGenzale2013}. This is directly relevant to Mie processing: a reported ``penetration'' value is not a universal truth, but the output of a measurement rule applied to an optical signal.
+
+The same caution applies to cone angle and boundary extraction. Johnson et al.\ showed that conventional threshold-based cone-angle estimation from back-scattered diesel images is sensitive to the chosen intensity threshold, and they proposed a profile-based alternative specifically to reduce this subjectivity \cite{JohnsonNaberLee2012}. That observation supports the present thesis in two ways. First, it justifies treating boundary metrics as operational geometric descriptors instead of as exact liquid-envelope measurements. Second, it motivates the use of a cumulative-distribution penetration front and multiple boundary proxies, because robust metrics should depend on the bulk support of the plume rather than on one fragile leading pixel or one globally fixed threshold.
+
+The result is a workflow that does not attempt to ``recover physics'' from intensity. Instead, it uses image-processing theory and prior spray-imaging evidence to construct reproducible, physically interpretable geometric observables whose limitations are stated explicitly.
+
+\subsection{Why a deterministic model and an uncertainty-aware extension are both useful}
+
+A deterministic multilayer perceptron is a reasonable first surrogate for penetration because it can map a small set of operating-condition features and time to a continuous trajectory \cite{BishopPRML2006}. In the archived baseline notebook, the network uses physically scaled inputs and smoothness-related penalties to regularize the trajectory shape.
+
+An uncertainty-aware extension is also motivated, because different operating points and extracted trajectories do not carry the same level of confidence. Heteroscedastic Gaussian negative log likelihood is a standard way to let a network predict both a mean and an input-dependent variance \cite{KendallGal2017}. In regression terms, this corresponds to the conditional model
+\[
+y=\mu(x,t)+\varepsilon(x,t),\qquad \varepsilon(x,t)\sim \mathcal{N}(0,\sigma^2(x,t)),
+\]
+which should be read here as a pragmatic statistical assumption rather than as a claim that the spray physics are literally Gaussian at every instant \cite{BishopPRML2006,KendallGal2017}. The present motivation is that the observed penetration spread is the aggregate effect of many unresolved factors: injector-hydraulic transients during pilot injection, sac and needle-opening dynamics near SOI, cycle-to-cycle differences in delivered momentum, synchronization offsets, and residual image-processing noise from the optical measurement chain. Zhou et al.\ already show that short-injection penetration behavior is strongly transient and regime-dependent near SOI \cite{ZhouLiYi2021}; in the current project, those unresolved perturbations are not modeled mechanistically one by one, so it is reasonable to treat their combined effect as an input-dependent residual distribution whose variance changes with operating condition and time. In this thesis that idea is treated as a partially completed extension rather than as a finished deployed model, because the archived stage-2 artifacts are incomplete in their current stored form.
+
+\section{Research Material and Methods}
+
+\subsection{Workflow overview}
+
+Table~\ref{tab:workflow} summarizes the implemented workflow and the role of each project artifact.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{|p{0.23\linewidth}|p{0.28\linewidth}|p{0.37\linewidth}|}
+\hline
+Artifact & Main role & Primary output \\
+\hline
+\texttt{GUI.py} & Manual nozzle-center calibration & Center, radius, and angular offset for a video set \\
+\hline
+\texttt{main.py} & Batch preprocessing and feature extraction & Plume-wise penetration traces, binary metrics, and optional boundary CSVs \\
+\hline
+\texttt{MLP/fit\_raw\_data.py} & Cleaning, delay alignment, and reduced-order fitting & Cleaned trajectories, flagged trajectories, fitted parameters, and fit plots \\
+\hline
+\texttt{MLP/median\_penetration\_MSE.ipynb} & Deterministic baseline training & Stage-1 training logs, scaler state, checkpoint, and loss curves \\
+\hline
+\texttt{MLP/median\_penetration\_NLL.ipynb} & Uncertainty-aware extension & Stage-2 training logs, scaler state, and archived uncertainty outputs \\
+\hline
+\texttt{MLP/toy\_inference\_from\_run.ipynb} & Prototype inference and visualization & Mean and standard-deviation prediction curves plus simple geometry overlays \\
+\hline
+\end{tabular}
+\caption{Implemented workflow documented in this thesis.}
+\label{tab:workflow}
+\end{table}
+
+\subsection{Calibration in \texttt{GUI.py}}
+
+The manual calibration workflow in \texttt{GUI.py} consists of three user-facing stages. First, the operator opens a representative frame in the main annotation interface, adjusts the display settings, and prepares the nozzle-centered view that will be used for the batch anchor. Second, the dedicated calibration dialog is launched, where the user clicks nozzle-rim points on the selected frame. Third, the fitted center and radius are returned to the main interface, where the recovered geometry can be inspected together with the plume guides and ring overlay before the configuration is saved for later batch processing.
+
+The point-selection dialog enforces at least three clicks and computes the circle through \texttt{calc\_circle} once the required number of points has been entered. The fitted circle provides the nozzle center, calibration radius, and angular offset for the full recording.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{../images/GUI_main_interface.png}
+\caption{Main annotation interface of \texttt{GUI.py} before calibration. The operator loads a representative frame, adjusts the display, and prepares the manual calibration task.}
+\label{fig:gui-main-interface}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.78\linewidth]{../images/GUI_calibration_interface.png}
+\caption{Calibration point-selection dialog in \texttt{GUI.py}. The user marks nozzle-rim points that are later used for circle fitting and angular-offset estimation.}
+\label{fig:gui-calibration-interface}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{../images/GUI_calibration_result.png}
+\caption{Calibration result shown in the main interface after circle fitting. The recovered nozzle center, guide directions, and radial bounds provide the geometric reference used by the downstream batch pipeline.}
+\label{fig:gui-calibration-result}
+\end{figure}
+
+This design is appropriate for the current datasets because the camera and injector geometry stay fixed within a recording. Calibrating once and reusing the same center for all frames avoids frame-to-frame jitter in the downstream plume-angle analysis.
+
+\subsection{Batch video processing in \texttt{main.py}}
+
+The file processor in \texttt{main.py} is the operational center of the image-analysis workflow. For each \texttt{.cine} recording, \texttt{\_process\_cine\_file} loads the video to the active array backend, reuses an annular ring mask for the whole folder, calls \texttt{mie\_multihole\_preprocessing}, calls \texttt{mie\_multihole\_postprocessing}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and finally exports synchronized CSV and metadata files. The important engineering point is that the numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final tabular export.
+
+\subsubsection{Calibration hand-off and batch anchoring}
+
+The batch stage starts from the calibration produced in Section~3.2. In \texttt{calc\_circle}, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
+\[
+x_i^2+y_i^2 + D x_i + E y_i + F = 0,
+\]
+solved in least-squares form by \texttt{np.linalg.lstsq}. The recovered parameters are
+\[
+c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
+\]
+and the same routine also estimates an average angular offset from the clicked rim points relative to an ideal equally spaced set. \texttt{GUI.py} writes these values to \texttt{config.json}, after which \texttt{main.py} can process a full folder without manual re-centering. This one-time calibration is deliberately user-facing rather than fully automatic: the operator can zoom, choose a representative frame, and anchor the full batch with a physically meaningful nozzle center \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
+
+\subsubsection{Bulk and robust preprocessing}
+
+The first algorithmic contribution inside the batch pipeline is a foreground construction stage designed for noisy Mie videos rather than for idealized binary images. In \texttt{refined\_log\_subtraction}, the raw frame \(V_t(x,y)\) is mapped to
+\[
+L_t(x,y)=\log(V_t(x,y)+\varepsilon),
+\qquad
+L_{\mathrm{bkg}}(x,y)=\operatorname{median}_{t<t_{\mathrm{SOI}}} L_t(x,y),
+\]
+followed by the log-ratio reconstruction
+\[
+R_t(x,y)=\exp\!\left(L_t(x,y)-L_{\mathrm{bkg}}(x,y)\right)-1
+=\frac{V_t(x,y)-B(x,y)}{B(x,y)}.
+\]
+The implementation then multiplies \(R_t\) by an intensity gate \(M_t(x,y)=\mathbf{1}[V_t(x,y)>\alpha B(x,y)]\), subtracts a pre-injection baseline, applies a soft threshold
+\[
+F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
+\]
+and rescales the result by robust quantiles before any geometric processing. This sequence is important for Mie videos because the raw intensity is not a direct measure of liquid volume fraction, and because the practical objective is stable geometry extraction under non-uniform illumination, glare, and background texture rather than exact optical inversion \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}.
+
+The need for this robust preprocessing can already be seen at the visualization level. Figure~\ref{fig:gui-gain-halo} compares the same spray frame under two display gains while the remaining GUI parameters are held fixed. At the lower gain, the plume cores remain comparatively compact. At the higher gain, a bright halo spreads around the spray core and contaminates a much larger region of the image. For the purposes of this thesis, that behavior is treated as practical evidence that Mie-based intensity is strongly affected by multiple scattering, glare, and display-sensitive background contamination. As a result, a naive subtraction from a single grayscale background or a direct threshold on intensity alone would be too sensitive to gain-dependent spreading. This is precisely why the implemented pipeline uses a robust background estimate from pre-injection statistics and then shifts the representation toward edge-dominant Sobel features, whose geometric response is more stable than raw brightness magnitude alone.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../images/GUI_gain_1.png}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../images/GUI_gain_7.png}
+\end{minipage}
+\caption{Same spray frame shown in \texttt{GUI.py} at gain values 1.0 and 7.0, with the remaining display parameters unchanged. The higher-gain view makes the bright halo around the spray much more apparent, illustrating how multiple scattering, glare, and diffuse background contamination can distort raw intensity-based interpretation.}
+\label{fig:gui-gain-halo}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{images/fig_mie_preproc_background.png}
+\caption{Intermediate preprocessing visualization copied from the repository workflow. From left to right: raw frame, estimated background from pre-injection statistics, and log-subtracted foreground.}
+\label{fig:mie-preproc-background}
+\end{figure}
+
+\subsubsection{Ultra-efficient Sobel high-pass on the CUDA backend}
+
+The second contribution is the explicit edge-enhancing high-pass stage applied directly to the full video cube. In \texttt{arr\_3d\_sobel\_magnitude\_cupy}, Sobel kernels \(K_x\) and \(K_y\) are generated once and applied with \texttt{convolution\_2D\_cupy}:
+\[
+S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2}.
+\]
+The output is then robust-scaled again and masked by the ring geometry. In implementation terms this matters because it converts a low-contrast grayscale plume into an edge-dominant representation while keeping the whole operation on the CuPy backend. The contribution is not the Sobel operator itself, which is classical, but its integration into a bulk video workflow that avoids repeated host-device copies and prepares every plume for the same downstream geometric treatment \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{images/fig_mie_preproc_sobel.png}
+\caption{Repository-generated preprocessing output showing the foreground image, Sobel magnitude, and the final robust-scaled high-pass representation used by the multihole segmentation stage.}
+\label{fig:mie-preproc-sobel}
+\end{figure}
+
+\subsubsection{Angular density as polar resampling}
+
+After preprocessing, the pipeline does not search for plume directions by contour tracing in Cartesian coordinates. Instead, \texttt{angle\_signal\_density\_auto} performs a polar re-parameterization around the calibrated nozzle center. For every pixel,
+\[
+\theta(x,y)=\operatorname{atan2}(y-c_y,\;x-c_x)\bmod 360^\circ,
+\]
+and the per-frame angular signal for bin \(k\) is accumulated as
+\[
+A_t(k)=\sum_{(x,y)\in \mathcal{B}_k} I_t(x,y), \qquad
+D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
+\]
+where \(\mathcal{B}_k\) is the set of pixels whose angle falls into bin \(k\). In the CuPy implementation, the binning and weighted sums are performed directly on GPU arrays by \texttt{cp.digitize} and \texttt{cp.bincount}. Conceptually, this is a radial collapse of the 2D image into a 1D angular occupancy signal, which is a much more stable object for multihole alignment than raw edge fragments in the original frame \cite{Szeliski2010Vision}.
+
+\subsubsection{FFT-based self-adaptive rotation alignment}
+
+The plume guide angles are then estimated from the periodicity of the angular signal rather than from a fixed offset. Let
+\[
+\bar{A}(k)=\sum_t A_t(k)
+\]
+be the time-summed angular profile, and let \(P\) be the known number of plumes. The function \texttt{estimate\_offset\_from\_fft} computes the real FFT of \(\bar{A}\), reads the phase of the plume harmonic \(P\), and converts it to an angular offset
+\[
+\hat{\phi}_0
+=
+-\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
+\]
+This is what makes the alignment self-adaptive: the code uses the observed harmonic phase of the current dataset instead of assuming a manually typed reference angle for every recording. \texttt{main.py} then constructs plume directions
+\[
+\phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
+\]
+and combines them with a triangle-threshold occupancy mask and short-gap filling to reject empty angular sectors. The FFT itself is standard; the contribution here is using the known injector multiplicity to turn the angular-density signal into an automatic plume registration rule \cite{CooleyTukey1965FFT,Szeliski2010Vision}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{images/fig_angular_occupancy.png}
+\caption{Processed angular-density outputs from the repository workflow: per-frame angular profiles, time-summed profile with plume guide angles, FFT harmonic content, and the occupied-angle mask used to stabilize multihole alignment.}
+\label{fig:angular-occupancy}
+\end{figure}
+
+\subsubsection{Inverse affine mapping and plume-strip extraction}
+
+Once the target angles are known, each plume is remapped into a common nozzle-left strip coordinate system. The forward affine transform built in \texttt{build\_rotation\_affine} is
+\[
+\begin{bmatrix}
+u\\v
+\end{bmatrix}
+=
+\mathbf{A}
+\begin{bmatrix}
+x\\y
+\end{bmatrix}
++\mathbf{b},
+\qquad
+\mathbf{A}
+=
+\begin{bmatrix}
+\cos\phi_p & \sin\phi_p\\
+-\sin\phi_p & \cos\phi_p
+\end{bmatrix},
+\qquad
+\mathbf{b}=\mathbf{t}-\mathbf{A}\mathbf{c},
+\]
+where \(\mathbf{c}=(c_x,c_y)^\top\) is the nozzle center and \(\mathbf{t}\) places the nozzle at the left edge and mid-height of the output strip. The actual remap uses the inverse relation
+\[
+\begin{bmatrix}
+x_{\mathrm{src}}\\y_{\mathrm{src}}
+\end{bmatrix}
+=
+\mathbf{A}^{-1}
+\left(
+\begin{bmatrix}
+u\\v
+\end{bmatrix}
+-\mathbf{b}
+\right),
+\]
+implemented in \texttt{build\_affine\_inverse\_maps\_cupy}. For each plume, the map arrays \texttt{mapx} and \texttt{mapy} are precomputed once, and \texttt{remap\_video\_cupy} samples the full video with nearest, bilinear, bicubic, or Lanczos kernels. The multihole pipeline uses a fixed strip size \texttt{OUT\_SHAPE = (outer\_radius/2, outer\_radius)} and applies a triangular plume mask after remapping. This inverse-map formulation is computationally efficient and numerically clean, because every downstream plume metric is measured in the same local coordinate system \cite{Szeliski2010Vision}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{images/fig_efficient_rotation.png}
+\caption{Repository-generated visualization of the inverse affine remapping stage. The map arrays define the source coordinates for each output pixel, after which the rotated strip and triangular plume mask are used for plume-wise analysis.}
+\label{fig:efficient-rotation}
+\end{figure}
+
+\subsubsection{Robust CDF penetration from aligned plume strips}
+
+The penetration estimator is deliberately based on cumulative intensity support instead of on the single brightest pixel or the outermost isolated blob. For each plume strip \(I_p(t,y,x)\), \texttt{penetration\_cdf\_all\_plumes} first collapses the cross-stream direction,
+\[
+H_p(t,x)=\sum_y I_p(t,y,x),
+\]
+subtracts a left-edge baseline from each frame, clips negative values, and generates a support mask by automatic thresholding, largest-component cleanup, and binary opening. Within that support, \texttt{penetration\_cdf\_front} forms the axial cumulative distribution
+\[
+C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi)+\varepsilon},
+\]
+and defines the penetration front as the first location satisfying
+\[
+\hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
+\]
+with \(q\) close to one. The code then enforces monotonicity by \texttt{np.maximum.accumulate}, subtracts the inner radius to express distance from the nozzle annulus, and in \texttt{main.py} discards traces that show non-physical backward jumps or only very short valid runs. This CDF front is one of the main practical contributions of the workflow: it is much less sensitive to broken leading-edge pixels than a naive max-index definition, while still producing a penetration quantity aligned with standard diesel-spray usage \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
+
+\subsubsection{Boundary metrics and geometric proxies}
+
+Binarized plume strips are also passed to \texttt{extract\_single\_plume\_features}, which computes several secondary observables. The projected area is
+\[
+A_p(t)=\sum_{x,y} B_p(t,y,x).
+\]
+Axial binarized penetration is obtained from the rightmost column whose occupancy exceeds a pixel threshold, while polar penetration is defined from the upper and lower boundary point clouds as
+\[
+R_p(t)=\max\!\left(
+\max_i \sqrt{x_{u,i}^2+y_{u,i}^2},
+\max_j \sqrt{x_{l,j}^2+y_{l,j}^2}
+\right).
+\]
+The code also stores a volume-like geometric proxy,
+\[
+V_p(t)=x_{\mathrm{scale}} \frac{\pi}{4}\sum_x \left(w_u(t,x)+w_l(t,x)\right)^2,
+\]
+where \(w_u\) and \(w_l\) are the upper and lower half-widths and \(x_{\mathrm{scale}}=1/\cos((180^\circ-\theta_{\mathrm{umb}})/2)\) compensates for umbrella-angle tilt when needed. Cone-angle proxies are computed in two ways: by averaging local boundary angles
+\[
+\alpha_{\mathrm{avg}}(t)=\overline{\arctan(y_u/x_u)}-\overline{\arctan(y_l/x_l)},
+\]
+and by fitting fixed-intercept boundary lines and taking
+\[
+\alpha_{\mathrm{lg}}(t)=\arctan(m_u)-\arctan(m_l).
+\]
+Near-nozzle opening and closing times are finally inferred from a small detection window close to the injector. These metrics matter because they turn each aligned strip into a compact geometric state vector; however, the downstream modeling in this thesis remains focused on penetration, which is the best-supported target in the archived notebooks \cite{Linne2013SprayImaging,LefebvreMcDonell2017}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{images/fig_mie_metrics_summary.png}
+\caption{Examples of quantitative outputs produced after plume alignment and binarization: penetration descriptors, plume size, cone-angle proxies, and a representative maximum projection of the binarized plume strip.}
+\label{fig:mie-metrics-summary}
+\end{figure}
+
+\subsection{Trajectory cleaning and reduced-order fitting in \texttt{MLP/fit\_raw\_data.py}}
+
+The learned models do not train directly on the raw exported traces. Instead, \texttt{fit\_raw\_data.py} first cleans them. The script detects an early hydraulic delay, shifts the trajectory to align plume onset, removes sudden unrealistic jumps, converts pixels to corrected physical length, and flags low-quality fits through a set of rule-based masks.
+
+Each accepted trajectory is then fitted with a smooth two-regime model,
+\[
+S(t)=\left(1-w(t)\right)k_{\mathrm{sqrt}}\sqrt{t}
++w(t)k_{\mathrm{quarter}}t^{1/4},
+\qquad
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right),
+\]
+where \(k_{\mathrm{sqrt}}\), \(k_{\mathrm{quarter}}\), \(t_0\), and \(s\) are optimized in log space. Concretely, the fitting problem is posed as a robust nonlinear least-squares estimation,
+\[
+\min_{\theta}
+\sum_i \rho_\delta\!\left(S(t_i;\theta)-y_i\right),
+\qquad
+\theta=
+\left[\log k_{\mathrm{sqrt}},\log k_{\mathrm{quarter}},\log t_0,\log s\right],
+\]
+with the Huber penalty
+\[
+\rho_\delta(r)=
+\begin{cases}
+\tfrac{1}{2}r^2, & |r|\le \delta,\\
+\delta\left(|r|-\tfrac{1}{2}\delta\right), & |r|>\delta.
+\end{cases}
+\]
+In the implementation, this objective is solved by \texttt{scipy.optimize.least\_squares(..., method="trf", loss="huber")} with \(\delta=1\), while the log-parameterization keeps the fitted gains and transition scale positive \cite{Huber1964,NocedalWright2006}. This fit is not introduced as a baseless convenience curve. It is a reduced-order, data-driven adaptation of the regime-change viewpoint used in diesel spray-penetration literature: Hiroyasu and Arai describe spray development in terms of changing penetration behavior across stages \cite{HiroyasuArai1990}, and later work on start-of-injection transients shows that short injections are difficult to represent well with one rigid empirical expression over the entire trace \cite{ZhouLiYi2021}. That consideration is especially relevant here because the present experiments use pilot diesel injection, for which the near-SOI portion is short, highly transient, and relatively noisy.
+
+The model should therefore be read as a temporal parameterization rather than as an explicit physics law. Its purpose is twofold: to provide believable extrapolation farther from SOI, where the downstream surrogate needs stable targets, and to provide acceptable interpolation near SOI, where the relative error is larger and the apparent early-time physics are harder to constrain from the image trace alone. The sigmoid gate is important for that role. Instead of imposing a hard breakpoint between two empirical branches, it creates a differentiable transition, which keeps the fitted curve smooth and makes it more compatible with the later neural-network stage. In other words, the early transient physics are not forced into a rigid closed-form law here; they are only approximated well enough that the subsequent network can learn the remaining condition-dependent behavior from the full operating-point inputs.
+
+This interpretation becomes clearer when the fit is compared with the extended EOI expressions in the spray literature. The Zhou et al.\ post-EOI model distinguishes the global injection clock \(t\) from the delayed clock \((t-t_i)\), because the late penetration branch is activated only after the end-of-injection dynamics have propagated downstream \cite{ZhouLiLaiWei2019}. The present fit does not reproduce that delayed clock explicitly. Instead, it uses
+\[
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right)
+\]
+to suppress the quarter-root branch before a learned transition time \(t_0\), and then allows the \(t^{1/4}\) term to dominate only after that transition. This is not algebraically identical to replacing \((t-t_i)^{1/4}\) with \(t^{1/4}\). Rather, it is an engineering reparameterization: on a finite observation window, a delayed fourth-root branch can often be represented adequately by a gated unshifted fourth-root branch with adjusted amplitude and transition location, especially when the early part of that branch is strongly attenuated by \(1-w(t)\) or \(w(t)\) near zero. In that sense, the delayed physical clock is absorbed into the learned switching parameters \((t_0,s)\) and into the branch amplitudes rather than being imposed as a fixed known constant.
+
+I therefore consider the engineering approach reasonable for the stated objective of this thesis, with one clear boundary. It is reasonable because the fit is used as a smooth compressor of noisy trajectories, not as a final mechanistic spray law; it keeps the curve differentiable for later learning; and it leaves the operating-condition dependence to the neural network instead of forcing every physical effect into the closed-form fit. The boundary is that this justification should be presented as a reduced-order surrogate motivated by empirical penetration theory, not as proof that the shifted-time physics have disappeared. A stricter physics-oriented study would compare the present fit directly against a branch written explicitly in \((t-t_i)\) and report the ablation.
+
+The archived local analysis supports this interpretation. The exploratory notebooks in \texttt{MLP/interpretatable\_test} explicitly describe the model as a Hiroyasu--Arai-inspired two-branch blend, while \texttt{fitted\_stats\_analysis.ipynb} and the archived clean-fit CSV tables show that \(k_{\mathrm{sqrt}}\) behaves more like an optional shape descriptor than a uniformly stable physical coefficient. Across the current clean-fit archive, the square-root branch amplitude at the fitted transition time is smaller than half of the quarter-root branch for the large majority of accepted rows, so many successful fits effectively degenerate toward a quarter-root-dominated curve. This is acceptable for the intended use: the physical drivers are later given directly to the neural network, while the fit itself remains self-adaptive and physics-light. In the archived production outputs under \texttt{MLP/synthetic\_data}, 105\,594 of 123\,902 candidate rows are marked as successful by the raw nonlinear fit, corresponding to a practical success rate of about \(85\%\) before the stricter post-fit masking stage. The practical purpose of this fit is therefore not to claim a universal penetration law, but to compress noisy plume trajectories into smooth, differentiable, and trainable targets while still preserving the dataset's heteroscedastic variation for the later learning stages.
+
+The stricter post-fit masking stage is also an important part of the engineering contribution. In \texttt{apply\_filter\_masking}, the script first forms a far-time penetration proxy by evaluating the fitted curve at \(t_{\mathrm{far}}=\SI{5}{ms}\). The row is retained only if that far-time value remains inside a broad physically plausible window and if the fit parameters pass basic sanity checks on \(t_0\), \(s\), point count, and fit cost. The code then computes robust grouped outlier scores using the median absolute deviation,
+\[
+z_{\mathrm{robust}}(x)=0.6745\,\frac{x-\operatorname{median}(x)}{\operatorname{MAD}(x)+\epsilon},
+\qquad
+\operatorname{MAD}(x)=\operatorname{median}\!\left(\lvert x-\operatorname{median}(x)\rvert\right),
+\]
+applied to \(t_0\), \(\log(1+\mathrm{RMSE})\), and \(\log(1+\mathrm{cost\_per\_point})\) within each file group. Rows with \(|z_{\mathrm{robust}}|>3\) on any of those diagnostics are marked as outliers and excluded from the clean archive. This matters for the later neural-network stages because it removes evidently unstable fits before they can distort the training distribution. The result is a deliberately conservative curation step: the network does not see every fitted row, only those trajectories that remain numerically plausible both near the fitted transition and at a fixed far time.
+
+\subsection{Stage-1 deterministic baseline in \texttt{MLP/median\_penetration\_MSE.ipynb}}
+
+The archived stage-1 notebook states that it builds a representative row table from fitted CSV outputs and trains a deterministic baseline around nine input features:
+\begin{enumerate}
+  \item normalized time,
+  \item tilt angle,
+  \item plume count,
+  \item nozzle diameter,
+  \item injection duration,
+  \item log injection pressure,
+  \item log chamber pressure,
+  \item log pressure difference, and
+  \item control backpressure.
+\end{enumerate}
+
+The representative-row construction is explicit in the notebook. For each file-level working-condition group, the fitted curve is evaluated at a fixed comparison time of \(\SI{5}{ms}\), the group median penetration at that far time is computed, and the row closest to that median is kept as the stage-1 representative. This choice is purposeful: the notebook notes that very early points are more strongly affected by hydraulic delay, segmentation ambiguity, and relative error, whereas far-time penetration is more stable and therefore better suited for selecting a typical trajectory. Stage 1 is thus not trained on the full row distribution, but on one median-representative fitted trajectory per group.
+
+The feature scaling is equally deliberate. The penetration target itself is decoded from the four fitted constants on a fixed \(\SI{0}{ms}\) to \(\SI{5}{ms}\) grid and kept in its physical fitted unit rather than being standardized away, so that the learned mean \(\mu\) and later uncertainty scale remain directly interpretable as penetration values. By contrast, the network inputs are normalized for optimization stability: time is mapped to \([0,1]\), static geometry and operating-condition features are z-scored using statistics fitted on the training subset only, and pressure-related variables are first expressed in the log domain before z-scoring. The same scaler state is saved for later inference reuse in \texttt{toy\_inference\_from\_run.py}.
+
+The loss used in stage 1 is more structured than plain MSE. The network emits two outputs per point, \(\mu(x,t)\) and \(\log \sigma^2(x,t)\), but the representative median dataset is used mainly to learn the mean trend. The implemented objective can be written as
+\[
+\begin{aligned}
+\mathcal{L}_{\mathrm{stage1}}
+=\;&
+\underbrace{\operatorname{MSE}\!\left(\mu,y\right)}_{\text{mean fit}}
++\lambda_{\mathrm{var}}
+\underbrace{\mathbb{E}\!\left[\left(\log \sigma^2-c_0\right)^2\right]}_{\text{log-variance prior}}\\
+&+\lambda_{1}
+\underbrace{\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu}{\partial t}\right)^2\right]}_{\text{monotonicity}}
++\lambda_{2}
+\underbrace{\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu}{\partial t^2}\right)^2\right]}_{\text{post-transient concavity}}.
+\end{aligned}
+\]
+with
+\[
+g(t)=\sigma\!\left(\frac{t-t_c}{\tau_c}\right).
+\]
+In the notebook implementation, \(c_0=-2\) is the prior center for the \(\log\)-variance head in stage 1, and the derivatives are implemented by first and second finite differences on the decoded \(\SI{0}{ms}\) to \(\SI{5}{ms}\) time grid. The \(\log\)-variance output is also clamped to a bounded interval before the regularization is applied.
+
+These derivative penalties are used as engineering priors instead of a full PINN residual. The motivation is intuitive and consistent with the empirical penetration discussion earlier in the thesis: spray tip penetration should be non-decreasing in time, and after the initial transient it should not keep accelerating indefinitely. The first penalty therefore discourages negative slope, while the second discourages positive curvature only after a learned or prescribed transition region. This soft-gated concavity term is important because it leaves room for early-time acceleration near SOI, where the injection transient is strongest, but pushes the later trajectory toward the decelerating shape observed in practice.
+
+The notebook output reports \texttt{input\_dim = 9} and \texttt{n\_points = 1024}. It also reports a stage-1 row table of 589 representative trajectories split into 413 training rows, 88 validation rows, and 88 test rows. The stored run configuration shows a two-output MLP with dropout, GELU activation, and derivative-based penalties. Importantly, the stored configuration also keeps \texttt{physics.weight = 0.0}. Therefore the archived model is best described as a physically scaled and softly regularized MLP, not as a full PDE-residual PINN. In stage 1, the second output head is retained mainly for architectural continuity, while the loss is still dominated by MSE on the representative median targets.
+
+Besides the explicit loss terms, the archived configuration uses several standard regularization devices: dropout in the hidden layers, AdamW weight decay, gradient clipping, and early stopping on validation loss. In combination with the derivative penalties above, these form the practical replacement for a harder physics-constrained network in the current repository stage.
+
+\subsection{Stage-2 heteroscedastic extension in \texttt{MLP/median\_penetration\_NLL.ipynb}}
+
+The second notebook continues from the stage-1 architecture and replaces the stage-1 loss with heteroscedastic Gaussian negative log likelihood. In simplified form,
+\[
+\mathcal{L}_{\mathrm{NLL}}
+=
+\frac{1}{2}
+\left[
+\log \sigma^2(x,t)
++
+\frac{\left(y-\mu(x,t)\right)^2}{\sigma^2(x,t)}
+\right].
+\]
+
+The stage-2 dataset is intentionally broader than the stage-1 seed set, but it is still filtered. Instead of taking only one median representative row per group, the notebook keeps all rows that survive a far-time selection rule at the same comparison time of \(\SI{5}{ms}\). Concretely, it reconstructs the penetration and its time derivative at that timestamp from the four fitted constants, removes rows whose far-time penetration is a robust z-score outlier within the group, and removes degenerate rows whose derivative is essentially flat at that comparison point. This is a second robustness barrier on top of the earlier \texttt{fit\_raw\_data.py} masking stage.
+
+Stage 2 also reuses the stage-1 scaling and initialization logic. The notebook explicitly loads \texttt{best\_model\_stage1.pt}, \texttt{scaler\_state.json}, and the stored training configuration before continuing optimization. The feature map remains the same nine-dimensional physically scaled input vector, so the second stage is best understood as a warm-started heteroscedastic refinement of the stage-1 mean model rather than as a completely separate model family.
+
+Under that setup, the Gaussian conditional model is a reasonable engineering choice. The row-level spread is not attributed to one known physical disturbance; rather, it is treated as the aggregate residual of unresolved injector and measurement effects after heavy filtering. In pilot injection this is especially plausible because the short pulse length magnifies the influence of hydraulic opening transients, small timing offsets, and other additive perturbations relative to the overall event duration \cite{ZhouLiYi2021}. The NLL objective is therefore used here as a practical way to learn where the remaining data cloud is narrow and where it is broad, while still coupling the uncertainty prediction to the same mean trajectory model learned in stage 1.
+
+The stage-2 objective keeps the same geometric regularization while replacing the stage-1 MSE term with heteroscedastic negative log likelihood:
+\[
+\mathcal{L}_{\mathrm{stage2}}
+=
+\underbrace{\mathbb{E}\!\left[
+\frac{1}{2}
+\left(
+\log \sigma^2
++
+\frac{(y-\mu)^2}{\sigma^2}
+\right)\right]}_{\text{heteroscedastic Gaussian NLL}}
++\lambda_{1}
+\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu}{\partial t}\right)^2\right]
++\lambda_{2}
+\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu}{\partial t^2}\right)^2\right],
+\qquad
+\sigma^2=\exp(\log \sigma^2)+\varepsilon .
+\]
+As in stage 1, the implementation clamps \(\log \sigma^2\) to a bounded interval and computes the derivative penalties through finite differences on the fixed time grid. The conceptual difference is that the variance head is no longer merely regularized toward a prior; it is now trained directly by the NLL term. This is why the warm start from stage 1 matters: the mean branch already encodes a stable penetration trend, so stage 2 can spend its capacity on refining the mean and learning the condition-dependent residual scale instead of relearning the entire trajectory from scratch.
+
+The same monotonicity and delayed-concavity priors are retained deliberately. They are not intended as exact governing equations for the spray, but as shape constraints that are weaker and more robust than a direct PINN formulation in the present data regime. In effect, the model is told that penetration should grow with time and should not continue accelerating after the transient region, while the remaining unexplained spread is delegated to the heteroscedastic variance head and the NLL objective.
+
+The archived notebook output reports a row table of 21,177 trajectories with a split of 14,825 training rows, 3,176 validation rows, and 3,176 test rows. The notebook also prints standard-deviation ranges during toy inference, which confirms that the second output head is being used as an uncertainty estimate in the notebook session.
+
+However, the stage-2 result must be bounded carefully. The stored run directory \texttt{MLP/runs\_mlp/stage2\_NLL\_penetration\_20260317\_194155} contains logs, scaler state, configuration, and \texttt{loss\_curves.png}, but it does not contain \texttt{best\_model\_stage2.pt}. In addition, the stored run configuration points to \texttt{MLP/data\_penetration}, which is not present in the current workspace. For that reason the thesis treats stage 2 as an archived partial result rather than as a fully packaged publication model.
+
+\subsection{Prototype inference notebook}
+
+The notebook \texttt{MLP/toy\_inference\_from\_run.ipynb} demonstrates how a stored run directory can be loaded for manual inference. The archived output shows that, when pointed to the stage-2 run directory above, the prototype resolves the available checkpoint as \texttt{best\_model\_stage1.pt}. It then generates mean and standard-deviation curves and overlays them on simple geometric masks.
+
+This prototype is useful as a proof of concept because it exercises the scaling state, the trained network interface, and a simple downstream visualization path. It is not used here as evidence for a finished collision-detection product.
+
+\section{Results}
+
+\subsection{Extracted and cleaned trajectory assets}
+
+The current workspace contains ten campaign folders under \texttt{MLP/synthetic\_data} and 295 cleaned fitted CSV files under the corresponding \texttt{clean} subfolders. This means the image-processing side of the workflow is not merely a draft: it has already produced a sizeable archive of cleaned penetration-oriented assets from multiple campaign folders.
+
+Figure~\ref{fig:clean-fit-example} shows a representative cleaned penetration plot from the archived output directory. The solid curves are cleaned trajectories and the dashed curves are the fitted reduced-order curves from the \texttt{cdf} pathway. The figure illustrates the practical role of \texttt{MLP/fit\_raw\_data.py}: smooth the raw plume-wise trajectories enough that they can be modeled later without discarding their main temporal structure.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
+\caption{Representative cleaned trajectories and fitted curves from \texttt{MLP/synthetic\_data/BC20241003\_HZ\_Nozzle1/cdf/plots\_clean/T1.png}. The figure is used here as direct evidence that the trajectory-cleaning and fitting stage has already produced reusable penetration targets.}
+\label{fig:clean-fit-example}
+\end{figure}
+
+\subsection{Stage-1 baseline model}
+
+The stage-1 baseline is the strongest archived predictive result in the repository. Table~\ref{tab:model-summary} summarizes the main quantitative evidence.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/stage1_loss_curves.png}
+\caption{Archived stage-1 loss curves copied from \texttt{MLP/runs\_mlp/stage1\_median\_penetration\_20260306\_172838/loss\_curves.png}.}
+\label{fig:stage1-loss}
+\end{figure}
+
+The run directory \texttt{stage1\_median\_penetration\_20260306\_172838} contains a deployable \texttt{best\_model\_stage1.pt}, scaler state, configuration, epoch-level loss log, iteration-level loss log, and the saved loss-curve figure. Reading the epoch log directly shows the best archived validation loss at epoch 429, with a validation MSE of 23.26. This is the clearest completed surrogate-model artifact in the current project state.
+
+Equally important is what that stage-1 result represents. It is not the mean of all raw fitted rows. It is a deliberately stabilized baseline trained on 589 median-representative trajectories chosen at \(\SI{5}{ms}\), after the earlier curve-fitting masks had already removed implausible rows. In other words, stage 1 is a warm-start mean model trained on a conservative subset whose purpose is to learn the dominant penetration trend before variance modeling is introduced.
+
+\subsection{Stage-2 uncertainty-aware extension}
+
+The archived stage-2 notebook and run logs show that the uncertainty-aware extension was actively trained and that its validation NLL decreased substantially during training. The epoch log in \texttt{stage2\_NLL\_penetration\_20260317\_194155/epoch\_loss.csv} shows a best archived validation loss of 2.449 at epoch 570.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/stage2_loss_curves.png}
+\caption{Archived stage-2 loss curves copied from \texttt{MLP/runs\_mlp/stage2\_NLL\_penetration\_20260317\_194155/loss\_curves.png}.}
+\label{fig:stage2-loss}
+\end{figure}
+
+The dataset construction is materially different from stage 1 and helps explain why the NLL objective is useful here. Stage 2 starts from the saved stage-1 weights, retains the same feature scaling, expands the row table to 21,177 filtered trajectories, and then optimizes the mean and variance jointly on that broader distribution. Because the data have already passed the fit-level masking and the far-time z-score filters, the remaining spread is less dominated by obvious fit failures and more representative of true conditional variation in the archived dataset. Within that heavily filtered and warm-started regime, the archived logs support the claim that heteroscedastic regression handles the remaining problem well: the NLL keeps improving, the predicted standard deviations remain nontrivial during inference, and the model can assign broader uncertainty where the trajectory family is less repeatable.
+
+That said, the result boundary is important. The stored stage-2 run directory does not include a dedicated stage-2 checkpoint, and the training configuration points to an intermediate folder that is not currently present in the workspace. Therefore the uncertainty-aware extension is evidenced by archived logs and notebook outputs, but not yet by a fully packaged deployable model artifact. This is why the thesis reports stage 2 as a partial result instead of presenting it as the final publication model.
+
+\subsection{Prototype inference notebook}
+
+The prototype inference notebook demonstrates a plausible deployment direction rather than a final scientific endpoint. Its archived outputs show that it loads run metadata, produces predicted mean and standard-deviation curves, draws simple spray-envelope proxies, and computes simple overlap metrics with wall and cylinder masks. In the stored example the notebook reports zero wall-collision and cylinder-collision area for the chosen toy setup. That is useful as a software integration proof of concept, but it is not enough to claim a validated collision-analysis framework.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{|p{0.24\linewidth}|p{0.20\linewidth}|p{0.22\linewidth}|p{0.24\linewidth}|}
+\hline
+Stage & Data evidence & Best archived validation result & Current status \\
+\hline
+Image-processing and fitting & 10 campaign folders and 295 cleaned fitted CSV files under \texttt{MLP/synthetic\_data} & Representative cleaned/fitted trajectory plots available & Completed and auditable \\
+\hline
+Stage 1 MSE baseline & Archived notebook output: 589 rows split into 413/88/88 & Validation MSE 23.26 at epoch 429 & Completed run with saved checkpoint \\
+\hline
+Stage 2 NLL extension & Archived notebook output: 21,177 rows split into 14,825/3,176/3,176 & Validation NLL 2.449 at epoch 570 & Partial result; no saved stage-2 checkpoint in current run directory \\
+\hline
+Prototype inference & Archived notebook outputs from \texttt{MLP/toy\_inference\_from\_run.ipynb} & Mean/std prediction plots and simple overlap calculations & Prototype only, not a validated product \\
+\hline
+\end{tabular}
+\caption{Evidence summary of the completed and partial project stages.}
+\label{tab:model-summary}
+\end{table}
+
+\subsection{Result boundary and reproducibility status}
+
+The evidence in this thesis comes from three levels:
+\begin{enumerate}
+  \item directly present assets in the current workspace, such as cleaned CSV files, archived figures, and run logs;
+  \item archived notebook outputs embedded inside the stored notebooks; and
+  \item stored run configurations and checkpoints.
+\end{enumerate}
+
+The strongest reproducibility level in the current workspace is the extraction, cleaning, and stage-1 baseline archive. The weakest point is the stage-2 packaging boundary: the saved run log exists, but the dedicated stage-2 checkpoint and the referenced intermediate \texttt{MLP/data\_penetration} folder are not present. This limitation is central to the interpretation of the results and is carried through to the conclusion.
+
+\section{Conclusions}
+
+This thesis documented an evidence-grounded workflow for processing high-speed Mie-scattering spray videos into penetration-oriented engineering observables and for building archived surrogate models on top of those observables. The strongest completed contributions are:
+\begin{itemize}
+  \item manual nozzle-center calibration in \texttt{GUI.py},
+  \item batch plume-wise feature extraction in \texttt{main.py},
+  \item trajectory cleaning and reduced-order fitting in \texttt{MLP/fit\_raw\_data.py}, and
+  \item a completed archived stage-1 deterministic penetration model with saved checkpoint and run logs.
+\end{itemize}
+
+The stage-2 heteroscedastic model is promising but remains incomplete as a publication artifact in the current workspace. Archived logs and notebook outputs show that, after warm-starting from the MSE baseline and training on heavily filtered trajectory data, the uncertainty-aware extension produced improving NLL values and nontrivial standard-deviation predictions. That is consistent with the intended interpretation of stage 2: heteroscedastic regression is able to handle the remaining input-dependent spread better than a constant-variance objective once the obvious fit failures have already been removed. However, the absence of a dedicated saved stage-2 checkpoint and the missing intermediate training folder mean that stage 2 cannot yet be presented as the final deployed model.
+
+The prototype inference notebook already shows a useful software direction: archived model artifacts can be loaded, penetration curves can be visualized, and simple geometry overlays can be generated. Even so, validated collision prediction, full 2D envelope reconstruction, and fully packaged uncertainty-aware deployment remain future work.
+
+In summary, the project has already achieved a practical and credible engineering workflow for extracting and modeling spray penetration from Mie-scattering videos. The next development priorities are straightforward: package the stage-2 model completely, preserve the intermediate training dataset used by the archived runs, and validate any future geometry-interaction module against explicit experimental or simulation targets before elevating it from prototype status to thesis-level result.
+
+\thesisbibliography
+
+\end{document}

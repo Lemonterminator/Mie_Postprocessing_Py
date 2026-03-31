@@ -1,0 +1,39 @@
+\contentsline {section}{Preface}{iii}{Doc-Start}%
+\contentsline {section}{\numberline {1}Introduction}{1}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Research relevance}{1}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Current engineering practice}{1}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Existing solutions}{2}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Problem statement}{2}{subsection.1.4}%
+\contentsline {subsection}{\numberline {1.5}Research aim}{2}{subsection.1.5}%
+\contentsline {subsection}{\numberline {1.6}Research methods}{3}{subsection.1.6}%
+\contentsline {subsection}{\numberline {1.7}Research scope}{3}{subsection.1.7}%
+\contentsline {subsection}{\numberline {1.8}Thesis structure}{3}{subsection.1.8}%
+\contentsline {section}{\numberline {2}Literature Review and Technical Rationale}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Why penetration-oriented observables are used in Mie imaging}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Supporting theories from computer vision and signal processing}{5}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Metric definition and boundary extraction in spray imaging}{6}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Why a deterministic model and an uncertainty-aware extension are both useful}{7}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Research Material and Methods}{7}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Workflow overview}{7}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Calibration in \texttt {GUI.py}}{7}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Batch video processing in \texttt {main.py}}{8}{subsection.3.3}%
+\contentsline {subsubsection}{\numberline {3.3.1}Calibration hand-off and batch anchoring}{8}{subsubsection.3.3.1}%
+\contentsline {subsubsection}{\numberline {3.3.2}Bulk and robust preprocessing}{9}{subsubsection.3.3.2}%
+\contentsline {subsubsection}{\numberline {3.3.3}Ultra-efficient Sobel high-pass on the CUDA backend}{11}{subsubsection.3.3.3}%
+\contentsline {subsubsection}{\numberline {3.3.4}Angular density as polar resampling}{11}{subsubsection.3.3.4}%
+\contentsline {subsubsection}{\numberline {3.3.5}FFT-based self-adaptive rotation alignment}{12}{subsubsection.3.3.5}%
+\contentsline {subsubsection}{\numberline {3.3.6}Inverse affine mapping and plume-strip extraction}{13}{subsubsection.3.3.6}%
+\contentsline {subsubsection}{\numberline {3.3.7}Robust CDF penetration from aligned plume strips}{14}{subsubsection.3.3.7}%
+\contentsline {subsubsection}{\numberline {3.3.8}Boundary metrics and geometric proxies}{15}{subsubsection.3.3.8}%
+\contentsline {subsection}{\numberline {3.4}Trajectory cleaning and reduced-order fitting in \texttt {MLP/fit\_raw\_data.py}}{16}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Stage-1 deterministic baseline in \texttt {MLP/median\_penetration\_MSE.ipynb}}{19}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Stage-2 heteroscedastic extension in \texttt {MLP/median\_penetration\_NLL.ipynb}}{20}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Prototype inference notebook}{22}{subsection.3.7}%
+\contentsline {section}{\numberline {4}Results}{22}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Extracted and cleaned trajectory assets}{22}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Stage-1 baseline model}{22}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Stage-2 uncertainty-aware extension}{23}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Prototype inference notebook}{24}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Result boundary and reproducibility status}{24}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Conclusions}{25}{section.5}%
+\contentsline {section}{References}{27}{section.5}%
