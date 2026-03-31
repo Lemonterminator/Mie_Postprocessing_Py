@@ -13,6 +13,16 @@ FIT_PENETRATION_CDF = True
 FIT_PENETRATION_BW_X = True
 FIT_PENETRATION_BW_POLAR = True
 
+# Filtering switches.
+ENABLE_REPLACE_NEGATIVE_WITH_ZERO = True  # For bw_x only: clamp negative penetration to 0 before cleaning.
+ENABLE_HYDRAULIC_DELAY_SCAN = True  # Detect early zero/NaN frames and shift the series left.
+ENABLE_DIFF_THRESHOLD_LOWER = True  # Cut the series when frame-to-frame growth becomes too small.
+ENABLE_DIFF_THRESHOLD_UPPER = True  # Cut the series when frame-to-frame growth jumps unrealistically high.
+ENABLE_DELAY_CLIP = True  # Clip plume delay to the median-centered window before plume alignment.
+ENABLE_MASK_BASIC = True  # Apply basic fit-quality checks: success, finite metrics, n, t0, s.
+ENABLE_MASK_PENETRATION_FAR = True  # Require far-time penetration to lie in the configured mm range.
+ENABLE_MASK_OUTLIER = True  # Remove robust-z outliers on t0, rmse, and cost_per_point.
+
 
 
 # Input/output roots
@@ -213,7 +223,7 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
         t_max = pd.Series(np.full(len(out), fallback_tmax), index=out.index)
 
     # hard checks from the notebook prototype
-    out["mask_basic"] = (
+    mask_basic = (
         out["success"].fillna(False)
         & np.isfinite(pd.to_numeric(out["t0"], errors="coerce"))
         & np.isfinite(pd.to_numeric(out["rmse"], errors="coerce"))
@@ -225,12 +235,15 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
         & (pd.to_numeric(out["s"], errors="coerce") < MASK_S_UPPER)
         & (pd.to_numeric(out["t0"], errors="coerce") < MASK_T0_UPPER)
     )
-    out["mask_penetration_far"] = (
+    out["mask_basic"] = mask_basic if ENABLE_MASK_BASIC else True
+
+    mask_penetration_far = (
         np.isfinite(pd.to_numeric(out["penetration_far_mm"], errors="coerce"))
         & pd.to_numeric(out["penetration_far_mm"], errors="coerce").between(
             MASK_PENETRATION_LOWER_MM, MASK_PENETRATION_UPPER_MM
         )
     )
+    out["mask_penetration_far"] = mask_penetration_far if ENABLE_MASK_PENETRATION_FAR else True
 
     # robust outlier checks (prototype: grouped by file_name)
     out["z_t0"] = out.groupby(list(group_cols), dropna=False)["t0"].transform(robust_z)
@@ -241,11 +254,12 @@ def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH)
         lambda s: robust_z(np.log1p(pd.to_numeric(s, errors="coerce")))
     )
 
-    out["mask_outlier"] = (
+    mask_outlier = (
         out["z_t0"].abs().gt(z_thresh)
         | out["z_rmse"].abs().gt(z_thresh)
         | out["z_cost"].abs().gt(z_thresh)
     ).fillna(False)
+    out["mask_outlier"] = mask_outlier if ENABLE_MASK_OUTLIER else False
 
     out["flag_bad_fit"] = (~out["mask_basic"]) | (~out["mask_penetration_far"]) | out["mask_outlier"]
 
@@ -260,18 +274,18 @@ def penetration_cleaning(
     diff_threshold_lower=1.0,
     diff_threshold_upper=np.inf,
     hd_upper_lim=15,
+    forced_delay=None,
+    replace_negative_with_zero=False,
 ):
     arr = np.asarray(arr, dtype=float).copy()
-    penetration_delay = 0
+    penetration_delay = 0 if forced_delay is None else int(forced_delay)
 
-    if arr.size <= 1:
-        return arr * scaling_factor, penetration_delay
-
-    scan_limit = min(hd_upper_lim, arr.size - 1)
-    for f in range(scan_limit):
-        if arr[f + 1] == 0 or np.isnan(arr[f + 1]):
-            penetration_delay += 1
-            arr[f] = np.nan
+    if forced_delay is None and ENABLE_HYDRAULIC_DELAY_SCAN:
+        scan_limit = min(hd_upper_lim, arr.size - 1)
+        for f in range(scan_limit):
+            if arr[f + 1] == 0 or np.isnan(arr[f + 1]):
+                penetration_delay += 1
+                arr[f] = np.nan
 
     if penetration_delay > 0:
         # Shift left without wraparound; fill tail with NaN.
@@ -280,19 +294,60 @@ def penetration_cleaning(
             arr_shifted[:-penetration_delay] = arr[penetration_delay:]
         arr = arr_shifted
 
-    arr_diff = np.diff(arr)
-    lower_cut_idx = np.where(arr_diff < diff_threshold_lower)[0]
-    if lower_cut_idx.size > 0:
-        arr = arr[: lower_cut_idx[0].item()]
+    if replace_negative_with_zero and ENABLE_REPLACE_NEGATIVE_WITH_ZERO:
+        arr[arr < 0] = 0.0
+
+    positive_idx = np.flatnonzero(np.isfinite(arr) & (arr > 0))
+    if positive_idx.size == 0:
+        arr[:] = np.nan
+        return arr * scaling_factor, penetration_delay
+
+    first_positive_idx = int(positive_idx[0])
+    if first_positive_idx > 0:
+        # Pre-onset placeholders after delay alignment should not influence
+        # threshold cuts or the downstream fit.
+        arr[:first_positive_idx] = np.nan
+
+    if ENABLE_DIFF_THRESHOLD_LOWER:
+        arr_diff = np.diff(arr[first_positive_idx:])
+        lower_cut_idx = np.where(arr_diff < diff_threshold_lower)[0]
+        if lower_cut_idx.size > 0:
+            arr = arr[: first_positive_idx + lower_cut_idx[0].item() + 1]
 
     # Remove frames onward if a sudden unrealistically large jump appears.
-    arr_diff = np.diff(arr)
-    upper_cut_idx = np.where(arr_diff > diff_threshold_upper)[0]
-    if upper_cut_idx.size > 0:
-        arr = arr[: upper_cut_idx[0].item()]
+    if ENABLE_DIFF_THRESHOLD_UPPER:
+        valid_positive_idx = np.flatnonzero(np.isfinite(arr) & (arr > 0))
+        if valid_positive_idx.size == 0:
+            arr[:] = np.nan
+            return arr * scaling_factor, penetration_delay
+        first_positive_idx = int(valid_positive_idx[0])
+        arr_diff = np.diff(arr[first_positive_idx:])
+        upper_cut_idx = np.where(arr_diff > diff_threshold_upper)[0]
+        if upper_cut_idx.size > 0:
+            arr = arr[: first_positive_idx + upper_cut_idx[0].item() + 1]
 
     arr *= scaling_factor
     return arr, penetration_delay
+
+
+def get_area_based_delay(df_file, plume_idx):
+    area_col = f"area_plume_{plume_idx}"
+    if area_col not in df_file.columns:
+        return np.nan, "penetration_fallback"
+
+    area = pd.to_numeric(df_file[area_col], errors="coerce").to_numpy(dtype=float)
+    positive_idx = np.flatnonzero(np.isfinite(area) & (area > 0))
+    if positive_idx.size == 0:
+        return np.nan, "penetration_fallback"
+
+    first_positive_idx = int(positive_idx[0])
+    if first_positive_idx <= 0:
+        return np.nan, "penetration_fallback"
+
+    if not np.isfinite(area[first_positive_idx - 1]) or area[first_positive_idx - 1] != 0:
+        return np.nan, "penetration_fallback"
+
+    return float(first_positive_idx - 1), "area"
 
 
 def spray_penetration_model_sigmoid(params, t):
@@ -394,6 +449,7 @@ def prepare_cleaned_series(
     max_len = int(frame_idx.max()) + 1
     cleaned_series = np.full((number_of_plumes, max_len), np.nan)
     delays_raw = np.full(number_of_plumes, np.nan, dtype=float)
+    delay_sources = np.full(number_of_plumes, "", dtype=object)
     temp_series = [None] * number_of_plumes
 
     for plume_idx in range(number_of_plumes):
@@ -401,31 +457,36 @@ def prepare_cleaned_series(
         if col not in df_file.columns:
             continue
 
+        area_delay, delay_source = get_area_based_delay(df_file, plume_idx)
         arr = np.asarray(df_file[col], dtype=float).copy()
-        if replace_negative_with_zero:
-            arr[arr < 0] = 0.0
         cleaned_serie, delay = penetration_cleaning(
             arr,
             pen_correction,
             diff_threshold_lower=diff_threshold_lower,
             diff_threshold_upper=diff_threshold_upper,
             hd_upper_lim=max_hydraulic_delay_frames,
+            forced_delay=area_delay if np.isfinite(area_delay) else None,
+            replace_negative_with_zero=replace_negative_with_zero,
         )
         delays_raw[plume_idx] = delay
+        delay_sources[plume_idx] = delay_source if np.isfinite(area_delay) else "penetration_fallback"
         temp_series[plume_idx] = np.asarray(cleaned_serie, dtype=float)
 
     valid_delays = delays_raw[np.isfinite(delays_raw)]
     median_delay = int(np.round(np.nanmedian(valid_delays))) if valid_delays.size else 0
-    lower_bound = median_delay - int(delay_clip_half_window)
-    upper_bound = median_delay + int(delay_clip_half_window)
     delays_used = np.full(number_of_plumes, median_delay, dtype=float)
     valid_raw_mask = np.isfinite(delays_raw)
-    if np.any(valid_raw_mask):
-        delays_used[valid_raw_mask] = np.clip(
-            np.round(delays_raw[valid_raw_mask]),
-            lower_bound,
-            upper_bound,
-        )
+    if ENABLE_DELAY_CLIP:
+        lower_bound = median_delay - int(delay_clip_half_window)
+        upper_bound = median_delay + int(delay_clip_half_window)
+        if np.any(valid_raw_mask):
+            delays_used[valid_raw_mask] = np.clip(
+                np.round(delays_raw[valid_raw_mask]),
+                lower_bound,
+                upper_bound,
+            )
+    elif np.any(valid_raw_mask):
+        delays_used[valid_raw_mask] = np.round(delays_raw[valid_raw_mask])
 
     # Align each plume using clipped raw delay to limit outlier shifts while
     # preserving plume-level delay variability.
@@ -456,7 +517,108 @@ def prepare_cleaned_series(
         if n > 0:
             cleaned_series[plume_idx, :n] = aligned[:n]
 
-    return time_s, time_ms, cleaned_series, delays_raw, delays_used
+    return time_s, time_ms, cleaned_series, delays_raw, delays_used, delay_sources
+
+
+def collect_series_rows(
+    file_path,
+    time_s,
+    time_ms,
+    cleaned_series,
+    delays_raw,
+    delays_used,
+    delay_sources,
+):
+    rows = []
+    file_path = Path(file_path)
+    for plume_idx in range(cleaned_series.shape[0]):
+        series = np.asarray(cleaned_series[plume_idx], dtype=float)
+        valid = np.isfinite(time_s) & np.isfinite(time_ms) & np.isfinite(series)
+        if not np.any(valid):
+            continue
+
+        for idx in np.flatnonzero(valid):
+            rows.append(
+                {
+                    "file_path": str(file_path.resolve()),
+                    "file_name": file_path.name,
+                    "file_stem": file_path.stem,
+                    "plume_idx": plume_idx,
+                    "frame_pos": int(idx),
+                    "time_s": float(time_s[idx]),
+                    "time_ms": float(time_ms[idx]),
+                    "penetration_mm": float(series[idx]),
+                    "delay_frames_raw": delays_raw[plume_idx],
+                    "delay_frames_used": delays_used[plume_idx],
+                    "delay_source": delay_sources[plume_idx],
+                }
+            )
+    return rows
+
+
+def filter_series_df(series_df, fit_df):
+    if series_df.empty or fit_df.empty:
+        return series_df.iloc[0:0].copy()
+
+    key_cols = ["file_path", "file_name", "file_stem", "plume_idx"]
+    valid_keys = fit_df.loc[:, key_cols].drop_duplicates()
+    return series_df.merge(valid_keys, on=key_cols, how="inner")
+
+
+def build_wide_series_df(series_df, fit_df):
+    if series_df.empty:
+        base_cols = [
+            "file_path",
+            "file_name",
+            "file_stem",
+            "plume_idx",
+            "delay_frames_raw",
+            "delay_frames_used",
+            "delay_source",
+            "seq_len",
+            *META_COLS,
+        ]
+        return pd.DataFrame(columns=base_cols)
+
+    key_cols = ["file_path", "file_name", "file_stem", "plume_idx"]
+    meta_cols = key_cols + [
+        "delay_frames_raw",
+        "delay_frames_used",
+        "delay_source",
+        *META_COLS,
+    ]
+    fit_meta = fit_df.loc[:, [col for col in meta_cols if col in fit_df.columns]].drop_duplicates(key_cols)
+
+    base = (
+        series_df.loc[:, key_cols + ["frame_pos", "delay_frames_raw", "delay_frames_used", "delay_source"]]
+        .sort_values(key_cols + ["frame_pos"])
+        .groupby(key_cols, dropna=False)
+        .agg(
+            delay_frames_raw=("delay_frames_raw", "first"),
+            delay_frames_used=("delay_frames_used", "first"),
+            delay_source=("delay_source", "first"),
+            seq_len=("frame_pos", "count"),
+        )
+        .reset_index()
+    )
+    if not fit_meta.empty:
+        base = base.merge(fit_meta, on=key_cols + ["delay_frames_raw", "delay_frames_used", "delay_source"], how="left")
+
+    time_wide = (
+        series_df.pivot_table(index=key_cols, columns="frame_pos", values="time_ms", aggfunc="first")
+        .sort_index(axis=1)
+        .rename(columns=lambda c: f"time_ms_{int(c):03d}")
+        .reset_index()
+    )
+    pen_wide = (
+        series_df.pivot_table(index=key_cols, columns="frame_pos", values="penetration_mm", aggfunc="first")
+        .sort_index(axis=1)
+        .rename(columns=lambda c: f"penetration_mm_{int(c):03d}")
+        .reset_index()
+    )
+
+    wide = base.merge(time_wide, on=key_cols, how="left").merge(pen_wide, on=key_cols, how="left")
+    return wide
 
 
 def save_fit_plot(
@@ -509,7 +671,7 @@ def save_fit_plot(
         cache_key = str(csv_path.resolve())
         if cache_key not in cache:
             df_file = _read_csv_with_expanded_static_meta(csv_path)
-            time_s, time_ms, cleaned_series, _, _ = prepare_cleaned_series(
+            time_s, time_ms, cleaned_series, _, _, _ = prepare_cleaned_series(
                 df_file,
                 mm_per_px_scale=mm_per_px_scale,
                 fps_default=fps_default,
@@ -581,6 +743,10 @@ def process_folder(
     folder,
     out_all_dir,
     out_clean_dir,
+    out_series_all_dir,
+    out_series_clean_dir,
+    out_series_wide_all_dir,
+    out_series_wide_clean_dir,
     out_plots_clean_dir,
     out_plots_flagged_dir,
     penetration_source,
@@ -595,9 +761,10 @@ def process_folder(
         return
 
     rows = []
+    series_rows = []
     for file_path in csv_files:
         df_file = _read_csv_with_expanded_static_meta(file_path)
-        time_s, _, cleaned_series, delays_raw, delays_used = prepare_cleaned_series(
+        time_s, time_ms, cleaned_series, delays_raw, delays_used, delay_sources = prepare_cleaned_series(
             df_file,
             mm_per_px_scale=mm_per_px_scale,
             fps_default=fps_default,
@@ -607,6 +774,17 @@ def process_folder(
             replace_negative_with_zero=penetration_source["replace_negative_with_zero"],
             diff_threshold_lower=DIFF_THRESHOLD_LOWER,
             diff_threshold_upper=DIFF_THRESHOLD_UPPER,
+        )
+        series_rows.extend(
+            collect_series_rows(
+                file_path=file_path,
+                time_s=time_s,
+                time_ms=time_ms,
+                cleaned_series=cleaned_series,
+                delays_raw=delays_raw,
+                delays_used=delays_used,
+                delay_sources=delay_sources,
+            )
         )
 
         meta = {}
@@ -647,6 +825,7 @@ def process_folder(
                     "delay_frames": delays_used[plume_idx],
                     "delay_frames_raw": delays_raw[plume_idx],
                     "delay_frames_used": delays_used[plume_idx],
+                    "delay_source": delay_sources[plume_idx],
                     "k_sqrt": fit["k_sqrt"],
                     "k_quarter": fit["k_quarter"],
                     "t0": fit["t0"],
@@ -667,10 +846,18 @@ def process_folder(
 
     results_df = pd.DataFrame(rows).replace([np.inf, -np.inf], np.nan)
     masked_df, clean_df, flagged_df = apply_filter_masking(results_df, group_cols=MASK_GROUP_COLS)
+    series_df = pd.DataFrame(series_rows).replace([np.inf, -np.inf], np.nan)
+    series_clean_df = filter_series_df(series_df, clean_df)
+    series_wide_all_df = build_wide_series_df(series_df, masked_df)
+    series_wide_clean_df = build_wide_series_df(series_clean_df, clean_df)
 
     out_all_path = out_all_dir / f"{folder.name}.csv"
     out_clean_path = out_clean_dir / f"{folder.name}.csv"
     out_flagged_path = out_all_dir / f"{folder.name}_flagged.csv"
+    out_series_all_path = out_series_all_dir / f"{folder.name}.csv"
+    out_series_clean_path = out_series_clean_dir / f"{folder.name}.csv"
+    out_series_wide_all_path = out_series_wide_all_dir / f"{folder.name}.csv"
+    out_series_wide_clean_path = out_series_wide_clean_dir / f"{folder.name}.csv"
     out_plot_clean_path = save_fit_plot(
         folder,
         clean_df,
@@ -699,11 +886,19 @@ def process_folder(
     masked_df.to_csv(out_all_path, index=False)
     clean_df.to_csv(out_clean_path, index=False)
     flagged_df.to_csv(out_flagged_path, index=False)
+    series_df.to_csv(out_series_all_path, index=False)
+    series_clean_df.to_csv(out_series_clean_path, index=False)
+    series_wide_all_df.to_csv(out_series_wide_all_path, index=False)
+    series_wide_clean_df.to_csv(out_series_wide_clean_path, index=False)
 
     print(
         f"[{penetration_source['key']}] Saved {out_all_path.name} ({len(masked_df)} total rows), "
         f"{out_clean_path.name} ({len(clean_df)} clean), "
         f"{out_flagged_path.name} ({len(flagged_df)} flagged), "
+        f"{out_series_all_path.name} ({len(series_df)} series rows), "
+        f"{out_series_clean_path.name} ({len(series_clean_df)} clean series rows), "
+        f"{out_series_wide_all_path.name} ({len(series_wide_all_df)} wide rows), "
+        f"{out_series_wide_clean_path.name} ({len(series_wide_clean_df)} clean wide rows), "
         f"{out_plot_clean_path.name} (clean-curve plot), "
         f"{out_plot_flagged_path.name} (flagged-curve plot) from {len(csv_files)} files"
     )
@@ -747,10 +942,18 @@ def main():
                 metric_out_dir = out_dir / penetration_source["key"]
                 out_all_dir = metric_out_dir / "all"
                 out_clean_dir = metric_out_dir / "clean"
+                out_series_all_dir = metric_out_dir / "series_all"
+                out_series_clean_dir = metric_out_dir / "series_clean"
+                out_series_wide_all_dir = metric_out_dir / "series_wide_all"
+                out_series_wide_clean_dir = metric_out_dir / "series_wide_clean"
                 out_plots_clean_dir = metric_out_dir / "plots_clean"
                 out_plots_flagged_dir = metric_out_dir / "plots_flagged"
                 out_all_dir.mkdir(parents=True, exist_ok=True)
                 out_clean_dir.mkdir(parents=True, exist_ok=True)
+                out_series_all_dir.mkdir(parents=True, exist_ok=True)
+                out_series_clean_dir.mkdir(parents=True, exist_ok=True)
+                out_series_wide_all_dir.mkdir(parents=True, exist_ok=True)
+                out_series_wide_clean_dir.mkdir(parents=True, exist_ok=True)
                 out_plots_clean_dir.mkdir(parents=True, exist_ok=True)
                 out_plots_flagged_dir.mkdir(parents=True, exist_ok=True)
 
@@ -758,6 +961,10 @@ def main():
                     folder,
                     out_all_dir=out_all_dir,
                     out_clean_dir=out_clean_dir,
+                    out_series_all_dir=out_series_all_dir,
+                    out_series_clean_dir=out_series_clean_dir,
+                    out_series_wide_all_dir=out_series_wide_all_dir,
+                    out_series_wide_clean_dir=out_series_wide_clean_dir,
                     out_plots_clean_dir=out_plots_clean_dir,
                     out_plots_flagged_dir=out_plots_flagged_dir,
                     penetration_source=penetration_source,
