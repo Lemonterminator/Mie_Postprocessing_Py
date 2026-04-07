@@ -20,7 +20,7 @@ from OSCC_postprocessing.utils import resolve_sam2_paths
 
 from OSCC_postprocessing.cine.cine_utils import CineReader
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density
-from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
+from OSCC_postprocessing.rotation.segment_ops import generate_CropRect
 from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import (
     rotate_video_nozzle_at_0_half_numpy,
 )

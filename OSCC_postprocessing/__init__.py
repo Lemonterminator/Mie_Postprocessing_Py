@@ -1,12 +1,30 @@
-"""Mie Postprocessing utilities.
+"""Top-level package for the OSCC Mie postprocessing toolkit.
 
-Submodules include helpers for masking, cone angle computation, filters,
-cine I/O, async saving, and more. Import what you need, e.g.:
+This package groups the image-processing, geometry, and signal-analysis helpers
+used throughout the spray postprocessing workflow. The codebase is broad rather
+than shallow: many notebooks and pipeline scripts import a small subset of the
+package directly, so the top-level package intentionally keeps imports light.
 
-    from OSCC_postprocessing.io.async_plot_saver import AsyncPlotSaver
+High-level package map
+----------------------
+- :mod:`OSCC_postprocessing.analysis`
+  domain-facing spray metrics such as penetration, cone angle, hysteresis, and
+  multi-hole preprocessing
+- :mod:`OSCC_postprocessing.filters`
+  denoising, local-statistics, convolution, and background-removal routines
+- :mod:`OSCC_postprocessing.binary_ops`
+  thresholding, connected components, boundary extraction, and masking
+- :mod:`OSCC_postprocessing.rotation`
+  crop/rotate alignment helpers for plume-wise coordinate normalization
+- :mod:`OSCC_postprocessing.motion`
+  optical-flow wrappers for RAFT, Farneback, and NVIDIA hardware flow
+- :mod:`OSCC_postprocessing.cine`, :mod:`OSCC_postprocessing.dewe`, :mod:`OSCC_postprocessing.io`
+  data access and asynchronous persistence utilities
+- :mod:`OSCC_postprocessing.utils`
+  cross-cutting helpers such as backend detection and scaling utilities
 
-The package is intentionally light on top-level imports to keep
-import time down; pull from submodules directly for specific tools.
+The only eager side effect at import time is a best-effort Windows CUDA DLL
+setup, which helps CuPy locate NVRTC and related runtime libraries.
 """
 
 from __future__ import annotations
@@ -20,7 +38,11 @@ _CUDA_PRELOAD_HANDLES: list[object] = []
 
 
 def _add_dll_dir(path: Path) -> None:
-    """Add a DLL directory and keep the handle alive (Windows)."""
+    """Add a DLL directory and keep the OS handle alive.
+
+    On Windows, :func:`os.add_dll_directory` returns a handle object that must
+    remain referenced for the search-path entry to stay active.
+    """
 
     if not path.is_dir():
         return
@@ -32,12 +54,21 @@ def _add_dll_dir(path: Path) -> None:
 
 
 def _windows_add_cuda_dll_dirs() -> None:
-    """Best-effort add CUDA DLL directories on Windows.
+    """Best-effort CUDA runtime bootstrap for Windows.
 
     CuPy on Windows needs NVRTC (`nvrtc64_*.dll`) available on the DLL search
     path at runtime. When installed via pip, NVRTC can live under
     `site-packages/nvidia/cuda_nvrtc/bin`, which is not always searched by
     default.
+
+    This helper tries two common layouts:
+
+    1. a system CUDA Toolkit installation, usually under ``CUDA_PATH`` or
+       ``Program Files/NVIDIA GPU Computing Toolkit/CUDA``
+    2. wheel-provided runtime DLLs under the ``nvidia`` Python package
+
+    Failure is silent by design because CPU-only use is valid and should not be
+    blocked by optional GPU setup.
     """
 
     if os.name != "nt":

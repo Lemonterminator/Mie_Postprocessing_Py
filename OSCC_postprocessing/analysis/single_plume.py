@@ -1,4 +1,3 @@
-from OSCC_postprocessing.analysis.multihole_utils import *
 from OSCC_postprocessing.binary_ops.functions_bw import *
 from OSCC_postprocessing.filters.video_filters import sobel_5x5_kernels, filter_video_fft
 from OSCC_postprocessing.filters.svd_background_removal import godec_like
@@ -16,7 +15,7 @@ import os
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from OSCC_postprocessing.binary_ops.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
-from OSCC_postprocessing.analysis.multihole_utils import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
 from OSCC_postprocessing.analysis.nozzle import estimate_nozzle_opening_duration
 from OSCC_postprocessing.analysis.regression import (
     linear_regression_fixed_intercept,

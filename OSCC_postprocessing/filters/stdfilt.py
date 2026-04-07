@@ -1,8 +1,24 @@
-"""Standard-deviation filtering with automatic SciPy/CuPy routing.
+"""Standard-deviation filtering for images and videos.
 
-On CUDA-capable machines the GPU path prefers a CuPy RawKernel for the
-common ``mode="nearest"`` case, and falls back to ``cupyx.scipy.ndimage``
-for other border modes or if the kernel launch fails.
+This module wraps one common primitive used repeatedly in the spray-analysis
+pipeline: local standard deviation over a square neighbourhood. In practice the
+operation is used as a local-contrast measure. Regions with large texture,
+sharp edges, or plume structure produce a larger local standard deviation than
+uniform background.
+
+Implementation overview
+-----------------------
+- CPU path: use :func:`scipy.ndimage.uniform_filter` twice to compute
+  ``E[x]`` and ``E[x^2]`` and recover the local variance as
+  ``Var[x] = E[x^2] - E[x]^2``.
+- GPU path: for the common ``mode="nearest"`` case, use a hand-written CuPy
+  RawKernel that applies nearest-neighbour clamping explicitly.
+- GPU fallback path: for other border modes, fall back to
+  :mod:`cupyx.scipy.ndimage`.
+
+The public API accepts either a single frame ``(H, W)`` or a video
+``(F, H, W)``. For videos the filter is purely spatial: each frame is processed
+independently and there is no temporal mixing.
 """
 
 from __future__ import annotations
@@ -88,17 +104,28 @@ __all__ = [
 
 
 def _validate_ksize(ksize: int) -> None:
+    """Validate that the filter support is a positive odd integer.
+
+    A symmetric square neighbourhood needs an odd width so that the current
+    pixel remains the geometric centre of the window.
+    """
     if not isinstance(ksize, int) or ksize <= 0 or ksize % 2 != 1:
         raise ValueError("ksize must be a positive odd integer.")
 
 
 def _cpu_array(video) -> np.ndarray:
+    """Return a host NumPy array, copying from GPU only when required."""
     if CUPY_AVAILABLE and hasattr(video, "__cuda_array_interface__"):
         return cp.asnumpy(video)  # type: ignore[union-attr]
     return np.asarray(video)
 
 
 def _filter_size(array_ndim: int, ksize: int):
+    """Map input dimensionality to a SciPy/CuPy ``size=`` tuple.
+
+    ``(H, W)`` inputs use a plain 2D square window. ``(F, H, W)`` inputs keep
+    the temporal axis untouched by using a filter size of ``1`` along frames.
+    """
     if array_ndim == 2:
         return (ksize, ksize)
     if array_ndim == 3:
@@ -107,6 +134,14 @@ def _filter_size(array_ndim: int, ksize: int):
 
 
 def _stdfilt_impl(array, uniform_filter_fn, xp, ksize: int = 3, mode: str = "nearest"):
+    """Backend-agnostic stdfilt implementation based on local moments.
+
+    The filter computes the standard deviation inside each local window via the
+    identity ``std = sqrt(max(E[x^2] - E[x]^2, 0))``.
+
+    The clamp is important because finite-precision arithmetic can produce a
+    tiny negative variance even when the theoretical value is non-negative.
+    """
     _validate_ksize(ksize)
     arr = xp.asarray(array, dtype=xp.float32)
     size = _filter_size(arr.ndim, ksize)
@@ -118,6 +153,17 @@ def _stdfilt_impl(array, uniform_filter_fn, xp, ksize: int = 3, mode: str = "nea
 
 
 def _stdfilt_cupy_rawkernel(video, ksize: int = 3):
+    """Run the custom CuPy RawKernel implementation.
+
+    This kernel is intentionally specialized:
+
+    - input is promoted to contiguous ``float32``
+    - border handling is fixed to nearest-neighbour clamping
+    - the computation is frame-wise for ``(F, H, W)`` data
+
+    The specialization keeps the GPU path simple and fast for the main workload
+    in this repository.
+    """
     _validate_ksize(ksize)
     if not RAWKERNEL_AVAILABLE:
         raise RuntimeError("CuPy RawKernel stdfilt backend is not available.")
@@ -162,15 +208,27 @@ def _stdfilt_cupy_rawkernel(video, ksize: int = 3):
 
 
 def stdfilt_video_cpu(video, ksize: int = 3, mode: str = "nearest") -> np.ndarray:
-    """Apply a 2D standard-deviation filter per frame on CPU."""
+    """Apply frame-wise spatial standard-deviation filtering on CPU.
+
+    Parameters
+    ----------
+    video:
+        Input frame ``(H, W)`` or video ``(F, H, W)``.
+    ksize:
+        Odd side length of the square neighbourhood.
+    mode:
+        Border-extension mode forwarded to SciPy.
+    """
     return _stdfilt_impl(video, scipy_uniform_filter, np, ksize=ksize, mode=mode)
 
 
 def stdfilt_video_cupy(video, ksize: int = 3, mode: str = "nearest"):
     """Apply a 2D standard-deviation filter per frame on GPU.
 
-    ``mode="nearest"`` prefers the RawKernel backend. Other border modes
-    fall back to ``cupyx.scipy.ndimage.uniform_filter``.
+    ``mode="nearest"`` prefers the RawKernel backend because the kernel
+    implements nearest-edge clamping directly and avoids the overhead of the
+    more general ``cupyx.scipy.ndimage`` path. Other border modes fall back to
+    ``cupyx.scipy.ndimage.uniform_filter``.
     """
     if not CUPY_AVAILABLE:
         raise RuntimeError("CuPy is not available on this machine.")
@@ -183,7 +241,11 @@ def stdfilt_video_cupy(video, ksize: int = 3, mode: str = "nearest"):
 
 
 def stdfilt_video_auto(video, ksize: int = 3, mode: str = "nearest", backend: str = "auto"):
-    """Apply standard-deviation filtering with automatic CPU/GPU routing."""
+    """Apply standard-deviation filtering with explicit or automatic routing.
+
+    ``backend="auto"`` prefers GPU when CuPy is available and falls back to
+    CPU if GPU setup or execution fails.
+    """
     if backend == "cupy":
         return stdfilt_video_cupy(video, ksize=ksize, mode=mode)
     if backend == "scipy":
@@ -201,15 +263,20 @@ def stdfilt_video_auto(video, ksize: int = 3, mode: str = "nearest", backend: st
 
 
 def stdfilt(video, ksize: int = 3, mode: str = "nearest", backend: str = "auto"):
-    """Public entry point for image/video standard-deviation filtering."""
+    """Public convenience wrapper around :func:`stdfilt_video_auto`.
+
+    This name matches the historic MATLAB-style helper used elsewhere in the
+    project, so higher-level code can call ``stdfilt(...)`` regardless of the
+    selected execution backend.
+    """
     return stdfilt_video_auto(video, ksize=ksize, mode=mode, backend=backend)
 
 
 def stdfilt_video_per_frame_cpu(video, nhood: int = 3) -> np.ndarray:
-    """Backward-compatible alias for the original CPU helper."""
+    """Backward-compatible alias for the original CPU helper name."""
     return stdfilt_video_cpu(video, ksize=nhood)
 
 
 def stdfilt_cupy(x, ksize: int = 3):
-    """Backward-compatible alias for the original CuPy helper."""
+    """Backward-compatible alias for the original GPU helper name."""
     return stdfilt_video_cupy(x, ksize=ksize)

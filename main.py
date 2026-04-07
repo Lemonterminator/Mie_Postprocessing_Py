@@ -1,5 +1,5 @@
 from OSCC_postprocessing.cine.functions_videos import *
-from OSCC_postprocessing.rotation.rotate_crop import *
+from OSCC_postprocessing.rotation.segment_ops import *
 from OSCC_postprocessing.analysis.cone_angle import *
 from OSCC_postprocessing.metrics.ssim import *
 from OSCC_postprocessing.filters.video_filters import *

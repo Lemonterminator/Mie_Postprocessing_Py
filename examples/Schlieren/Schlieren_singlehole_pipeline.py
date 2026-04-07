@@ -10,7 +10,7 @@ import numpy as np
 from scipy.ndimage import binary_fill_holes
 
 from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component
-from OSCC_postprocessing.rotation.functions_rotation import rotate_video_nozzle_centering
+from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import rotate_video_nozzle_at_0_half_numpy
 from OSCC_postprocessing.filters.video_filters import (
     filter_video_fft,
     gaussian_video_cpu,
@@ -128,10 +128,14 @@ def _align_and_crop_video(
     angle_offset: float,
 ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float]]:
     centre_x, centre_y = centre
-    rotation_angle = -float(angle_offset)
-
-    rotated = rotate_video_nozzle_centering(video, centre_x, centre_y, rotation_angle)
-    mask_rotated = _rotate_mask(mask, centre_x, centre_y, rotation_angle, video.shape[1:])
+    rotated, _, _ = rotate_video_nozzle_at_0_half_numpy(
+        video,
+        (centre_x, centre_y),
+        -float(angle_offset),
+        interpolation="bicubic",
+        out_shape=video.shape[1:],
+    )
+    mask_rotated = _rotate_mask(mask, centre_x, centre_y, -float(angle_offset), video.shape[1:])
 
     y_start, y_end, x_start, x_end = _auto_crop_bounds(rotated, mask_rotated)
 
@@ -155,7 +159,7 @@ def _rotate_mask(
     mask: Optional[np.ndarray],
     centre_x: float,
     centre_y: float,
-    rotation_angle: float,
+    angle_offset: float,
     original_shape: Tuple[int, int],
 ) -> Optional[np.ndarray]:
     if mask is None:
@@ -172,9 +176,14 @@ def _rotate_mask(
             interpolation=cv2.INTER_NEAREST,
         )
     mask_bool = mask_arr.astype(bool, copy=False)
-    rotated = rotate_video_nozzle_centering(
-        mask_bool[None, ...], centre_x, centre_y, rotation_angle, interpolation=cv2.INTER_NEAREST
-    )[0]
+    rotated, _, _ = rotate_video_nozzle_at_0_half_numpy(
+        mask_bool[None, ...],
+        (centre_x, centre_y),
+        angle_offset,
+        interpolation="nearest",
+        out_shape=original_shape,
+    )
+    rotated = rotated[0]
     return rotated
 
 

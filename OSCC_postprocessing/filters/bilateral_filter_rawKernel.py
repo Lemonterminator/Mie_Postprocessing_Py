@@ -1,8 +1,25 @@
 """Canonical bilateral filtering backends for 2D video and 3D volumes.
 
-GPU execution uses a CuPy RawKernel for mature 2D frame-wise filtering.
-When CUDA is unavailable, the same public API falls back to a threaded CPU
-implementation based on OpenCV's bilateral filter.
+This module collects the bilateral-filter implementations that appear in the
+OSCC workflow. Bilateral filtering is useful here because it smooths sensor
+noise while preserving sharp plume boundaries better than a plain Gaussian or
+box filter.
+
+Two related but distinct operators are implemented:
+
+- 2D per-frame bilateral filtering:
+  each frame is filtered independently in ``(H, W)``.
+- 3D volumetric bilateral filtering:
+  filtering is performed in ``(F, H, W)`` so temporal neighbours can
+  contribute to the result.
+
+The weighting rule is the classic bilateral form
+
+``w(p, q) = exp(-||p-q||^2 / (2 sigma_d^2)) * exp(-(I_p-I_q)^2 / (2 sigma_r^2))``
+
+where the first term penalizes spatial/temporal distance and the second term
+penalizes intensity mismatch. The first term is usually called the spatial
+kernel and the second the range kernel.
 """
 
 from __future__ import annotations
@@ -139,12 +156,18 @@ else:
 
 
 def _validate_wsize(wsize: int) -> None:
+    """Validate that the bilateral window width is a positive odd integer."""
     if not isinstance(wsize, int) or wsize <= 0 or wsize % 2 != 1:
         raise ValueError("wsize must be a positive odd integer.")
 
 
 def _normalize_volumetric_wsize(wsize):
-    """Normalize volumetric window size to a validated 3-tuple."""
+    """Normalize the volumetric window size to ``(F, H, W)`` form.
+
+    The 3D implementation allows either one isotropic odd width or a full
+    anisotropic tuple. Returning a validated tuple simplifies later chunking and
+    kernel-launch code.
+    """
     if isinstance(wsize, int):
         _validate_wsize(wsize)
         return wsize, wsize, wsize
@@ -161,14 +184,18 @@ def _normalize_volumetric_wsize(wsize):
 
 
 def _cpu_array(video) -> np.ndarray:
-    """Return a CPU ndarray, copying from CuPy only when necessary."""
+    """Return a host ``ndarray``, copying from CuPy only when necessary."""
     if CUPY_AVAILABLE and hasattr(video, "__cuda_array_interface__"):
         return cp.asnumpy(video)  # type: ignore[union-attr]
     return np.asarray(video)
 
 
 def bilateral_filter_img(img, wsize, sigma_d, sigma_r):
-    """CPU bilateral filter for a single 2D frame using OpenCV."""
+    """CPU bilateral filter for one 2D frame using OpenCV.
+
+    This is the simplest reference path in the module and is useful both as a
+    fallback and as a correctness baseline for the GPU implementation.
+    """
     _validate_wsize(wsize)
     frame = np.ascontiguousarray(np.asarray(img, dtype=np.float32))
     return cv2.bilateralFilter(
@@ -180,7 +207,12 @@ def bilateral_filter_img(img, wsize, sigma_d, sigma_r):
 
 
 def bilateral_filter_img_cupy(img, wsize, sigma_d, sigma_r, mode="edge"):
-    """Single-frame GPU bilateral filter with CPU fallback."""
+    """Single-frame wrapper around the 2D video GPU implementation.
+
+    Internally the raw-kernel implementation is written for batched input
+    ``(F, H, W)``, so this helper temporarily inserts a length-1 frame axis and
+    removes it again on return.
+    """
     filtered = bilateral_filter_video_cupy_fast(
         np.asarray(img)[None, :, :] if not (CUPY_AVAILABLE and hasattr(img, "__cuda_array_interface__")) else img[None, :, :],
         wsize=wsize,
@@ -192,7 +224,12 @@ def bilateral_filter_img_cupy(img, wsize, sigma_d, sigma_r, mode="edge"):
 
 
 def bilateral_filter_video_cpu(video, wsize, sigma_d, sigma_r, max_workers=None):
-    """Threaded CPU fallback using OpenCV's bilateral filter frame by frame."""
+    """Threaded CPU fallback using OpenCV frame by frame.
+
+    The function parallelizes across frames because OpenCV already provides an
+    optimized single-frame bilateral filter. This avoids reimplementing a slow
+    pure-NumPy 2D reference path.
+    """
     _validate_wsize(wsize)
     video_np = np.ascontiguousarray(_cpu_array(video), dtype=np.float32)
     if video_np.ndim != 3:
@@ -235,7 +272,14 @@ def bilateral_filter_video_cupy_fast(
     eps=1e-8,
     max_workers=None,
 ):
-    """RawKernel bilateral filter with threaded CPU fallback when CUDA is unavailable."""
+    """Frame-wise bilateral filter using a CuPy RawKernel.
+
+    The kernel precomputes the spatial Gaussian once, then for every output
+    pixel accumulates the weighted sum over a ``wsize x wsize`` neighbourhood.
+    The range term is recomputed per neighbour from the local intensity
+    difference. When CUDA is unavailable the function falls back to the threaded
+    CPU implementation so callers can keep one entry point.
+    """
     _validate_wsize(wsize)
 
     if not CUPY_AVAILABLE:
@@ -293,7 +337,7 @@ def bilateral_filter_video_cupy_fast(
 
 
 def bilateral_filter_video_cupy(video, wsize, sigma_d, sigma_r, mode="edge", **kwargs):
-    """Public 2D video bilateral filter entry point with auto CPU/GPU routing."""
+    """Public 2D video bilateral filter entry point."""
     return bilateral_filter_video_cupy_fast(
         video,
         wsize=wsize,
@@ -305,7 +349,19 @@ def bilateral_filter_video_cupy(video, wsize, sigma_d, sigma_r, mode="edge", **k
 
 
 def bilateral_filter_video_volumetric_cpu(video, wsize, sigma_d, sigma_r, mode="edge"):
-    """Reference CPU implementation of full 3D bilateral filtering."""
+    """Reference CPU implementation of full 3D bilateral filtering.
+
+    Unlike the 2D path, this operator couples neighbouring frames. The input is
+    padded in all three dimensions and converted to a sliding-window view with
+    shape roughly ``(F, H, W, wF, wH, wW)``. The bilateral weights are then
+    formed from:
+
+    - a precomputed 3D spatial kernel in ``(frame, row, col)``
+    - a per-voxel range kernel derived from intensity differences to the centre
+
+    This implementation is memory-heavy but intentionally explicit, making it a
+    readable baseline for the chunked implementation below.
+    """
     if not isinstance(wsize, int):
         raise ValueError("wsize must be an odd integer for volumetric CPU filtering.")
     _validate_wsize(wsize)
@@ -334,7 +390,13 @@ def bilateral_filter_video_volumetric_cpu(video, wsize, sigma_d, sigma_r, mode="
 
 
 def estimate_chunk_size(F, H, W, wsize, dtype=np.float32, safety_factor=0.5):
-    """Estimate a safe 3D chunk size from available host RAM."""
+    """Estimate a conservative host-memory chunk size for volumetric filtering.
+
+    The estimate is deliberately rough. It assumes the dominant cost comes from
+    holding the sliding-window neighbourhoods and related temporary arrays for a
+    chunk of frames. The result is best treated as a heuristic, not a strict
+    bound.
+    """
     try:
         import psutil
 
@@ -361,7 +423,26 @@ def bilateral_filter_video_volumetric_chunked_halo(
     overhead_factor=3.5,
     verbose=True,
 ):
-    """3D bilateral filter with temporal halo chunking and NumPy/CuPy routing."""
+    """Chunked 3D bilateral filter with temporal halo handling.
+
+    This is the main production implementation for volumetric filtering. Full
+    3D bilateral filtering can be prohibitively memory-intensive because each
+    output voxel needs access to a 3D neighbourhood. To keep memory bounded, the
+    video is processed in temporal chunks.
+
+    Halo strategy
+    -------------
+    Each chunk ``[start:end]`` is extended to ``[t0:t1]`` before padding, where
+    ``t0 = start-kf`` and ``t1 = end+kf`` clipped to valid frame indices. Those
+    extra frames provide the temporal context needed to compute correct output
+    values near chunk boundaries.
+
+    Backend strategy
+    ----------------
+    - GPU: launch a dedicated 3D RawKernel over the chunk.
+    - CPU: build a sliding-window view over the halo-extended chunk and compute
+      the bilateral weights explicitly with NumPy.
+    """
     wsize_f, wsize_h, wsize_w = _normalize_volumetric_wsize(wsize)
 
     ndim = getattr(video, "ndim", None)

@@ -6,20 +6,32 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
-from OSCC_postprocessing.analysis.multihole_utils import (
-    preprocess_multihole,
-    resolve_backend,
-    rotate_segments_with_masks,
-    compute_td_intensity_maps,
-    estimate_peak_brightness_frames,
-    estimate_hydraulic_delay_segments,
-    compute_penetration_profiles,
-    clean_penetration_profiles,
-    binarize_plume_videos,
+from OSCC_postprocessing.rotation.segment_ops import generate_CropRect, generate_plume_mask
+from OSCC_postprocessing.analysis.backend import resolve_backend
+from OSCC_postprocessing.analysis.cone_angle import (
+    angle_signal_density_auto,
     compute_cone_angle_from_angular_density,
     estimate_offset_from_fft,
-    triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
+)
+from OSCC_postprocessing.analysis.hysteresis import (
+    fill_short_false_runs,
+    longest_true_run,
+    remove_short_true_runs,
+)
+from OSCC_postprocessing.analysis.multihole_processing import (
+    binarize_plume_videos,
+    clean_penetration_profiles,
+    compute_penetration_profiles,
+    compute_td_intensity_maps,
+    estimate_hydraulic_delay_segments,
+    estimate_peak_brightness_frames,
+    preprocess_multihole,
+    rotate_segments_with_masks,
+)
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.binary_ops.masking import (
+    generate_angular_mask_from_tf,
+    periodic_true_segment_lengths,
 )
 
 from OSCC_postprocessing.analysis.single_plume import (
@@ -65,20 +77,6 @@ from OSCC_postprocessing.utils.scaling import robust_scale
 import pandas as pd
 
 
-from OSCC_postprocessing.analysis.multihole_utils import (
-    preprocess_multihole,
-    resolve_backend,
-    rotate_segments_with_masks,
-    compute_td_intensity_maps,
-    estimate_peak_brightness_frames,
-    estimate_hydraulic_delay_segments,
-    compute_penetration_profiles,
-    clean_penetration_profiles,
-    binarize_plume_videos,
-    compute_cone_angle_from_angular_density,
-    estimate_offset_from_fft,
-    triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
-)
 
 # Import rotation utility based on backend availability to avoid hard Cupy dependency
 if USING_CUPY:
@@ -111,7 +109,7 @@ global or_
 # upper = 366
 
 from OSCC_postprocessing.analysis.hysteresis import *
-from OSCC_postprocessing.filters.convolution_2D_rawKernel import *
+from OSCC_postprocessing.filters.convolution_2d import *
 from OSCC_postprocessing.analysis.hysteresis import * 
 from OSCC_postprocessing.filters.bilateral_filter_rawKernel import *
 from OSCC_postprocessing.analysis.penetration_cdf import penetration_cdf_front, monotone_non_decreasing

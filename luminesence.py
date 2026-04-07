@@ -1,22 +1,34 @@
 from OSCC_postprocessing.cine.functions_videos import *
 from pathlib import Path
+from OSCC_postprocessing.analysis.backend import resolve_backend
+from OSCC_postprocessing.analysis.cone_angle import (
+    angle_signal_density_auto,
+    compute_cone_angle_from_angular_density,
+    estimate_offset_from_fft,
+)
+from OSCC_postprocessing.analysis.hysteresis import (
+    fill_short_false_runs,
+    longest_true_run,
+    remove_short_true_runs,
+)
+from OSCC_postprocessing.analysis.multihole_processing import (
+    binarize_plume_videos,
+    clean_penetration_profiles,
+    compute_penetration_profiles,
+    compute_td_intensity_maps,
+    estimate_hydraulic_delay_segments,
+    estimate_peak_brightness_frames,
+    preprocess_multihole,
+    rotate_segments_with_masks,
+)
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.binary_ops.masking import (
+    generate_angular_mask_from_tf,
+    periodic_true_segment_lengths,
+)
 import json
 import os
 # Importing libraries
-from OSCC_postprocessing.analysis.multihole_utils import (
-    preprocess_multihole,
-    resolve_backend,
-    rotate_segments_with_masks,
-    compute_td_intensity_maps,
-    estimate_peak_brightness_frames,
-    # estimate_hydraulic_delay,
-    compute_penetration_profiles,
-    clean_penetration_profiles,
-    binarize_plume_videos,
-    compute_cone_angle_from_angular_density,
-    estimate_offset_from_fft,
-    triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
-)
 
 import time
 import warnings
@@ -25,21 +37,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
-from OSCC_postprocessing.analysis.multihole_utils import (
-    preprocess_multihole,
-    resolve_backend,
-    rotate_segments_with_masks,
-    compute_td_intensity_maps,
-    estimate_peak_brightness_frames,
-    # estimate_hydraulic_delay,
-    compute_penetration_profiles,
-    clean_penetration_profiles,
-    binarize_plume_videos,
-    compute_cone_angle_from_angular_density,
-    estimate_offset_from_fft,
-    triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
-)
+from OSCC_postprocessing.rotation.segment_ops import generate_CropRect
 
 from OSCC_postprocessing.analysis.single_plume import (
     pre_processing_mie,
@@ -366,7 +364,7 @@ def luminescence_pipeline(video: xp.ndarray, file_name: str,
     
 def main():
 
-
+    
     file = Path(r"G:\MeOH_test\NFL\T56_NFL_Cam_5_experiement.cine")
     json_file = Path(r"G:\MeOH_test\NFL\config.json")
     out_dir = Path(r"G:\MeOH_test\NFL\Processed_Results")

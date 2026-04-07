@@ -2,20 +2,6 @@ from OSCC_postprocessing.playback.video_playback import *
 from OSCC_postprocessing.analysis.hysteresis import *
 
 # Importing libraries
-from OSCC_postprocessing.analysis.multihole_utils import (
-    preprocess_multihole,
-    resolve_backend,
-    rotate_segments_with_masks,
-    compute_td_intensity_maps,
-    estimate_peak_brightness_frames,
-    # estimate_hydraulic_delay,
-    compute_penetration_profiles,
-    clean_penetration_profiles,
-    binarize_plume_videos,
-    compute_cone_angle_from_angular_density,
-    estimate_offset_from_fft,
-    triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
-)
 
 import time
 import warnings
@@ -24,21 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect, generate_plume_mask
-from OSCC_postprocessing.analysis.multihole_utils import (
-    preprocess_multihole,
-    resolve_backend,
-    rotate_segments_with_masks,
-    compute_td_intensity_maps,
-    estimate_peak_brightness_frames,
-    # estimate_hydraulic_delay,
-    compute_penetration_profiles,
-    clean_penetration_profiles,
-    binarize_plume_videos,
-    compute_cone_angle_from_angular_density,
-    estimate_offset_from_fft,
-    triangle_binarize_gpu as _triangle_binarize_gpu,  # Backward compatibility
-)
+from OSCC_postprocessing.rotation.segment_ops import generate_CropRect
 
 from OSCC_postprocessing.analysis.single_plume import (
     pre_processing_mie,
@@ -90,16 +62,6 @@ else:
     )
 
 
-from OSCC_postprocessing.analysis.multihole_utils import *
-from OSCC_postprocessing.binary_ops.functions_bw import *
-from OSCC_postprocessing.filters.video_filters import median_filter_video_auto, sobel_5x5_kernels, filter_video_fft
-from OSCC_postprocessing.filters.svd_background_removal import godec_like
-from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
-from OSCC_postprocessing.filters.bilateral_filter import (
-    bilateral_filter_video_cpu,
-    bilateral_filter_video_cupy,
-    bilateral_filter_video_volumetric_chunked_halo,
-)
 from OSCC_postprocessing.io.async_avi_saver import AsyncAVISaver
 import numpy as np
 import scipy.ndimage as ndi
@@ -108,14 +70,6 @@ import os
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from OSCC_postprocessing.binary_ops.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
-from OSCC_postprocessing.analysis.multihole_utils import triangle_binarize_gpu as _triangle_binarize_gpu
-from OSCC_postprocessing.filters.bilateral_filter import *
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-
-# Check the hardware used for image processing
-
-use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
 
 print("CUDA is used:", use_gpu)
 
@@ -131,10 +85,39 @@ else:
 
 from OSCC_postprocessing.cine.functions_videos import *
 from pathlib import Path
+from OSCC_postprocessing.analysis.backend import resolve_backend
+from OSCC_postprocessing.analysis.cone_angle import (
+    angle_signal_density_auto,
+    compute_cone_angle_from_angular_density,
+    estimate_offset_from_fft,
+)
+from OSCC_postprocessing.analysis.hysteresis import (
+    fill_short_false_runs,
+    longest_true_run,
+    remove_short_true_runs,
+)
+from OSCC_postprocessing.analysis.multihole_processing import (
+    binarize_plume_videos,
+    clean_penetration_profiles,
+    compute_penetration_profiles,
+    compute_td_intensity_maps,
+    estimate_hydraulic_delay_segments,
+    estimate_peak_brightness_frames,
+    preprocess_multihole,
+    rotate_segments_with_masks,
+)
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.binary_ops.masking import (
+    generate_angular_mask_from_tf,
+    generate_plume_mask,
+    periodic_true_segment_lengths,
+)
 import json
 from OSCC_postprocessing.binary_ops.masking import *
-from OSCC_postprocessing.filters.convolution_2D_rawKernel import *
+from OSCC_postprocessing.filters.convolution_2d import *
 from OSCC_postprocessing.analysis.hysteresis import * 
+
+triangle_binarize_gpu = _triangle_binarize_gpu
 
 def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):

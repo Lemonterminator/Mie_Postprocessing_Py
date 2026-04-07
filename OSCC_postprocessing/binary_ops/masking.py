@@ -1,4 +1,4 @@
-from OSCC_postprocessing.analysis.multihole_utils import resolve_backend
+from OSCC_postprocessing.analysis.backend import resolve_backend
 import cv2
 import numpy as np
 

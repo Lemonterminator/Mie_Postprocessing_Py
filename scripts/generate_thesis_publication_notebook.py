@@ -59,7 +59,7 @@ def build_notebook():
             - `mie_multihole_pipeline.py`
             - `OSCC_postprocessing/binary_ops/masking.py`
             - `OSCC_postprocessing/analysis/cone_angle.py`
-            - `OSCC_postprocessing/analysis/multihole_utils.py`
+            - `OSCC_postprocessing/analysis/multihole_processing.py`
             - `OSCC_postprocessing/rotation/rotate_with_alignment_cpu.py`
             - `MLP/median_penetration_MSE.ipynb`
             """
@@ -166,7 +166,7 @@ def build_notebook():
 
             repo_masking = optional_import("OSCC_postprocessing.binary_ops.masking")
             repo_cone = optional_import("OSCC_postprocessing.analysis.cone_angle")
-            repo_multi = optional_import("OSCC_postprocessing.analysis.multihole_utils")
+            repo_multi = optional_import("OSCC_postprocessing.analysis.multihole_processing")
             repo_rotate = optional_import("OSCC_postprocessing.rotation.rotate_with_alignment_cpu")
             repo_hysteresis = optional_import("OSCC_postprocessing.analysis.hysteresis")
             repo_cine = optional_import("OSCC_postprocessing.cine.functions_videos")

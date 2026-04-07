@@ -1,11 +1,15 @@
-import numpy as np
+"""CuPy implementation for affine video rotation and remapping.
+
+This module mirrors ``rotate_with_alignment_cpu.py`` but executes the remap
+stack on GPU arrays. The design goal is parity, not divergence: the same
+inverse-map geometry, interpolation names, and high-level workflows exist on
+both backends so callers can switch between NumPy and CuPy without rewriting
+their rotation logic.
+"""
+
 import cupy as cp
 import matplotlib.pyplot as plt
-
-"""
-This module provides functions to rotate video frames efficiently on the GPU using CuPy.
-First find the nozzle center and the angle offset by the GUI. 
-"""
+import numpy as np
 
 def build_affine_inverse_maps_cupy(
     M,
@@ -71,8 +75,11 @@ def build_affine_inverse_maps_cupy(
 
 def build_rotation_affine(center, angle_deg, *, target=None, scale=1.0):
     """
-    Construct a 2x3 forward affine that rotates about `center` by `angle_deg`
-    and places that center at `target` in the output coordinate system.
+    Construct the forward 2x3 affine matrix for a centred rotation.
+
+    The matrix follows the same forward convention as the CPU implementation:
+    ``[x_out, y_out]^T = A [x_in, y_in]^T + b``. ``center`` is the input-space
+    fixed point and ``target`` is the desired output-space landing position.
     """
     center = np.asarray(center, dtype=np.float64)
     if target is None:
@@ -137,14 +144,43 @@ def build_nozzle_rotation_maps(
         out_origin=(x_off, y_off),
     )
 
+
+def build_rotation_roi_maps_cupy(
+    frame_shape,
+    rotation_center,
+    angle_deg,
+    *,
+    crop_rect=None,
+    out_shape=None,
+):
+    """Build inverse maps for a generic centred rotation into an ROI.
+
+    This mirrors ``build_rotation_roi_maps_numpy`` so higher-level orchestration
+    code can share the same geometry assumptions on CPU and GPU.
+    """
+    H_full, W_full = frame_shape
+    if crop_rect is not None:
+        x0, y0, out_w, out_h = crop_rect
+        out_shape = (int(out_h), int(out_w))
+        out_origin = (float(x0), float(y0))
+    else:
+        if out_shape is None:
+            out_shape = (H_full, W_full)
+        out_origin = (0.0, 0.0)
+
+    M = build_rotation_affine(rotation_center, angle_deg, target=rotation_center)
+    return build_affine_inverse_maps_cupy(
+        M,
+        out_shape,
+        out_origin=out_origin,
+    )
+
 def _reflect_indices(idx, size):
-    # OpenCV-style BORDER_REFLECT_101 (no double-border), but here we’ll use simple reflect.
-    # For large out-of-range, bring back via modulo and reflection.
-    # If you want exact OpenCV behavior, adjust accordingly.
+    """Reflect indices back into range for ``border_mode='reflect'``."""
     if size == 1:
         return cp.zeros_like(idx)
-    mod = cp.mod(idx, 2*(size-1))
-    return cp.where(mod < size, mod, 2*(size-1) - mod)
+    mod = cp.mod(idx, 2 * (size - 1))
+    return cp.where(mod < size, mod, 2 * (size - 1) - mod)
 
 def _clamp_indices(idx, size):
     return cp.clip(idx, 0, size-1)
@@ -598,6 +634,47 @@ def remap_video_cupy(
         frames_out.append(remap_fn(frame, mapx, mapy, border_mode, cval))
     return cp.stack(frames_out, axis=0) if stack else frames_out
 
+
+def rotate_video_about_center_cupy(
+    video,
+    rotation_center,
+    angle_deg,
+    *,
+    crop_rect=None,
+    out_shape=None,
+    interpolation="bilinear",
+    border_mode="constant",
+    cval=0.0,
+    stack=True,
+):
+    """Rotate a video about an arbitrary centre into a full frame or ROI.
+
+    This is the canonical GPU entry point for general-purpose rotation and is
+    the backend counterpart to ``rotate_video_about_center_numpy``.
+    """
+    video_cp = cp.asarray(video)
+    if video_cp.dtype != cp.float32 and not cp.issubdtype(video_cp.dtype, cp.bool_):
+        video_cp = video_cp.astype(cp.float32)
+
+    frame_shape = (video_cp.shape[1], video_cp.shape[2])
+    mapx, mapy = build_rotation_roi_maps_cupy(
+        frame_shape,
+        rotation_center,
+        angle_deg,
+        crop_rect=crop_rect,
+        out_shape=out_shape,
+    )
+    rotated = remap_video_cupy(
+        video_cp,
+        mapx,
+        mapy,
+        interpolation=interpolation,
+        border_mode=border_mode,
+        cval=cval,
+        stack=stack,
+    )
+    return rotated, mapx, mapy
+
 def rotate_video_nozzle_at_0_half_cupy(
     video,
     nozzle_center,
@@ -634,7 +711,7 @@ def rotate_video_nozzle_at_0_half_cupy(
         When True, display the generated inverse maps for inspection.
     """
     video_cp = cp.asarray(video)
-    if video_cp.dtype != cp.float32:
+    if video_cp.dtype != cp.float32 and not cp.issubdtype(video_cp.dtype, cp.bool_):
         video_cp = video_cp.astype(cp.float32)
 
     frame_shape = (video_cp.shape[1], video_cp.shape[2])
@@ -663,7 +740,8 @@ def rotate_video_nozzle_at_0_half_cupy(
     return rotated, mapx, mapy
 
 def plot_inverse_maps(mapx, mapy):
-    # bring back to NumPy if needed
+    """Visualize inverse-coordinate maps for debugging affine geometry."""
+    # Bring back to NumPy in case the caller passed a backend-specific array.
     mapx_np = cp.asnumpy(mapx)
     mapy_np = cp.asnumpy(mapy)
 

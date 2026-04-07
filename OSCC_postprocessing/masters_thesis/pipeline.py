@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from OSCC_postprocessing.cine.functions_videos import load_cine_video
-from OSCC_postprocessing.rotation.rotate_crop import generate_CropRect
+from OSCC_postprocessing.rotation.segment_ops import generate_CropRect
 
 from .GUI_functions import draw_freehand_mask, edit_mask_overlay
 from .clustering import (

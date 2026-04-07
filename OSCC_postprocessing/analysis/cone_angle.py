@@ -20,6 +20,10 @@ except Exception:  # ImportError, CUDA failure, etc.
     cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
     CUPY_AVAILABLE = False
 
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu
+from OSCC_postprocessing.binary_ops.functions_bw import triangle_binarize_from_float
+from OSCC_postprocessing.utils.backend import get_array_module, get_cupy
+
 def angle_signal_density(video, x0, y0, N_bins: int = 360):
     """Compute signal density versus angle for an image or video.
 
@@ -263,3 +267,63 @@ def angle_signal_density_auto(video, x0, y0, N_bins: int = 360):
         return angle_signal_density_cupy(video, x0, y0, N_bins=N_bins)
     else:
         return angle_signal_density(video, x0, y0, N_bins=N_bins)
+
+
+def compute_cone_angle_from_angular_density(signal, offset, number_of_plumes, *, bins=3600, use_gpu=False):
+    """Shared GPU/CPU cone-angle computation from angular density maps."""
+    shift_bins = int(offset / 360 * bins)
+    try:
+        if use_gpu:
+            cp = get_cupy()
+            if cp is None:
+                raise RuntimeError
+            from cupyx.scipy.ndimage import binary_closing as cp_binary_closing  # type: ignore
+
+            sig_cp = cp.asarray(signal, dtype=cp.float32)
+            bw_cp = triangle_binarize_gpu(sig_cp)
+            bw_cp = cp.roll(bw_cp, -shift_bins, axis=1)
+            struct_cp = cp.ones((1, 3), dtype=cp.bool_)
+            bw_closed = cp_binary_closing(bw_cp, structure=struct_cp)
+
+            cone_angle = np.zeros((number_of_plumes, bw_closed.shape[0]), dtype=np.float32)
+            deg_per_bin = 360.0 / bins
+            for p in range(number_of_plumes):
+                start = int(round(p * bins / number_of_plumes))
+                end = int(round((p + 1) * bins / number_of_plumes))
+                s = bw_closed[:, start:end].sum(axis=1) * deg_per_bin
+                cone_angle[p] = cp.asnumpy(s)
+            return cone_angle
+        raise RuntimeError
+    except Exception:
+        from scipy.ndimage import binary_closing
+
+        cp = get_cupy()
+        if cp is not None and hasattr(signal, "__cuda_array_interface__"):
+            signal = cp.asnumpy(signal)
+        signal = np.asarray(signal)
+        bw_u8, _ = triangle_binarize_from_float(signal, blur=True)
+        bw_shifted = np.roll(bw_u8 > 0, -shift_bins, axis=1)
+        struct = np.ones((1, 3), dtype=bool)
+        bw_closed = binary_closing(bw_shifted, structure=struct)
+
+        cone_angle = np.zeros((number_of_plumes, bw_closed.shape[0]), dtype=np.float32)
+        deg_per_bin = 360.0 / bins
+        for p in range(number_of_plumes):
+            start = int(round(p * bins / number_of_plumes))
+            end = int(round((p + 1) * bins / number_of_plumes))
+            cone_angle[p] = bw_closed[:, start:end].sum(axis=1) * deg_per_bin
+        return cone_angle
+
+
+def estimate_offset_from_fft(signal, number_of_plumes: int):
+    """Return the spray axis offset estimated from the FFT of the angular signal."""
+    xp = get_array_module(signal)
+    summed_signal = signal.sum(axis=0)
+    fft_vals = xp.fft.rfft(summed_signal)
+    if number_of_plumes >= len(fft_vals):
+        return 0.0
+    phase = xp.angle(fft_vals[number_of_plumes])
+    offset = (-phase / number_of_plumes) * 180.0 / xp.pi
+    offset %= 360.0
+    offset = min(offset, offset - 360, key=abs)
+    return offset

@@ -1,6 +1,6 @@
 import numpy as np
-from OSCC_postprocessing.analysis.multihole_utils import resolve_backend
-use_gpu, triangle_backend, xp = resolve_backend(use_gpu="auto", triangle_backend="auto")
+from OSCC_postprocessing.utils.backend import get_array_module
+
 
 def monotone_non_decreasing(x):
     return np.maximum.accumulate(x)
@@ -8,14 +8,17 @@ def monotone_non_decreasing(x):
 
 def penetration_cdf_front(I, mask=None, q=0.97, min_x=0):
     """
-    I: (T,X)
-    mask: (T,X) {0,1} 可选，只在喷雾区域内累计
+    I: (T, X)
+    mask: optional ``(T, X)`` {0,1} array; only accumulate inside the spray region
     q: cumulative quantile, e.g. 0.95~0.995
     """
+    xp = get_array_module(I)
     I = xp.asarray(I, xp.float32)
     T, X = I.shape
 
-    # 每帧背景抹掉：用分位数当背景（比中位数更适合你这种“大片暗背景+亮喷雾”）
+    # Remove per-frame background using a low quantile. This is more suitable
+    # than the median when the image contains a large dark background and a
+    # comparatively bright spray region.
     bg = xp.quantile(I, 0.10, axis=1, keepdims=True)
     S = I - bg
     S[S < 0] = 0
@@ -30,5 +33,6 @@ def penetration_cdf_front(I, mask=None, q=0.97, min_x=0):
     target = q * tot
 
     xhat = xp.argmax(cdf >= target[:, None], axis=1).astype(xp.int32)
-    # 若某帧 tot≈0（几乎没亮度），argmax 会返回 0；你可后处理
+    # If a frame has almost no intensity, ``tot`` is near zero and ``argmax``
+    # returns 0. Callers can post-process that case if needed.
     return xhat

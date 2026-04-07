@@ -15,7 +15,7 @@ from OSCC_postprocessing.filters.video_filters import (
     Gaussian_LP_video as _Gaussian_LP_video,
     gaussian_video_cpu as _gaussian_video_cpu,
 )
-from OSCC_postprocessing.rotation.rotate_crop import rotate_video_auto
+from OSCC_postprocessing.rotation.segment_ops import rotate_video_auto
 
 
 def _gaussian_low_pass_frame(img, cutoff):

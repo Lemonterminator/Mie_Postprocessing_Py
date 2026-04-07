@@ -1,5 +1,5 @@
 % $ biblatex auxiliary file $
-% $ biblatex bbl format version 3.3 $
+% $ biblatex bbl format version 3.2 $
 % Do not modify the above lines!
 %
 % This is an auxiliary file used by the 'biblatex' package.
@@ -16,8 +16,8 @@
   {}
 \endgroup
 
-\datalist[entry]{nty/global//global/global/global}
-  \entry{ahmad2025fueldilution}{thesis}{}{}
+\datalist[entry]{nty/global//global/global}
+  \entry{ahmad2025fueldilution}{thesis}{}
     \name{author}{1}{}{%
       {{hash=AZ}{%
          family={Ahmad},
@@ -45,7 +45,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{BishopPRML2006}{book}{}{}
+  \entry{BishopPRML2006}{book}{}
     \name{author}{1}{}{%
       {{hash=BCM}{%
          family={Bishop},
@@ -71,7 +71,7 @@
     \field{year}{2006}
   \endentry
 
-  \entry{BohrenHuffman2004}{book}{}{}
+  \entry{BohrenHuffman2004}{book}{}
     \name{author}{2}{}{%
       {{hash=BCF}{%
          family={Bohren},
@@ -103,7 +103,39 @@
     \field{year}{2004}
   \endentry
 
-  \entry{classnk2025alternativefuels}{misc}{}{}
+  \entry{BuckleyJames1979}{article}{}
+    \name{author}{2}{}{%
+      {{hash=BJ}{%
+         family={Buckley},
+         familyi={B\bibinitperiod},
+         given={Jonathan},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=JI}{%
+         family={James},
+         familyi={J\bibinitperiod},
+         given={Ian},
+         giveni={I\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{BJJI1}
+    \strng{fullhash}{BJJI1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{B}
+    \field{sortinithash}{B}
+    \verb{doi}
+    \verb 10.1093/biomet/66.3.429
+    \endverb
+    \field{number}{3}
+    \field{pages}{429\bibrangedash 436}
+    \field{title}{Linear Regression with Censored Data}
+    \field{volume}{66}
+    \field{journaltitle}{Biometrika}
+    \field{year}{1979}
+  \endentry
+
+  \entry{classnk2025alternativefuels}{misc}{}
     \name{author}{1}{}{%
       {{hash=C}{%
          family={{ClassNK}},
@@ -125,7 +157,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{classnk_methanol_2024}{report}{}{}
+  \entry{classnk_methanol_2024}{report}{}
     \name{author}{1}{}{%
       {{hash=C}{%
          family={{ClassNK}},
@@ -147,7 +179,7 @@
     \field{year}{2024}
   \endentry
 
-  \entry{CooleyTukey1965FFT}{article}{}{}
+  \entry{CooleyTukey1965FFT}{article}{}
     \name{author}{2}{}{%
       {{hash=CJW}{%
          family={Cooley},
@@ -180,7 +212,7 @@
     \field{year}{1965}
   \endentry
 
-  \entry{Dent1971Penetration}{article}{}{}
+  \entry{Dent1971Penetration}{article}{}
     \name{author}{1}{}{%
       {{hash=DJC}{%
          family={Dent},
@@ -205,7 +237,7 @@
     \field{year}{1971}
   \endentry
 
-  \entry{ecn_liquid_penetration_accessory}{misc}{}{}
+  \entry{ecn_liquid_penetration_accessory}{misc}{}
     \name{author}{1}{}{%
       {{hash=E}{%
          family={{Engine Combustion Network}},
@@ -228,7 +260,7 @@
     \field{year}{2026}
   \endentry
 
-  \entry{ecn_liquid_penetration}{misc}{}{}
+  \entry{ecn_liquid_penetration}{misc}{}
     \name{author}{1}{}{%
       {{hash=E}{%
          family={{Engine Combustion Network}},
@@ -250,7 +282,7 @@
     \field{year}{2026}
   \endentry
 
-  \entry{GonzalezWoodsDIP}{book}{}{}
+  \entry{GonzalezWoodsDIP}{book}{}
     \name{author}{2}{}{%
       {{hash=GRC}{%
          family={Gonzalez},
@@ -283,7 +315,46 @@
     \field{year}{2018}
   \endentry
 
-  \entry{HiroyasuArai1990}{article}{}{}
+  \entry{HintonVinyalsDean2015}{misc}{}
+    \name{author}{3}{}{%
+      {{hash=HG}{%
+         family={Hinton},
+         familyi={H\bibinitperiod},
+         given={Geoffrey},
+         giveni={G\bibinitperiod},
+      }}%
+      {{hash=VO}{%
+         family={Vinyals},
+         familyi={V\bibinitperiod},
+         given={Oriol},
+         giveni={O\bibinitperiod},
+      }}%
+      {{hash=DJ}{%
+         family={Dean},
+         familyi={D\bibinitperiod},
+         given={Jeff},
+         giveni={J\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{HGVODJ1}
+    \strng{fullhash}{HGVODJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{H}
+    \field{sortinithash}{H}
+    \verb{doi}
+    \verb 10.48550/arXiv.1503.02531
+    \endverb
+    \verb{eprint}
+    \verb 1503.02531
+    \endverb
+    \field{title}{Distilling the Knowledge in a Neural Network}
+    \field{eprinttype}{arXiv}
+    \field{eprintclass}{stat.ML}
+    \field{year}{2015}
+  \endentry
+
+  \entry{HiroyasuArai1990}{article}{}
     \name{author}{2}{}{%
       {{hash=HH}{%
          family={Hiroyasu},
@@ -313,7 +384,7 @@
     \field{year}{1990}
   \endentry
 
-  \entry{Huber1964}{article}{}{}
+  \entry{Huber1964}{article}{}
     \name{author}{1}{}{%
       {{hash=HPJ}{%
          family={Huber},
@@ -339,7 +410,7 @@
     \field{year}{1964}
   \endentry
 
-  \entry{imo2023ghgstrategy}{misc}{}{}
+  \entry{imo2023ghgstrategy}{misc}{}
     \name{author}{1}{}{%
       {{hash=I}{%
          family={{International Maritime Organization}},
@@ -361,7 +432,65 @@
     \field{year}{2023}
   \endentry
 
-  \entry{JohnsonNaberLee2012}{article}{}{}
+  \entry{JinKimKakamiNishidaOgataLuo2020}{article}{}
+    \name{author}{6}{}{%
+      {{hash=JY}{%
+         family={Jin},
+         familyi={J\bibinitperiod},
+         given={Yu},
+         giveni={Y\bibinitperiod},
+      }}%
+      {{hash=KJ}{%
+         family={Kim},
+         familyi={K\bibinitperiod},
+         given={Jaeheun},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=KS}{%
+         family={Kakami},
+         familyi={K\bibinitperiod},
+         given={Shinichi},
+         giveni={S\bibinitperiod},
+      }}%
+      {{hash=NK}{%
+         family={Nishida},
+         familyi={N\bibinitperiod},
+         given={Keiya},
+         giveni={K\bibinitperiod},
+      }}%
+      {{hash=OY}{%
+         family={Ogata},
+         familyi={O\bibinitperiod},
+         given={Yoichi},
+         giveni={Y\bibinitperiod},
+      }}%
+      {{hash=LH}{%
+         family={Luo},
+         familyi={L\bibinitperiod},
+         given={Hongliang},
+         giveni={H\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{JY+1}
+    \strng{fullhash}{JYKJKSNKOYLH1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{J}
+    \field{sortinithash}{J}
+    \verb{doi}
+    \verb 10.1016/j.icheatmasstransfer.2020.104862
+    \endverb
+    \field{pages}{104862}
+    \field{title}{Comparison of Diesel Spray with Small Injection Amount
+  Between Single-Hole and Multi-Hole Injectors: Results Under Same Rail
+  Pressure and Similar Injection Rate}
+    \field{volume}{118}
+    \field{journaltitle}{International Communications in Heat and Mass
+  Transfer}
+    \field{year}{2020}
+  \endentry
+
+  \entry{JohnsonNaberLee2012}{article}{}
     \name{author}{3}{}{%
       {{hash=JJE}{%
          family={Johnson},
@@ -401,7 +530,7 @@
     \field{year}{2012}
   \endentry
 
-  \entry{JungManinSkeenPickett2015}{article}{}{}
+  \entry{JungManinSkeenPickett2015}{article}{}
     \name{author}{4}{}{%
       {{hash=JY}{%
          family={Jung},
@@ -428,7 +557,7 @@
          giveni={L\bibinitperiod\bibinitdelim M\bibinitperiod},
       }}%
     }
-    \strng{namehash}{JY+1}
+    \strng{namehash}{JY+2}
     \strng{fullhash}{JYMJSSAPLM1}
     \field{labelnamesource}{author}
     \field{labeltitlesource}{title}
@@ -444,7 +573,7 @@
     \field{year}{2015}
   \endentry
 
-  \entry{KendallGal2017}{inproceedings}{}{}
+  \entry{KendallGal2017}{inproceedings}{}
     \name{author}{2}{}{%
       {{hash=KA}{%
          family={Kendall},
@@ -475,7 +604,7 @@
     \field{year}{2017}
   \endentry
 
-  \entry{LefebvreMcDonell2017}{book}{}{}
+  \entry{LefebvreMcDonell2017}{book}{}
     \name{author}{2}{}{%
       {{hash=LAH}{%
          family={Lefebvre},
@@ -508,7 +637,7 @@
     \field{year}{2017}
   \endentry
 
-  \entry{Linne2013SprayImaging}{article}{}{}
+  \entry{Linne2013SprayImaging}{article}{}
     \name{author}{1}{}{%
       {{hash=LM}{%
          family={Linne},
@@ -535,7 +664,7 @@
     \field{year}{2013}
   \endentry
 
-  \entry{liu2020sprayreview}{article}{}{}
+  \entry{liu2020sprayreview}{article}{}
     \true{moreauthor}
     \true{morelabelname}
     \name{author}{1}{}{%
@@ -561,7 +690,7 @@
     \field{year}{2020}
   \endentry
 
-  \entry{liu2024marine_impingement}{article}{}{}
+  \entry{liu2024marine_impingement}{article}{}
     \true{moreauthor}
     \true{morelabelname}
     \name{author}{1}{}{%
@@ -589,7 +718,7 @@
     \field{year}{2024}
   \endentry
 
-  \entry{MagnottiGenzale2013}{article}{}{}
+  \entry{MagnottiGenzale2013}{article}{}
     \name{author}{2}{}{%
       {{hash=MGM}{%
          family={Magnotti},
@@ -620,7 +749,51 @@
     \field{year}{2013}
   \endentry
 
-  \entry{MuenchLeipertz1992}{article}{}{}
+  \entry{MopuriGrahnSedarskyHyvonen2024}{article}{}
+    \name{author}{4}{}{%
+      {{hash=ML}{%
+         family={Mopuri},
+         familyi={M\bibinitperiod},
+         given={Lokesh},
+         giveni={L\bibinitperiod},
+      }}%
+      {{hash=GV}{%
+         family={Grahn},
+         familyi={G\bibinitperiod},
+         given={Viljam},
+         giveni={V\bibinitperiod},
+      }}%
+      {{hash=SD}{%
+         family={Sedarsky},
+         familyi={S\bibinitperiod},
+         given={David},
+         giveni={D\bibinitperiod},
+      }}%
+      {{hash=HJ}{%
+         family={Hyv{\"o}nen},
+         familyi={H\bibinitperiod},
+         given={Jari},
+         giveni={J\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{ML+1}
+    \strng{fullhash}{MLGVSDHJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{M}
+    \field{sortinithash}{M}
+    \verb{doi}
+    \verb 10.1007/s00348-024-03829-6
+    \endverb
+    \field{pages}{92}
+    \field{title}{Shape/Penetration Analysis and Comparisons of Isolated Spray
+  Plumes in a Multi-Hole Diesel Spray}
+    \field{volume}{65}
+    \field{journaltitle}{Experiments in Fluids}
+    \field{year}{2024}
+  \endentry
+
+  \entry{MuenchLeipertz1992}{article}{}
     \name{author}{2}{}{%
       {{hash=MK}{%
          family={M{\"u}nch},
@@ -652,7 +825,7 @@
     \field{year}{1992}
   \endentry
 
-  \entry{NaberSiebers1996}{article}{}{}
+  \entry{NaberSiebers1996}{article}{}
     \name{author}{2}{}{%
       {{hash=NJD}{%
          family={Naber},
@@ -683,7 +856,51 @@
     \field{year}{1996}
   \endentry
 
-  \entry{NocedalWright2006}{book}{}{}
+  \entry{NickollsBuckGarlandSkadron2008}{article}{}
+    \name{author}{4}{}{%
+      {{hash=NJ}{%
+         family={Nickolls},
+         familyi={N\bibinitperiod},
+         given={John},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=BI}{%
+         family={Buck},
+         familyi={B\bibinitperiod},
+         given={Ian},
+         giveni={I\bibinitperiod},
+      }}%
+      {{hash=GM}{%
+         family={Garland},
+         familyi={G\bibinitperiod},
+         given={Michael},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=SK}{%
+         family={Skadron},
+         familyi={S\bibinitperiod},
+         given={Kevin},
+         giveni={K\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{NJ+1}
+    \strng{fullhash}{NJBIGMSK1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{N}
+    \field{sortinithash}{N}
+    \verb{doi}
+    \verb 10.1145/1365490.1365500
+    \endverb
+    \field{number}{2}
+    \field{pages}{40\bibrangedash 53}
+    \field{title}{Scalable Parallel Programming with {CUDA}}
+    \field{volume}{6}
+    \field{journaltitle}{ACM Queue}
+    \field{year}{2008}
+  \endentry
+
+  \entry{NocedalWright2006}{book}{}
     \name{author}{2}{}{%
       {{hash=NJ}{%
          family={Nocedal},
@@ -718,7 +935,7 @@
     \field{year}{2006}
   \endentry
 
-  \entry{OppenheimSchaferStockham1968}{article}{}{}
+  \entry{OppenheimSchaferStockham1968}{article}{}
     \name{author}{3}{}{%
       {{hash=OAV}{%
          family={Oppenheim},
@@ -758,7 +975,7 @@
     \field{year}{1968}
   \endentry
 
-  \entry{peraza2022swi}{article}{}{}
+  \entry{peraza2022swi}{article}{}
     \true{moreauthor}
     \true{morelabelname}
     \name{author}{1}{}{%
@@ -784,7 +1001,7 @@
     \field{year}{2022}
   \endentry
 
-  \entry{Pratt1987CircleFit}{article}{}{}
+  \entry{Pratt1987CircleFit}{article}{}
     \name{author}{1}{}{%
       {{hash=PV}{%
          family={Pratt},
@@ -810,7 +1027,7 @@
     \field{year}{1987}
   \endentry
 
-  \entry{Szeliski2010Vision}{book}{}{}
+  \entry{Szeliski2010Vision}{book}{}
     \name{author}{1}{}{%
       {{hash=SR}{%
          family={Szeliski},
@@ -838,7 +1055,38 @@
     \field{year}{2011}
   \endentry
 
-  \entry{Taubin1991CircleFit}{article}{}{}
+  \entry{TarvainenValpola2017}{inproceedings}{}
+    \name{author}{2}{}{%
+      {{hash=TA}{%
+         family={Tarvainen},
+         familyi={T\bibinitperiod},
+         given={Antti},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=VH}{%
+         family={Valpola},
+         familyi={V\bibinitperiod},
+         given={Harri},
+         giveni={H\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{TAVH1}
+    \strng{fullhash}{TAVH1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{T}
+    \field{sortinithash}{T}
+    \field{booktitle}{Advances in Neural Information Processing Systems 30}
+    \verb{doi}
+    \verb 10.48550/arXiv.1703.01780
+    \endverb
+    \field{pages}{1195\bibrangedash 1204}
+    \field{title}{Mean Teachers Are Better Role Models: Weight-Averaged
+  Consistency Targets Improve Semi-Supervised Deep Learning Results}
+    \field{year}{2017}
+  \endentry
+
+  \entry{Taubin1991CircleFit}{article}{}
     \name{author}{1}{}{%
       {{hash=TG}{%
          family={Taubin},
@@ -867,7 +1115,30 @@
     \field{year}{1991}
   \endentry
 
-  \entry{wingd_ammonia_faq_2025}{misc}{}{}
+  \entry{Tobin1958}{article}{}
+    \name{author}{1}{}{%
+      {{hash=TJ}{%
+         family={Tobin},
+         familyi={T\bibinitperiod},
+         given={James},
+         giveni={J\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{TJ1}
+    \strng{fullhash}{TJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{T}
+    \field{sortinithash}{T}
+    \field{number}{1}
+    \field{pages}{24\bibrangedash 36}
+    \field{title}{Estimation of Relationships for Limited Dependent Variables}
+    \field{volume}{26}
+    \field{journaltitle}{Econometrica}
+    \field{year}{1958}
+  \endentry
+
+  \entry{wingd_ammonia_faq_2025}{misc}{}
     \name{author}{1}{}{%
       {{hash=W}{%
          family={{WinGD}},
@@ -888,7 +1159,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{wingd_lng_faq_2025}{misc}{}{}
+  \entry{wingd_lng_faq_2025}{misc}{}
     \name{author}{1}{}{%
       {{hash=W}{%
          family={{WinGD}},
@@ -909,7 +1180,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{wingd_xdf_manual_2021}{manual}{}{}
+  \entry{wingd_xdf_manual_2021}{manual}{}
     \name{author}{1}{}{%
       {{hash=W}{%
          family={{WinGD}},
@@ -930,7 +1201,7 @@
     \field{year}{2021}
   \endentry
 
-  \entry{ZackRogersLatt1977}{article}{}{}
+  \entry{ZackRogersLatt1977}{article}{}
     \name{author}{3}{}{%
       {{hash=ZGW}{%
          family={Zack},
@@ -968,7 +1239,7 @@
     \field{year}{1977}
   \endentry
 
-  \entry{ZhouLiYi2021}{article}{}{}
+  \entry{ZhouLiYi2021}{article}{}
     \name{author}{3}{}{%
       {{hash=ZX}{%
          family={Zhou},
@@ -1007,7 +1278,7 @@
     \field{year}{2021}
   \endentry
 
-  \entry{ZhouLiLaiWei2019}{article}{}{}
+  \entry{ZhouLiLaiWei2019}{article}{}
     \name{author}{4}{}{%
       {{hash=ZX}{%
          family={Zhou},

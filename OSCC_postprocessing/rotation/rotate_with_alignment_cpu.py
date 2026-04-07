@@ -1,12 +1,20 @@
-import numpy as np
+"""NumPy reference implementation for affine video rotation and remapping.
+
+This module is the CPU-side foundation of ``OSCC_postprocessing.rotation``.
+It builds inverse coordinate maps for affine transforms and uses them to
+resample frame stacks with multiple interpolation kernels.
+
+Two high-level workflows are supported:
+
+- nozzle alignment, where a measured nozzle position is moved to a calibration
+  point near the left edge of the output canvas
+- generic rotation about an arbitrary centre, optionally into a cropped ROI
+"""
+
 from concurrent.futures import ThreadPoolExecutor
 
 import matplotlib.pyplot as plt
-
-"""
-This module provides functions to rotate video frames efficiently on the GPU using numpy.
-First find the nozzle center and the angle offset by the GUI. 
-"""
+import numpy as np
 
 def build_affine_inverse_maps_numpy(
     M,
@@ -72,8 +80,12 @@ def build_affine_inverse_maps_numpy(
 
 def build_rotation_affine(center, angle_deg, *, target=None, scale=1.0):
     """
-    Construct a 2x3 forward affine that rotates about `center` by `angle_deg`
-    and places that center at `target` in the output coordinate system.
+    Construct the forward 2x3 affine matrix for a centred rotation.
+
+    The matrix follows the OpenCV-style forward convention
+    ``[x_out, y_out]^T = A [x_in, y_in]^T + b``. ``center`` is the fixed point
+    in the input image and ``target`` is where that point should land in the
+    output coordinate system.
     """
     center = np.asarray(center, dtype=np.float64)
     if target is None:
@@ -138,14 +150,45 @@ def build_nozzle_rotation_maps(
         out_origin=(x_off, y_off),
     )
 
+
+def build_rotation_roi_maps_numpy(
+    frame_shape,
+    rotation_center,
+    angle_deg,
+    *,
+    crop_rect=None,
+    out_shape=None,
+):
+    """Build inverse maps for a generic centred rotation into an ROI.
+
+    This is the generic counterpart to ``build_nozzle_rotation_maps``. When
+    ``crop_rect`` is supplied, the generated maps cover only that rectangle in
+    full-frame coordinates, which is the geometry used by the higher-level
+    plume segment extraction helpers.
+    """
+    H_full, W_full = frame_shape
+    if crop_rect is not None:
+        x0, y0, out_w, out_h = crop_rect
+        out_shape = (int(out_h), int(out_w))
+        out_origin = (float(x0), float(y0))
+    else:
+        if out_shape is None:
+            out_shape = (H_full, W_full)
+        out_origin = (0.0, 0.0)
+
+    M = build_rotation_affine(rotation_center, angle_deg, target=rotation_center)
+    return build_affine_inverse_maps_numpy(
+        M,
+        out_shape,
+        out_origin=out_origin,
+    )
+
 def _reflect_indices(idx, size):
-    # OpenCV-style BORDER_REFLECT_101 (no double-border), but here we’ll use simple reflect.
-    # For large out-of-range, bring back via modulo and reflection.
-    # If you want exact OpenCV behavior, adjust accordingly.
+    """Reflect indices back into range for ``border_mode='reflect'``."""
     if size == 1:
         return np.zeros_like(idx)
-    mod = np.mod(idx, 2*(size-1))
-    return np.where(mod < size, mod, 2*(size-1) - mod)
+    mod = np.mod(idx, 2 * (size - 1))
+    return np.where(mod < size, mod, 2 * (size - 1) - mod)
 
 def _clamp_indices(idx, size):
     return np.clip(idx, 0, size-1)
@@ -607,6 +650,50 @@ def remap_video_numpy(
             frames_out = list(executor.map(_remap, video_iterable))
     return np.stack(frames_out, axis=0) if stack else frames_out
 
+
+def rotate_video_about_center_numpy(
+    video,
+    rotation_center,
+    angle_deg,
+    *,
+    crop_rect=None,
+    out_shape=None,
+    interpolation="bilinear",
+    border_mode="constant",
+    cval=0.0,
+    stack=True,
+    max_workers=None,
+):
+    """Rotate a video about an arbitrary centre into a full frame or ROI.
+
+    This is the canonical CPU entry point for general-purpose rotation. The
+    function returns both the rotated stack and the inverse-coordinate maps used
+    for remapping so callers can inspect or visualize the geometry.
+    """
+    video_np = np.asarray(video)
+    if video_np.dtype != np.float32 and not np.issubdtype(video_np.dtype, np.bool_):
+        video_np = video_np.astype(np.float32)
+
+    frame_shape = (video_np.shape[1], video_np.shape[2])
+    mapx, mapy = build_rotation_roi_maps_numpy(
+        frame_shape,
+        rotation_center,
+        angle_deg,
+        crop_rect=crop_rect,
+        out_shape=out_shape,
+    )
+    rotated = remap_video_numpy(
+        video_np,
+        mapx,
+        mapy,
+        interpolation=interpolation,
+        border_mode=border_mode,
+        cval=cval,
+        stack=stack,
+        max_workers=max_workers,
+    )
+    return rotated, mapx, mapy
+
 def rotate_video_nozzle_at_0_half_numpy(
     video,
     nozzle_center,
@@ -643,7 +730,7 @@ def rotate_video_nozzle_at_0_half_numpy(
         When True, display the generated inverse maps for inspection.
     """
     video_np = np.asarray(video)
-    if video_np.dtype != np.float32:
+    if video_np.dtype != np.float32 and not np.issubdtype(video_np.dtype, np.bool_):
         video_np = video_np.astype(np.float32)
 
     frame_shape = (video_np.shape[1], video_np.shape[2])
@@ -672,7 +759,8 @@ def rotate_video_nozzle_at_0_half_numpy(
     return rotated, mapx, mapy
 
 def plot_inverse_maps(mapx, mapy):
-    # bring back to NumPy if needed
+    """Visualize inverse-coordinate maps for debugging affine geometry."""
+    # Bring back to NumPy in case the caller passed a backend-specific array.
     mapx_np = np.asarray(mapx)
     mapy_np = np.asarray(mapy)
 
