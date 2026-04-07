@@ -19,8 +19,11 @@ It owns the geometry and helper surface for plume-oriented segmentation:
 - `rotate_video_auto`
 - `rotate_all_segments_auto`
 
-This module does not implement interpolation itself. It delegates all remapping
-to the canonical affine engines described below.
+`generate_plume_mask` is not implemented locally in this module anymore. It is
+re-exported from `OSCC_postprocessing.binary_ops.masking` so the library keeps
+one canonical definition for angular plume masking. The module otherwise does
+not implement interpolation itself and delegates all remapping to the canonical
+affine engines described below.
 
 ### `OSCC_postprocessing.rotation.rotate_with_alignment_cpu`
 

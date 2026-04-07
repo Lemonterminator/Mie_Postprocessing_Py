@@ -762,7 +762,8 @@ def pipeline_mie():
     crop = generate_CropRect(ir_, or_, number_of_plumes, centre_x, centre_y)
 
     angles = np.linspace(0, 360, number_of_plumes, endpoint=False) - offset
-    mask = generate_plume_mask(ir_, or_, crop[2], crop[3])
+    plume_angle = 2.0 * np.degrees(np.arctan(crop[3] / (2.0 * or_)))
+    mask = generate_plume_mask(crop[2], crop[3], angle=plume_angle, x0=-ir_)
 
     segments = rotate_all_segments_auto(sub_bkg_med, angles, crop, centre, mask=mask)
 

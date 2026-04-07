@@ -768,6 +768,10 @@ def _process_cine_file(
             state["ring_mask"] = generate_ring_mask(H, W, centre, ir_, or_)
         retained_ring_mask = state["ring_mask"]
 
+        # ========================================================================
+        # Actual Image processing 
+        # ========================================================================
+
         # Preprocessing and postprocessing remain on the active backend
         # (CuPy or NumPy). This keeps the heavy array work in one memory space.
         state["foreground"], state["highpass_filtered"] = mie_multihole_preprocessing(
@@ -792,6 +796,10 @@ def _process_cine_file(
         )
 
         print("GPU work completed in {:.2f}s".format(time.time() - start_time))
+
+        # ========================================================================
+        # Extracting results
+        # ========================================================================
 
         # From here on we mostly do bookkeeping and tabular assembly. The
         # penetration cleaning is kept explicit because these few steps define

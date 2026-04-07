@@ -11,8 +11,8 @@ The public surface is limited to four functions:
 
 - ``generate_CropRect`` computes the standard rectangular strip used to sample
   one plume sector from a radial spray.
-- ``generate_plume_mask`` reproduces the historical trapezoidal mask used in
-  that strip's local coordinate system.
+- ``generate_plume_mask`` re-exports the canonical angular mask helper from
+  ``OSCC_postprocessing.binary_ops.masking``.
 - ``rotate_video_auto`` rotates a full stack around the image centre.
 - ``rotate_all_segments_auto`` rotates one stack into multiple cropped segments
   around a user-provided centre and ROI.
@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 
+from OSCC_postprocessing.binary_ops.masking import generate_plume_mask
 from OSCC_postprocessing.rotation.rotate_with_alignment_cpu import rotate_video_about_center_numpy
 
 __all__ = [
@@ -107,24 +108,6 @@ def generate_CropRect(inner_radius, outer_radius, number_of_plumes, centre_x, ce
     w = round(outer_radius - inner_radius)
     h = 2 * half_width
     return (x, y, w, h)
-
-
-def generate_plume_mask(inner_radius, outer_radius, w, h):
-    """Generate the historical trapezoidal mask inside one crop rectangle.
-
-    The mask is expressed in the local coordinates of the rectangular plume
-    strip. The left edge corresponds to ``inner_radius`` and the right edge
-    corresponds to ``outer_radius``.
-    """
-    import cv2
-
-    y1 = -h / outer_radius / 2 * inner_radius + h / 2
-    y2 = h / outer_radius / 2 * inner_radius + h / 2
-
-    mask = np.zeros((h, w), dtype=np.uint8)
-    pts = np.array([[0, round(y2)], [0, round(y1)], [w, 0], [w, h]], dtype=np.int32)
-    cv2.fillPoly(mask, [pts], 255)
-    return mask > 0
 
 
 def rotate_video_auto(video_array, angle=0, max_workers=4):

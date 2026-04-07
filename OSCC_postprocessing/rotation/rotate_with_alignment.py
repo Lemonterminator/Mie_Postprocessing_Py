@@ -144,7 +144,6 @@ def build_nozzle_rotation_maps(
         out_origin=(x_off, y_off),
     )
 
-
 def build_rotation_roi_maps_cupy(
     frame_shape,
     rotation_center,
@@ -633,7 +632,6 @@ def remap_video_cupy(
     for frame in video_iterable:
         frames_out.append(remap_fn(frame, mapx, mapy, border_mode, cval))
     return cp.stack(frames_out, axis=0) if stack else frames_out
-
 
 def rotate_video_about_center_cupy(
     video,
