@@ -7,7 +7,8 @@
     "fps": 25000
   },
   "test_matrix": {
-    "chamber_pressures_bar": [5, 10, 15],
+    "chamber_density_kg_per_m3": [5, 10, 15],
+    "chamber_pressures_bar": [4.42, 8.84, 13.26],
     "injection_durations_us": [570, 595, 620, 643, 672.5, 704, 735, 752, 763],
     "expansion": "cartesian"
   }

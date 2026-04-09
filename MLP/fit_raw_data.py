@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 
 # Penetration-series switches.
 FIT_PENETRATION_CDF = True
-FIT_PENETRATION_BW_X = True
-FIT_PENETRATION_BW_POLAR = True
+FIT_PENETRATION_BW_X = False
+FIT_PENETRATION_BW_POLAR = False
 
 # Filtering switches.
 ENABLE_REPLACE_NEGATIVE_WITH_ZERO = True  # For bw_x only: clamp negative penetration to 0 before cleaning.
@@ -50,8 +50,8 @@ MASK_MIN_N = 10
 MASK_S_UPPER = 1e-3  # < 1 ms
 MASK_T0_UPPER = 0.8e-3 
 MASK_FAR_TIME_MS = 5.0
-MASK_PENETRATION_LOWER_MM = 25.0
-MASK_PENETRATION_UPPER_MM = 300.0
+MASK_PENETRATION_LOWER_MM = 25.0        # penetration (mm) at MASK_FAR_TIME_MS
+MASK_PENETRATION_UPPER_MM = 300.0       # penetration (mm) at MASK_FAR_TIME_MS
 
 PLOT_EXTRAP_FACTOR = 1.6
 PLOT_NUM_POINTS = 300
@@ -82,23 +82,29 @@ PENETRATION_SOURCES = [
     {
         "enabled": FIT_PENETRATION_CDF,
         "key": "cdf",
+        "column_prefix_mm": "penetration_cdf(mm)_plume_",
         "column_prefix": "penetration_cdf_plume_",
         "label": "penetration_cdf",
         "replace_negative_with_zero": False,
+        "legacy_needs_umbrella_correction": True,
     },
     {
         "enabled": FIT_PENETRATION_BW_X,
+        "column_prefix_mm": "penetration_bw_x(mm)_plume_",
         "key": "bw_x",
         "column_prefix": "penetration_bw_x_plume_",
         "label": "penetration_bw_x",
         "replace_negative_with_zero": True,
+        "legacy_needs_umbrella_correction": True,
     },
     {
         "enabled": FIT_PENETRATION_BW_POLAR,
+        "column_prefix_mm": "penetration_bw_polar(mm)_plume_",
         "key": "bw_polar",
         "column_prefix": "penetration_bw_polar_plume_",
         "label": "penetration_bw_polar",
         "replace_negative_with_zero": False,
+        "legacy_needs_umbrella_correction": False,
     },
 ]
 
@@ -159,6 +165,26 @@ def _infer_num_plumes_from_columns(df_file, column_prefix):
     if not plume_indices:
         return 0
     return max(plume_indices) + 1
+
+
+def _resolve_penetration_prefix_and_scale(df_file, penetration_source, mm_per_px_scale):
+    mm_prefix = penetration_source.get("column_prefix_mm")
+    if mm_prefix and _infer_num_plumes_from_columns(df_file, mm_prefix) > 0:
+        return mm_prefix, 1.0
+
+    umbrella_angle_deg = (
+        float(pd.to_numeric(df_file["umbrella_angle_deg"].iloc[0], errors="coerce"))
+        if "umbrella_angle_deg" in df_file.columns
+        else 180.0
+    )
+    if not np.isfinite(umbrella_angle_deg):
+        umbrella_angle_deg = 180.0
+
+    correction = float(mm_per_px_scale)
+    if penetration_source.get("legacy_needs_umbrella_correction", False):
+        tilt_ang = (180.0 - umbrella_angle_deg) / 2.0
+        correction *= 1.0 / np.cos(np.deg2rad(tilt_ang))
+    return penetration_source["column_prefix"], correction
 
 
 def robust_z(series):
@@ -414,11 +440,16 @@ def prepare_cleaned_series(
     fps_default,
     max_hydraulic_delay_frames,
     delay_clip_half_window,
-    penetration_column_prefix,
+    penetration_source,
     replace_negative_with_zero=False,
     diff_threshold_lower=DIFF_THRESHOLD_LOWER,
     diff_threshold_upper=DIFF_THRESHOLD_UPPER,
 ):
+    penetration_column_prefix, pen_correction = _resolve_penetration_prefix_and_scale(
+        df_file,
+        penetration_source,
+        mm_per_px_scale,
+    )
     if "plumes" in df_file.columns and np.isfinite(pd.to_numeric(df_file["plumes"].iloc[0], errors="coerce")):
         number_of_plumes = int(pd.to_numeric(df_file["plumes"].iloc[0], errors="coerce"))
     else:
@@ -433,18 +464,6 @@ def prepare_cleaned_series(
 
     time_s = frame_idx / fps
     time_ms = time_s * 1e3
-
-    umbrella_angle_deg = (
-        float(pd.to_numeric(df_file["umbrella_angle_deg"].iloc[0], errors="coerce"))
-        if "umbrella_angle_deg" in df_file.columns
-        else 180.0
-    )
-    if not np.isfinite(umbrella_angle_deg):
-        umbrella_angle_deg = 180.0
-
-    tilt_ang = (180.0 - umbrella_angle_deg) / 2.0
-    umbrella_angle_correction = 1.0 / np.cos(np.deg2rad(tilt_ang))
-    pen_correction = mm_per_px_scale * umbrella_angle_correction
 
     max_len = int(frame_idx.max()) + 1
     cleaned_series = np.full((number_of_plumes, max_len), np.nan)
@@ -677,7 +696,7 @@ def save_fit_plot(
                 fps_default=fps_default,
                 max_hydraulic_delay_frames=max_hydraulic_delay_frames,
                 delay_clip_half_window=delay_clip_half_window,
-                penetration_column_prefix=penetration_source["column_prefix"],
+                penetration_source=penetration_source,
                 replace_negative_with_zero=penetration_source["replace_negative_with_zero"],
                 diff_threshold_lower=DIFF_THRESHOLD_LOWER,
                 diff_threshold_upper=DIFF_THRESHOLD_UPPER,
@@ -770,7 +789,7 @@ def process_folder(
             fps_default=fps_default,
             max_hydraulic_delay_frames=max_hydraulic_delay_frames,
             delay_clip_half_window=delay_clip_half_window,
-            penetration_column_prefix=penetration_source["column_prefix"],
+            penetration_source=penetration_source,
             replace_negative_with_zero=penetration_source["replace_negative_with_zero"],
             diff_threshold_lower=DIFF_THRESHOLD_LOWER,
             diff_threshold_upper=DIFF_THRESHOLD_UPPER,
@@ -910,13 +929,13 @@ def get_dataset_settings(name):
             "or_mm_per_px_reference": 412.0,
             "fps_default": 34000,
             "max_hydraulic_delay_frames": 30,
-            "delay_clip_half_window": 3,
+            "delay_clip_half_window": 2,
         }
     return {
         "or_mm_per_px_reference": 377.0,  # 90 mm reference in px
         "fps_default": 25000,
         "max_hydraulic_delay_frames": 17,
-        "delay_clip_half_window": 4,
+        "delay_clip_half_window": 3,
     }
 
 

@@ -191,6 +191,15 @@ For that reason, the use of GPU acceleration in this thesis is not treated as a 
 
 The finite field of view in optical spray imaging creates a statistical problem as well as a geometric one. When the true late-time penetration extends beyond the visible window, the recorded trajectory is not simply noisy; it is right-censored by the observation limit. In statistics, this is closely related to the broader class of limited or censored dependent-variable problems, where the observed value is only a truncated representation of the latent quantity of interest \cite{Tobin1958,BuckleyJames1979}.
 
+Figure~\ref{fig:right-censoring-example} shows a representative spray image from the present workflow. Several plumes have already extended beyond the top of the observation window and leave only blurred ring-like edge traces near the upper boundary, whereas other plumes remain fully inside the visible domain. The example makes clear that the apparent terminal penetration in the image can be determined by the camera window rather than by the true spray evolution.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\linewidth]{../images/right_censoring_example.png}
+\caption{Representative example of right-censoring in the spray images. Some plumes have already extended beyond the upper observation boundary and appear only as blurred ring-like edge traces near the limit, while other plumes are still fully contained within the visible window.}
+\label{fig:right-censoring-example}
+\end{figure}
+
 This distinction matters directly for surrogate-model training. If a penetration trace reaches the measurement boundary and the visible endpoint is treated naively as an ordinary regression label, the target is biased downward precisely in the region where long-range penetration should still be increasing. Under that setup, the learner is encouraged to interpret disappearance from the image as physical saturation of the spray. In practice, that kind of label construction can create unstable late-time gradients and artificial flattening when censored and uncensored trajectories are mixed in the same training set.
 
 For that reason, the reduced-order fitting stage in this thesis is not introduced only as a smoothing device. It is also a censoring-aware target-construction step. The fitted curve provides a compact and more stable representation of the trajectory, supports conservative extrapolation beyond the visible window, and reduces the sensitivity of downstream learning to the exact point at which the optical trace becomes incomplete. This role is especially relevant for short pilot injections, where start-of-injection and end-of-injection transients already complicate the raw signal shape \cite{ZhouLiYi2021,ZhouLiLaiWei2019}.
@@ -333,7 +342,7 @@ The need for this robust preprocessing can already be seen at the visualization 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_mie_preproc_background.png}
+\includegraphics[width=0.98\linewidth]{../images/fig_mie_preproc_background.png}
 \caption{Intermediate preprocessing visualization copied from the repository workflow. From left to right: raw frame, estimated background from pre-injection statistics, and log-subtracted foreground.}
 \label{fig:mie-preproc-background}
 \end{figure}
@@ -348,7 +357,7 @@ The output is then robust-scaled again and masked by the ring geometry. In imple
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_mie_preproc_sobel.png}
+\includegraphics[width=0.98\linewidth]{../images/fig_mie_preproc_sobel.png}
 \caption{Repository-generated preprocessing output showing the foreground image, Sobel magnitude, and the final robust-scaled high-pass representation used by the multihole segmentation stage.}
 \label{fig:mie-preproc-sobel}
 \end{figure}
@@ -384,11 +393,20 @@ This is what makes the alignment self-adaptive: the code uses the observed harmo
 \]
 and combines them with a triangle-threshold occupancy mask and short-gap filling to reject empty angular sectors. The FFT itself is standard; the contribution here is using the known injector multiplicity to turn the angular-density signal into an automatic plume registration rule \cite{CooleyTukey1965FFT,Szeliski2010Vision}.
 
+The same occupied-angle mask also suggests a simple cone-angle proxy. Treat the bin-wise mask as periodic on \([0,360^\circ)\), merge any \texttt{True} runs that cross the \(0^\circ/360^\circ\) boundary, and convert each contiguous run length from bins to degrees. The resulting angular widths quantify the support occupied by each plume over the full recording. In the notebook figure workflow we report both the total occupied angle and the mean run width; the latter is used as a coarse cone-angle proxy because it summarizes the average angular spread of a plume without requiring a separate edge fit in every frame.
+
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_angular_occupancy.png}
+\includegraphics[width=0.98\linewidth]{../images/fig_angular_occupancy.png}
 \caption{Processed angular-density outputs from the repository workflow: per-frame angular profiles, time-summed profile with plume guide angles, FFT harmonic content, and the occupied-angle mask used to stabilize multihole alignment.}
 \label{fig:angular-occupancy}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{../images/fig_angular_mask_comparison.png}
+\caption{Two coordinate-system views of the same spray-occupied angular support accumulated over the full video. Left: the legacy Cartesian mask obtained by projecting the occupied angular bins back into image space around the nozzle center, together with the total occupied angle and the mean run-width cone-angle proxy. Right: the polar occupied-angle mask used directly in the current workflow, annotated with the angular width of each contiguous occupied segment.}
+\label{fig:angular-mask-comparison}
 \end{figure}
 
 \subsubsection{Inverse affine mapping and plume-strip extraction}
@@ -428,12 +446,12 @@ u\\v
 -\mathbf{b}
 \right),
 \]
-implemented in \texttt{build\_affine\_inverse\_maps\_cupy}. For each plume, the map arrays \texttt{mapx} and \texttt{mapy} are precomputed once, and \texttt{remap\_video\_cupy} samples the full video with nearest, bilinear, bicubic, or Lanczos kernels. The multihole pipeline uses a fixed strip size \texttt{OUT\_SHAPE = (outer\_radius/2, outer\_radius)} and applies a triangular plume mask after remapping. This inverse-map formulation is computationally efficient and numerically clean, because every downstream plume metric is measured in the same local coordinate system \cite{Szeliski2010Vision}.
+implemented in \texttt{build\_affine\_inverse\_maps\_cupy}. For each plume, the map arrays \texttt{mapx} and \texttt{mapy} are precomputed once, and \texttt{remap\_video\_cupy} samples the full video with nearest, bilinear, bicubic, or Lanczos kernels. Importantly, these maps are not spray-intensity images: the pixel value in \texttt{mapx} encodes the source-image \(x\) coordinate sampled for that output pixel, and the pixel value in \texttt{mapy} encodes the corresponding source-image \(y\) coordinate. The multihole pipeline uses a fixed strip size \texttt{OUT\_SHAPE = (outer\_radius/2, outer\_radius)} and applies a triangular plume mask after remapping. This inverse-map formulation is computationally efficient and numerically clean, because every downstream plume metric is measured in the same local coordinate system \cite{Szeliski2010Vision}.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_efficient_rotation.png}
-\caption{Repository-generated visualization of the inverse affine remapping stage. The map arrays define the source coordinates for each output pixel, after which the rotated strip and triangular plume mask are used for plume-wise analysis.}
+\includegraphics[width=0.98\linewidth]{../images/fig_efficient_rotation.png}
+\caption{Repository-generated visualization of the inverse affine remapping stage. Top-left and top-right: \texttt{mapx} and \texttt{mapy}, whose pixel intensities encode the source-image \(x\) and \(y\) coordinates sampled for each output-strip pixel rather than spray brightness. Bottom-left: one rotated plume strip with the orifice-local origin marker at \((H/2,\mathrm{inner\_radius})\), axial penetration overlays plotted at \(\mathrm{inner\_radius}+\)metric, and the polar binary-penetration metric drawn as a radius-\(r\) arc centered at the orifice. Bottom-right: the triangular plume mask used after remapping.}
 \label{fig:efficient-rotation}
 \end{figure}
 
@@ -482,7 +500,7 @@ Near-nozzle opening and closing times are finally inferred from a small detectio
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_mie_metrics_summary.png}
+\includegraphics[width=0.98\linewidth]{../images/fig_mie_metrics_summary.png}
 \caption{Examples of quantitative outputs produced after plume alignment and binarization: penetration descriptors, plume size, cone-angle proxies, and a representative maximum projection of the binarized plume strip.}
 \label{fig:mie-metrics-summary}
 \end{figure}

@@ -19,22 +19,51 @@ from mie_multihole_pipeline import *
 # =============================================================================
 # Experiment Config Loading and Results Management
 # =============================================================================
+# Previous 2024 nozzle batch configuration kept here for reference:
+# parent_folders = [
+#     r"F:\LubeOil\BC20241003_HZ_Nozzle1\cine",
+#     r"F:\LubeOil\BC20241017_HZ_Nozzle2\cine\single",
+#     r"F:\LubeOil\BC20241014_HZ_Nozzle3\Cine",
+#     r"F:\LubeOil\BC20241007_HZ_Nozzle4\cine",
+#     r"F:\LubeOil\BC20241010_HZ_Nozzle5\Cine",
+#     r"F:\LubeOil\BC20241011_HZ_Nozzle6\Cine",
+#     r"F:\LubeOil\BC20241015_HZ_Nozzle7\Cine",
+#     r"F:\LubeOil\BC20241016_HZ_Nozzle8\Cine",
+# ]
+#
+# experiment_configs = [
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle2.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle3.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle4.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle5.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle6.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle7.json",
+#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json",
+# ]
 
-# Define the parent folder and other global variables
-parent_folder = r"F:\LubeOil\BC20241016_HZ_Nozzle8\cine"
+parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
 
-experiment_config = r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json"
+experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"]
+
+
+# Optional single-run fallback used by CLI/env overrides.
+parent_folder = parent_folders[-1]
+experiment_config = experiment_configs[-1]
+results_base_dir = os.getenv("MIE_RESULTS_BASE_DIR")
+DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top_view_results"
+
 
 # =============================================================================
 # Image processing config
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier=2
+noise_floor_multiplier= 2 # Nozzle 1-8: 3; DS300: 2
 nozzle_opening_detection_height = 20
 nozzle_opening_detection_width = 30
 thres_penetration_num_pix = 5 # minimum width of the binarizaed spary for x-axis penetration detection
-save_boundary_points_csv = False
+save_boundary_points_csv = True
 
 # =============================================================================
 # Default nozzle properties, safe fall back if not defined in test matrix or in cine.
@@ -68,6 +97,50 @@ def _save_metrics_and_metadata_csv(
     df.to_csv(csv_path, index=False)
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+
+def _get_mm_per_px_scale(dataset_name: str) -> float:
+    if dataset_name == "BC20220627 - Heinzman DS300 - Mie Top view":
+        or_mm_per_px_reference = 412.0
+    else:
+        or_mm_per_px_reference = 377.0
+    return 90.0 / float(or_mm_per_px_reference)
+
+
+def _append_penetration_mm_columns(df: pd.DataFrame, mm_per_px_scale: float) -> pd.DataFrame:
+    penetration_mm_specs = [
+        ("penetration_cdf_plume_", "penetration_cdf(mm)_plume_"),
+        ("penetration_bw_x_plume_", "penetration_bw_x(mm)_plume_"),
+        ("penetration_bw_polar_plume_", "penetration_bw_polar(mm)_plume_"),
+    ]
+
+    for legacy_prefix, mm_prefix in penetration_mm_specs:
+        matching_cols = [col for col in df.columns if col.startswith(legacy_prefix)]
+        for legacy_col in matching_cols:
+            suffix = legacy_col[len(legacy_prefix):]
+            mm_col = f"{mm_prefix}{suffix}"
+            df[mm_col] = pd.to_numeric(df[legacy_col], errors="coerce") * float(mm_per_px_scale)
+    return df
+
+
+def _build_results_root(
+    parent_folder: str | Path,
+    results_base_dir_override: str | Path | None = None,
+) -> Path:
+    parent_path = Path(parent_folder)
+    dataset_root = parent_path.parent
+    if dataset_root == parent_path:
+        raise ValueError(f"Cannot infer dataset root from parent_folder={parent_folder}")
+    configured_results_base = (
+        Path(results_base_dir_override)
+        if results_base_dir_override is not None
+        else (Path(results_base_dir) if results_base_dir else None)
+    )
+    if configured_results_base is not None:
+        results_root = configured_results_base
+    else:
+        results_root = DEFAULT_RESULTS_BASE_DIR
+    return results_root / dataset_root.name
 
 
 def resolve_metadata_with_fallbacks(
@@ -155,7 +228,7 @@ def _empty_spray_metrics(num_frames: int) -> dict:
 
 
 def _compute_spray_metrics_for_segment(args):
-    idx, segment_bw, opening_h, opening_w, umbrella_angle, penetration_pix = args
+    idx, segment_bw, opening_h, opening_w, umbrella_angle, penetration_pix, inner_radius = args
     num_frames = int(segment_bw.shape[0]) if hasattr(segment_bw, "shape") and len(segment_bw.shape) > 0 else 0
     try:
         metrics = spary_features_from_bw_video(
@@ -164,6 +237,7 @@ def _compute_spray_metrics_for_segment(args):
             opening_w,
             umbrella_angle=umbrella_angle,
             thres_penetration_num_pix=penetration_pix,
+            inner_radius=inner_radius,
         )
     except Exception as e:
         print(f"[WARN] metric extraction failed for plume {idx}: {e}")
@@ -503,9 +577,10 @@ def numeric_then_alpha_key(p: Path):
 
 def _ensure_directory(path: Path):
     """Create a directory if missing and keep reruns quiet when it already exists."""
-    try:
-        os.mkdir(path)
-    except FileExistsError:
+    path = Path(path)
+    existed = path.exists()
+    path.mkdir(parents=True, exist_ok=True)
+    if existed:
         print(f"Directory {path} already exists. Using existing directory.")
 
 
@@ -634,7 +709,12 @@ def _cleanup_iteration_state(state: dict):
         cp.get_default_pinned_memory_pool().free_all_blocks()
 
 
-def _collect_metric_columns(hp_segments_bw, num_frames: int, umbrella_angle: float):
+def _collect_metric_columns(
+    hp_segments_bw,
+    num_frames: int,
+    umbrella_angle: float,
+    inner_radius: float,
+):
     """
     Extract spray metrics for every plume segment.
 
@@ -655,6 +735,7 @@ def _collect_metric_columns(hp_segments_bw, num_frames: int, umbrella_angle: flo
                 nozzle_opening_detection_width,
                 umbrella_angle,
                 thres_penetration_num_pix,
+                inner_radius,
             )
         )
         for feature_name, values in metrics.items():
@@ -698,6 +779,17 @@ def _save_boundary_points(save_path_subfolder: Path, video_name: str, all_bounda
             future.result()
 
 
+def _has_saved_boundary_points(
+    save_path_subfolder: Path,
+    video_name: str,
+) -> bool:
+    boundary_path_subfolder = save_path_subfolder / "boundary_points"
+    if not boundary_path_subfolder.exists():
+        return False
+    matches = list(boundary_path_subfolder.glob(f"{video_name}_plume_*_boundary_points.csv"))
+    return len(matches) > 0
+
+
 def _process_cine_file(
     *,
     file: Path,
@@ -732,7 +824,11 @@ def _process_cine_file(
         metrics_csv_path = save_path_subfolder / f"{video_name}.csv"
         metadata_path = save_path_subfolder / f"{video_name}.meta.json"
 
-        if metrics_csv_path.exists() and metadata_path.exists():
+        boundary_outputs_ready = (
+            (not save_boundary_points_csv)
+            or _has_saved_boundary_points(save_path_subfolder, video_name)
+        )
+        if metrics_csv_path.exists() and metadata_path.exists() and boundary_outputs_ready:
             skip_message = f"Skipping completed file: {relative_label}"
             print(skip_message)
             _append_processing_log(log_path, skip_message)
@@ -743,6 +839,12 @@ def _process_cine_file(
                 outputs={"metrics_csv": str(metrics_csv_path), "metadata": str(metadata_path)},
             )
             return retained_ring_mask
+        elif metrics_csv_path.exists() and metadata_path.exists() and save_boundary_points_csv:
+            resume_message = (
+                f"Reprocessing file to add missing boundary-point CSVs: {relative_label}"
+            )
+            print(resume_message)
+            _append_processing_log(log_path, resume_message)
 
         print("Procssing:", relative_label)
         _append_processing_log(log_path, f"Procssing: {relative_label}")
@@ -782,7 +884,7 @@ def _process_cine_file(
             noise_floor_multiplier=noise_floor_multiplier,
         )
 
-        state["hp_segments"] = mie_multihole_postprocessing(
+        state["postprocess"] = mie_multihole_postprocessing(
             state["foreground"],
             state["highpass_filtered"],
             centre,
@@ -790,9 +892,16 @@ def _process_cine_file(
             ir_,
             or_,
         )
+        state["hp_segments"] = state["postprocess"]["segments_fg"]
         state["hp_segments_bw"] = triangle_binarize_gpu(robust_scale(state["hp_segments"], 5, 99.9))
+        umbrella_angle_for_penetration = float(
+            nozzle_props.get("umbrella_angle_deg", umbrella_angle_deg_default)
+        )
         state["penetration_highpass"] = penetration_cdf_all_plumes(
-            state["hp_segments"], ir_, quantile=1.0 - 5e-3
+            state["hp_segments"],
+            ir_,
+            quantile=1.0 - 5e-3,
+            umbrella_angle=umbrella_angle_for_penetration,
         )
 
         print("GPU work completed in {:.2f}s".format(time.time() - start_time))
@@ -844,6 +953,9 @@ def _process_cine_file(
         # 1. penetration traces
         # 2. derived spray metrics from the binarized plume videos
         state["df"] = pd.DataFrame({"frame_idx": list(range(num_frames))})
+        state["df"]["cone_angle_proxy_deg"] = state["postprocess"]["cone_angle_proxy_deg"]
+        state["df"]["occupied_angle_total_deg"] = state["postprocess"]["occupied_angle_total_deg"]
+        state["df"]["occupied_angle_segment_count"] = state["postprocess"]["occupied_angle_segment_count"]
 
         for plume_idx in range(P):
             state["df"][f"penetration_cdf_plume_{plume_idx}"] = _as_numpy(
@@ -852,7 +964,7 @@ def _process_cine_file(
 
         umbrella_angle = float(state["metadata"].get("umbrella_angle_deg"))
         metric_columns, all_boundaries = _collect_metric_columns(
-            state["hp_segments_bw"], num_frames, umbrella_angle
+            state["hp_segments_bw"], num_frames, umbrella_angle, ir_
         )
         if metric_columns:
             state["df"] = pd.concat(
@@ -860,10 +972,31 @@ def _process_cine_file(
                 axis=1,
             )
 
+        dataset_name = save_path_subfolder.parent.name
+        mm_per_px_scale = _get_mm_per_px_scale(dataset_name)
+        state["df"] = _append_penetration_mm_columns(state["df"], mm_per_px_scale)
+
         metadata_payload = {
             key: _to_json_scalar(value)
             for key, value in state["metadata"].items()
         }
+        metadata_payload["mm_per_px_scale"] = _to_json_scalar(mm_per_px_scale)
+        metadata_payload["cone_angle_proxy_deg"] = _to_json_scalar(
+            state["postprocess"]["cone_angle_proxy_deg"]
+        )
+        metadata_payload["occupied_angle_total_deg"] = _to_json_scalar(
+            state["postprocess"]["occupied_angle_total_deg"]
+        )
+        metadata_payload["occupied_angle_segment_count"] = _to_json_scalar(
+            state["postprocess"]["occupied_angle_segment_count"]
+        )
+        metadata_payload["occupied_angle_segment_widths_deg"] = [
+            _to_json_scalar(value)
+            for value in np.asarray(
+                state["postprocess"]["occupied_angle_segment_widths_deg"],
+                dtype=float,
+            ).tolist()
+        ]
         _save_metrics_and_metadata_csv(
             state["df"],
             metrics_csv_path,
@@ -901,8 +1034,14 @@ def _process_cine_file(
     return retained_ring_mask
     
 
-async def main():
-    """Walk every testpoint folder and process each ``.cine`` file in order."""
+async def _process_parent_folder(
+    parent_folder: str | Path,
+    experiment_config: str | Path,
+    results_base_dir_override: str | Path | None = None,
+):
+    """Walk one parent folder and process each ``.cine`` file in order."""
+    parent_folder = str(parent_folder)
+    experiment_config = str(experiment_config)
     subfolders = get_subfolder_names(parent_folder)  # Ensure get_subfolder_names is defined or imported
 
     # Load experiment configuration
@@ -910,10 +1049,15 @@ async def main():
     nozzle_props = get_nozzle_properties(exp_config)
 
     # General folder for saving results
-    save_path = Path(parent_folder).parts[-2]
-    _ensure_directory(Path(save_path))
-    log_path = Path(save_path) / "processing.log"
-    checkpoint_path = Path(save_path) / "processing_checkpoint.json"
+    save_path = _build_results_root(
+        parent_folder,
+        results_base_dir_override=results_base_dir_override,
+    )
+    _ensure_directory(save_path)
+    print(f"[Paths] source_root={parent_folder}")
+    print(f"[Paths] results_root={save_path}")
+    log_path = save_path / "processing.log"
+    checkpoint_path = save_path / "processing_checkpoint.json"
     _append_processing_log(log_path, f"Session started for parent folder: {parent_folder}")
 
     try:
@@ -923,7 +1067,7 @@ async def main():
             # Each subfolder corresponds to one testpoint and has its own
             # geometry/config metadata plus a list of cine files.
             directory_path = Path(parent_folder + "\\" + subfolder)
-            save_path_subfolder = Path(save_path) / subfolder
+            save_path_subfolder = save_path / subfolder
             _ensure_directory(save_path_subfolder)
 
 
@@ -963,6 +1107,68 @@ async def main():
         print(f"Error processing: {e}")
         raise
 
+
+def _resolve_batch_jobs(
+    parent_folders_override: list[str] | None = None,
+    experiment_configs_override: list[str] | None = None,
+) -> list[tuple[str, str]]:
+    resolved_parent_folders = (
+        list(parent_folders_override)
+        if parent_folders_override is not None
+        else list(parent_folders)
+    )
+    resolved_experiment_configs = (
+        list(experiment_configs_override)
+        if experiment_configs_override is not None
+        else list(experiment_configs)
+    )
+
+    if len(resolved_parent_folders) != len(resolved_experiment_configs):
+        raise ValueError(
+            "parent_folders and experiment_configs must have the same length: "
+            f"{len(resolved_parent_folders)} != {len(resolved_experiment_configs)}"
+        )
+
+    jobs = []
+    for idx, (parent_value, config_value) in enumerate(
+        zip(resolved_parent_folders, resolved_experiment_configs),
+        start=1,
+    ):
+        parent_candidate = Path(parent_value)
+        config_candidate = Path(config_value)
+        if not parent_candidate.exists():
+            raise FileNotFoundError(
+                f"Configured parent folder not found for job {idx}: {parent_candidate}"
+            )
+        if not config_candidate.exists():
+            raise FileNotFoundError(
+                f"Configured experiment config not found for job {idx}: {config_candidate}"
+            )
+        jobs.append((str(parent_candidate), str(config_candidate)))
+    return jobs
+
+
+async def main(
+    parent_folders_override: list[str] | None = None,
+    experiment_configs_override: list[str] | None = None,
+    results_base_dir_override: str | Path | None = None,
+):
+    """Process every configured parent folder/config pair in sequence."""
+    jobs = _resolve_batch_jobs(
+        parent_folders_override=parent_folders_override,
+        experiment_configs_override=experiment_configs_override,
+    )
+    for idx, (parent_folder_value, experiment_config_value) in enumerate(jobs, start=1):
+        print(
+            f"[Batch {idx}/{len(jobs)}] parent_folder={parent_folder_value} | "
+            f"experiment_config={experiment_config_value}"
+        )
+        await _process_parent_folder(
+            parent_folder_value,
+            experiment_config_value,
+            results_base_dir_override=results_base_dir_override,
+        )
+
 if __name__ == '__main__':
     from multiprocessing import freeze_support
     freeze_support()
@@ -974,22 +1180,44 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run Mie post-processing pipeline")
     parser.add_argument(
         "-p", "--parent-folder",
-        default=os.getenv("MIE_PARENT_FOLDER", parent_folder),
-        help="Root folder containing subfolders with .cine files (overrides hardcoded path)"
+        default=os.getenv("MIE_PARENT_FOLDER"),
+        help="Optional single-run parent folder override"
+    )
+    parser.add_argument(
+        "-c", "--experiment-config",
+        default=os.getenv("MIE_EXPERIMENT_CONFIG"),
+        help="Optional single-run experiment config override; use together with --parent-folder"
+    )
+    parser.add_argument(
+        "-o", "--results-base-dir",
+        default=os.getenv("MIE_RESULTS_BASE_DIR"),
+        help=(
+            "Optional results root override. Example: "
+            r"'G:\Mie_scattering_top_view_results'."
+        ),
     )
     args = parser.parse_args()
 
-    # Allow overriding the global parent_folder from CLI/env
-    parent_candidate = Path(args.parent_folder)
-    if not parent_candidate.exists():
-        print(f"Configured parent folder not found: {parent_candidate}")
-        print("Set a valid path via --parent-folder or MIE_PARENT_FOLDER, then rerun.")
-        raise SystemExit(0)
-
-    parent_folder = str(parent_candidate)
+    parent_folders_override = None
+    experiment_configs_override = None
+    if args.parent_folder or args.experiment_config:
+        if not (args.parent_folder and args.experiment_config):
+            print(
+                "Single-run override requires both --parent-folder and --experiment-config "
+                "(or MIE_PARENT_FOLDER and MIE_EXPERIMENT_CONFIG)."
+            )
+            raise SystemExit(2)
+        parent_folders_override = [args.parent_folder]
+        experiment_configs_override = [args.experiment_config]
 
     start = time.time()
-    asyncio.run(main())
+    asyncio.run(
+        main(
+            parent_folders_override=parent_folders_override,
+            experiment_configs_override=experiment_configs_override,
+            results_base_dir_override=args.results_base_dir,
+        )
+    )
     print(f"Total elapsed: {time.time() - start:.2f}s")
     
 

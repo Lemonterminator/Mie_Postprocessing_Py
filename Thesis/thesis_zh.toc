@@ -13,34 +13,34 @@
 \contentsline {subsection}{\numberline {2.10}论文结构}{4}{subsection.2.10}%
 \contentsline {section}{\numberline {3}文献综述与技术依据}{4}{section.3}%
 \contentsline {subsection}{\numberline {3.1}为什么在 Mie 成像中采用以穿深为核心的观测量}{4}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}来自计算机视觉与信号处理的支撑理论}{4}{subsection.3.2}%
-\contentsline {subsection}{\numberline {3.3}高通量科学成像与 GPU 适配性}{5}{subsection.3.3}%
-\contentsline {subsection}{\numberline {3.4}删失、截断与稳定目标构造}{5}{subsection.3.4}%
-\contentsline {subsection}{\numberline {3.5}多孔喷嘴 plume 配准与对称性利用}{5}{subsection.3.5}%
-\contentsline {subsection}{\numberline {3.6}喷雾成像中的度量定义与边界提取}{6}{subsection.3.6}%
-\contentsline {subsection}{\numberline {3.7}为什么确定性、异方差和教师引导学习阶段都必要}{6}{subsection.3.7}%
-\contentsline {section}{\numberline {4}研究材料与方法}{6}{section.4}%
-\contentsline {subsection}{\numberline {4.1}工作流概览}{6}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}\texttt {GUI.py} 中的标定}{6}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}\texttt {main.py} 中的视频批处理}{7}{subsection.4.3}%
-\contentsline {subsubsection}{\numberline {4.3.1}标定移交与批量锚定}{7}{subsubsection.4.3.1}%
-\contentsline {subsubsection}{\numberline {4.3.2}高鲁棒性的批量预处理}{7}{subsubsection.4.3.2}%
-\contentsline {subsubsection}{\numberline {4.3.3}CUDA 后端上的超高效 Sobel 高通}{7}{subsubsection.4.3.3}%
-\contentsline {subsubsection}{\numberline {4.3.4}将角向密度视为极坐标重采样}{7}{subsubsection.4.3.4}%
-\contentsline {subsubsection}{\numberline {4.3.5}基于 FFT 的自适应旋转对齐}{7}{subsubsection.4.3.5}%
-\contentsline {subsubsection}{\numberline {4.3.6}逆仿射映射与 plume strip 提取}{7}{subsubsection.4.3.6}%
-\contentsline {subsubsection}{\numberline {4.3.7}基于对齐 plume strip 的稳健 CDF 穿深}{8}{subsubsection.4.3.7}%
-\contentsline {subsubsection}{\numberline {4.3.8}边界指标与几何代理量}{8}{subsubsection.4.3.8}%
-\contentsline {subsection}{\numberline {4.4}\codepath {MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合}{8}{subsection.4.4}%
-\contentsline {subsection}{\numberline {4.5}\codepath {MLP/median_penetration_MSE.ipynb} 中的 Stage-1 确定性基线}{8}{subsection.4.5}%
-\contentsline {subsection}{\numberline {4.6}\codepath {MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}{8}{subsection.4.6}%
-\contentsline {subsection}{\numberline {4.7}Warm-start 原始 CDF 细化与保守蒸馏}{8}{subsection.4.7}%
-\contentsline {subsection}{\numberline {4.8}原型推理 notebook}{8}{subsection.4.8}%
-\contentsline {section}{\numberline {5}结果}{9}{section.5}%
-\contentsline {subsection}{\numberline {5.1}已提取与清洗的轨迹资产}{9}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Stage-1 基线模型}{9}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Stage-2 不确定性感知扩展}{9}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}原型推理 notebook}{9}{subsection.5.4}%
-\contentsline {subsection}{\numberline {5.5}结果边界与可复现性状态}{9}{subsection.5.5}%
-\contentsline {section}{\numberline {6}结论}{9}{section.6}%
-\contentsline {section}{References}{12}{section.6}%
+\contentsline {subsection}{\numberline {3.2}来自计算机视觉与信号处理的支撑理论}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}高通量科学成像与 GPU 适配性}{6}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}删失、截断与稳定目标构造}{6}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}多孔喷嘴 plume 配准与对称性利用}{7}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}喷雾成像中的度量定义与边界提取}{8}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}为什么确定性、异方差和教师引导学习阶段都必要}{8}{subsection.3.7}%
+\contentsline {section}{\numberline {4}研究材料与方法}{9}{section.4}%
+\contentsline {subsection}{\numberline {4.1}工作流概览}{9}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}\texttt {GUI.py} 中的标定}{9}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}\texttt {main.py} 中的视频批处理}{9}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}标定移交和批量锚定}{10}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}批量和鲁棒预处理}{10}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}CUDA后端上的超高效Sobel高通滤波}{11}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}角度密度作为极坐标重采样}{12}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}基于FFT的自适应旋转对齐}{13}{subsubsection.4.3.5}%
+\contentsline {subsubsection}{\numberline {4.3.6}逆仿射映射和喷雾条带提取}{14}{subsubsection.4.3.6}%
+\contentsline {subsubsection}{\numberline {4.3.7}对齐喷雾条带的稳健CDF穿深}{14}{subsubsection.4.3.7}%
+\contentsline {subsubsection}{\numberline {4.3.8}边界度量和几何代理}{15}{subsubsection.4.3.8}%
+\contentsline {subsection}{\numberline {4.4}\codepath {MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合}{16}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}\codepath {MLP/median_penetration_MSE.ipynb} 中的 Stage-1 确定性基线}{19}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}\codepath {MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}{20}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}Warm-start 原始 CDF 细化与保守蒸馏}{21}{subsection.4.7}%
+\contentsline {subsection}{\numberline {4.8}原型推理 notebook}{22}{subsection.4.8}%
+\contentsline {section}{\numberline {5}结果}{23}{section.5}%
+\contentsline {subsection}{\numberline {5.1}已提取与清洗的轨迹资产}{23}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Stage-1 基线模型}{23}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Stage-2 不确定性感知扩展}{24}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}原型推理 notebook}{24}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}结果边界与可复现性状态}{25}{subsection.5.5}%
+\contentsline {section}{\numberline {6}结论}{25}{section.6}%
+\contentsline {section}{References}{27}{section.6}%

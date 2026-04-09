@@ -1,5 +1,5 @@
 % $ biblatex auxiliary file $
-% $ biblatex bbl format version 3.2 $
+% $ biblatex bbl format version 3.3 $
 % Do not modify the above lines!
 %
 % This is an auxiliary file used by the 'biblatex' package.
@@ -16,8 +16,8 @@
   {}
 \endgroup
 
-\datalist[entry]{nty/global//global/global}
-  \entry{ahmad2025fueldilution}{thesis}{}
+\datalist[entry]{nty/global//global/global/global}
+  \entry{ahmad2025fueldilution}{thesis}{}{}
     \name{author}{1}{}{%
       {{hash=AZ}{%
          family={Ahmad},
@@ -45,7 +45,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{BishopPRML2006}{book}{}
+  \entry{BishopPRML2006}{book}{}{}
     \name{author}{1}{}{%
       {{hash=BCM}{%
          family={Bishop},
@@ -71,7 +71,7 @@
     \field{year}{2006}
   \endentry
 
-  \entry{BohrenHuffman2004}{book}{}
+  \entry{BohrenHuffman2004}{book}{}{}
     \name{author}{2}{}{%
       {{hash=BCF}{%
          family={Bohren},
@@ -103,7 +103,7 @@
     \field{year}{2004}
   \endentry
 
-  \entry{BuckleyJames1979}{article}{}
+  \entry{BuckleyJames1979}{article}{}{}
     \name{author}{2}{}{%
       {{hash=BJ}{%
          family={Buckley},
@@ -135,7 +135,7 @@
     \field{year}{1979}
   \endentry
 
-  \entry{classnk2025alternativefuels}{misc}{}
+  \entry{classnk2025alternativefuels}{misc}{}{}
     \name{author}{1}{}{%
       {{hash=C}{%
          family={{ClassNK}},
@@ -157,7 +157,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{classnk_methanol_2024}{report}{}
+  \entry{classnk_methanol_2024}{report}{}{}
     \name{author}{1}{}{%
       {{hash=C}{%
          family={{ClassNK}},
@@ -179,7 +179,65 @@
     \field{year}{2024}
   \endentry
 
-  \entry{ecn_liquid_penetration_accessory}{misc}{}
+  \entry{CooleyTukey1965FFT}{article}{}{}
+    \name{author}{2}{}{%
+      {{hash=CJW}{%
+         family={Cooley},
+         familyi={C\bibinitperiod},
+         given={James\bibnamedelima W.},
+         giveni={J\bibinitperiod\bibinitdelim W\bibinitperiod},
+      }}%
+      {{hash=TJW}{%
+         family={Tukey},
+         familyi={T\bibinitperiod},
+         given={John\bibnamedelima W.},
+         giveni={J\bibinitperiod\bibinitdelim W\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{CJWTJW1}
+    \strng{fullhash}{CJWTJW1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{C}
+    \field{sortinithash}{C}
+    \verb{doi}
+    \verb 10.1090/S0025-5718-1965-0178586-1
+    \endverb
+    \field{number}{90}
+    \field{pages}{297\bibrangedash 301}
+    \field{title}{An Algorithm for the Machine Calculation of Complex Fourier
+  Series}
+    \field{volume}{19}
+    \field{journaltitle}{Mathematics of Computation}
+    \field{year}{1965}
+  \endentry
+
+  \entry{Dent1971Penetration}{article}{}{}
+    \name{author}{1}{}{%
+      {{hash=DJC}{%
+         family={Dent},
+         familyi={D\bibinitperiod},
+         given={J.\bibnamedelima C.},
+         giveni={J\bibinitperiod\bibinitdelim C\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{DJC1}
+    \strng{fullhash}{DJC1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{D}
+    \field{sortinithash}{D}
+    \verb{doi}
+    \verb 10.4271/710571
+    \endverb
+    \field{number}{710571}
+    \field{title}{A Basis for the Comparison of Various Experimental Methods
+  for Studying Spray Penetration}
+    \field{journaltitle}{SAE Technical Paper}
+    \field{year}{1971}
+  \endentry
+
+  \entry{ecn_liquid_penetration_accessory}{misc}{}{}
     \name{author}{1}{}{%
       {{hash=E}{%
          family={{Engine Combustion Network}},
@@ -202,7 +260,7 @@
     \field{year}{2026}
   \endentry
 
-  \entry{ecn_liquid_penetration}{misc}{}
+  \entry{ecn_liquid_penetration}{misc}{}{}
     \name{author}{1}{}{%
       {{hash=E}{%
          family={{Engine Combustion Network}},
@@ -224,7 +282,7 @@
     \field{year}{2026}
   \endentry
 
-  \entry{GonzalezWoodsDIP}{book}{}
+  \entry{GonzalezWoodsDIP}{book}{}{}
     \name{author}{2}{}{%
       {{hash=GRC}{%
          family={Gonzalez},
@@ -257,7 +315,7 @@
     \field{year}{2018}
   \endentry
 
-  \entry{HintonVinyalsDean2015}{misc}{}
+  \entry{HintonVinyalsDean2015}{misc}{}{}
     \name{author}{3}{}{%
       {{hash=HG}{%
          family={Hinton},
@@ -296,7 +354,7 @@
     \field{year}{2015}
   \endentry
 
-  \entry{HiroyasuArai1990}{article}{}
+  \entry{HiroyasuArai1990}{article}{}{}
     \name{author}{2}{}{%
       {{hash=HH}{%
          family={Hiroyasu},
@@ -326,7 +384,33 @@
     \field{year}{1990}
   \endentry
 
-  \entry{imo2023ghgstrategy}{misc}{}
+  \entry{Huber1964}{article}{}{}
+    \name{author}{1}{}{%
+      {{hash=HPJ}{%
+         family={Huber},
+         familyi={H\bibinitperiod},
+         given={Peter\bibnamedelima J.},
+         giveni={P\bibinitperiod\bibinitdelim J\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{HPJ1}
+    \strng{fullhash}{HPJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{H}
+    \field{sortinithash}{H}
+    \verb{doi}
+    \verb 10.1214/aoms/1177703732
+    \endverb
+    \field{number}{1}
+    \field{pages}{73\bibrangedash 101}
+    \field{title}{Robust Estimation of a Location Parameter}
+    \field{volume}{35}
+    \field{journaltitle}{The Annals of Mathematical Statistics}
+    \field{year}{1964}
+  \endentry
+
+  \entry{imo2023ghgstrategy}{misc}{}{}
     \name{author}{1}{}{%
       {{hash=I}{%
          family={{International Maritime Organization}},
@@ -348,7 +432,7 @@
     \field{year}{2023}
   \endentry
 
-  \entry{JinKimKakamiNishidaOgataLuo2020}{article}{}
+  \entry{JinKimKakamiNishidaOgataLuo2020}{article}{}{}
     \name{author}{6}{}{%
       {{hash=JY}{%
          family={Jin},
@@ -406,7 +490,47 @@
     \field{year}{2020}
   \endentry
 
-  \entry{JungManinSkeenPickett2015}{article}{}
+  \entry{JohnsonNaberLee2012}{article}{}{}
+    \name{author}{3}{}{%
+      {{hash=JJE}{%
+         family={Johnson},
+         familyi={J\bibinitperiod},
+         given={Jaclyn\bibnamedelima E.},
+         giveni={J\bibinitperiod\bibinitdelim E\bibinitperiod},
+      }}%
+      {{hash=NJD}{%
+         family={Naber},
+         familyi={N\bibinitperiod},
+         given={Jeffrey\bibnamedelima D.},
+         giveni={J\bibinitperiod\bibinitdelim D\bibinitperiod},
+      }}%
+      {{hash=LSY}{%
+         family={Lee},
+         familyi={L\bibinitperiod},
+         given={Seong-Young},
+         giveni={S\bibinithyphendelim Y\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{JJENJDLSY1}
+    \strng{fullhash}{JJENJDLSY1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{J}
+    \field{sortinithash}{J}
+    \verb{doi}
+    \verb 10.1115/1.4005994
+    \endverb
+    \field{number}{6}
+    \field{pages}{062802}
+    \field{title}{Characterizing Diesel Fuel Spray Cone Angle From
+  Back-Scattered Imaging by Fitting Gaussian Profiles to Radial Spray Intensity
+  Distributions}
+    \field{volume}{134}
+    \field{journaltitle}{Journal of Engineering for Gas Turbines and Power}
+    \field{year}{2012}
+  \endentry
+
+  \entry{JungManinSkeenPickett2015}{article}{}{}
     \name{author}{4}{}{%
       {{hash=JY}{%
          family={Jung},
@@ -449,7 +573,7 @@
     \field{year}{2015}
   \endentry
 
-  \entry{KendallGal2017}{inproceedings}{}
+  \entry{KendallGal2017}{inproceedings}{}{}
     \name{author}{2}{}{%
       {{hash=KA}{%
          family={Kendall},
@@ -480,7 +604,40 @@
     \field{year}{2017}
   \endentry
 
-  \entry{Linne2013SprayImaging}{article}{}
+  \entry{LefebvreMcDonell2017}{book}{}{}
+    \name{author}{2}{}{%
+      {{hash=LAH}{%
+         family={Lefebvre},
+         familyi={L\bibinitperiod},
+         given={Arthur\bibnamedelima H.},
+         giveni={A\bibinitperiod\bibinitdelim H\bibinitperiod},
+      }}%
+      {{hash=MVG}{%
+         family={McDonell},
+         familyi={M\bibinitperiod},
+         given={Vincent\bibnamedelima G.},
+         giveni={V\bibinitperiod\bibinitdelim G\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {CRC Press}%
+    }
+    \strng{namehash}{LAHMVG1}
+    \strng{fullhash}{LAHMVG1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{L}
+    \field{sortinithash}{L}
+    \field{edition}{2}
+    \field{isbn}{9781498736251}
+    \field{title}{Atomization and Sprays}
+    \list{location}{1}{%
+      {Boca Raton}%
+    }
+    \field{year}{2017}
+  \endentry
+
+  \entry{Linne2013SprayImaging}{article}{}{}
     \name{author}{1}{}{%
       {{hash=LM}{%
          family={Linne},
@@ -507,7 +664,7 @@
     \field{year}{2013}
   \endentry
 
-  \entry{liu2020sprayreview}{article}{}
+  \entry{liu2020sprayreview}{article}{}{}
     \true{moreauthor}
     \true{morelabelname}
     \name{author}{1}{}{%
@@ -533,7 +690,7 @@
     \field{year}{2020}
   \endentry
 
-  \entry{liu2024marine_impingement}{article}{}
+  \entry{liu2024marine_impingement}{article}{}{}
     \true{moreauthor}
     \true{morelabelname}
     \name{author}{1}{}{%
@@ -561,7 +718,7 @@
     \field{year}{2024}
   \endentry
 
-  \entry{MagnottiGenzale2013}{article}{}
+  \entry{MagnottiGenzale2013}{article}{}{}
     \name{author}{2}{}{%
       {{hash=MGM}{%
          family={Magnotti},
@@ -592,7 +749,7 @@
     \field{year}{2013}
   \endentry
 
-  \entry{MopuriGrahnSedarskyHyvonen2024}{article}{}
+  \entry{MopuriGrahnSedarskyHyvonen2024}{article}{}{}
     \name{author}{4}{}{%
       {{hash=ML}{%
          family={Mopuri},
@@ -636,7 +793,39 @@
     \field{year}{2024}
   \endentry
 
-  \entry{NaberSiebers1996}{article}{}
+  \entry{MuenchLeipertz1992}{article}{}{}
+    \name{author}{2}{}{%
+      {{hash=MK}{%
+         family={M{\"u}nch},
+         familyi={M\bibinitperiod},
+         given={K.},
+         giveni={K\bibinitperiod},
+      }}%
+      {{hash=LA}{%
+         family={Leipertz},
+         familyi={L\bibinitperiod},
+         given={A.},
+         giveni={A\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{MKLA1}
+    \strng{fullhash}{MKLA1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{M}
+    \field{sortinithash}{M}
+    \verb{doi}
+    \verb 10.4271/922204
+    \endverb
+    \field{number}{922204}
+    \field{title}{Investigation of Spray Penetration and Fuel Distribution
+  Inside the Piston Bowl of a 1.9 l DI Diesel Engine Using Two-Dimensional Mie
+  Scattering}
+    \field{journaltitle}{SAE Technical Paper}
+    \field{year}{1992}
+  \endentry
+
+  \entry{NaberSiebers1996}{article}{}{}
     \name{author}{2}{}{%
       {{hash=NJD}{%
          family={Naber},
@@ -667,7 +856,7 @@
     \field{year}{1996}
   \endentry
 
-  \entry{NickollsBuckGarlandSkadron2008}{article}{}
+  \entry{NickollsBuckGarlandSkadron2008}{article}{}{}
     \name{author}{4}{}{%
       {{hash=NJ}{%
          family={Nickolls},
@@ -711,7 +900,42 @@
     \field{year}{2008}
   \endentry
 
-  \entry{OppenheimSchaferStockham1968}{article}{}
+  \entry{NocedalWright2006}{book}{}{}
+    \name{author}{2}{}{%
+      {{hash=NJ}{%
+         family={Nocedal},
+         familyi={N\bibinitperiod},
+         given={Jorge},
+         giveni={J\bibinitperiod},
+      }}%
+      {{hash=WSJ}{%
+         family={Wright},
+         familyi={W\bibinitperiod},
+         given={Stephen\bibnamedelima J.},
+         giveni={S\bibinitperiod\bibinitdelim J\bibinitperiod},
+      }}%
+    }
+    \list{publisher}{1}{%
+      {Springer}%
+    }
+    \strng{namehash}{NJWSJ1}
+    \strng{fullhash}{NJWSJ1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{N}
+    \field{sortinithash}{N}
+    \verb{doi}
+    \verb 10.1007/978-0-387-40065-5
+    \endverb
+    \field{edition}{2}
+    \field{title}{Numerical Optimization}
+    \list{location}{1}{%
+      {New York}%
+    }
+    \field{year}{2006}
+  \endentry
+
+  \entry{OppenheimSchaferStockham1968}{article}{}{}
     \name{author}{3}{}{%
       {{hash=OAV}{%
          family={Oppenheim},
@@ -751,7 +975,7 @@
     \field{year}{1968}
   \endentry
 
-  \entry{peraza2022swi}{article}{}
+  \entry{peraza2022swi}{article}{}{}
     \true{moreauthor}
     \true{morelabelname}
     \name{author}{1}{}{%
@@ -777,7 +1001,7 @@
     \field{year}{2022}
   \endentry
 
-  \entry{Pratt1987CircleFit}{article}{}
+  \entry{Pratt1987CircleFit}{article}{}{}
     \name{author}{1}{}{%
       {{hash=PV}{%
          family={Pratt},
@@ -803,7 +1027,7 @@
     \field{year}{1987}
   \endentry
 
-  \entry{Szeliski2010Vision}{book}{}
+  \entry{Szeliski2010Vision}{book}{}{}
     \name{author}{1}{}{%
       {{hash=SR}{%
          family={Szeliski},
@@ -831,7 +1055,7 @@
     \field{year}{2011}
   \endentry
 
-  \entry{TarvainenValpola2017}{inproceedings}{}
+  \entry{TarvainenValpola2017}{inproceedings}{}{}
     \name{author}{2}{}{%
       {{hash=TA}{%
          family={Tarvainen},
@@ -862,7 +1086,7 @@
     \field{year}{2017}
   \endentry
 
-  \entry{Taubin1991CircleFit}{article}{}
+  \entry{Taubin1991CircleFit}{article}{}{}
     \name{author}{1}{}{%
       {{hash=TG}{%
          family={Taubin},
@@ -891,7 +1115,7 @@
     \field{year}{1991}
   \endentry
 
-  \entry{Tobin1958}{article}{}
+  \entry{Tobin1958}{article}{}{}
     \name{author}{1}{}{%
       {{hash=TJ}{%
          family={Tobin},
@@ -914,7 +1138,7 @@
     \field{year}{1958}
   \endentry
 
-  \entry{wingd_ammonia_faq_2025}{misc}{}
+  \entry{wingd_ammonia_faq_2025}{misc}{}{}
     \name{author}{1}{}{%
       {{hash=W}{%
          family={{WinGD}},
@@ -935,7 +1159,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{wingd_lng_faq_2025}{misc}{}
+  \entry{wingd_lng_faq_2025}{misc}{}{}
     \name{author}{1}{}{%
       {{hash=W}{%
          family={{WinGD}},
@@ -956,7 +1180,7 @@
     \field{year}{2025}
   \endentry
 
-  \entry{wingd_xdf_manual_2021}{manual}{}
+  \entry{wingd_xdf_manual_2021}{manual}{}{}
     \name{author}{1}{}{%
       {{hash=W}{%
          family={{WinGD}},
@@ -977,7 +1201,7 @@
     \field{year}{2021}
   \endentry
 
-  \entry{ZackRogersLatt1977}{article}{}
+  \entry{ZackRogersLatt1977}{article}{}{}
     \name{author}{3}{}{%
       {{hash=ZGW}{%
          family={Zack},
@@ -1015,7 +1239,7 @@
     \field{year}{1977}
   \endentry
 
-  \entry{ZhouLiYi2021}{article}{}
+  \entry{ZhouLiYi2021}{article}{}{}
     \name{author}{3}{}{%
       {{hash=ZX}{%
          family={Zhou},
@@ -1054,7 +1278,7 @@
     \field{year}{2021}
   \endentry
 
-  \entry{ZhouLiLaiWei2019}{article}{}
+  \entry{ZhouLiLaiWei2019}{article}{}{}
     \name{author}{4}{}{%
       {{hash=ZX}{%
          family={Zhou},

@@ -1,4 +1,4 @@
-\documentclass[english,12pt,a4paper,elec,utf8,online]{aaltothesis}
+﻿\documentclass[english,12pt,a4paper,elec,utf8,online]{aaltothesis}
 
 \usepackage{iftex}
 \ifXeTeX
@@ -13,7 +13,6 @@
 \usepackage[backend=bibtex,style=numeric]{biblatex}
 \usepackage{xurl}
 \addbibresource{thesisreferences.bib}
-\setkeys{Gin}{draft}
 
 \urlstyle{tt}
 \DeclareRobustCommand{\codepath}[1]{\nolinkurl{#1}}
@@ -24,15 +23,15 @@
 \major{Microelectronic Circuit Design}
 \univdegree{MSc}
 \thesisauthor{Linan Jiang}
-\thesistitle{Pilot Diesel Spray Evolution Prediction and Impingement Screening}
-\thesissubtitle{Chinese Translation of the Full Thesis}
+\thesistitle{基于证据的 Mie 散射喷雾视频处理与穿深预测}
+\thesissubtitle{从标定与特征提取到基线模型和不确定性感知代理模型}
 \place{Espoo}
 \date{7 April 2026}
 \supervisor{Prof.\ Ossi Kaario}
 \advisor{Dr Zeeshan Ahmad}
 \advisor{Dr Qiang Cheng}
 \collaborativepartner{Wartsila}
-\keywords{Mie scattering\spc spray imaging\spc penetration\spc computer vision\spc surrogate modeling}
+\keywords{Mie 散射\spc 喷雾成像\spc 穿深\spc 计算机视觉\spc surrogate 建模}
 \thesisabstract{本文提出一套用于预测多燃料船用发动机预喷柴油喷雾穿深演化并筛查撞壁风险的计算流程。研究目标是在设计早期支持对液态柴油撞击缸内壁面的工程评估，因为这类撞击可能导致机油稀释、壁面润湿以及混合恶化。该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始三维图像序列中提取按 plume 分解的时序观测量和边界演化。为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络框架：先在中位数穿深轨迹上训练确定性基线模型，再在全部拟合轨迹上进行异方差学习，最后在原始未删失时序可用处引入直接监督、在缺失区间用教师模型提供保守延拓，从而完成教师引导的细化训练。网络输出的均值与不确定性随后与简化喷雾角假设和缸内掩膜组合，形成概率化的撞壁筛查器。本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何撞壁筛查。该方法旨在作为前端工程工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。}
 
 \begin{document}
@@ -70,6 +69,8 @@
 本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何撞壁筛查。该方法旨在作为前端工程工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。
 
 \section{引言}
+
+
 
 \subsection{研究意义}
 
@@ -141,11 +142,17 @@
 
 \section{文献综述与技术依据}
 
+
+
 \subsection{为什么在 Mie 成像中采用以穿深为核心的观测量}
 
-在基于 Mie 散射的喷雾实验中，相机记录的是散射强度，而不是液体体积分数的直接真值。散射信号受到液滴尺寸分布、多重散射、照明角度以及相机增益等多种因素影响，因此很难把图像强度直接解释为真实液相场 \cite{BohrenHuffman2004,Linne2013SprayImaging}。这也是为什么许多喷雾成像工作并不试图从强度反演完整流场，而是转向更稳健、可复现的几何观测量，比如喷雾尖端位置、液相包络边界、喷雾角或面积。
+Mie 散射适合用于可视化致密液相喷雾，因为它具有较高的时间分辨率，实验实现也相对简单 \cite{Linne2013SprayImaging}。同时，记录得到的强度场并不是燃料质量或液体体积分数的直接测量。散射响应取决于液滴尺寸、折射率、波长和观测几何，而在致密区域中还会出现多重散射和阴影效应 \cite{BohrenHuffman2004,Linne2013SprayImaging}。因此，试图直接从像素强度反演完整的喷雾物理状态，本质上是不适定问题。
 
-这种处理方式在柴油喷雾研究中是合理的，因为穿深本身就是一个中心描述量。在广泛使用的 Hiroyasu--Arai 图景中，喷雾尖端穿深采用分阶段表达：破碎前一个分支，破碎后另一个分支。简化后可写为
+因此，本文采取了实验喷雾分析中常见的实践立场：把强度视为几何线索的载体，而不是直接的热力学场。相较于声称获得精确液相分布，穿深、锥角、投影面积和边界位置这类操作性观测量更具可辩护性 \cite{Linne2013SprayImaging,LefebvreMcDonell2017}。在柴油喷雾研究中，穿深和锥角之所以长期作为标准描述符，正是因为它们可解释，并且在受控实验研究中相对稳健 \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}。
+
+这种强调也与既有光学喷雾研究相一致。在光学柴油发动机内开展的二维 Mie 散射研究中，实际报告的往往是喷雾尖端穿深和锥角等图像分析结果，而不是试图重建完整的液相状态场 \cite{MuenchLeipertz1992}。更近期的成像研究即便在仪器配置和同步方式上更加复杂，液相喷雾比较仍然主要围绕穿深和扩张角等指标展开 \cite{JungManinSkeenPickett2015}。因此，现有文献支持这样的判断：基于 Mie 视频开展的论文，应主要根据其提取观测量的质量与稳健性来评估。
+
+经典的喷雾穿深建模也解释了为什么穿深是如此中心的描述符。在广泛使用的Hiroyasu-Arai图景中，尖端穿深以阶段形式书写，一个分支在破碎之前，另一个在破碎之后。在简化比例形式中，
 \[
 S_{\mathrm{tip}}(t)\propto
 \begin{cases}
@@ -153,45 +160,96 @@ t, & t<t_b,\\
 t^{1/2}, & t\ge t_b,
 \end{cases}
 \]
-其中 \(t_b\) 为破碎时间，比例系数由压差、喷孔直径和流体性质决定 \cite{HiroyasuArai1990}。这种模型的优点是能够为总体穿深历程提供一个低阶且可解释的表达。然而，Zhou 等人关于喷射起始瞬态的研究表明，在 sac pressurization 和针阀开启瞬态占主导时，早期行为可能比经典两阶段模型更复杂。在他们的研究中，SOI 期间不同阶段的标度近似呈现 \(t^{3/2}\)、\(t^{3/4}\) 并最终接近熟悉的 \(t^{1/2}\) 规律 \cite{ZhouLiYi2021}。这一点与本文直接相关：预喷柴油喷射持续时间很短，因此早期瞬态会在观测信号中占据不可忽略的一部分，单一刚性的经验公式并不能总是充分描述整条轨迹。
+其中\(t_b\)是破碎时间，前因子取决于压力差、喷嘴直径和流体特性\cite{HiroyasuArai1990}。这种类型的模型具有吸引力，因为它为总体穿深历史提供了可解释的低阶定律。然而，Zhou等人最近的起始注入瞬态分析表明，当储罐加压和针阀开启瞬态重要时，早期行为可能比经典两阶段定律更复杂。在该研究中，SOI阶段被发现大约以\(t^{3/2}\)最初，然后\(t^{3/4}\)，只有后来接近更熟悉的\(t^{1/2}\)行为\cite{ZhouLiYi2021}。这一观察直接与本论文相关：预喷柴油注入足够短，早期瞬态部分占据观察信号的不可忽视部分，因此单一刚性经验定律不总是充分描述整个轨迹。
 
-喷射结束阶段的研究进一步表明，相关时间变量本身会跨阶段变化。Zhou 等人在 EOI 后对尖端和尾部穿深提出的扩展表达中，EOI 前分支仍然相对于 ASOI 时钟 \(t\) 定义，而减速分支则包含 \((t-t_i)^{1/2}\) 和 \((t-t_i)^{1/4}\) 等项，其中 \(t_i\) 表示喷射持续时间 \cite{ZhouLiLaiWei2019}。
+结束注入研究进一步扩展了这一想法，表明相关的时间变量本身在不同阶段中会发生变化。在Zhou等人报告的EOI后尖端和尾端穿深的扩展公式中，前过渡分支仍然以ASOI时钟\(t\)为基准，但减速分支包括\((t-t_i)^{1/2}\)和\((t-t_i)^{1/4}\)项，其中\(t_i\)表示注入持续时间\cite{ZhouLiLaiWei2019}。其组合表达式对于液体长度尺度\(S_L(t)\)可以写成
+\[
+S_L(t)=
+\begin{cases}
+K_v \left( \dfrac{2\Delta P}{\rho_f} \right)^{1/2} t,
+& 0 < t \le t_b,\\[6pt]
+K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t^{1/2},
+& t_b < t \le t_i,\\[6pt]
+K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t^{1/2}
+- k d_n^{1/2}(t-t_i)^{1/2}(\tan\theta)^{-1/2}\rho_a^{-1/4},
+& t_i < t \le 2t_i,\\[6pt]
+2^{1/2} K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t_i^{1/4}(t-t_i)^{1/4}
+- k d_n^{1/2}(t-t_i)^{1/2}(\tan\theta)^{-1/2}\rho_a^{-1/4},
+& 2t_i < t.
+\end{cases}
+\]
+在简化意义上，这表明穿深定律的一部分以喷射起始时刻为时间原点，而另一部分则以喷射结束之后的延迟时钟为索引，或者更准确地说，以减速卷吸波开始影响喷雾尖端的时刻为索引。这个区别对本文很重要，因为它说明仅仅讨论幂律指数并不足够，有效时间原点本身也承载物理意义。它同时也支持采用更柔性的工程参数化，因为在短预喷注入中，数据窗口可能同时覆盖这两种时钟，而精确的切换时刻并不能从带噪的 Mie 图像导出轨迹中被直接识别。
 
 \subsection{来自计算机视觉与信号处理的支撑理论}
 
-本文实现的图像处理链包含人工标定、对数域前景构造、基于梯度的增强、极坐标聚合、频域对齐、逆向几何重映射和二值形状度量。这些步骤并非随意拼接的启发式技巧，而是分别受成熟的计算机视觉和信号处理思想支持。
+实现的图像处理链使用手动校准、对数域前景构建、基于梯度的增强、极坐标聚合、频谱对齐、逆变换和二值形状测量。这些步骤并非任意启发式；每个步骤都得到了计算机视觉和信号处理中确立的理论支持。
 
-人工喷嘴标定是合理的，因为后续角向分析假设喷油器中心在图像坐标中固定不变。标定任务本质上是一个带噪圆拟合问题，最小二乘圆估计是标准工具 \cite{Pratt1987CircleFit,Taubin1991CircleFit}。一旦中心确定，多孔喷雾就可以相对于具有物理意义的原点描述，而不必依赖会随裁剪或炫光漂移的不稳定图像坐标。
+手动喷嘴校准是合理的，因为下游角度分析假设图像坐标中的固定喷嘴中心。校准任务是一个噪声圆拟合问题，最小二乘圆估计是标准工具\cite{Pratt1987CircleFit,Taubin1991CircleFit}。一旦知道中心，多孔喷雾可以相对于物理上有意义的原点描述，而不是通过随裁剪或眩光变化的不稳定图像坐标。
 
-对数比预处理在概念上与同态信号处理相关。当成像过程包含乘法因素时，取对数可以把乘法变化转为加法结构，从而使背景扣除和滤波更稳定 \cite{OppenheimSchaferStockham1968,GonzalezWoodsDIP}。本文实现并不声称是经典意义上的完整同态滤波器，但其理论动机相同：在测量 plume 几何之前，应先抑制照明和增益变化。
+对数比预处理阶段在概念上与同态信号处理相关。当图像形成包含乘法成分时，应用对数将乘法变化转换为加法变化，之后背景减法和滤波变得更加稳定\cite{OppenheimSchaferStockham1968,GonzalezWoodsDIP}。本论文中的实现不声称是经典意义上的完整同态滤波器，但遵循了相同的理论动机：照明和增益变化应在测量喷雾几何之前衰减。
 
-在构造前景后，流程会强调边缘并抑制弥散的低频背景结构。Sobel 这类梯度幅值算子是强调边界过渡的标准工具，而百分位缩放、自动阈值和形态学则是处理非均匀对比度下分割稳定性的常用手段 \cite{GonzalezWoodsDIP,Szeliski2010Vision,ZackRogersLatt1977}。
+在前景构建之后，流程强调边缘并抑制扩散的低频背景结构。Sobel滤波器等梯度幅度算子是强调边界转换的标准工具，而百分位缩放、自动阈值和形态学是稳定分割在非均匀对比度下的标准方法\cite{GonzalezWoodsDIP,Szeliski2010Vision,ZackRogersLatt1977}。这对Mie视频特别相关，因为感兴趣的边界通常首先作为局部对比度变化而不是全局一致的绝对强度水平可见。
+
+角度密度阶段可以解释为围绕喷嘴中心的极坐标重采样图像。在计算机视觉术语中，这将2D图像中的重复方向结构转换为角度轴上的一维信号，这更容易在帧和记录之间进行比较。一旦获得该角度信号，使用其谐波结构进行对齐是标准信号处理想法：周期性模式在傅里叶域中自然显现，而喷雾计数谐波的相位提供旋转偏移的紧凑估计\cite{CooleyTukey1965FFT}。同样，后续重映射阶段遵循标准逆变换理论，其中输出像素通过逆变换查询源坐标，使重采样条带密集且没有前向映射孔\cite{Szeliski2010Vision}。
+
+工作流中稍后使用的降阶穿深拟合也基于标准估计理论。当使用参数曲线\(S(t;\theta)\)总结噪声观测\(y_i\)时，自然公式是非线性最小二乘，可能在少数样本受分割噪声、早期时间模糊或截断轨迹污染时使用鲁棒惩罚。Huber损失是二次最小二乘和绝对误差拟合之间的经典折衷：它在残差接近零时表现得像平方误差，在大残差时表现得像绝对误差，这使其对异常值不敏感，同时保持平滑优化\cite{Huber1964,NocedalWright2006}。这直接匹配\texttt{fit\_raw\_data.py}的角色，该程序使用鲁棒非线性拟合将噪声喷雾轨迹转换为后续学习阶段的紧凑参数。
+
+这些理论支持本论文的设计选择：在任何下游建模之前，原始视频应转换为喷雾更容易比较、阈值和一致测量的坐标系和信号表示。
 
 \subsection{高通量科学成像与 GPU 适配性}
 
-本文中的视频归档不是一组孤立图像，而是一系列稠密时空张量。在 plume 对齐之前，每个记录天然表示为视频立方体 \(V\in\mathbb{R}^{F\times H\times W}\)。在旋转、裁剪、掩膜和 plume 提取之后，同一信息被重排为 plume 对齐张量 \(I\in\mathbb{R}^{P\times F\times H\times W}\)。施加到这些数组上的大多数操作都高度重复：背景扣除、局部滤波、梯度计算、几何重映射、角向分箱、阈值化、二值清理和累积支撑计算，都会在大量独立像素、分箱或帧上重复执行。
+本论文中的视频归档不是一组孤立的图像，而是密集时空张量的集合。在喷雾对齐之前，每个记录自然表示为视频立方体\(V\in\mathbb{R}^{F\times H\times W}\)。在旋转、裁剪、掩码和喷雾提取后，相同信息重新组织为喷雾对齐张量\(I\in\mathbb{R}^{P\times F\times H\times W}\)。应用于这些数组的大多数操作都是高度重复的：背景减法、局部滤波、梯度评估、几何重映射、角度分箱、阈值处理、二值清理和累积支持计算都在许多独立像素、箱或帧上重复。
 
-这一结构在计算上非常关键。图形处理器尤其适合处理由规则稠密数组运算、模板式邻域计算以及重复 map-reduce kernel 主导的工作负载，因为相同算术模式可以在大量数据元素上并行执行 \cite{NickollsBuckGarlandSkadron2008}。因此，本文中 GPU 加速并不被视为单纯的实现偏好，而是方法设计的一部分。
+这种结构在计算上非常关键。GPU 尤其适合处理由规则稠密数组运算、模板式邻域计算以及重复 map-reduce 风格 kernel 主导的工作负载，因为同一算术模式可以在大量数据元素上并行执行 \cite{NickollsBuckGarlandSkadron2008}。这里使用的单个算子本身都属于标准图像处理原语 \cite{GonzalezWoodsDIP,Szeliski2010Vision}；真正的工程问题在于，一旦把它们施加到 TB 级 12 bit 视频归档上，如果不组织成批量数据并行计算，其实际成本就会主导整个工作流。
+
+因此，本论文中使用GPU加速不仅仅是实现偏好。它是方法设计的一部分。串行逐帧工作流会使简单的滤波和重映射步骤变得太慢和脆弱，无法进行迭代模型开发，而张量导向的CUDA流程将相同的处理链变成可以随着校准选择、目标定义和模型阶段演变而反复运行的东西。从这个意义上说，高吞吐量处理使工作流从实际上不可迭代变为实际上可迭代。
 
 \subsection{删失、截断与稳定目标构造}
 
-光学喷雾成像中的有限视野既是几何问题，也是统计问题。当真实晚期穿深超出可见窗口时，记录下来的轨迹并不只是带噪，而是被观测边界右删失。在统计学中，这与更一般的受限或删失因变量问题密切相关：观测值只是潜在真实量的截断表示 \cite{Tobin1958,BuckleyJames1979}。
+光学喷雾成像中的有限视场创造了统计问题和几何问题。当真实后期穿深超出可见窗口时，记录的轨迹不仅仅是噪声；它被观测限制右截断。在统计学中，这与更广泛的有限或截断因变量问题密切相关，其中观测值只是感兴趣潜在量的截断表示\cite{Tobin1958,BuckleyJames1979}。
 
-这一点与 surrogate 模型训练直接相关。若某条穿深轨迹碰到测量边界，而可见终点又被直接当作普通回归标签，那么目标就会在本应继续增长的远距区域被系统性低估。在这种设置下，学习器会把图像中的“消失”解释为喷雾物理饱和。实践上，这类标签构造会在删失和未删失轨迹混合训练时，诱发晚期梯度不稳定和人工压平。
+图~\ref{fig:right-censoring-example-zh} 给出了当前工作流中的一个代表性喷雾图像实例。部分 plume 已经越过观测窗口上边界，只在边缘附近留下模糊的圆环状痕迹；另一些 plume 则仍完整位于可见区域内。这个例子说明，图像中表面上看到的“终止穿深”有时是由相机观测窗口决定的，而不是喷雾真实演化已经停止。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\linewidth]{../images/right_censoring_example.png}
+\caption{喷雾图像中的右截断实例。部分 plume 已越过观测窗口上边界，因此在上限附近仅留下模糊的圆环状边缘痕迹；另一些 plume 则尚未超过观测边界，仍完整显示在可见窗口内。}
+\label{fig:right-censoring-example-zh}
+\end{figure}
+
+这种区别直接关系到代理模型训练。如果穿深轨迹达到测量边界并且可见终点被直接视为普通回归标签，学习目标在最需要长期穿深应该继续增加的区域向下偏置。在这种设置下，学习者被鼓励将图像消失解释为喷雾的物理饱和。实际上，这种标签构建可能在训练集混合截断和未截断轨迹时创建不稳定的后期梯度和人工平坦化。
+
+因此，本论文中的降阶拟合阶段不仅作为平滑手段引入。它也是一个截断感知的目标构建步骤。拟合曲线提供轨迹的紧凑和更稳定表示，支持保守外推超出可见窗口，并减少下游学习对光学轨迹变得不完整的确切点的敏感性。这个角色在短预喷注入中尤其重要，因为起始注入和结束注入瞬态已经使原始信号形状复杂化\cite{ZhouLiYi2021,ZhouLiLaiWei2019}。
 
 \subsection{多孔喷嘴 plume 配准与对称性利用}
 
-多孔喷油器带来的问题并不等同于一般喷雾分割。图像中不是单一射流，而是多个围绕共同喷嘴中心分布、具有已知孔数和近似重复角向结构的 plume。与此同时，多孔喷雾又并不只是单孔行为的简单复制，因为 sac 内流、孔间相互作用以及 plume 之间的扰动都可能改变最终喷雾形态 \cite{JinKimKakamiNishidaOgataLuo2020,MopuriGrahnSedarskyHyvonen2024}。
+多孔喷嘴引入了一个比通用喷雾分割更具体的问题。图像不包含一个孤立的喷雾，而是围绕共同喷嘴中心排列的几个喷雾，具有已知的多重性和近似重复的角度结构。同时，多孔行为不等同于单孔行为的任意重复，因为内部储罐流动、孔相互作用和喷雾间扰动可以改变结果喷雾形态\cite{JinKimKakamiNishidaOgataLuo2020,MopuriGrahnSedarskyHyvonen2024}。因此，计算问题不仅是检测喷雾像素，而是跨帧和工况一致地配准重复喷雾。
+
+这就是为什么论文从笛卡尔图像坐标移动到喷嘴中心极坐标和喷雾对齐坐标。一旦喷雾在角度轴上描述，由喷嘴孔图案引起的重复结构就更容易分析，因为plume 占据可以总结为一维周期信号，而不是原始图像平面上的碎片边缘内容\cite{Szeliski2010Vision}。随后使用谐波分析不是任意的信号处理技巧，而是对称性利用的配准规则：已知的喷嘴多重性提供自然角度频率，其相位可用于旋转对齐\cite{CooleyTukey1965FFT}。
 
 \subsection{喷雾成像中的度量定义与边界提取}
 
-燃油成像文献还表明，喷雾度量的数值定义本身非常重要。Magnotti 和 Genzale 证明，不同的液相穿深定义在验证柴油喷雾模型时会得出实质不同的结论，因为不同观测量会对底层液相分布的不同方面作出响应 \cite{MagnottiGenzale2013}。这与本文的 Mie 处理直接相关：文中报告的“穿深”并不是一个普适真值，而是作用于光学信号上的某个测量规则的输出。
+燃料成像文献还显示，喷雾度量的数值定义很重要。Magnotti和Genzale展示了不同的液体穿深度量可能导致实质性不同的结论，因为不同的可观测量对底层液体分布的不同方面做出响应\cite{MagnottiGenzale2013}。这直接与Mie 处理相关：报告的"穿深"值不是普适真值，而是应用于光学信号的测量规则的输出。
+
+同样的谨慎适用于锥角和边界提取。Johnson等人表明，从背向散射柴油图像中基于阈值的锥角估计对所选强度阈值敏感，他们提出了基于轮廓的替代方法专门减少这种主观性\cite{JohnsonNaberLee2012}。这一观察从两个方面支持了本论文。首先，它证明了边界度量作为操作几何描述符而不是精确液体包络测量的合理性。其次，它激励使用累积分布穿深前沿和多个边界代理，因为稳健度量应依赖于喷雾的总体支持，而不是一个脆弱的领先像素或一个全局固定的阈值。
+
+结果是一个不试图从强度"恢复物理"的工作流。相反，它使用图像处理理论和先前喷雾成像证据来构建可复现、物理可解释的几何可观测量，其局限性明确陈述。
 
 \subsection{为什么确定性、异方差和教师引导学习阶段都必要}
 
-确定性的多层感知机是穿深 surrogate 的合理起点，因为它能够把少量工况特征和时间映射为连续轨迹 \cite{BishopPRML2006}。引入异方差高斯负对数似然也是合理的，因为不同工况和不同提取轨迹并不具有相同置信度，而 teacher-student 蒸馏又能在监督不完整时提供保守延拓 \cite{KendallGal2017,HintonVinyalsDean2015,TarvainenValpola2017}。
+确定性多层感知器是穿深的合理第一个代理，因为它可以将少量工况特征和时间映射到连续轨迹\cite{BishopPRML2006}。在存档基线笔记本中，网络使用物理缩放输入和与平滑性相关的惩罚来正则化轨迹形状。
+
+不确定性感知扩展也是有动机的，因为不同的工况点和提取轨迹不具有相同的置信度。异方差高斯负对数似然是一种标准方法，让网络预测均值和输入依赖方差\cite{KendallGal2017}。在回归术语中，这对应于条件模型
+\[
+y=\mu(x,t)+\varepsilon(x,t),\qquad \varepsilon(x,t)\sim \mathcal{N}(0,\sigma^2(x,t)),
+\]
+这里应被理解为实用的统计假设，而不是声称喷雾物理在每个瞬间都是真正的高斯\cite{BishopPRML2006,KendallGal2017}。本论文的动机是，观察到的穿深扩散是许多未解决因素的聚合效应：喷嘴液压瞬态在预喷注入期间、储罐和针阀开启动力学在SOI附近、循环间传递动量的差异、同步偏移以及光学测量链的残余图像处理噪声。Zhou等人已经表明，短注入穿深行为在SOI附近强烈瞬态和阶段依赖\cite{ZhouLiYi2021}；在当前项目中，这些未建模的扰动不是逐一机械地建模，因此合理地将它们的组合效应视为输入依赖残差分布，其方差随工况和时间变化。在本论文中，这一想法被视为部分完成的扩展，而不是完成部署的模型，因为存档的第二阶段工件在其当前存储形式中不完整。
+
+一旦监督在时间上变得不均匀，进一步的改进阶段就是有理由的。知识蒸馏被引入作为一种方式，通过软目标而不是one-hot或硬标签将教师网络的预测结构转移到学生\cite{HintonVinyalsDean2015}。当监督有限或不完整时，密切相关的教师-学生公式也被使用，因为教师可以在直接标签稀疏、噪声或缺失的区域提供稳定的信号\cite{TarvainenValpola2017}。在本论文中，这一逻辑被改编为部分观测穿深轨迹：在未截断的原始观测仍然可信的区域，它们应该直接细化学生；在晚期原始信号由于截断和样本丢失而变得不可靠的区域，教师延续比将消失的尾部视为硬物理标签更保守。这就是为什么第三学习阶段在方法论上不同于简单微调的原因：它结合了直接原始监督和教师指导的正则化，使模型可以在不被不完整的晚期观测向下拉拽的情况下提高早期时间保真度。
 
 \section{研究材料与方法}
+
+
 
 \subsection{工作流概览}
 
@@ -222,40 +280,69 @@ t^{1/2}, & t\ge t_b,
 
 \subsection{\texttt{GUI.py} 中的标定}
 
-人工标定流程与英文稿一致：操作者在主界面选取代表帧，进入标定对话框点击喷嘴边缘点，通过 \texttt{calc\_circle} 得到喷嘴中心、标定半径和角向偏移，随后把结果回传到主界面并保存。
+\texttt{GUI.py} 中的手动标定工作流包含三个界面阶段。首先，操作者在主标注界面中打开代表性帧，调整显示设置，并准备好用于后续批处理锚定的喷嘴中心视图。其次，启动专用标定对话框，用户在选定帧上点击喷嘴边缘点。第三，拟合得到的中心和半径回传到主界面，操作者可以结合 plume 导向线与圆环叠加效果检查几何恢复结果，随后保存配置供后续批量处理复用。
+
+点选择对话框强制至少三次点击，并在输入所需点数后通过\texttt{calc\_circle}计算圆。拟合的圆提供喷嘴中心、校准半径和整个记录的角度偏移。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{../images/GUI_main_interface.png}
-\caption{\texttt{GUI.py} 在标定前的主标注界面。}
+\caption{\texttt{GUI.py}主标注界面在校准前。操作员加载代表性帧，调整显示，并准备手动校准任务。}
 \label{fig:gui-main-interface}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.78\linewidth]{../images/GUI_calibration_interface.png}
-\caption{\texttt{GUI.py} 中的标定点选对话框。}
+\caption{\texttt{GUI.py}中的校准点选择对话框。用户标记喷嘴边缘点，这些点稍后用于圆拟合和角度偏移估计。}
 \label{fig:gui-calibration-interface}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{../images/GUI_calibration_result.png}
-\caption{圆拟合后在主界面中显示的标定结果。}
+\caption{圆拟合后的标定结果。恢复得到的喷嘴中心、导向方向和径向边界，为后续批量流程提供了统一的几何参考。}
 \label{fig:gui-calibration-result}
 \end{figure}
 
+这种设计适合当前数据集，因为摄像机和喷嘴几何在记录内保持固定。一次校准并为所有帧重用相同中心可以避免下游喷雾角度分析中的帧间抖动。
+
 \subsection{\texttt{main.py} 中的视频批处理}
 
-与英文稿一致，\texttt{main.py} 承担每个 \texttt{.cine} 文件的批量处理，负责加载视频、复用标定、进行 \texttt{mie\_multihole\_preprocessing} 和 \texttt{mie\_multihole\_postprocessing}，提取逐 plume 穿深和边界指标，并导出同步 CSV 与元数据。卷积、角向分箱、重映射、阈值化和形态学等重算子都尽可能停留在 CUDA 路径上执行。
+\texttt{main.py} 中的文件处理器是图像分析工作流的中枢。对于每个 \texttt{.cine} 记录，\texttt{\_process\_cine\_file} 会把视频加载到当前数组后端，复用整个文件夹的环形掩码，调用 \texttt{mie\_multihole\_preprocessing} 与 \texttt{mie\_multihole\_postprocessing}，提取逐 plume 穿深曲线，计算基于边界的几何度量，并最终导出同步 CSV 与元数据文件。关键在于，这条链中数值开销最大的部分都尽量保留在后端本地：当 CuPy 可用时，卷积、角度分箱、重映射、阈值处理、连通域清理和形态学操作都会沿着 CUDA 路径执行，直到最终表格导出为止。
 
-\subsubsection{标定移交与批量锚定}
+\subsubsection{标定移交和批量锚定}
 
-标定阶段输出的 \((c_x,c_y,r)\) 和角向偏移被写入 \texttt{config.json}，后续批处理直接复用，避免逐帧重新定位带来的抖动。
+批量阶段从第3.2节中产生的校准开始。在\texttt{calc\_circle}中，点击的喷嘴边缘点\((x_i,y_i)\)用代数圆模型
+\[
+x_i^2+y_i^2 + D x_i + E y_i + F = 0,
+\]
+以最小二乘形式求解\texttt{np.linalg.lstsq}。恢复的参数是
+\[
+c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
+\]
+同一程序还从点击的边缘点相对于理想等距集估计平均角度偏移。\texttt{GUI.py}将这些值写入\texttt{config.json}，之后\texttt{main.py}可以处理整个文件夹而无需手动重新中心。这种一次校准是故意面向用户的，而不是完全自动的：操作员可以缩放、选择代表性帧，并用物理上有意义的喷嘴中心锚定整个批量\cite{Pratt1987CircleFit,Taubin1991CircleFit}。
 
-\subsubsection{高鲁棒性的批量预处理}
+\subsubsection{批量和鲁棒预处理}
 
-前景构造沿用与英文稿相同的对数减背景、门控、基线去除与稳健缩放思路，用于在强散射、炫光和背景纹理条件下稳定获得可测几何边界。
+批量流程中的第一个算法贡献是针对噪声Mie视频而不是理想二值图像设计的前景构建阶段。在\texttt{refined\_log\_subtraction}中，原始帧\(V_t(x,y)\)映射到
+\[
+L_t(x,y)=\log(V_t(x,y)+\varepsilon),
+\qquad
+L_{\mathrm{bkg}}(x,y)=\operatorname{median}_{t<t_{\mathrm{SOI}}} L_t(x,y),
+\]
+然后是对数比重建
+\[
+R_t(x,y)=\exp\!\left(L_t(x,y)-L_{\mathrm{bkg}}(x,y)\right)-1
+=\frac{V_t(x,y)-B(x,y)}{B(x,y)}.
+\]
+然后实现将\(R_t\)乘以强度门\(M_t(x,y)=\mathbf{1}[V_t(x,y)>\alpha B(x,y)]\)，减去预注入基线，应用软阈值
+\[
+F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
+\]
+并按稳健分位数重新缩放结果，然后进行任何几何处理。这个序列对Mie视频很重要，因为原始强度不是液体体积分数的直接度量，而且实际目标是在非均匀照明、眩光和背景纹理下稳定几何提取，而不是精确的光学反演\cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}。
+
+这种鲁棒预处理的需要在可视化级别上已经可以看到。图~\ref{fig:gui-gain-halo}比较了同一喷雾帧在两个显示增益下的情况，其余GUI参数保持不变。在较低增益下，喷雾核心相对紧凑。在较高增益下，明亮的光环在喷雾核心周围扩散并污染图像的更大区域。对于本论文的目的，这种行为被视为实用证据，表明基于Mie的强度强烈受多重散射、眩光和显示敏感背景污染的影响。因此，从单个灰度背景减法或直接强度阈值处理将对增益依赖性扩散过于敏感。这就是为什么实现的流程使用来自预注入统计的鲁棒背景估计，然后将表示转换为边缘主导的Sobel特征，其几何响应比原始亮度幅度更稳定\cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}。
 
 \begin{figure}[t]
 \centering
@@ -268,130 +355,384 @@ t^{1/2}, & t\ge t_b,
 \centering
 \includegraphics[width=\linewidth]{../images/GUI_gain_7.png}
 \end{minipage}
-\caption{同一喷雾帧在不同 GUI 增益下的显示结果。}
+\caption{在\texttt{GUI.py}中显示的同一喷雾帧在增益值1.0和7.0下的情况，其余显示参数保持不变。高增益视图使喷雾周围的明亮光环更加明显，说明多重散射、眩光和扩散背景污染如何扭曲基于原始强度的解释。}
 \label{fig:gui-gain-halo}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_mie_preproc_background.png}
-\caption{预处理中间结果：原始帧、背景估计和对数减背景前景。}
+\includegraphics[width=0.98\linewidth]{../images/fig_mie_preproc_background.png}
+\caption{从存储库工作流复制的中间预处理可视化。从左到右：原始帧、来自预注入统计的背景估计和对数减法前景。}
 \label{fig:mie-preproc-background}
 \end{figure}
 
-\subsubsection{CUDA 后端上的超高效 Sobel 高通}
+\subsubsection{CUDA后端上的超高效Sobel高通滤波}
 
-Sobel 高通阶段仍按英文稿中的做法，直接在整段视频张量上计算梯度幅值，并把结果保留在 CuPy 后端中，以获得适合后续 plume 几何分析的边缘占优表示。
+第二个贡献是直接应用于整个视频立方体的显式边缘增强高通阶段。在\texttt{arr\_3d\_sobel\_magnitude\_cupy}中，Sobel核\(K_x\)和\(K_y\)生成一次并使用\texttt{convolution\_2D\_cupy}应用：
+\[
+S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2}.
+\]
+然后再次进行稳健缩放并用环形几何掩码。在实现术语中这很重要，因为它将低对比度灰度喷雾转换为边缘主导表示，同时保持整个操作在CuPy后端。贡献不是Sobel算子本身，这是经典的，而是将其集成到避免重复主机-设备复制的批量视频工作流中，为每个喷雾准备相同的下游几何处理\cite{GonzalezWoodsDIP,Szeliski2010Vision}。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_mie_preproc_sobel.png}
-\caption{前景图、Sobel 幅值图与稳健缩放高通表示。}
+\includegraphics[width=0.98\linewidth]{../images/fig_mie_preproc_sobel.png}
+\caption{从存储库工作流生成的预处理输出显示前景图像、Sobel幅度和多孔分割阶段使用的最终稳健缩放高通表示。}
 \label{fig:mie-preproc-sobel}
 \end{figure}
 
-\subsubsection{将角向密度视为极坐标重采样}
+\subsubsection{角度密度作为极坐标重采样}
 
-角向密度通过围绕喷嘴中心的极坐标重采样获得，从二维图像得到一维角向占据信号，以便后续按喷孔周期结构进行配准。
+预处理后，流程不会在笛卡尔坐标中通过轮廓追踪搜索喷雾方向。相反，\texttt{angle\_signal\_density\_auto}在校准喷嘴中心周围执行极坐标重参数化。对于每个像素，
+\[
+\theta(x,y)=\operatorname{atan2}(y-c_y,\;x-c_x)\bmod 360^\circ,
+\]
+每帧角度信号对于箱\(k\)的累积为
+\[
+A_t(k)=\sum_{(x,y)\in \mathcal{B}_k} I_t(x,y), \qquad
+D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
+\]
+其中\(\mathcal{B}_k\)是角度落入箱\(k\)的像素集合。在CuPy实现中，分箱和加权和直接在GPU数组上通过\texttt{cp.digitize}和\texttt{cp.bincount}执行。概念上，这是将2D图像径向坍缩为1D角度占用信号，这比原始帧中的边缘片段更稳定，用于多孔对齐\cite{Szeliski2010Vision}。
 
-\subsubsection{基于 FFT 的自适应旋转对齐}
+\subsubsection{基于FFT的自适应旋转对齐}
 
-通过读取角向累计信号在 plume 数对应谐波上的相位，自动估计旋转偏移，并构造每个 plume 的目标方向。
+然后从角度信号的周期性估计plume 导向角度，而不是从固定偏移。设
+\[
+\bar{A}(k)=\sum_t A_t(k)
+\]
+为时间求和的角度配置文件，设\(P\)为已知喷雾数量。函数\texttt{estimate\_offset\_from\_fft}计算\(\bar{A}\)的实FFT，读取喷雾谐波\(P\)的相位，并将其转换为角度偏移
+\[
+\hat{\phi}_0
+=
+-\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
+\]
+这就是使对齐自适应的原因：代码使用当前数据集的观测谐波相位而不是为每个记录手动输入参考角度。\texttt{main.py}然后构建喷雾方向
+\[
+\phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
+\]
+并结合三角阈值占用掩码和短间隙填充来拒绝空角度扇区。FFT本身是标准的；这里的贡献是使用已知喷嘴多重性将角度密度信号转换为自动喷雾配准规则\cite{CooleyTukey1965FFT,Szeliski2010Vision}。
+
+同一个 occupied-angle mask 还可以给出一个简单的 cone-angle proxy。具体做法是将 bin-wise 掩码视为定义在\([0,360^\circ)\)上的周期信号，把跨越\(0^\circ/360^\circ\)边界的 \texttt{True} 段合并为同一连续区间，再把每个连续区间的长度从 bins 换算为角度。得到的各段角宽描述了整段视频中每个 plume 实际占据的角度支持范围。在 notebook 的作图流程中，我们同时报告总 occupied angle 与各连续段角宽的平均值；后者可作为一个粗略的 cone-angle proxy，因为它在不需要逐帧重新做边缘拟合的情况下，概括了单个 plume 的平均角向展开宽度。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_angular_occupancy.png}
-\caption{角向密度、时间累计剖面、FFT 谐波和占据角度 mask。}
+\includegraphics[width=0.98\linewidth]{../images/fig_angular_occupancy.png}
+\caption{从存储库工作流生成的处理角度密度输出：每帧角度配置文件、时间求和配置文件和plume 导向角度、FFT谐波内容以及用于稳定多孔对齐的占用角度掩码。}
 \label{fig:angular-occupancy}
 \end{figure}
 
-\subsubsection{逆仿射映射与 plume strip 提取}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{../images/fig_angular_mask_comparison.png}
+\caption{整段视频中同一组喷雾占据角度在两种坐标系下的表示。左图为依据喷嘴中心将占据角度 bins 投回图像空间后得到的旧式笛卡尔 mask，并附带总 occupied angle 与基于连续段平均宽度的 cone-angle proxy；右图为当前工作流直接使用的极坐标 occupied-angle mask，并标注每个连续 occupied segment 的角宽。}
+\label{fig:angular-mask-comparison}
+\end{figure}
 
-对每个 plume 构造逆仿射映射，把喷雾重采样到统一的局部 strip 坐标中，方便后续对每个 plume 施加统一度量。
+\subsubsection{逆仿射映射和喷雾条带提取}
+
+一旦知道目标角度，每个喷雾都重新映射到共同的喷嘴左条带坐标系统。在\texttt{build\_rotation\_affine}中构建的前向仿射变换是
+\[
+\begin{bmatrix}
+u\\v
+\end{bmatrix}
+=
+\mathbf{A}
+\begin{bmatrix}
+x\\y
+\end{bmatrix}
++\mathbf{b},
+\qquad
+\mathbf{A}
+=
+\begin{bmatrix}
+\cos\phi_p & \sin\phi_p\\
+-\sin\phi_p & \cos\phi_p
+\end{bmatrix},
+\qquad
+\mathbf{b}=\mathbf{t}-\mathbf{A}\mathbf{c},
+\]
+其中\(\mathbf{c}=(c_x,c_y)^\top\)是喷嘴中心，\(\mathbf{t}\)将喷嘴放置在输出条带的左边缘和中间高度。实际重映射使用逆关系
+\[
+\begin{bmatrix}
+x_{\mathrm{src}}\\y_{\mathrm{src}}
+\end{bmatrix}
+=
+\mathbf{A}^{-1}
+\left(
+\begin{bmatrix}
+u\\v
+\end{bmatrix}
+-\mathbf{b}
+\right),
+\]
+在\texttt{build\_affine\_inverse\_maps\_cupy}中实现。对于每个喷雾，映射数组\texttt{mapx}和\texttt{mapy}一次性预计算，\texttt{remap\_video\_cupy}使用最近、双线性、双三次或Lanczos核采样整个视频。需要强调的是，这两张图并不是喷雾亮度图：\texttt{mapx}中的像素值表示该输出条带像素在原始图像中采样的\(x\)坐标，\texttt{mapy}中的像素值表示对应的原始图像\(y\)坐标。多孔流程使用固定条带大小\texttt{OUT\_SHAPE = (outer\_radius/2, outer\_radius)}并应用三角喷雾掩码。这种逆映射公式计算效率高且数值清洗，因为每个下游喷雾度量都在相同的局部坐标系中测量\cite{Szeliski2010Vision}。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_efficient_rotation.png}
-\caption{逆仿射重映射阶段可视化。}
+\includegraphics[width=0.98\linewidth]{../images/fig_efficient_rotation.png}
+\caption{从存储库工作流生成的逆仿射重映射阶段可视化。左上与右上分别为\texttt{mapx}和\texttt{mapy}，其像素亮度编码的是每个输出条带像素对应的原始图像\(x/y\)采样坐标，而不是喷雾亮度。左下为单个喷雾的旋转条带，图中标出\((H/2,\mathrm{inner\_radius})\)处的喷孔局部原点；轴向穿深曲线以\(\mathrm{inner\_radius}+\)metric的形式叠加，而极坐标二值穿深则画成以喷孔为圆心、半径为\(r\)的圆弧。右下为重映射后施加的三角喷雾掩码。}
 \label{fig:efficient-rotation}
 \end{figure}
 
-\subsubsection{基于对齐 plume strip 的稳健 CDF 穿深}
+\subsubsection{对齐喷雾条带的稳健CDF穿深}
 
-穿深估计使用累积分布前沿而不是最前像素，降低对孤立前沿像素和破碎小块的敏感性。
+穿深估计器故意基于累积强度支持而不是单个最亮像素或最外层孤立斑点。对于每个喷雾条带\(I_p(t,y,x)\)，\texttt{penetration\_cdf\_all\_plumes}首先坍缩跨流方向，
+\[
+H_p(t,x)=\sum_y I_p(t,y,x),
+\]
+从每帧减去左边缘基线，截断负值，并通过自动阈值、最大组件清理和二值开运算生成支持掩码。在该支持内，\texttt{penetration\_cdf\_front}形成轴向累积分布
+\[
+C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi)+\varepsilon},
+\]
+并定义穿深前沿为满足
+\[
+\hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
+\]
+其中\(q\)接近1。然后通过\texttt{np.maximum.accumulate}强制单调性，从喷嘴环形减去内半径以表示距离，\texttt{main.py}中丢弃显示非物理后退跳跃或只有很短有效运行的轨迹。这个CDF前沿是工作流的主要实用贡献：它比朴素的最大索引定义对断裂的边缘像素不那么敏感，同时仍然产生与标准柴油喷雾使用对齐的穿深量\cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}。
 
-\subsubsection{边界指标与几何代理量}
+\subsubsection{边界度量和几何代理}
 
-除穿深外，工作流还提取面积、极坐标穿深、类体积代理量和锥角代理量，用作更丰富的喷雾几何状态描述。
+二值喷雾条带也传递给\texttt{extract\_single\_plume\_features}，该程序计算几个次要可观测量。投影面积是
+\[
+A_p(t)=\sum_{x,y} B_p(t,y,x).
+\]
+轴向二值穿深从占用超过像素阈值的最右列获得，而极穿深从上边界点云和下边界点云定义为
+\[
+R_p(t)=\max\!\left(
+\max_i \sqrt{x_{u,i}^2+y_{u,i}^2},
+\max_j \sqrt{x_{l,j}^2+y_{l,j}^2}
+\right).
+\]
+代码还存储一个类似体积的几何代理，
+\[
+V_p(t)=x_{\mathrm{scale}} \frac{\pi}{4}\sum_x \left(w_u(t,x)+w_l(t,x)\right)^2,
+\]
+其中\(w_u\)和\(w_l\)是上半宽和下半宽，\(x_{\mathrm{scale}}=1/\cos((180^\circ-\theta_{\mathrm{umb}})/2)\)在需要时补偿伞角倾斜。锥角代理通过两种方式计算：通过平均局部边界角度
+\[
+\alpha_{\mathrm{avg}}(t)=\overline{\arctan(y_u/x_u)}-\overline{\arctan(y_l/x_l)},
+\]
+和通过拟合固定截距边界线并取
+\[
+\alpha_{\mathrm{lg}}(t)=\arctan(m_u)-\arctan(m_l).
+\]
+最后从靠近喷嘴的检测窗口推断近喷嘴开启和关闭时间。这些度量很重要，因为它们将每个对齐条带转换为紧凑的几何状态向量；然而，本论文中的下游建模仍然专注于穿深，这是存档笔记本中最支持的目标\cite{Linne2013SprayImaging,LefebvreMcDonell2017}。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{images/fig_mie_metrics_summary.png}
-\caption{plume 对齐和二值化后得到的多种几何输出。}
+\includegraphics[width=0.98\linewidth]{../images/fig_mie_metrics_summary.png}
+\caption{在喷雾对齐和二值化后生成的定量输出示例：穿深描述符、喷雾大小、锥角代理和代表性的二值喷雾条带最大投影。}
 \label{fig:mie-metrics-summary}
 \end{figure}
 
 \subsection{\codepath{MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合}
 
-这一阶段清洗原始轨迹、对齐延迟、剔除不合理跳变，并用平滑的双分支模型拟合每条轨迹。其作用既是平滑压缩，也是面向删失的目标构造步骤，用于为后续网络训练提供更稳定、可微且更适合监督学习的穿深目标。
+学习模型不直接在原始导出轨迹上训练。相反，\texttt{fit\_raw\_data.py}首先清洗它们。该脚本检测早期液压延迟，将轨迹移位以对齐喷雾开始，移除突然不现实的跳跃，将像素转换为校正的物理长度，并通过一组基于规则的掩码标记低质量拟合。
+
+每个接受的轨迹随后用平滑的双分支模型拟合，
+\[
+S(t)=\left(1-w(t)\right)k_{\mathrm{sqrt}}\sqrt{t}
++w(t)k_{\mathrm{quarter}}t^{1/4},
+\qquad
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right),
+\]
+其中\(k_{\mathrm{sqrt}}\)、\(k_{\mathrm{quarter}}\)、\(t_0\)和\(s\)在对数空间中优化。具体来说，拟合问题表述为稳健的非线性最小二乘估计，
+\[
+\min_{\theta}
+\sum_i \rho_\delta\!\left(S(t_i;\theta)-y_i\right),
+\qquad
+\theta=
+\left[\log k_{\mathrm{sqrt}},\log k_{\mathrm{quarter}},\log t_0,\log s\right],
+\]
+使用Huber惩罚
+\[
+\rho_\delta(r)=
+\begin{cases}
+\tfrac{1}{2}r^2, & |r|\le \delta,\\
+\delta\left(|r|-\tfrac{1}{2}\delta\right), & |r|>\delta.
+\end{cases}
+\]
+在实现中，这个目标通过\texttt{scipy.optimize.least\_squares(..., method="trf", loss="huber")}求解，其中\(\delta=1\)，而对数参数化保持拟合增益和转换尺度为正\cite{Huber1964,NocedalWright2006}。这个拟合不是作为无根据的便利曲线引入的。它是柴油喷雾穿深文献中使用的分阶段变化观点的降阶、数据驱动适应：Hiroyasu和Arai描述喷雾发展在不同阶段的穿深行为变化\cite{HiroyasuArai1990}，后来关于起始注入瞬态的工作表明，短注入很难用一个刚性经验表达式在整个轨迹上表示\cite{ZhouLiYi2021}。这个考虑在本论文中尤其重要，因为当前实验使用预喷柴油注入，其近SOI部分短、高度瞬态且相对噪声。
+
+因此，该模型应被理解为时间参数化而不是显式物理定律。其目的是双重的：提供在SOI之外的可信外推，下游代理需要稳定目标；以及在SOI附近提供可接受的插值，其中相对误差较大，图像轨迹单独难以约束早期时间物理。Sigmoid门对于该角色很重要。它不是在两个经验分支之间施加硬断点，而是在两个分支之间创建可微过渡，这保持了拟合曲线的平滑性，使其更兼容后续神经网络阶段。换句话说，早期瞬态物理没有被强制进入刚性封闭形式定律；它们只是被足够好地近似，以便后续网络可以从完整的工况点输入中学习剩余的条件依赖行为。
+
+当将拟合与喷雾文献中的扩展EOI表达式进行比较时，这种解释变得更加清晰。Zhou等人报告的EOI后模型区分了全局注入时钟\(t\)和延迟时钟\((t-t_i)\)，因为后期穿深分支只有在结束注入动力学传播到下游后才激活\cite{ZhouLiLaiWei2019}。当前拟合没有显式地重现延迟时钟。相反，它使用
+\[
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right)
+\]
+在学习的转换时间\(t_0\)之前抑制四分之一根分支，然后允许\(t^{1/4}\)项在该转换后主导。这在代数上不等同于用\(t^{1/4}\)替换\((t-t_i)^{1/4}\)。而是工程重新参数化：在有限观测窗口中，延迟第四根分支通常可以用一个门控未移位第四根分支很好地表示，调整幅度和转换位置，特别是当该分支的早期部分通过\(1-w(t)\)或\(w(t)\)在零附近被强烈衰减时。从这个意义上说，延迟物理时钟被吸收进学习的切换参数\((t_0,s)\)和分支幅度中，而不是作为固定已知常数强加。
+
+因此，我认为这种工程方法对于本论文所述目标是合理的，有一个明确的边界。它是合理的，因为拟合用作噪声轨迹的平滑压缩器，而不是最终的机械喷雾定律；它保持曲线可微以供后续学习；并将工况依赖性留给神经网络而不是将每个物理效应强加于封闭形式拟合。边界是，这种解释应被呈现为基于经验穿深理论的降阶代理，而不是证明移除的时钟物理消失。更严格的物理导向研究将直接将当前拟合与显式在\((t-t_i)\)中书写的分支进行比较并报告消融。
+
+存档的本地分析支持这种解释。\texttt{MLP/interpretatable\_test} 中的探索笔记本明确把该模型描述为受 Hiroyasu--Arai 启发的双分支混合，而 \texttt{fitted\_stats\_analysis.ipynb} 以及归档的 clean-fit CSV 表格则表明，\(k_{\mathrm{sqrt}}\) 更像是一个可选的形状描述符，而不是稳定一致的物理系数。在当前 clean-fit 归档中，拟合转换时刻处的平方根分支幅值，在大多数被接受样本中都小于四分之一根分支的一半，因此很多成功拟合实际上会退化为以四分之一根为主导的曲线。对本文的预期用途而言，这一点是可以接受的：物理驱动量会在后续直接输入神经网络，而拟合本身则保持自适应且物理负担较轻。在 \texttt{MLP/synthetic\_data} 下的归档生产输出中，123,902 个候选行中有 105,594 个被原始非线性拟合标记为成功，对应于约 \(85\%\) 的实用成功率，而且这还是在更严格的后拟合掩码阶段之前。该拟合的实际目的，并不是宣称找到一条普适的穿深定律，而是把带噪 plume 轨迹压缩为平滑、可微且适合训练的目标，同时保留数据集中的异方差变化供后续学习阶段使用。
+
+更严格的后拟合掩码阶段也是工程贡献的重要部分。在\texttt{apply\_filter\_masking}中，脚本首先在\(t_{\mathrm{far}}=\SI{5}{ms}\)处评估拟合曲线形成远时间穿深代理。只有当该远时间值保持在广泛的物理上合理窗口内并且拟合参数通过基本的合理性检查\(t_0\)、\(s\)、点数和拟合成本时，才保留该行。然后代码使用中位绝对偏差计算稳健的分组异常值分数，
+\[
+z_{\mathrm{robust}}(x)=0.6745\,\frac{x-\operatorname{median}(x)}{\operatorname{MAD}(x)+\epsilon},
+\qquad
+\operatorname{MAD}(x)=\operatorname{median}\!\left(\lvert x-\operatorname{median}(x)\rvert\right),
+\]
+应用于\(t_0\)、\(\log(1+\mathrm{RMSE})\)和\(\log(1+\mathrm{cost\_per\_point})\)在每个文件组内。在任何诊断上\(z_{\mathrm{robust}}\)超过3的行被标记为异常值并从清洗档案中排除。这在后续神经网络阶段很重要，因为它在扭曲训练分布之前移除了显然不稳定的拟合。结果是一个故意保守的策划步骤：网络不会看到每个拟合行，而只会看到在远时间保持数值合理的轨迹。
 
 \subsection{\codepath{MLP/median_penetration_MSE.ipynb} 中的 Stage-1 确定性基线}
 
-Stage 1 在每个工况组中选取 5 ms 处最接近组中位数的代表性轨迹，以 9 个工况和时间特征为输入，用 MSE 加上单调性与凹性软约束训练一个双输出 MLP。当前归档结果显示该阶段已经保存了完整 checkpoint、loss 日志和 scaler 状态，是最完整的可部署工件。
+存档的第一阶段笔记本指出，它从拟合CSV输出构建代表性行表并围绕九个输入特征训练确定性基准：
+\begin{enumerate}
+  \item 标准化时间，
+  \item 倾斜角度，
+  \item 喷雾数量，
+  \item 喷嘴直径，
+  \item 注入持续时间，
+  \item 对数注入压力，
+  \item 对数气缸压力，
+  \item 对数压力差，和
+  \item 控制背压。
+\end{enumerate}
+
+代表性行构建在笔记本中是明确的。对于每个文件级工作条件组，拟合曲线在固定比较时间\(\SI{5}{ms}\)处评估，计算该远时间的组中位穿深，然后保留最接近该中位的行作为第一阶段代表性。这个选择是有意的：笔记本指出，非常早期的点更受液压延迟、分割模糊和相对误差影响，而远时间穿深更稳定，因此更适合选择典型轨迹。第一阶段因此不是在完整行分布上训练，而是在每个组中保留一个中位代表性拟合轨迹。
+
+特征缩放同样是有意的。穿深目标本身从四个拟合常数在固定\(\SI{0}{ms}\)到\(\SI{5}{ms}\)网格上解码并保持其物理拟合单位而不是标准化，这样学习的均值\(\mu\)和后续不确定性尺度保持直接可解释为穿深值。相比之下，网络输入是为优化稳定性而标准化的：时间映射到\([0,1]\)，静态几何和工况特征使用仅在训练子集上拟合的统计信息进行z得分，压力相关变量首先在对数域中表示，然后进行z得分。相同的scaler状态保存供后续推理在\texttt{toy\_inference\_from\_run.py}中重用。
+
+第一阶段使用的损失比普通MSE更结构化。网络发出每个点的两个输出\(\mu(x,t)\)和\(\log \sigma^2(x,t)\)，但代表性中位数据集主要用于学习均值趋势。实现的目标可以写成
+\[
+\begin{aligned}
+\mathcal{L}_{\mathrm{stage1}}
+=\;&
+\underbrace{\operatorname{MSE}\!\left(\mu,y\right)}_{\text{均值拟合}}
++\lambda_{\mathrm{var}}
+\underbrace{\mathbb{E}\!\left[\left(\log \sigma^2-c_0\right)^2\right]}_{\text{对数方差先验}}\\
+&+\lambda_{1}
+\underbrace{\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu}{\partial t}\right)^2\right]}_{\text{单调性}}
++\lambda_{2}
+\underbrace{\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu}{\partial t^2}\right)^2\right]}_{\text{瞬态后凹性}}.
+\end{aligned}
+\]
+其中
+\[
+g(t)=\sigma\!\left(\frac{t-t_c}{\tau_c}\right).
+\]
+在笔记本实现中，\(c_0=-2\)是第一阶段对数方差头的先验中心，导数通过在固定\(\SI{0}{ms}\)到\(\SI{5}{ms}\)时间网格上的一阶和二阶有限差分实现。对数方差输出在应用正则化之前被限制在有界区间内。
+
+这些导数惩罚被用作工程先验而不是完整的PINN残差。动机是直观且与前面论文中的经验穿深讨论一致：喷雾尖端穿深应随时间非递减，而在初始瞬态后不应继续无限加速。第一个惩罚阻止负斜率，而第二个惩罚仅在学习或预定的过渡区域后阻止正曲率。这种软门控凹性项很重要，因为它在SOI附近的早期时间加速留有空间，但将后期轨迹推向实践中观察到的减速形状。
+
+笔记本输出报告\texttt{input\_dim = 9}和\texttt{n\_points = 1024}。它还报告了589个代表性轨迹的阶段1行表，分为413个训练行、88个验证行和88个测试行。归档的运行配置显示了一个两输出MLP，带有dropout、GELU激活和导数相关惩罚。重要的是，存储的配置还保持\texttt{physics.weight = 0.0}。因此，存档模型最好被描述为物理缩放和软正则化的MLP，而不是完整的PDE残差PINN。在第一阶段，第二个输出头主要保留用于架构连续性，而损失仍主要由MSE在代表性中位目标上主导。
+
+除了明确的损失项外，存档配置还使用了几种标准正则化设备：隐藏层中的dropout、AdamW权重衰减、梯度裁剪和验证损失的早停。与上述导数惩罚结合，这些构成了当前存储阶段的实用替代方案，用于硬物理约束网络。
 
 \subsection{\codepath{MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}
 
-Stage 2 从 stage 1 warm-start，扩展到全部通过远时刻筛选的拟合轨迹，并用异方差高斯 NLL 同时学习均值和方差。它在归档日志中表现良好，但由于缺失专门的 stage-2 checkpoint 和部分中间训练目录，目前只能算作部分完成的结果。
+第二笔记本继续从第一阶段架构并用异方差高斯负对数似然替换第一阶段损失。简化形式为
+\[
+\mathcal{L}_{\mathrm{NLL}}
+=
+\frac{1}{2}
+\left[
+\log \sigma^2(x,t)
++
+\frac{\left(y-\mu(x,t)\right)^2}{\sigma^2(x,t)}
+\right].
+\]
+
+第二阶段数据集有意比第一阶段种子集更广泛，但仍然经过筛选。与只取每组一个中位代表性行不同，笔记本保留了所有在相同比较时间\(\SI{5}{ms}\)下通过远时间选择规则的行。具体来说，它从四个拟合常数重建该时间戳的穿深及其时间导数，移除组内远时间穿深为稳健z得分异常值的行，移除在该比较点导数基本平坦的退化行。这是在早期\texttt{fit\_raw\_data.py}掩码阶段之上的第二个稳健性屏障。
+
+第二阶段还重用第一阶段的缩放和初始化逻辑。笔记本明确加载\texttt{best\_model\_stage1.pt}、\texttt{scaler\_state.json}和存储的训练配置后继续优化。特征映射保持相同的九维物理缩放输入向量，因此第二阶段最好被理解为第一阶段均值模型的热启动异方差改进，而不是完全独立的模型家族。
+
+在该设置下，高斯条件模型是一个合理的工程选择。行级扩散不归因于一个已知的物理扰动；而是被视为在重过滤后未解决的喷嘴和测量效应的聚合残差。在预喷注入中这尤其合理，因为短脉冲长度放大了液压开启瞬态、小的时间偏移和其他加性扰动相对于整体事件持续时间的影响\cite{ZhouLiYi2021}。因此，NLL目标在这里被用作一种实用方法，学习剩余数据云在何处狭窄，在何处宽广，同时将不确定性预测与第一阶段学习的相同均值轨迹模型耦合。
+
+第二阶段目标保持相同的几何正则化，同时用异方差负对数似然替换第一阶段MSE项：
+\[
+\mathcal{L}_{\mathrm{stage2}}
+=
+\underbrace{\mathbb{E}\!\left[
+\frac{1}{2}
+\left(
+\log \sigma^2
++
+\frac{(y-\mu)^2}{\sigma^2}
+\right)\right]}_{\text{异方差高斯NLL}}
++\lambda_{1}
+\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu}{\partial t}\right)^2\right]
++\lambda_{2}
+\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu}{\partial t^2}\right)^2\right],
+\qquad
+\sigma^2=\exp(\log \sigma^2)+\varepsilon .
+\]
+与第一阶段一样，实现将\(\log \sigma^2\)限制在有界区间内，并通过固定时间网格上的有限差分计算导数惩罚。概念差异在于方差头不再仅仅被正则化到先验；而是现在通过NLL项直接训练。这就是为什么从第一阶段热启动很重要的原因：均值分支已经编码了稳定的穿深趋势，因此第二阶段可以将其容量用于改进均值和学习条件依赖的残差尺度，而不是从头开始重新学习整个轨迹。
+
+同样保留了单调性和延迟凹性先验。它们不是作为喷雾的精确控制方程，而是作为比直接PINN公式更弱和更稳健的形状约束。实际上，模型被告知穿深应随时间增长，且在瞬态区域后不应继续加速，而剩余未解释的扩散则委托给异方差方差头和NLL目标。
+
+存档笔记本输出报告了21,177个轨迹的行表，分为14,825个训练行、3,176个验证行和3,176个测试行。笔记本还打印了玩具推理期间的标准差范围，这证实了第二输出头在笔记本会话中被用作不确定性估计。
+
+然而，第二阶段结果必须谨慎处理。归档的 run 目录\codepath{MLP/runs_mlp/stage2_NLL_penetration_20260317_194155}包含日志、scaler状态、配置和\codepath{loss_curves.png}，但不包含\codepath{best_model_stage2.pt}。此外，归档的运行配置指向\codepath{MLP/data_penetration}，该目录在当前工作区中不存在。因此，本论文将第二阶段视为存档的部分结果，而不是完全包装的发布模型。
 
 \subsection{Warm-start 原始 CDF 细化与保守蒸馏}
 
-第三阶段的设计动机与英文稿一致：早期 raw CDF 轨迹比拟合曲线更能保留真实瞬态，但晚期又受到右删失污染，因此需要把可靠的 raw 早期监督与教师模型提供的保守延拓结合起来，而不是直接把消失的晚期观测当成硬标签。
+存档的NLL阶段即使在整体时间轴上也不是同样忠实于训练目标。实际弱点出现在注入开始时。在该区域，绝对穿深很小，因此任何时间偏移、拟合延迟模糊或平滑性先验都会产生相对较大的分数误差。图~\ref{fig:stage2-toy-inference-early-time}说明了在代表性玩具推理扫描中的这种行为：均值预测平滑且具有不确定性感知，但曲线的最早部分仍然主要由拟合目标先验塑造，而后期部分接近实际光学观测限制在\(\SI{90}{mm}\)附近。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.82\linewidth]{images/stage2_toy_inference_2000bar_5bar.png}
-\caption{代表性 stage-2 toy inference，可见早期仍受拟合先验影响。}
+\caption{对存档第二阶段NLL模型的代表性\(\SI{2000}{bar}\)，\(\SI{5}{bar}\)案例的玩具推理。该图说明了为什么需要后续原始序列细化：异方差预测平滑且表现良好，但轨迹的最早部分仍然主要受拟合目标先验影响，而后期部分接近实际光学观测限制。}
 \label{fig:stage2-toy-inference-early-time}
 \end{figure}
 
+因此，在\texttt{MLP/distillation\_plus\_raw\_series.ipynb}中设计了后续细化阶段。不是从头开始训练新的模型家族，而是热启动NLL模型，然后用原始\texttt{cdf}时间序列和教师指导进行细化。动机有两个。首先，原始\texttt{cdf}轨迹保留了早期时间喷雾增长比降阶拟合曲线更直接。其次，已经训练的NLL模型提供了一个稳定的教师分布，防止细化模型在直接监督稀疏时漂移到不合理形状。在这种细化观点中，均值头被有意拉近原始早期时间观测，同时被锚定在物理上有意义的参考\(\mu(t=0)\approx0\)。
+
+主要障碍是原始序列本身也是右截断的。光学视场名义上限制在约\(\SI{90}{mm}\)，并且项目中使用的简单轴向校正使有效轴向限制通过倾斜角度余弦投影略微增大。实际上，随着破碎过程的进行，晚期信号也会变弱，因此原始\texttt{cdf}轨迹的后期部分在达到几何限制之前就变得越来越不可靠。因此，原始晚期标签不能简单地被视为同样可信的回归目标。
+
+实现的响应是保守而非乐观的。对于每个工况组，原始\texttt{cdf}观测按时间分箱，可用样本数用作覆盖代理。在覆盖峰值附近的箱标记为\texttt{raw\_reliable}；在持续下降后的箱标记为\texttt{raw\_uncertain}；在覆盖变得非常稀疏的箱标记为\texttt{teacher\_only}。仅在可靠区域保留直接原始监督。在不确定和仅教师区域，监督被替换为来自热启动教师模型的蒸馏，而不是信任向下偏置的截断原始点。这不声称精确重建隐藏的真实晚期穿深。而是用作偏置缓解策略：更好的解析原始观测被允许细化早期时间动态，而右截断尾部通过保守的模型辅助延续处理，这样均值头不会被消失的观测向下拉拽。
+
 \subsection{原型推理 notebook}
 
-\codepath{MLP/toy_inference_from_run.ipynb} 用于从保存的 run 目录加载模型和 scaler，生成均值/标准差曲线，并与简化几何掩膜叠加。它证明了推理链是可打通的，但当前仍只是原型。
+笔记本\codepath{MLP/toy_inference_from_run.ipynb}演示了如何加载归档的 run 目录进行手动推理。存档输出显示，当指向上述第二阶段运行目录时，原型识别出的可用 checkpoint 为\codepath{best_model_stage1.pt}。然后生成均值和标准差曲线，并在简单几何掩码上叠加。
+
+该原型作为概念证明是有用的，因为它练习了缩放状态、训练网络接口和简单的下游可视化路径。它不在此用作完成碰撞检测产品的证据。
 
 \section{结果}
 
+
+
 \subsection{已提取与清洗的轨迹资产}
 
-当前工作区包含多个 campaign 文件夹以及 295 个 clean fitted CSV 文件，说明图像处理和 clean-fit 阶段已经形成了一套可审计的数据资产。
+当前工作区在 \texttt{MLP/synthetic\_data} 下包含 10 个 campaign 文件夹，并在对应的 \texttt{clean} 子文件夹中保存了 295 个 clean fitted CSV 文件。这说明图像处理工作流并非停留在草稿阶段，而是已经从多个 campaign 文件夹中生成了大量面向穿深建模的清洗资产。
+
+图~\ref{fig:clean-fit-example} 展示了归档输出目录中的代表性清洗后穿深图。实线曲线表示清洗后的轨迹，虚线曲线表示由 \texttt{cdf} 路径得到的降阶拟合曲线。该图清楚说明了 \texttt{MLP/fit\_raw\_data.py} 的实际作用：在不丢失主要时间结构的前提下，把原始喷雾轨迹平滑到适合后续建模的程度。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
-\caption{代表性的 clean trajectory 与 fitted curve 图。}
+\caption{来自 \codepath{MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/plots_clean/T1.png} 的代表性清洗轨迹与拟合曲线。该图在此作为直接证据，说明轨迹清洗与拟合阶段已经产出了可重复使用的穿深目标。}
 \label{fig:clean-fit-example}
 \end{figure}
 
 \subsection{Stage-1 基线模型}
 
-Stage 1 的归档 run 目录包含完整 checkpoint、配置和训练日志。最佳归档验证 MSE 为 23.26，出现在第 429 个 epoch。这是当前最完整、最明确的 surrogate 结果。
+第一阶段基准是存储库中最强的存档预测结果。表~\ref{tab:model-summary}总结了主要定量证据。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/stage1_loss_curves.png}
-\caption{归档的 stage-1 loss 曲线。}
+\caption{从\codepath{MLP/runs_mlp/stage1_median_penetration_20260306_172838/loss_curves.png}复制的存档第一阶段损失曲线。}
 \label{fig:stage1-loss}
 \end{figure}
 
+运行目录 \codepath{stage1_median_penetration_20260306_172838} 包含可部署的 \codepath{best_model_stage1.pt}、scaler 状态、配置、各 epoch 损失日志、迭代损失日志以及保存的 loss 曲线图。直接读取 epoch 日志可知，最佳归档验证损失出现在第 429 个 epoch，对应验证 MSE 为 23.26。这是当前项目中最完整的 surrogate 模型工件。
+
+同样重要的是，该第一阶段结果代表什么。它不是所有原始拟合行的均值。它是一个故意稳定的基准，训练于589个在\(\SI{5}{ms}\)处选择的中位代表性轨迹，经过早期曲线拟合掩码已经移除了不合理的行。换句话说，第一阶段是一个热启动均值模型，训练于保守子集，其目的是在引入方差建模之前学习主要穿深趋势。
+
 \subsection{Stage-2 不确定性感知扩展}
 
-Stage 2 的归档日志显示最佳验证 NLL 为 2.449，出现在第 570 个 epoch。它说明异方差扩展在 warm-start 和重筛选数据条件下具有可行性，但由于缺少完整打包模型，当前仍应视为部分结果。
+存档的第二阶段笔记本和运行日志显示，不确定性感知扩展已积极训练，其验证 NLL 在训练过程中显著下降。根据 \codepath{stage2_NLL_penetration_20260317_194155/epoch_loss.csv} 中的 epoch 日志，最佳归档验证损失出现在第 570 个 epoch，对应数值为 2.449。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/stage2_loss_curves.png}
-\caption{归档的 stage-2 loss 曲线。}
+\caption{从\codepath{MLP/runs_mlp/stage2_NLL_penetration_20260317_194155/loss_curves.png}复制的存档第二阶段损失曲线。}
 \label{fig:stage2-loss}
 \end{figure}
+
+第二阶段的数据集构建方式与第一阶段明显不同，这也解释了为何此处采用 NLL 目标。第二阶段从保存的第一阶段权重出发，沿用相同的特征缩放方式，把行表扩展到 21,177 条经筛选的轨迹，再在更宽的分布上联合优化均值与方差。由于数据已经经过拟合级掩码和远时刻 z-score 过滤，剩余离散度较少由明显拟合失败主导，而更多反映归档数据集中的真实工况变化。在这样一个高度筛选且 warm-start 的环境中，归档日志支持这样一种判断：异方差回归能够较好处理剩余问题，NLL 持续改善，预测标准差在推理时保持非平凡水平，而且模型会在轨迹家族重复性较弱的区域分配更宽的不确定性。
+
+话虽如此，结果边界仍然十分重要。归档的第二阶段 run 目录并不包含专用的 stage-2 checkpoint，而训练配置又指向当前工作区中不存在的中间文件夹。因此，本文把第二阶段表述为部分结果，而不是最终可发布模型。
 
 \subsection{原型推理 notebook}
 
@@ -418,13 +759,30 @@ Stage 2 NLL 扩展 & 归档 notebook 输出：21,177 行，划分为 14,825/\all
 
 \subsection{结果边界与可复现性状态}
 
-当前最强的可复现证据来自提取、清洗和 stage-1 基线归档；最薄弱之处在于 stage-2 缺少专门 checkpoint 和中间训练目录。因此，本文在结果表述上对 stage 2 保持边界意识，不把它写成已完全闭环的部署模型。
+本文中的证据来自三个层级：
+\begin{enumerate}
+  \item 当前工作区中直接存在的资产，例如清洗 CSV、归档图和运行日志；
+  \item 嵌入归档 notebook 中的历史输出；
+  \item 归档保存的运行配置与 checkpoint。
+\end{enumerate}
+
+当前工作区中可复现性最强的部分，是提取、清洗与第一阶段基线归档。最薄弱之处则在于第二阶段的打包边界：运行日志虽然存在，但专用的 stage-2 checkpoint 以及其引用的中间 \codepath{MLP/data_penetration} 文件夹并不在当前工作区中。这一限制直接决定了结果应如何被解释，并贯穿全文结论。
 
 \section{结论}
 
-本文建立了一条从高速 Mie 散射喷雾视频到穿深导向工程观测量、再到归档 surrogate 模型的证据化工作流。当前完成度最高的贡献包括：\texttt{GUI.py} 中的人工标定、\texttt{main.py} 中的批量 plume 特征提取、\codepath{MLP/fit_raw_data.py} 中的 clean-fit 阶段，以及带完整 checkpoint 的 stage-1 确定性穿深模型。
+本论文记录了一条基于证据的工作流，用于处理高速 Mie 散射喷雾视频，将其转换为面向穿深的工程观测量，并在这些观测量之上构建归档的 surrogate 模型。当前完成度最高的贡献包括：
+\begin{itemize}
+  \item \texttt{GUI.py} 中的手动喷嘴中心标定，
+  \item \texttt{main.py} 中的批量逐 plume 特征提取，
+  \item \codepath{MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合，以及
+  \item 已完成归档的第一阶段确定性穿深模型，其 checkpoint 和运行日志均已保存。
+\end{itemize}
 
-Stage-2 异方差扩展很有前景，但在当前工作区中仍未打包完整。原型推理 notebook 则说明模型加载、曲线可视化和简单几何叠加都已经可行，但经过验证的碰撞预测与完整部署仍属于未来工作。
+第二阶段异方差模型很有前景，但作为发布工件在当前工作区中仍不完整。归档日志与 notebook 输出显示，在从 MSE 基线 warm-start 并基于高度筛选后的轨迹数据继续训练后，不确定性感知扩展取得了更好的 NLL 值，也给出了非平凡的标准差预测。这与第二阶段的预期定位是一致的：当明显拟合失败已被剔除后，异方差回归能够比恒定方差目标更好地处理剩余的输入依赖离散度。然而，缺失专用 stage-2 checkpoint 和中间训练文件夹，意味着第二阶段还不能被当作最终部署模型来呈现。
+
+原型推理 notebook 已经展示出有价值的软件方向：可以加载归档模型工件、可视化穿深曲线，并生成简单的几何叠加。即便如此，经过验证的撞壁预测、完整的二维包络重建以及完全打包的不确定性感知部署，仍然属于后续工作。
+
+总之，该项目已经实现了一条能够从 Mie 散射视频中提取并建模喷雾穿深的、实用且可信的工程工作流。接下来的开发优先事项也很明确：完整打包第二阶段模型，保存归档运行所使用的中间训练数据集，并在把任何未来的几何交互模块提升为论文级结果之前，先针对明确的实验或仿真目标验证其原型状态。
 
 \thesisbibliography
 

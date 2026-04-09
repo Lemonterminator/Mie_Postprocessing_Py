@@ -72,6 +72,7 @@ from OSCC_postprocessing.analysis.single_plume import (
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density_auto
 from OSCC_postprocessing.binary_ops.binarized_metrics import processing_from_binarized_video
 from OSCC_postprocessing.binary_ops.functions_bw import keep_largest_component_cuda
+from OSCC_postprocessing.binary_ops.thresholding import triangle_binarize_from_float
 from OSCC_postprocessing.binary_ops._backend import cndi
 from OSCC_postprocessing.utils.scaling import robust_scale
 import pandas as pd
@@ -88,7 +89,16 @@ else:
         rotate_video_nozzle_at_0_half_numpy as rotate_video_nozzle_at_0_half_backend,
     )
 
-triangle_binarize_gpu = _triangle_binarize_gpu
+def _triangle_binarize_with_fallback(arr, ignore_zeros: bool = False):
+    try:
+        return _triangle_binarize_gpu(arr, ignore_zeros=ignore_zeros)
+    except Exception:
+        arr_np = _as_numpy(arr).astype(np.float32, copy=False)
+        bw_np, _ = triangle_binarize_from_float(arr_np, blur=True, ignore_zero=ignore_zeros)
+        return xp.asarray(bw_np > 0)
+
+
+triangle_binarize_gpu = _triangle_binarize_with_fallback
 
 
 def _as_numpy(arr):
@@ -256,17 +266,23 @@ def mie_multihole_postprocessing(foreground, highpass,
     # === Compute Occupied Angles ===
     # Create bin-wise mask and fill small gaps to get continuous plume regions
     bin_wise_mask = fill_short_false_runs(
-        _triangle_binarize_gpu(xp.sum(total_angular_signal_density, axis=0), ignore_zeros=True), 
+        triangle_binarize_gpu(xp.sum(total_angular_signal_density, axis=0), ignore_zeros=True), 
         max_len=3
         )
 
-    # Calculate angular span of each plume region
-    occupied_angles = periodic_true_segment_lengths(bin_wise_mask)
-    # Average angular width per plume in degrees
-    average_occupied_angle = (bin_wise_mask.sum() / bins * 360.0 / number_of_plumes).item()
+    # Calculate angular span of each plume region in periodic angle space.
+    occupied_segment_lengths_bins = _as_numpy(periodic_true_segment_lengths(bin_wise_mask)).astype(np.int64, copy=False)
+    occupied_segment_widths_deg = occupied_segment_lengths_bins.astype(np.float64) * 360.0 / float(bins)
+    occupied_angle_total_deg = float(_as_numpy(bin_wise_mask.sum()) * 360.0 / float(bins))
+    occupied_angle_segment_count = int(occupied_segment_widths_deg.size)
+    cone_angle_proxy_deg = (
+        float(np.mean(occupied_segment_widths_deg))
+        if occupied_angle_segment_count > 0
+        else float("nan")
+    )
 
     # Generate 2D angular mask from the 1D signal density
-    angular_mask = generate_angular_mask_from_tf(H, W, centre, total_angular_signal_density, bins)
+    angular_mask = generate_angular_mask_from_tf(H, W, centre, bin_wise_mask, bins)
 
     ang_int_sum = _min_max_scale(xp.sum(total_angular_signal_density, axis=0))
 
@@ -317,7 +333,16 @@ def mie_multihole_postprocessing(foreground, highpass,
     segments_fg *= xp.asarray(plume_mask[None, None, :, :])
 
 
-    return segments_fg
+    return {
+        "segments_fg": segments_fg,
+        "cone_angle_proxy_deg": cone_angle_proxy_deg,
+        "occupied_angle_total_deg": occupied_angle_total_deg,
+        "occupied_angle_segment_count": occupied_angle_segment_count,
+        "occupied_angle_segment_widths_deg": occupied_segment_widths_deg,
+        "occupied_angle_mask": _as_numpy(bin_wise_mask).astype(bool, copy=False),
+        "fft_offset_deg": float(_as_numpy(offset)),
+        "plume_angles_deg": np.asarray(angles, dtype=float),
+    }
 
 
 def robust_scale_arr_4d(arr_4d, q_min=5, q_max=99):
@@ -329,7 +354,13 @@ def robust_scale_arr_4d(arr_4d, q_min=5, q_max=99):
         
     return arr_4d
 
-def penetration_cdf_all_plumes(arr_4d, inner_radius, quantile = 1.0-3e-2, frames_before_SOI=10):
+def penetration_cdf_all_plumes(
+    arr_4d,
+    inner_radius,
+    quantile=1.0 - 3e-2,
+    frames_before_SOI=10,
+    umbrella_angle=180.0,
+):
 
     # Sum over H axis
     heatmaps = xp.sum(arr_4d, axis=2) # P, F, W
@@ -364,9 +395,17 @@ def penetration_cdf_all_plumes(arr_4d, inner_radius, quantile = 1.0-3e-2, frames
         xhat = penetration_cdf_front(I, mask=mask, q=quantile, min_x=10)
         xhat_all[idx] = xhat
 
+    if umbrella_angle == 180.0:
+        x_scale = 1.0
+    else:
+        tilt_angle = (180.0 - float(umbrella_angle)) / 2.0
+        x_scale = 1.0 / np.cos(np.deg2rad(tilt_angle))
+
     # Now penetration_cdf_all contains the computed curves for all indices
     penetration_cdf_all = cp.asnumpy(xhat_all) if use_gpu else np.asarray(xhat_all)
     penetration_cdf_all = np.maximum.accumulate(penetration_cdf_all, axis=1)
     
-    # Offset: inner radius 
-    return np.maximum(0, penetration_cdf_all-inner_radius)
+    # Offset to the orifice-local origin, then correct projected x-distance
+    # for non-180 deg umbrella geometry so all penetration outputs share the
+    # same in-plane definition before later px->mm calibration.
+    return x_scale * np.maximum(0, penetration_cdf_all - inner_radius)

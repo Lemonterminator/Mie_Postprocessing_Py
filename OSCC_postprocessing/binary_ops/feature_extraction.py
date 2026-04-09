@@ -142,6 +142,7 @@ def extract_single_plume_features(
     )
     if inner_radius:
         penetration_bw_x = np.maximum(0.0, penetration_bw_x - float(inner_radius))
+    penetration_bw_x = x_scale * penetration_bw_x
 
     # Boundary extraction is the bridge from a binary plume mask to interpretable
     # geometry. Each frame is reduced to upper and lower boundary point clouds.
@@ -192,7 +193,7 @@ def extract_single_plume_features(
     # on the plume flank rather than the root or extreme tip.
     points_all_frames = bw_boundaries_xband_filter_single_plume(
         boundary_split_points,
-        x_scale * to_numpy_host(penetration_bw_x),
+        to_numpy_host(penetration_bw_x),
     )
 
     lg_up = np.full(frame_count, np.nan)
