@@ -19,7 +19,9 @@ Domain-facing logic. This is the part most users likely think of as the main lib
 
 - `multihole_processing.py`: shared preprocessing and penetration extraction for multi-hole spray videos
 - `single_plume.py`, `penetration_cdf.py`, `cone_angle.py`, `hysteresis.py`: derived metrics and signal extraction
-- `thresholding.py`, `backend.py`: analysis-layer compatibility wrappers around shared utilities
+- `thresholding.py`: canonical triangle-threshold entry point and array-backend reexports
+- `multihole_utils.py`: compatibility shim for older notebooks; prefer the canonical modules above
+- `backend.py`: shared backend selection helpers
 - `nozzle.py`, `circ_calculator.py`, `regression.py`, `video_utils.py`: supporting geometry and analysis utilities
 
 Risk:
@@ -44,6 +46,7 @@ Risk:
 Binary mask creation and shape extraction.
 
 - thresholding, connected components, morphology, masking, boundaries, and binary metrics
+- `thresholding.py` now owns the unified triangle-threshold implementation used by both CPU and GPU call sites
 
 Risk:
 - functionality is split across several overlapping files
@@ -98,6 +101,11 @@ Some functions return NumPy unconditionally, some preserve CuPy, and some let `u
 5. Historical notebook assumptions leak into modules.
 
 Examples include silent printing, implicit shape conventions, and compatibility helpers kept only because old notebooks imported them directly.
+
+For the triangle-threshold workflow specifically, the current canonical import is
+`OSCC_postprocessing.analysis.thresholding.triangle_binarize`. The legacy
+`triangle_binarize_gpu` name is retained only as a compatibility alias while
+the examples and notebooks are migrated.
 
 ## Recommended Reorganization
 

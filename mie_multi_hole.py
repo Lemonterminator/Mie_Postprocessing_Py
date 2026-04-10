@@ -1,50 +1,75 @@
-from OSCC_postprocessing.cine.functions_videos import *
-from OSCC_postprocessing.rotation.segment_ops import *
-from OSCC_postprocessing.analysis.cone_angle import *
-from OSCC_postprocessing.metrics.ssim import *
-from OSCC_postprocessing.filters.video_filters import *
-from OSCC_postprocessing.binary_ops.functions_bw import *
-from OSCC_postprocessing.playback.video_playback import *
-from OSCC_postprocessing.utils.scaling import *
+import time
+import warnings
+from pathlib import Path
+
+import numpy as np
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import re
 import gc
 import json
-from pathlib import Path
 import pandas as pd
-from mie_multihole_pipeline import * 
+
+# ---- Library imports ----
+from OSCC_postprocessing.cine.functions_videos import load_cine_video, get_subfolder_names, cine
+from OSCC_postprocessing.binary_ops.functions_bw import spary_features_from_bw_video
+from OSCC_postprocessing.binary_ops.masking import generate_ring_mask
+from OSCC_postprocessing.playback.video_playback import play_video_cv2
+from OSCC_postprocessing.utils.scaling import robust_scale
+from OSCC_postprocessing.analysis.hysteresis import remove_short_true_runs
+from OSCC_postprocessing.utils.backend import cp, xp, USING_CUPY
+from OSCC_postprocessing.analysis.single_plume import save_boundary_csv
+
+# ---- Mie multihole pipeline (library module) ----
+from OSCC_postprocessing.analysis.mie_multihole import (
+    mie_multihole_preprocessing,
+    mie_multihole_postprocessing,
+    penetration_cdf_all_plumes,
+    triangle_binarize_gpu,
+)
+
+# ---- Experiment config utilities (library module) ----
+from OSCC_postprocessing.utils.experiment_config import (
+    extract_cine_number,
+    load_experiment_config,
+    get_nozzle_properties,
+    get_test_condition_by_id,
+    compute_injection_duration_us,
+    extract_group_id_from_path,
+)
+
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # =============================================================================
 # Experiment Config Loading and Results Management
 # =============================================================================
 # Previous 2024 nozzle batch configuration kept here for reference:
-# parent_folders = [
-#     r"F:\LubeOil\BC20241003_HZ_Nozzle1\cine",
-#     r"F:\LubeOil\BC20241017_HZ_Nozzle2\cine\single",
-#     r"F:\LubeOil\BC20241014_HZ_Nozzle3\Cine",
-#     r"F:\LubeOil\BC20241007_HZ_Nozzle4\cine",
-#     r"F:\LubeOil\BC20241010_HZ_Nozzle5\Cine",
-#     r"F:\LubeOil\BC20241011_HZ_Nozzle6\Cine",
-#     r"F:\LubeOil\BC20241015_HZ_Nozzle7\Cine",
-#     r"F:\LubeOil\BC20241016_HZ_Nozzle8\Cine",
-# ]
+parent_folders = [
+     r"F:\LubeOil\BC20241003_HZ_Nozzle1\cine",
+     r"F:\LubeOil\BC20241017_HZ_Nozzle2\BC20241017_HZ_Nozzle2\single",
+     r"F:\LubeOil\BC20241014_HZ_Nozzle3\Cine",
+     r"F:\LubeOil\BC20241007_HZ_Nozzle4\cine",
+     r"F:\LubeOil\BC20241010_HZ_Nozzle5\Cine",
+     r"F:\LubeOil\BC20241011_HZ_Nozzle6\Cine",
+     r"F:\LubeOil\BC20241015_HZ_Nozzle7\Cine",
+     r"F:\LubeOil\BC20241016_HZ_Nozzle8\Cine",
+]
 #
-# experiment_configs = [
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle2.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle3.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle4.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle5.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle6.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle7.json",
-#     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json",
-# ]
+experiment_configs = [
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle1.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle2.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle3.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle4.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle5.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle6.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle7.json",
+     r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json",
+]
 
-parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
+# parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
 
-experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"]
+# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"]
 
 
 # Optional single-run fallback used by CLI/env overrides.
@@ -59,16 +84,39 @@ DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier= 2 # Nozzle 1-8: 3; DS300: 2
+noise_floor_multiplier = 2  # Nozzle 1-8: 3; DS300: 2
+
+# Pre-processing histogram scaling settings
+sobel_wsize=3
+sobel_sigma=1
+threshold=0.02
+q_min_foreground=5
+q_max_foreground=99.99
+q_min_highpass=5
+q_max_highpass=99.9999
+
+# Image rotation settings
+angular_bins=720
+interpolation_mode="nearest"    # "bilinear", "bicubic", "lanczos3"
+border_mode = "constant"        # "constant","replicate","reflect"
+
+# Upper quantile settings for Penetration by culmulative distribution function (penetration cdf)
+upper_quantile_cdf = 1-5e-3 # Penetration is set at column-wise summed image at x-distance that has 1-5e-3=99.5% of total intensity
+
+# BW feature extraction settings
 nozzle_opening_detection_height = 20
 nozzle_opening_detection_width = 30
-thres_penetration_num_pix = 5 # minimum width of the binarizaed spary for x-axis penetration detection
-save_boundary_points_csv = True
+thres_penetration_num_pix = 5  # minimum width of the binarized spray for x-axis penetration detection
+segment_bw_q_min = 5
+segment_bw_q_max = 99.9
+penetration_cleanup_min_len = 5
+
+save_boundary_points_csv = False
 
 # =============================================================================
 # Default nozzle properties, safe fall back if not defined in test matrix or in cine.
 # =============================================================================
-FPS_default = 34000 # 25000
+FPS_default = 34000  # 25000
 injection_pressure_bar_default = 2000
 control_backpressure_bar_default = 4
 umbrella_angle_deg_default = 180
@@ -99,12 +147,8 @@ def _save_metrics_and_metadata_csv(
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
 
-def _get_mm_per_px_scale(dataset_name: str) -> float:
-    if dataset_name == "BC20220627 - Heinzman DS300 - Mie Top view":
-        or_mm_per_px_reference = 412.0
-    else:
-        or_mm_per_px_reference = 377.0
-    return 90.0 / float(or_mm_per_px_reference)
+def _get_mm_per_px_scale(outer_radius:float) -> float:
+    return 90.0 / float(outer_radius)
 
 
 def _append_penetration_mm_columns(df: pd.DataFrame, mm_per_px_scale: float) -> pd.DataFrame:
@@ -244,313 +288,6 @@ def _compute_spray_metrics_for_segment(args):
         metrics = _empty_spray_metrics(num_frames)
     return idx, metrics
 
-def load_experiment_config(json_path: str | Path) -> dict:
-    """
-    Load experiment configuration from a JSON file.
-    
-    Parameters
-    ----------
-    json_path : str or Path
-        Path to the JSON configuration file.
-        
-    Returns
-    -------
-    dict
-        Parsed configuration dictionary.
-    """
-    with open(json_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-def get_nozzle_properties(config: dict) -> dict:
-    """
-    Extract nozzle properties from the configuration.
-    
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary loaded from JSON.
-        
-    Returns
-    -------
-    dict
-        Dictionary containing plumes, diameter_mm, umbrella_angle_deg, fps.
-    """
-    return config.get("nozzle_properties", {})
-
-def expand_test_matrix(config: dict) -> list[dict]:
-    """
-    Expand the test matrix into a list of individual test conditions.
-    
-    Handles both simple cartesian expansion and grouped configurations.
-    Each returned dict includes an 'id' key for group identification.
-    
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary loaded from JSON.
-        
-    Returns
-    -------
-    list of dict
-        List of test conditions, each with keys like:
-        - id: int (1-indexed group ID)
-        - chamber_pressure_bar: float
-        - injection_duration_us: float
-        - injection_pressure_bar: float (if applicable)
-    """
-    from itertools import product
-    
-    matrix = config.get("test_matrix", {})
-    results = []
-    group_id = 1
-    
-    # Case 1: Simple cartesian expansion
-    if matrix.get("expansion") == "cartesian":
-        pressures = matrix.get("chamber_pressures_bar", [])
-        durations = matrix.get("injection_durations_us", [])
-        
-        for p, d in product(pressures, durations):
-            results.append({
-                "id": group_id,
-                "chamber_pressure_bar": p,
-                "injection_duration_us": d,
-            })
-            group_id += 1
-    
-    # Case 2: Grouped configuration (e.g., Nozzle2, DS300)
-    elif "groups" in matrix:
-        for group in matrix["groups"]:
-            # If group has explicit id, use it directly
-            if "id" in group:
-                results.append({
-                    "id": group["id"],
-                    "chamber_pressure_bar": group.get("chamber_pressure_bar"),
-                    "injection_pressure_bar": group.get("injection_pressure_bar"),
-                    "control_backpressure": group.get("control_backpressure"),
-                })
-            # If group needs cartesian expansion
-            elif group.get("expansion") == "cartesian":
-                pressures = group.get("chamber_pressures_bar", [])
-                durations = group.get("injection_durations_us", [])
-                inj_pressure = group.get("injection_pressure_bar")
-                
-                for p, d in product(pressures, durations):
-                    results.append({
-                        "id": group_id,
-                        "chamber_pressure_bar": p,
-                        "injection_duration_us": d,
-                        "injection_pressure_bar": inj_pressure,
-                    })
-                    group_id += 1
-    
-    return results
-
-def get_test_condition_by_id(config: dict, group_id: int) -> dict | None:
-    """
-    Get a specific test condition by its group ID.
-    
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary loaded from JSON.
-    group_id : int
-        The group ID to look up.
-        
-    Returns
-    -------
-    dict or None
-        The test condition dictionary, or None if not found.
-    """
-    conditions = expand_test_matrix(config)
-    for cond in conditions:
-        if cond.get("id") == group_id:
-            return cond
-    return None
-
-def extract_cine_number(file_path: Path | str) -> int | None:
-    """
-    Extract cine number from filename stem (e.g., '121.cine' -> 121).
-    """
-    path = Path(file_path)
-    match = re.search(r"\d+", path.stem)
-    if not match:
-        return None
-    return int(match.group(0))
-
-def compute_injection_duration_us(
-    config: dict,
-    cine_number: int | None,
-    fallback: float | int | None = None,
-) -> float | int | None:
-    """
-    Compute injection duration from config lookup formula, if available.
-    Falls back to the provided constant value when lookup is unavailable.
-    """
-    if cine_number is None:
-        return fallback
-
-    lookup = config.get("injection_duration_lookup", {})
-    formula = lookup.get("formula", {})
-    block_expr = formula.get("block")
-    rules = formula.get("rules", [])
-
-    if not block_expr or not rules:
-        return fallback
-
-    safe_globals = {"__builtins__": {}}
-    local_vars = {"cine_number": cine_number}
-    try:
-        block = eval(str(block_expr), safe_globals, local_vars)
-        local_vars["block"] = block
-        for rule in rules:
-            condition_expr = rule.get("condition")
-            result_expr = rule.get("result")
-            if not condition_expr or result_expr is None:
-                continue
-            if bool(eval(str(condition_expr), safe_globals, local_vars)):
-                return eval(str(result_expr), safe_globals, local_vars)
-    except Exception:
-        return fallback
-
-    return fallback
-
-def extract_group_id_from_path(path: Path | str) -> int | None:
-    """
-    Extract the test group ID from a file or folder path.
-    
-    Assumes naming convention like 'T01', 'T1', 'Group_01', or just numeric folders.
-    
-    Parameters
-    ----------
-    path : Path or str
-        File or folder path to extract group ID from.
-        
-    Returns
-    -------
-    int or None
-        Extracted group ID, or None if not found.
-    """
-    path = Path(path)
-    # Try to find pattern like T01, T1, Group01, or just numbers
-    patterns = [
-        r'[Tt](\d+)',      # T01, T1, t01
-        r'[Gg]roup[_]?(\d+)',  # Group01, Group_01
-        r'^(\d+)$',        # Pure numeric folder name
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, path.stem)
-        if match:
-            return int(match.group(1))
-    return None
-
-def create_results_dataframe(
-    config: dict,
-    group_id: int,
-    file_name: str,
-    penetration_data: np.ndarray,
-    num_plumes: int,
-) -> pd.DataFrame:
-    """
-    Create a results DataFrame with experiment conditions and penetration data.
-    
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary loaded from JSON.
-    group_id : int
-        The test group ID.
-    file_name : str
-        Name of the processed cine file.
-    penetration_data : np.ndarray
-        Penetration data with shape (num_plumes, num_frames).
-    num_plumes : int
-        Number of plumes in the injector.
-        
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with columns for experiment conditions and penetration per plume.
-    """
-    import pandas as pd
-    
-    # Get test condition and nozzle properties
-    condition = get_test_condition_by_id(config, group_id) or {}
-    nozzle_props = get_nozzle_properties(config)
-    
-    num_frames = penetration_data.shape[1] if penetration_data.ndim > 1 else len(penetration_data)
-    
-    # Build base data
-    data = {
-        "file": [file_name] * num_frames,
-        "frame_idx": list(range(num_frames)),
-        "group_id": [group_id] * num_frames,
-        # Nozzle properties
-        "nozzle_name": [config.get("name", "")] * num_frames,
-        "plumes": [nozzle_props.get("plumes")] * num_frames,
-        "diameter_mm": [nozzle_props.get("diameter_mm")] * num_frames,
-        "umbrella_angle_deg": [nozzle_props.get("umbrella_angle_deg")] * num_frames,
-        "fps": [nozzle_props.get("fps")] * num_frames,
-        # Test conditions
-        "chamber_pressure_bar": [condition.get("chamber_pressure_bar")] * num_frames,
-        "injection_duration_us": [condition.get("injection_duration_us")] * num_frames,
-        "injection_pressure_bar": [condition.get("injection_pressure_bar")] * num_frames,
-    }
-    
-    # Add penetration data per plume
-    for plume_idx in range(num_plumes):
-        if penetration_data.ndim > 1:
-            data[f"penetration_plume_{plume_idx}"] = penetration_data[plume_idx]
-        else:
-            data[f"penetration_plume_{plume_idx}"] = penetration_data
-    
-    return pd.DataFrame(data)
-
-def append_to_master_dataframe(
-    master_df: pd.DataFrame | None,
-    new_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Append new results to the master DataFrame.
-    
-    Parameters
-    ----------
-    master_df : pd.DataFrame or None
-        Existing master DataFrame, or None to create new.
-    new_df : pd.DataFrame
-        New results to append.
-        
-    Returns
-    -------
-    pd.DataFrame
-        Combined DataFrame.
-    """
-    import pandas as pd
-    
-    if master_df is None or master_df.empty:
-        return new_df.copy()
-    return pd.concat([master_df, new_df], ignore_index=True)
-
-def save_master_dataframe(df: pd.DataFrame, output_path: str | Path, format: str = "csv"):
-    """
-    Save the master DataFrame to disk.
-    
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame to save.
-    output_path : str or Path
-        Output file path (without extension).
-    format : str
-        Output format: 'csv', 'parquet', or 'both'. Default is 'csv'.
-    """
-    output_path = Path(output_path)
-    
-    if format in ("csv", "both"):
-        df.to_csv(output_path.with_suffix(".csv"), index=False)
-    if format in ("parquet", "both"):
-        df.to_parquet(output_path.with_suffix(".parquet"), index=False)
-
 
 # Directory containing mask images and numpy files
 # DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -570,9 +307,9 @@ def numeric_then_alpha_key(p: Path):
     """
     m = re.search(r'\d+', p.stem)
     if m:
-        return (0, int(m.group(0)))          # group 0 = first number
+        return (0, int(m.group(0)))
     else:
-        return (1, p.name.lower())           # non-numeric go after (or before if you swap 0/1)
+        return (1, p.name.lower())
 
 
 def _ensure_directory(path: Path):
@@ -871,7 +608,7 @@ def _process_cine_file(
         retained_ring_mask = state["ring_mask"]
 
         # ========================================================================
-        # Actual Image processing 
+        # Actual Image processing
         # ========================================================================
 
         # Preprocessing and postprocessing remain on the active backend
@@ -879,9 +616,14 @@ def _process_cine_file(
         state["foreground"], state["highpass_filtered"] = mie_multihole_preprocessing(
             state["video"],
             state["ring_mask"],
-            wsize=3,
-            sigma=1,
+            wsize=sobel_wsize,
+            sigma=sobel_sigma,
             noise_floor_multiplier=noise_floor_multiplier,
+            threshold=threshold,
+            q_min_foreground=q_min_foreground,
+            q_max_foreground=q_max_foreground,
+            q_min_highpass=q_min_highpass,
+            q_max_highpass=q_max_highpass
         )
 
         state["postprocess"] = mie_multihole_postprocessing(
@@ -891,16 +633,21 @@ def _process_cine_file(
             number_of_plumes,
             ir_,
             or_,
+            bins=angular_bins,
+            INTERPOLATION=interpolation_mode,
+            BORDER_MODE=border_mode
         )
         state["hp_segments"] = state["postprocess"]["segments_fg"]
-        state["hp_segments_bw"] = triangle_binarize_gpu(robust_scale(state["hp_segments"], 5, 99.9))
+        state["hp_segments_bw"] = triangle_binarize_gpu(
+            robust_scale(state["hp_segments"], segment_bw_q_min, segment_bw_q_max)
+        )
         umbrella_angle_for_penetration = float(
             nozzle_props.get("umbrella_angle_deg", umbrella_angle_deg_default)
         )
         state["penetration_highpass"] = penetration_cdf_all_plumes(
             state["hp_segments"],
             ir_,
-            quantile=1.0 - 5e-3,
+            quantile=upper_quantile_cdf,
             umbrella_angle=umbrella_angle_for_penetration,
         )
 
@@ -925,7 +672,7 @@ def _process_cine_file(
         P, _ = state["valid_penetration_mask"].shape
         for p in range(P):
             state["valid_penetration_mask"][p] = remove_short_true_runs(
-                state["valid_penetration_mask"][p], min_len=5
+                state["valid_penetration_mask"][p], min_len=penetration_cleanup_min_len
             )
 
         state["cleaned_penetration_highpass"] = (
@@ -973,7 +720,7 @@ def _process_cine_file(
             )
 
         dataset_name = save_path_subfolder.parent.name
-        mm_per_px_scale = _get_mm_per_px_scale(dataset_name)
+        mm_per_px_scale = _get_mm_per_px_scale(or_)
         state["df"] = _append_penetration_mm_columns(state["df"], mm_per_px_scale)
 
         metadata_payload = {
@@ -1032,7 +779,7 @@ def _process_cine_file(
         _cleanup_iteration_state(state)
 
     return retained_ring_mask
-    
+
 
 async def _process_parent_folder(
     parent_folder: str | Path,
@@ -1042,7 +789,7 @@ async def _process_parent_folder(
     """Walk one parent folder and process each ``.cine`` file in order."""
     parent_folder = str(parent_folder)
     experiment_config = str(experiment_config)
-    subfolders = get_subfolder_names(parent_folder)  # Ensure get_subfolder_names is defined or imported
+    subfolders = get_subfolder_names(parent_folder)
 
     # Load experiment configuration
     exp_config = load_experiment_config(experiment_config)
@@ -1063,17 +810,16 @@ async def _process_parent_folder(
     try:
         for subfolder in subfolders:
             print(subfolder)
-        
+
             # Each subfolder corresponds to one testpoint and has its own
             # geometry/config metadata plus a list of cine files.
             directory_path = Path(parent_folder + "\\" + subfolder)
             save_path_subfolder = save_path / subfolder
             _ensure_directory(save_path_subfolder)
 
-
             # Sort once so repeated runs process files in a deterministic order.
             files = [file for file in directory_path.iterdir() if file.is_file()]
-            files = sorted(files, key=numeric_then_alpha_key)  
+            files = sorted(files, key=numeric_then_alpha_key)
             number_of_plumes, centre, ir_, or_ = _load_subfolder_config(files)
 
             # Map folder name (T1, T01, Group_01, ...) back to the matching test
@@ -1100,8 +846,6 @@ async def _process_parent_folder(
                     log_path=log_path,
                     checkpoint_path=checkpoint_path,
                 )
-
-
 
     except Exception as e:
         print(f"Error processing: {e}")
@@ -1174,8 +918,6 @@ if __name__ == '__main__':
     freeze_support()
 
     import argparse
-    import os
-    import asyncio, time
 
     parser = argparse.ArgumentParser(description="Run Mie post-processing pipeline")
     parser.add_argument(
@@ -1219,5 +961,3 @@ if __name__ == '__main__':
         )
     )
     print(f"Total elapsed: {time.time() - start:.2f}s")
-    
-

@@ -33,8 +33,10 @@ from .thresholding import (
     binarize_video_global_threshold,
     fill_video_holes_parallel,
     mask_video,
+    triangle_binarize,
     triangle_binarize_from_float,
     triangle_binarize_u8,
+    triangle_binarize_with_threshold,
 )
 
 __all__ = [
@@ -61,6 +63,8 @@ __all__ = [
     "open_video_parallel",
     "processing_from_binarized_video",
     "spary_features_from_bw_video",
+    "triangle_binarize",
     "triangle_binarize_from_float",
     "triangle_binarize_u8",
+    "triangle_binarize_with_threshold",
 ]

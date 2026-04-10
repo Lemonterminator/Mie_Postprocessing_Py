@@ -526,7 +526,9 @@ V_p(t)=x_{\mathrm{scale}} \frac{\pi}{4}\sum_x \left(w_u(t,x)+w_l(t,x)\right)^2,
 
 \subsection{\codepath{MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合}
 
-学习模型不直接在原始导出轨迹上训练。相反，\texttt{fit\_raw\_data.py}首先清洗它们。该脚本检测早期液压延迟，将轨迹移位以对齐喷雾开始，移除突然不现实的跳跃，将像素转换为校正的物理长度，并通过一组基于规则的掩码标记低质量拟合。
+学习模型不直接在原始导出轨迹上训练。相反，\texttt{fit\_raw\_data.py}首先对它们进行清洗与时间对齐。对每个 plume，该脚本先定位最早的有效穿深段，取起始后的前几个非零样本点（当前由 \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} 控制，默认是 2 个），对这些早期正值点做线性回归，并在斜率为正时用回归直线与 \(x\) 轴的截距作为亚帧级开启延迟估计。如果 area 序列提供了更早的起始标记，则扫描从该帧锚定；否则代码退回到首个正穿深帧。得到的原始延迟随后会在同一组 plume 内被裁剪到一个以中位数为中心的小窗口中，以避免单条异常 plume 把整组过度平移。
+
+该延迟估计随后以两种耦合方式进入对齐过程。穿深数组本身按最接近的整数帧数整体左移，而对齐后的时间轴则继续保留减去亚帧残差后的精确偏移。因此，这里的实现不只是简单丢弃前导零，而是在后续降阶拟合之前执行一次保留亚帧时序信息的 plume 起始配准。完成对齐后，脚本再移除突然不现实的跳跃，将像素转换为校正的物理长度，并通过一组基于规则的掩码标记低质量拟合。
 
 每个接受的轨迹随后用平滑的双分支模型拟合，
 \[
@@ -555,7 +557,7 @@ w(t)=\sigma\!\left(\frac{t-t_0}{s}\right),
 
 因此，该模型应被理解为时间参数化而不是显式物理定律。其目的是双重的：提供在SOI之外的可信外推，下游代理需要稳定目标；以及在SOI附近提供可接受的插值，其中相对误差较大，图像轨迹单独难以约束早期时间物理。Sigmoid门对于该角色很重要。它不是在两个经验分支之间施加硬断点，而是在两个分支之间创建可微过渡，这保持了拟合曲线的平滑性，使其更兼容后续神经网络阶段。换句话说，早期瞬态物理没有被强制进入刚性封闭形式定律；它们只是被足够好地近似，以便后续网络可以从完整的工况点输入中学习剩余的条件依赖行为。
 
-当将拟合与喷雾文献中的扩展EOI表达式进行比较时，这种解释变得更加清晰。Zhou等人报告的EOI后模型区分了全局注入时钟\(t\)和延迟时钟\((t-t_i)\)，因为后期穿深分支只有在结束注入动力学传播到下游后才激活\cite{ZhouLiLaiWei2019}。当前拟合没有显式地重现延迟时钟。相反，它使用
+当将拟合与喷雾文献中的扩展EOI表达式进行比较时，这种解释变得更加清晰。Zhou等人报告的EOI后模型区分了全局注入时钟\(t\)和延迟时钟\((t-t_i)\)，因为后期穿深分支只有在结束注入动力学传播到下游后才激活\cite{ZhouLiLaiWei2019}。当前管线对这一延迟采用两层处理。首先，预处理阶段利用上文所述的早期线性外推，为每条 plume 估计一个起始延迟，并把观测序列平移到共同的 \(t\approx 0\) 参考上。其次，降阶拟合本身仍然没有把延迟时钟显式写进参数化分支，而是使用
 \[
 w(t)=\sigma\!\left(\frac{t-t_0}{s}\right)
 \]
@@ -680,6 +682,28 @@ g(t)=\sigma\!\left(\frac{t-t_c}{\tau_c}\right).
 主要障碍是原始序列本身也是右截断的。光学视场名义上限制在约\(\SI{90}{mm}\)，并且项目中使用的简单轴向校正使有效轴向限制通过倾斜角度余弦投影略微增大。实际上，随着破碎过程的进行，晚期信号也会变弱，因此原始\texttt{cdf}轨迹的后期部分在达到几何限制之前就变得越来越不可靠。因此，原始晚期标签不能简单地被视为同样可信的回归目标。
 
 实现的响应是保守而非乐观的。对于每个工况组，原始\texttt{cdf}观测按时间分箱，可用样本数用作覆盖代理。在覆盖峰值附近的箱标记为\texttt{raw\_reliable}；在持续下降后的箱标记为\texttt{raw\_uncertain}；在覆盖变得非常稀疏的箱标记为\texttt{teacher\_only}。仅在可靠区域保留直接原始监督。在不确定和仅教师区域，监督被替换为来自热启动教师模型的蒸馏，而不是信任向下偏置的截断原始点。这不声称精确重建隐藏的真实晚期穿深。而是用作偏置缓解策略：更好的解析原始观测被允许细化早期时间动态，而右截断尾部通过保守的模型辅助延续处理，这样均值头不会被消失的观测向下拉拽。
+
+\subsection{\codepath{MLP/v2_engineered_feature} 中的工程化特征精化}
+
+surrogate 的第二次迭代归档于 \codepath{MLP/v2_engineered_feature}，其目的是修正 v1 九特征输入的一个结构性缺陷：喷嘴直径与喷射压力是稀疏轴（分别只有 6 个与 4 个观测层级），但直接特征 MLP 仍把它们视作连续变量，因此网络可以在这些轴上产生数据无法约束的导数结构。v2 实现没有用更多的正则化去削弱这种自由度，而是把相应的物理依赖直接吸收为一个来自 Hiroyasu--Arai 破碎后分支的硬缩放群。从破碎后分支
+\[
+S(t)\;\propto\;K_p\!\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2}\,t^{1/2},
+\]
+对喷射压力、气缸压力、气缸密度与喷嘴直径的全部依赖坍缩为一个逐工况的长度尺度
+\[
+A\;=\;\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2},
+\]
+该量在 \texttt{engineered\_feature\_common.build\_canonical\_feature\_table} 中由测试矩阵 JSON 计算得到。对于 Nozzle1--Nozzle8，气缸密度直接取自 \texttt{chamber\_density\_kg\_per\_m3}；对于只记录 \texttt{chamber\_pressure\_bar} 的 DS300，则按对 Nozzle1--8 显式条目标定的线性律 $\rho_a=\SI{5}{kg/m^3}\times P_{\mathrm{ch}}/\SI{4.42}{bar}$ 反推 $\rho_a$。
+
+v1 的九特征输入据此被精简。四个稀疏列 \texttt{diameter\_mm\_z}、\texttt{log\_injection\_pressure\_bar\_z}、\texttt{log\_chamber\_pressure\_bar\_z} 与 \texttt{log\_delta\_pressure\_bar\_z} 被完全移除。\texttt{FEATURE\_COLUMNS\_BY\_VARIANT} 暴露剩余特征向量的两个变体：五特征 \texttt{a\_only}
+\[
+[\,t_{\mathrm{norm}},\;\theta_{\mathrm{tilt},z},\;n_{\mathrm{plumes},z},\;t_{i,z},\;P_{\mathrm{cb},z}\,]
+\]
+其中 $A$ 完全不进入输入，仅作为目标的除数；以及六特征 \texttt{a\_plus\_log\_a}，在前者基础上额外加入 $\log A_z$ 作为一维残差轴。训练目标被重参数化为无量纲穿深 $\hat S(t)=S(t)/A$，其预测标准差为 $\hat\sigma(t)$，因此网络现在在 $\hat S$ 上预测 $\hat\mu$ 与 $\log\hat\sigma^2$，物理均值与标准差在推理时通过 $\mu_S=A\,\hat\mu$ 与 $\sigma_S=A\,\hat\sigma$ 精确还原。在代码层面，这对应于 \texttt{PenetrationDataset} 中保存 \texttt{target\_scaled = penetration / A\_scale}，并在推理路径上再乘回 \texttt{A\_scale}。
+
+因此，损失函数确实做了修改，但不是完全换成另一套物理目标。Stage 1 中，数据拟合项改为缩放目标上的 MSE，即 \(\operatorname{MSE}(\hat\mu,\hat S)\)，同时保留与 v1 相同的方差头先验；Stage 2 中，似然项改为针对缩放目标的异方差高斯 NLL。然而，单调性与瞬态后凹性惩罚仍然是在重建后的物理均值 \(\mu_S=A\,\hat\mu\) 上计算，而不是直接在 \(\hat\mu\) 上计算。因此，这次 engineered-feature 更新更准确的理解是“硬特征坍缩 + 目标/输出重参数化”，而不是用一套新的 physics loss 去取代早先的形状先验。
+
+v2 驱动脚本 \texttt{train\_stage1\_mse.py} 与 \texttt{train\_stage2\_nll.py} 取代了 v1 的整体笔记本。它们共享三处新的管线脚手架。第一，\texttt{assign\_splits\_by\_group} 按整组的 \texttt{sample\_group\_id} 分配训练、验证、测试集，而不是对单条曲线做置换，以防止共享同一工况的曲线之间发生泄漏。第二，在任何优化之前，\texttt{run\_pretrain\_collapse\_check} 由四个拟合常数重建代表性轨迹，将每条曲线除以自身的 $A$，并报告 $\hat S(t)$ 与 $S(t)$ 的逐时间切片方差对比以及 $\hat S(t)$ 对剩余特征的线性回归 $R^{2}$；如果预检失败，训练会中止，除非显式覆盖。这使得所假设的缩放在实际数据集上变得可证伪，而不是被默认成立。第三，Stage-2 NLL 驱动严格从 Stage-1 工程化 run 目录热启动并复用其 scaler 状态，从而保证两个阶段的变体选择与 $A$ 缩放完全一致。\texttt{toy\_inference\_from\_run.py} 中的推理路径在 \texttt{infer\_feature\_family} 上分支，于是 v1 旧 run 仍然走九特征路径，而 v2 工程化 run 则把原始输入按训练时使用的同一 $\rho_a$、$\Delta P$、$A$ 管线规范化，并在输出报告前将模型预测乘上 $A$。因此 v2 阶段最佳的理解不是取代已归档的 v1 模型，而是一次承诺特定物理缩放并减少弱支持连续轴数量的精化迭代。
 
 \subsection{原型推理 notebook}
 

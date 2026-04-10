@@ -1,4 +1,0 @@
-\beamer@sectionintoc {1}{Part 1: Notebook Role}{3}{0}{1}
-\beamer@sectionintoc {2}{Part 2: Feature and Dataset Design}{6}{0}{2}
-\beamer@sectionintoc {3}{Part 3: Warm Start and Loss}{8}{0}{3}
-\beamer@sectionintoc {4}{Part 4: Training Run and Outputs}{11}{0}{4}

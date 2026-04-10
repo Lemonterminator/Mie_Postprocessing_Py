@@ -33,14 +33,15 @@
 \contentsline {subsubsection}{\numberline {4.3.8}Boundary metrics and geometric proxies}{20}{subsubsection.4.3.8}%
 \contentsline {subsection}{\numberline {4.4}Trajectory cleaning and reduced-order fitting in \codepath {MLP/fit_raw_data.py}}{21}{subsection.4.4}%
 \contentsline {subsection}{\numberline {4.5}Stage-1 deterministic baseline in \codepath {MLP/median_penetration_MSE.ipynb}}{24}{subsection.4.5}%
-\contentsline {subsection}{\numberline {4.6}Stage-2 heteroscedastic extension in \codepath {MLP/median_penetration_NLL.ipynb}}{25}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.6}Stage-2 heteroscedastic extension in \codepath {MLP/median_penetration_NLL.ipynb}}{26}{subsection.4.6}%
 \contentsline {subsection}{\numberline {4.7}Warm-started raw-CDF refinement and conservative distillation}{27}{subsection.4.7}%
-\contentsline {subsection}{\numberline {4.8}Prototype inference notebook}{28}{subsection.4.8}%
-\contentsline {section}{\numberline {5}Results}{28}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Extracted and cleaned trajectory assets}{28}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Stage-1 baseline model}{29}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Stage-2 uncertainty-aware extension}{29}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}Prototype inference notebook}{30}{subsection.5.4}%
-\contentsline {subsection}{\numberline {5.5}Result boundary and reproducibility status}{31}{subsection.5.5}%
-\contentsline {section}{\numberline {6}Conclusions}{32}{section.6}%
-\contentsline {section}{References}{33}{section.6}%
+\contentsline {subsection}{\numberline {4.8}Engineered-feature refinement in \codepath {MLP/v2_engineered_feature}}{28}{subsection.4.8}%
+\contentsline {subsection}{\numberline {4.9}Prototype inference notebook}{30}{subsection.4.9}%
+\contentsline {section}{\numberline {5}Results}{30}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Extracted and cleaned trajectory assets}{30}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Stage-1 baseline model}{30}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Stage-2 uncertainty-aware extension}{31}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Prototype inference notebook}{32}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Result boundary and reproducibility status}{32}{subsection.5.5}%
+\contentsline {section}{\numberline {6}Conclusions}{33}{section.6}%
+\contentsline {section}{References}{35}{section.6}%

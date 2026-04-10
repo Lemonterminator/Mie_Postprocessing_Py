@@ -626,7 +626,7 @@ def remap_video_cupy(
     elif interpolation == "lanczos3":
         remap_fn = remap_frame_lanczos_3_cupy
     else:
-        raise ValueError("interpolation must be 'bilinear' or 'nearest'")
+        raise ValueError("interpolation must be 'nearest', 'bilinear', 'bicubic' or 'lanczos3'")
 
     frames_out = []
     for frame in video_iterable:

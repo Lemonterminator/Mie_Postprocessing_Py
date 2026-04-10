@@ -21,13 +21,12 @@ import numpy as np
 
 from OSCC_postprocessing.analysis.thresholding import (
     get_array_module,
-    triangle_binarize_gpu,
+    triangle_binarize,
 )
 from OSCC_postprocessing.binary_ops.functions_bw import (
     keep_largest_component,
     keep_largest_component_cuda,
     penetration_bw_to_index,
-    triangle_binarize_from_float,
 )
 from OSCC_postprocessing.filters.video_filters import median_filter_video_auto
 from OSCC_postprocessing.rotation.segment_ops import rotate_all_segments_auto
@@ -125,17 +124,8 @@ def preprocess_multihole(
         q_lo = xp_backend.percentile(sub_bkg_med, 5, axis=0)
         px_range = q_hi - q_lo
 
-        if use_gpu and triangle_backend == "gpu":
-            mask = triangle_binarize_gpu(px_range)
-        else:
-            import cv2
-
-            px_cpu = cp.asnumpy(px_range) if use_gpu and cp is not None else px_range
-            u8 = cv2.normalize(px_cpu, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-            _, mask_u8 = cv2.threshold(u8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE)
-            mask = mask_u8.astype(bool)
-            if use_gpu and cp is not None:
-                mask = cp.asarray(mask)
+        prefer_gpu = True if (use_gpu and triangle_backend != "cpu") else False
+        mask = triangle_binarize(px_range, prefer_gpu=prefer_gpu)
         foreground = sub_bkg_med * mask[None, ...]
     else:
         foreground = sub_bkg_med
@@ -372,7 +362,7 @@ def compute_penetration_profiles(
             decay_curve = decay_curve / xp_backend.max(decay_curve)
             td_intensity_maps[p, pb:, :] = td_intensity_maps[p, pb:, :] / decay_curve[:, None]
             arr = td_intensity_maps[p, :, :].T
-            bw = triangle_binarize_gpu(arr)
+            bw = triangle_binarize(arr, prefer_gpu=True)
             bw = keep_largest_component_cuda(bw, connectivity=2)
             edge_tri = xp_backend.argmax(bw[::-1, :], axis=0)
             edge_tri = bw.shape[0] - edge_tri
@@ -380,9 +370,8 @@ def compute_penetration_profiles(
             decay_curve = decay_curve / xp_backend.max(decay_curve)
             td_intensity_maps[p, pb:, :] = td_intensity_maps[p, pb:, :] / decay_curve[:, None]
             arr = td_intensity_maps[p, :, :].T
-            arr_xp = xp_backend.asarray(arr)
-            bw_u8, _ = triangle_binarize_from_float(arr_xp)
-            bw = keep_largest_component(bw_u8 > 0, connectivity=2)
+            bw = triangle_binarize(arr, prefer_gpu=False)
+            bw = keep_largest_component(bw > 0, connectivity=2)
             edge_tri = xp_backend.argmax(bw[::-1, :], axis=0)
             edge_tri = bw.shape[0] - edge_tri
 
@@ -489,11 +478,10 @@ def binarize_plume_videos(segments, hydraulic_delay):
     hd_host = xp_backend.asarray(cp.asnumpy(hydraulic_delay) if is_cupy else hydraulic_delay).astype(int)
 
     def _process_one(i, j):
-        frame_xp = cp.asnumpy(segments[i, j]) if is_cupy else segments[i, j]
-        bw_xp, _ = triangle_binarize_from_float(frame_xp)
+        frame_xp = segments[i, j]
+        bw_xp = triangle_binarize(frame_xp, prefer_gpu=is_cupy)
         if is_cupy:
-            bw_cp = cp.asarray(bw_xp)
-            largest_cp = keep_largest_component_cuda(bw_cp)
+            largest_cp = keep_largest_component_cuda(bw_xp)
             return i, j, largest_cp
         largest_xp = keep_largest_component(bw_xp)
         return i, j, largest_xp

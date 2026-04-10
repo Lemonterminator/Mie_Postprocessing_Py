@@ -14,8 +14,8 @@ from scipy.ndimage import binary_fill_holes
 import os
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from OSCC_postprocessing.binary_ops.functions_bw import _triangle_threshold_from_hist, _boundary_points_one_frame
-from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.binary_ops.functions_bw import _boundary_points_one_frame
+from OSCC_postprocessing.binary_ops.thresholding import triangle_binarize_from_float
 from OSCC_postprocessing.analysis.nozzle import estimate_nozzle_opening_duration
 from OSCC_postprocessing.analysis.regression import (
     linear_regression_fixed_intercept,
@@ -94,27 +94,12 @@ def binarize_single_plume_video(
         j0 = max(hd_host, 0)
         stable_end = min(lighting_unchanged_duration, F)
 
-        bw_gpu = cp.zeros((F, H, W), dtype=cp.uint8)
+        bw_gpu = cp.zeros((F, H, W), dtype=cp.bool_)
         thres_gpu = cp.zeros(F, dtype=cp.float32)
-
-        def _triangular_binarize_gpu(frame_cp):
-            frame_f = cp.asarray(frame_cp, dtype=cp.float32)
-            f_min = frame_f.min()
-            f_max = frame_f.max()
-            if float(f_max - f_min) <= 0:
-                return cp.zeros_like(frame_f, dtype=cp.uint8), 0.0
-
-            norm = (frame_f - f_min) / (f_max - f_min)
-            u8 = cp.clip(norm * 255.0, 0, 255).astype(cp.uint8)
-
-            hist = cp.histogram(u8, bins=256, range=(0, 255))[0]
-            t = _triangle_threshold_from_hist(cp.asnumpy(hist))
-            binarized = (u8 >= t).astype(cp.uint8) * 255
-            return binarized, float(t)
 
         # First-pass triangle thresholding on GPU
         for j in range(j0, F):
-            bw_frame, th = _triangular_binarize_gpu(video_gpu[j])
+            bw_frame, th = triangle_binarize_from_float(video_gpu[j], prefer_gpu=True)
             bw_gpu[j] = bw_frame
             thres_gpu[j] = th
 
@@ -124,7 +109,7 @@ def binarize_single_plume_video(
             if hd_host > 0:
                 to_stabilize[: min(hd_host, stable_end)] = cp.nan
             fitted_threshold = float(cp.nanmedian(to_stabilize) / 255.0)
-            rebinarized = (video_gpu[hd_host:stable_end] >= fitted_threshold).astype(cp.uint8) * 255
+            rebinarized = video_gpu[hd_host:stable_end] >= fitted_threshold
             bw_gpu[hd_host:stable_end] = rebinarized
 
         bw_final_gpu = bw_gpu
@@ -138,11 +123,11 @@ def binarize_single_plume_video(
         j0 = max(hd_host, 0)
         stable_end = min(lighting_unchanged_duration, F)
 
-        bw_cpu = np.zeros((F, H, W), dtype=np.uint8)
+        bw_cpu = np.zeros((F, H, W), dtype=bool)
         thres_array = np.zeros(F, dtype=float)
 
         def _tri_bw_one_frame(j):
-            bw_np, thres = triangle_binarize_from_float(video_cpu[j])
+            bw_np, thres = triangle_binarize_from_float(video_cpu[j], prefer_gpu=False)
             return j, bw_np, thres
 
         max_workers = min(32, (os.cpu_count() or 1) + 4)
@@ -158,7 +143,7 @@ def binarize_single_plume_video(
             if hd_host > 0:
                 to_stabilize[: min(hd_host, stable_end)] = np.nan
             fitted_threshold = float(np.nanmedian(to_stabilize) / 255.0)
-            rebinarized = (video_cpu[hd_host:stable_end] >= fitted_threshold).astype(np.uint8) * 255
+            rebinarized = video_cpu[hd_host:stable_end] >= fitted_threshold
             bw_cpu[hd_host:stable_end] = rebinarized
 
     # ---- Connected components + penetration ----

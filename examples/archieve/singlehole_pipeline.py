@@ -53,7 +53,7 @@ from OSCC_postprocessing.analysis.multihole_processing import (
     preprocess_multihole,
     rotate_segments_with_masks,
 )
-from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize as _triangle_binarize_gpu
 
 # Import rotation utility based on backend availability to avoid hard Cupy dependency
 if USING_CUPY:

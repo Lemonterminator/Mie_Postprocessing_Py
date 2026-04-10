@@ -257,6 +257,358 @@ def diameter_support_crosstab(ctx: GradientStabilityContext) -> pd.DataFrame:
     )
 
 
+def _format_level_summary(values: Sequence[float], *, precision: int = 3) -> str:
+    if len(values) == 0:
+        return "-"
+    rounded = [round(float(v), precision) for v in values]
+    if len(rounded) <= 3:
+        return ", ".join(f"{v:.{precision}f}" for v in rounded)
+    return f"{rounded[0]:.{precision}f}..{rounded[-1]:.{precision}f}"
+
+
+def _annotate_support_heatmap(
+    ax: plt.Axes,
+    x_values: Sequence[float],
+    y_values: Sequence[float],
+    counts: np.ndarray,
+    labels: np.ndarray,
+) -> None:
+    for row_idx, y_value in enumerate(y_values):
+        for col_idx, x_value in enumerate(x_values):
+            label = labels[row_idx, col_idx]
+            if not label:
+                continue
+            text_color = "white" if counts[row_idx, col_idx] >= max(2.0, float(np.nanmax(counts)) * 0.55) else "black"
+            ax.text(
+                float(x_value),
+                float(y_value),
+                label,
+                ha="center",
+                va="center",
+                fontsize=8,
+                color=text_color,
+            )
+
+
+def plot_sparse_feature_support_topology(ctx: GradientStabilityContext) -> plt.Figure:
+    df = ctx.support_df.copy()
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5), constrained_layout=True)
+
+    pch_values = np.sort(df["chamber_pressure_bar"].dropna().unique())
+    cb_values = np.sort(df["control_backpressure_bar"].dropna().unique())
+    inj_count_grid = np.zeros((len(cb_values), len(pch_values)), dtype=float)
+    inj_label_grid = np.empty_like(inj_count_grid, dtype=object)
+    inj_label_grid[:] = ""
+    inj_group = (
+        df.groupby(["chamber_pressure_bar", "control_backpressure_bar"])["injection_pressure_bar"]
+        .apply(lambda s: tuple(np.sort(pd.Series(s).dropna().unique())))
+    )
+    for row_idx, cb in enumerate(cb_values):
+        for col_idx, pch in enumerate(pch_values):
+            if (pch, cb) not in inj_group.index:
+                continue
+            values = np.asarray(inj_group.loc[(pch, cb)], dtype=float)
+            inj_count_grid[row_idx, col_idx] = len(values)
+            inj_label_grid[row_idx, col_idx] = f"{len(values)}\n{_format_level_summary(values, precision=0)}"
+
+    inj_ax = axes[0]
+    inj_image = inj_ax.imshow(
+        inj_count_grid,
+        origin="lower",
+        aspect="auto",
+        cmap="YlGnBu",
+        extent=[pch_values.min() - 2.5, pch_values.max() + 2.5, cb_values.min() - 0.5, cb_values.max() + 0.5],
+    )
+    inj_ax.set_xticks(pch_values)
+    inj_ax.set_yticks(cb_values)
+    inj_ax.set_xlabel("Chamber pressure [bar]")
+    inj_ax.set_ylabel("Control backpressure [bar]")
+    inj_ax.set_title("Observed injection-pressure support count")
+    _annotate_support_heatmap(inj_ax, pch_values, cb_values, inj_count_grid, inj_label_grid)
+    fig.colorbar(inj_image, ax=inj_ax, shrink=0.88)
+
+    pinj_values = np.sort(df["injection_pressure_bar"].dropna().unique())
+    diam_group = (
+        df.groupby(["injection_pressure_bar", "chamber_pressure_bar", "control_backpressure_bar"])["diameter_mm"]
+        .apply(lambda s: tuple(np.sort(pd.Series(s).dropna().unique())))
+    )
+    for ax, cb in zip(axes[1:], cb_values):
+        diam_count_grid = np.zeros((len(pinj_values), len(pch_values)), dtype=float)
+        diam_label_grid = np.empty_like(diam_count_grid, dtype=object)
+        diam_label_grid[:] = ""
+        for row_idx, pinj in enumerate(pinj_values):
+            for col_idx, pch in enumerate(pch_values):
+                key = (pinj, pch, cb)
+                if key not in diam_group.index:
+                    continue
+                values = np.asarray(diam_group.loc[key], dtype=float)
+                diam_count_grid[row_idx, col_idx] = len(values)
+                diam_label_grid[row_idx, col_idx] = f"{len(values)}\n{_format_level_summary(values, precision=3)}"
+
+        image = ax.imshow(
+            diam_count_grid,
+            origin="lower",
+            aspect="auto",
+            cmap="magma",
+            extent=[pch_values.min() - 2.5, pch_values.max() + 2.5, pinj_values.min() - 100.0, pinj_values.max() + 100.0],
+        )
+        ax.set_xticks(pch_values)
+        ax.set_yticks(pinj_values)
+        ax.set_xlabel("Chamber pressure [bar]")
+        ax.set_ylabel("Injection pressure [bar]")
+        ax.set_title(f"Observed diameter support count at CB={cb:.0f} bar")
+        _annotate_support_heatmap(ax, pch_values, pinj_values, diam_count_grid, diam_label_grid)
+        fig.colorbar(image, ax=ax, shrink=0.88)
+
+    fig.suptitle("Sparse-feature support topology", fontsize=14)
+    return fig
+
+
+def evaluate_observed_vs_continuous_interpolant(
+    ctx: GradientStabilityContext,
+    axis_name: str,
+    raw_point: Mapping[str, float],
+    *,
+    time_ms_value: float,
+    expected_sign: float | None = None,
+    n_points: int = 201,
+) -> dict[str, Any]:
+    dense = sweep_axis_diagnostics(
+        ctx,
+        axis_name,
+        raw_point,
+        time_ms_value=time_ms_value,
+        expected_sign=expected_sign,
+        n_points=n_points,
+    )
+    support_levels = np.asarray(dense["support_levels"], dtype=float)
+
+    mu_support = np.asarray(
+        [
+            evaluate_point_with_derivatives(
+                ctx,
+                {**raw_point, axis_name: float(level)},
+                time_ms_value=time_ms_value,
+            )["mu"]
+            for level in support_levels
+        ],
+        dtype=float,
+    )
+
+    secant_reference = np.full_like(dense["x"], np.nan, dtype=float)
+    inside_hull_mask = np.zeros_like(dense["x"], dtype=bool)
+    secant_slopes = np.asarray([], dtype=float)
+    if len(support_levels) >= 2:
+        inside_hull_mask = (dense["x"] >= support_levels[0]) & (dense["x"] <= support_levels[-1])
+        secant_reference[inside_hull_mask] = np.interp(
+            dense["x"][inside_hull_mask],
+            support_levels,
+            mu_support,
+        )
+        secant_slopes = np.diff(mu_support) / np.diff(support_levels)
+
+    max_abs_secant_deviation = float(np.nanmax(np.abs(dense["mu"] - secant_reference))) if np.any(inside_hull_mask) else np.nan
+    mean_abs_secant_deviation = float(np.nanmean(np.abs(dense["mu"] - secant_reference))) if np.any(inside_hull_mask) else np.nan
+    support_mu_span = float(np.max(mu_support) - np.min(mu_support)) if len(mu_support) > 0 else np.nan
+    support_mu_span = support_mu_span if np.isfinite(support_mu_span) and support_mu_span > 1e-12 else np.nan
+
+    metrics = dict(dense["metrics"])
+    metrics.update(
+        {
+            "support_hull_width": float(support_levels[-1] - support_levels[0]) if len(support_levels) >= 2 else np.nan,
+            "support_mu_span": support_mu_span,
+            "max_abs_secant_deviation": max_abs_secant_deviation,
+            "mean_abs_secant_deviation": mean_abs_secant_deviation,
+            "max_abs_secant_deviation_ratio": (
+                float(max_abs_secant_deviation / support_mu_span) if np.isfinite(support_mu_span) else np.nan
+            ),
+            "mean_abs_secant_deviation_ratio": (
+                float(mean_abs_secant_deviation / support_mu_span) if np.isfinite(support_mu_span) else np.nan
+            ),
+        }
+    )
+
+    return {
+        **dense,
+        "support_levels": support_levels,
+        "mu_support": mu_support,
+        "secant_reference": secant_reference,
+        "inside_hull_mask": inside_hull_mask,
+        "secant_slopes": secant_slopes,
+        "metrics": metrics,
+    }
+
+
+def plot_sparse_family_interpolants(
+    ctx: GradientStabilityContext,
+    axis_name: str,
+    slice_specs: Sequence[Mapping[str, Any]],
+    raw_template: Mapping[str, float],
+    *,
+    time_ms_value: float,
+    expected_sign: float | None = None,
+    n_points: int = 201,
+    fig_title: str | None = None,
+) -> tuple[plt.Figure, pd.DataFrame]:
+    analyses: list[tuple[str, dict[str, Any], dict[str, float]]] = []
+    metrics_rows = []
+    for spec in slice_specs:
+        raw_point = dict(raw_template)
+        raw_point.update(spec.get("overrides", {}))
+        label = str(spec.get("label", spec.get("overrides", {})))
+        result = evaluate_observed_vs_continuous_interpolant(
+            ctx,
+            axis_name,
+            raw_point,
+            time_ms_value=time_ms_value,
+            expected_sign=expected_sign,
+            n_points=n_points,
+        )
+        analyses.append((label, result, raw_point))
+        metrics_row = {"slice_label": label, "time_ms": float(time_ms_value)}
+        metrics_row.update(result["metrics"])
+        metrics_rows.append(metrics_row)
+
+    fig, axes = plt.subplots(2, len(analyses), figsize=(5.2 * len(analyses), 8.0), sharex="col")
+    if len(analyses) == 1:
+        axes = np.asarray(axes).reshape(2, 1)
+
+    for col_idx, (label, result, raw_point) in enumerate(analyses):
+        top_ax = axes[0, col_idx]
+        bot_ax = axes[1, col_idx]
+
+        top_ax.plot(result["x"], result["mu"], color="tab:blue", linewidth=2.0, label="Dense MLP sweep")
+        if np.any(result["inside_hull_mask"]):
+            top_ax.plot(
+                result["x"][result["inside_hull_mask"]],
+                result["secant_reference"][result["inside_hull_mask"]],
+                color="black",
+                linestyle="--",
+                linewidth=1.8,
+                label="Observed-level secant",
+            )
+        if len(result["support_levels"]) > 0:
+            top_ax.scatter(
+                result["support_levels"],
+                result["mu_support"],
+                color="tab:orange",
+                edgecolor="black",
+                s=42,
+                zorder=3,
+                label="Predictions at observed levels",
+            )
+            for level in result["support_levels"]:
+                top_ax.axvline(level, color="tab:orange", alpha=0.18, linewidth=3.0)
+        top_ax.grid(True, alpha=0.25)
+        top_ax.set_title(label)
+        top_ax.set_ylabel("Predicted mean")
+        top_ax.text(
+            0.02,
+            0.98,
+            "\n".join(
+                [
+                    f"levels={len(result['support_levels'])}",
+                    f"sign_changes={result['metrics']['sign_changes']}",
+                    f"secant_dev={result['metrics']['max_abs_secant_deviation_ratio']:.3f}",
+                ]
+            ),
+            transform=top_ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="#cccccc", alpha=0.92),
+        )
+
+        bot_ax.plot(result["x"], result["grad"], color="tab:blue", linewidth=2.0, label="Autograd gradient")
+        bot_ax.axhline(0.0, color="black", linestyle="--", linewidth=0.8, alpha=0.7)
+        for left, right, slope in zip(result["support_levels"][:-1], result["support_levels"][1:], result["secant_slopes"]):
+            bot_ax.hlines(
+                slope,
+                left,
+                right,
+                color="black",
+                linestyle="--",
+                linewidth=2.0,
+                alpha=0.9,
+                label="Observed secant slope" if left == result["support_levels"][0] else None,
+            )
+        for level in result["support_levels"]:
+            bot_ax.axvline(level, color="tab:orange", alpha=0.18, linewidth=3.0)
+        bot_ax.grid(True, alpha=0.25)
+        bot_ax.set_ylabel("d mu / d x")
+        bot_ax.set_xlabel(AXIS_LABELS[axis_name])
+
+        if col_idx == 0:
+            top_ax.legend(loc="best")
+            bot_ax.legend(loc="best")
+
+    fig.suptitle(
+        fig_title or f"{AXIS_LABELS[axis_name]}: dense MLP interpolation vs observed-level secants at t={time_ms_value:.2f} ms",
+        fontsize=14,
+    )
+    return fig, pd.DataFrame(metrics_rows)
+
+
+def collect_sparse_family_time_metrics(
+    ctx: GradientStabilityContext,
+    axis_name: str,
+    slice_specs: Sequence[Mapping[str, Any]],
+    raw_template: Mapping[str, float],
+    analysis_times_ms: Sequence[float],
+    *,
+    expected_sign: float | None = None,
+    n_points: int = 201,
+) -> pd.DataFrame:
+    rows = []
+    for time_ms_value in analysis_times_ms:
+        for spec in slice_specs:
+            raw_point = dict(raw_template)
+            raw_point.update(spec.get("overrides", {}))
+            label = str(spec.get("label", spec.get("overrides", {})))
+            result = evaluate_observed_vs_continuous_interpolant(
+                ctx,
+                axis_name,
+                raw_point,
+                time_ms_value=float(time_ms_value),
+                expected_sign=expected_sign,
+                n_points=n_points,
+            )
+            row = {"slice_label": label, "time_ms": float(time_ms_value)}
+            row.update(result["metrics"])
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def plot_sparse_family_time_metrics(
+    metrics_df: pd.DataFrame,
+    axis_name: str,
+    *,
+    fig_title: str | None = None,
+) -> plt.Figure:
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), constrained_layout=True)
+    metric_specs = [
+        ("max_abs_secant_deviation_ratio", "Max secant deviation / support span", False),
+        ("sign_changes", "Gradient sign changes", False),
+        ("curvature_abs_p95", "p95 |d2 mu / d x2|", True),
+    ]
+
+    for label, group_df in metrics_df.groupby("slice_label"):
+        group_df = group_df.sort_values("time_ms")
+        for ax, (metric_col, ylabel, log_y) in zip(axes, metric_specs):
+            ax.plot(group_df["time_ms"], group_df[metric_col], marker="o", linewidth=2.0, label=label)
+            ax.set_xlabel("Time [ms]")
+            ax.set_ylabel(ylabel)
+            ax.grid(True, alpha=0.25)
+            if log_y:
+                positive = group_df[metric_col].to_numpy(dtype=float)
+                if np.all(positive > 0.0):
+                    ax.set_yscale("log")
+
+    axes[0].legend(loc="best")
+    fig.suptitle(fig_title or f"{AXIS_LABELS[axis_name]} instability metrics across time", fontsize=14)
+    return fig
+
+
 def sweep_axis_diagnostics(
     ctx: GradientStabilityContext,
     axis_name: str,

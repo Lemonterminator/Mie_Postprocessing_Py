@@ -23,11 +23,37 @@ ENABLE_MASK_BASIC = True  # Apply basic fit-quality checks: success, finite metr
 ENABLE_MASK_PENETRATION_FAR = True  # Require far-time penetration to lie in the configured mm range.
 ENABLE_MASK_OUTLIER = True  # Remove robust-z outliers on t0, rmse, and cost_per_point.
 
+NUM_POINTS_SOI_LINEAR_REGRESSION = 2
+MIN_INITIAL_VELOCITY = 1e-7
 
+def calculate_subframe_delay(time_s, series, first_valid_idx, n_points=3, fallback_delay_s=float('nan')):
+    max_idx = min(len(time_s), len(series))
+    
+    t_early = []
+    y_early = []
+    for i in range(first_valid_idx, max_idx):
+        if len(t_early) >= n_points:
+            break
+        if np.isfinite(series[i]) and series[i] > 0:
+            t_early.append(time_s[i])
+            y_early.append(series[i])
+            
+    if len(t_early) < 2:
+        return fallback_delay_s
+        
+    t_early_arr = np.array(t_early)
+    y_early_arr = np.array(y_early)
+    
+    slope, intercept = np.polyfit(t_early_arr, y_early_arr, 1)
+    if slope > MIN_INITIAL_VELOCITY:
+        t_intercept = -intercept / slope
+        if 0 <= t_intercept <= t_early_arr[-1]:
+            return float(t_intercept)
+    return fallback_delay_s
 
 # Input/output roots
-data_root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py")
-data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data")
+data_root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\Mie_scattering_top_view_results")
+data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data_v2")
 
 
 names = [
@@ -60,8 +86,8 @@ PLOT_YLIM_MM = 200.0
 
 
 
-DIFF_THRESHOLD_LOWER = 2.0  # px
-DIFF_THRESHOLD_UPPER = 40.0  # px
+DIFF_THRESHOLD_LOWER = 1.0 # mm
+DIFF_THRESHOLD_UPPER = 10.0  # mm
 MIN_TI = 0.0
 
 
@@ -304,56 +330,48 @@ def penetration_cleaning(
     replace_negative_with_zero=False,
 ):
     arr = np.asarray(arr, dtype=float).copy()
-    penetration_delay = 0 if forced_delay is None else int(forced_delay)
+    first_positive_idx = 0 if forced_delay is None else int(forced_delay)
 
     if forced_delay is None and ENABLE_HYDRAULIC_DELAY_SCAN:
         scan_limit = min(hd_upper_lim, arr.size - 1)
         for f in range(scan_limit):
             if arr[f + 1] == 0 or np.isnan(arr[f + 1]):
-                penetration_delay += 1
+                first_positive_idx += 1
                 arr[f] = np.nan
-
-    if penetration_delay > 0:
-        # Shift left without wraparound; fill tail with NaN.
-        arr_shifted = np.full_like(arr, np.nan, dtype=float)
-        if penetration_delay < arr.size:
-            arr_shifted[:-penetration_delay] = arr[penetration_delay:]
-        arr = arr_shifted
 
     if replace_negative_with_zero and ENABLE_REPLACE_NEGATIVE_WITH_ZERO:
         arr[arr < 0] = 0.0
 
+    if first_positive_idx > 0 and first_positive_idx < arr.size:
+        arr[:first_positive_idx] = np.nan
+
     positive_idx = np.flatnonzero(np.isfinite(arr) & (arr > 0))
     if positive_idx.size == 0:
         arr[:] = np.nan
-        return arr * scaling_factor, penetration_delay
+        return arr * scaling_factor, first_positive_idx
 
-    first_positive_idx = int(positive_idx[0])
-    if first_positive_idx > 0:
-        # Pre-onset placeholders after delay alignment should not influence
-        # threshold cuts or the downstream fit.
-        arr[:first_positive_idx] = np.nan
+    actual_first_positive_idx = int(positive_idx[0])
+
+    arr *= scaling_factor
 
     if ENABLE_DIFF_THRESHOLD_LOWER:
-        arr_diff = np.diff(arr[first_positive_idx:])
+        arr_diff = np.diff(arr[actual_first_positive_idx:])
         lower_cut_idx = np.where(arr_diff < diff_threshold_lower)[0]
         if lower_cut_idx.size > 0:
-            arr = arr[: first_positive_idx + lower_cut_idx[0].item() + 1]
+            arr = arr[: actual_first_positive_idx + lower_cut_idx[0].item() + 1]
 
-    # Remove frames onward if a sudden unrealistically large jump appears.
     if ENABLE_DIFF_THRESHOLD_UPPER:
         valid_positive_idx = np.flatnonzero(np.isfinite(arr) & (arr > 0))
         if valid_positive_idx.size == 0:
             arr[:] = np.nan
-            return arr * scaling_factor, penetration_delay
-        first_positive_idx = int(valid_positive_idx[0])
-        arr_diff = np.diff(arr[first_positive_idx:])
+            return arr, first_positive_idx
+        actual_first_positive_idx = int(valid_positive_idx[0])
+        arr_diff = np.diff(arr[actual_first_positive_idx:])
         upper_cut_idx = np.where(arr_diff > diff_threshold_upper)[0]
         if upper_cut_idx.size > 0:
-            arr = arr[: first_positive_idx + upper_cut_idx[0].item() + 1]
+            arr = arr[: actual_first_positive_idx + upper_cut_idx[0].item() + 1]
 
-    arr *= scaling_factor
-    return arr, penetration_delay
+    return arr, first_positive_idx
 
 
 def get_area_based_delay(df_file, plume_idx):
@@ -478,7 +496,7 @@ def prepare_cleaned_series(
 
         area_delay, delay_source = get_area_based_delay(df_file, plume_idx)
         arr = np.asarray(df_file[col], dtype=float).copy()
-        cleaned_serie, delay = penetration_cleaning(
+        cleaned_serie, first_pos_idx = penetration_cleaning(
             arr,
             pen_correction,
             diff_threshold_lower=diff_threshold_lower,
@@ -487,56 +505,60 @@ def prepare_cleaned_series(
             forced_delay=area_delay if np.isfinite(area_delay) else None,
             replace_negative_with_zero=replace_negative_with_zero,
         )
-        delays_raw[plume_idx] = delay
+        
+        fallback_delay_s = float(first_pos_idx) / fps
+        delay_s = calculate_subframe_delay(
+            time_s, cleaned_serie, first_pos_idx, 
+            n_points=NUM_POINTS_SOI_LINEAR_REGRESSION, 
+            fallback_delay_s=fallback_delay_s
+        )
+        delays_raw[plume_idx] = delay_s
         delay_sources[plume_idx] = delay_source if np.isfinite(area_delay) else "penetration_fallback"
         temp_series[plume_idx] = np.asarray(cleaned_serie, dtype=float)
 
     valid_delays = delays_raw[np.isfinite(delays_raw)]
-    median_delay = int(np.round(np.nanmedian(valid_delays))) if valid_delays.size else 0
-    delays_used = np.full(number_of_plumes, median_delay, dtype=float)
+    median_delay_s = np.nanmedian(valid_delays) if valid_delays.size else 0.0
+    delays_used = np.full(number_of_plumes, median_delay_s, dtype=float)
     valid_raw_mask = np.isfinite(delays_raw)
     if ENABLE_DELAY_CLIP:
-        lower_bound = median_delay - int(delay_clip_half_window)
-        upper_bound = median_delay + int(delay_clip_half_window)
+        lower_bound = median_delay_s - (float(delay_clip_half_window) / fps)
+        upper_bound = median_delay_s + (float(delay_clip_half_window) / fps)
         if np.any(valid_raw_mask):
             delays_used[valid_raw_mask] = np.clip(
-                np.round(delays_raw[valid_raw_mask]),
+                delays_raw[valid_raw_mask],
                 lower_bound,
                 upper_bound,
             )
     elif np.any(valid_raw_mask):
-        delays_used[valid_raw_mask] = np.round(delays_raw[valid_raw_mask])
+        delays_used[valid_raw_mask] = delays_raw[valid_raw_mask]
 
-    # Align each plume using clipped raw delay to limit outlier shifts while
-    # preserving plume-level delay variability.
+    time_s_aligned = np.full((number_of_plumes, max_len), np.nan)
+    time_ms_aligned = np.full((number_of_plumes, max_len), np.nan)
+
     for plume_idx in range(number_of_plumes):
         series = temp_series[plume_idx]
         if series is None:
             continue
 
-        plume_delay_raw = (
-            int(np.round(delays_raw[plume_idx])) if np.isfinite(delays_raw[plume_idx]) else median_delay
-        )
-        plume_delay_used = int(np.round(delays_used[plume_idx]))
-        delta = plume_delay_raw - plume_delay_used
+        plume_delay_s = delays_used[plume_idx]
+        delay_frames_int = int(np.round(plume_delay_s * fps))
 
-        if delta > 0:
-            # This plume was shifted too far left; shift right by delta.
-            aligned = np.full_like(series, np.nan, dtype=float)
-            if delta < series.size:
-                aligned[delta:] = series[:-delta]
-        elif delta < 0:
-            # This plume was not shifted enough; shift left by -delta.
-            shift_left = -delta
-            aligned = series[shift_left:]
-        else:
+        aligned = np.full_like(series, np.nan, dtype=float)
+        if delay_frames_int > 0 and delay_frames_int < series.size:
+            aligned[:-delay_frames_int] = series[delay_frames_int:]
+        elif delay_frames_int == 0:
             aligned = series
+        elif delay_frames_int < 0 and -delay_frames_int < series.size:
+            aligned[-delay_frames_int:] = series[:delay_frames_int]
 
         n = min(aligned.size, max_len)
         if n > 0:
             cleaned_series[plume_idx, :n] = aligned[:n]
+            t_exact = (np.arange(n) + delay_frames_int) / fps - plume_delay_s
+            time_s_aligned[plume_idx, :n] = t_exact
+            time_ms_aligned[plume_idx, :n] = t_exact * 1000.0
 
-    return time_s, time_ms, cleaned_series, delays_raw, delays_used, delay_sources
+    return time_s_aligned, time_ms_aligned, cleaned_series, delays_raw * fps, delays_used * fps, delay_sources
 
 
 def collect_series_rows(
@@ -552,7 +574,9 @@ def collect_series_rows(
     file_path = Path(file_path)
     for plume_idx in range(cleaned_series.shape[0]):
         series = np.asarray(cleaned_series[plume_idx], dtype=float)
-        valid = np.isfinite(time_s) & np.isfinite(time_ms) & np.isfinite(series)
+        ts = time_s[plume_idx]
+        tms = time_ms[plume_idx]
+        valid = np.isfinite(ts) & np.isfinite(tms) & np.isfinite(series)
         if not np.any(valid):
             continue
 
@@ -564,8 +588,8 @@ def collect_series_rows(
                     "file_stem": file_path.stem,
                     "plume_idx": plume_idx,
                     "frame_pos": int(idx),
-                    "time_s": float(time_s[idx]),
-                    "time_ms": float(time_ms[idx]),
+                    "time_s": float(ts[idx]),
+                    "time_ms": float(tms[idx]),
                     "penetration_mm": float(series[idx]),
                     "delay_frames_raw": delays_raw[plume_idx],
                     "delay_frames_used": delays_used[plume_idx],
@@ -709,14 +733,16 @@ def save_fit_plot(
         if plume_idx < 0 or plume_idx >= cleaned_series.shape[0]:
             continue
 
+        ts = time_s[plume_idx]
+        tms = time_ms[plume_idx]
         raw_series = cleaned_series[plume_idx]
-        valid_raw = np.isfinite(time_ms) & np.isfinite(raw_series)
+        valid_raw = np.isfinite(tms) & np.isfinite(raw_series)
         if not np.any(valid_raw):
             continue
 
         color = rng.random(3)
 
-        plt.plot(time_ms[valid_raw], raw_series[valid_raw], alpha=0.65, linewidth=1.0, color=color)
+        plt.plot(tms[valid_raw], raw_series[valid_raw], alpha=0.65, linewidth=1.0, color=color)
         draw_fit = (
             bool(getattr(row, "success", False))
             and np.isfinite(getattr(row, "log_k_sqrt", np.nan))
@@ -725,7 +751,7 @@ def save_fit_plot(
             and np.isfinite(getattr(row, "log_s", np.nan))
         )
         if draw_fit:
-            t_end = float(np.nanmax(time_s) * PLOT_EXTRAP_FACTOR)
+            t_end = float(np.nanmax(ts) * PLOT_EXTRAP_FACTOR)
             t_extrap_s = np.linspace(0.0, t_end, PLOT_NUM_POINTS)
             log_params = [row.log_k_sqrt, row.log_k_quarter, row.log_t0, row.log_s]
             y_extrap = spray_penetration_model_sigmoid(log_params, t_extrap_s)
@@ -758,6 +784,103 @@ def save_fit_plot(
     return out_plot_path
 
 
+def save_raw_plot(
+    folder,
+    plot_df,
+    csv_files,
+    out_plot_dir,
+    penetration_source,
+    mm_per_px_scale,
+    fps_default,
+    max_hydraulic_delay_frames,
+    delay_clip_half_window,
+):
+    cache = {}
+
+    name_to_paths = {}
+    stem_to_paths = {}
+    for p in csv_files:
+        name_to_paths.setdefault(p.name, []).append(p)
+        stem_to_paths.setdefault(p.stem, []).append(p)
+
+    def resolve_csv(row):
+        row_file_path = getattr(row, "file_path", "")
+        if isinstance(row_file_path, str) and row_file_path != "":
+            p = Path(row_file_path)
+            if p.exists():
+                return p
+        row_file_name = str(getattr(row, "file_name", ""))
+        cands = name_to_paths.get(row_file_name, [])
+        if len(cands) == 1:
+            return cands[0]
+        if len(cands) == 0:
+            row_file_stem = str(getattr(row, "file_stem", ""))
+            cands = stem_to_paths.get(row_file_stem, [])
+            if len(cands) == 1:
+                return cands[0]
+        return None
+
+    plt.figure(figsize=(10, 6))
+    has_curve = False
+    rng = np.random.default_rng()
+
+    for row in plot_df.itertuples(index=False):
+        csv_path = resolve_csv(row)
+        if csv_path is None:
+            continue
+
+        cache_key = str(csv_path.resolve())
+        if cache_key not in cache:
+            df_file = _read_csv_with_expanded_static_meta(csv_path)
+            time_s, time_ms, cleaned_series, _, _, _ = prepare_cleaned_series(
+                df_file,
+                mm_per_px_scale=mm_per_px_scale,
+                fps_default=fps_default,
+                max_hydraulic_delay_frames=max_hydraulic_delay_frames,
+                delay_clip_half_window=delay_clip_half_window,
+                penetration_source=penetration_source,
+                replace_negative_with_zero=penetration_source["replace_negative_with_zero"],
+                diff_threshold_lower=DIFF_THRESHOLD_LOWER,
+                diff_threshold_upper=DIFF_THRESHOLD_UPPER,
+            )
+            cache[cache_key] = (time_s, time_ms, cleaned_series)
+
+        time_s, time_ms, cleaned_series = cache[cache_key]
+        plume_idx = int(row.plume_idx)
+        if plume_idx < 0 or plume_idx >= cleaned_series.shape[0]:
+            continue
+
+        ts = time_s[plume_idx]
+        tms = time_ms[plume_idx]
+        raw_series = cleaned_series[plume_idx]
+        
+        mask_time = tms <= 2.0
+        valid_raw = np.isfinite(tms) & np.isfinite(raw_series) & mask_time
+        if not np.any(valid_raw):
+            continue
+
+        color = rng.random(3)
+        plt.plot(tms[valid_raw], raw_series[valid_raw], alpha=0.65, linewidth=1.0, color=color)
+        has_curve = True
+
+    if not has_curve:
+        plt.text(1.0, 0.5, f"No traces for this folder", ha="center", va="center")
+
+    plt.title(
+        f"{folder.name}: {penetration_source['label']} aligned raw traces (0-2ms)"
+    )
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Penetration (mm)")
+    plt.grid(alpha=0.25)
+    plt.xlim(0, 2.0)
+    plt.ylim(0, PLOT_YLIM_MM)
+
+    out_plot_path = out_plot_dir / f"{folder.name}.png"
+    plt.tight_layout()
+    plt.savefig(out_plot_path, dpi=140)
+    plt.close()
+    return out_plot_path
+
 def process_folder(
     folder,
     out_all_dir,
@@ -768,6 +891,7 @@ def process_folder(
     out_series_wide_clean_dir,
     out_plots_clean_dir,
     out_plots_flagged_dir,
+    out_plots_raw_all_dir,
     penetration_source,
     mm_per_px_scale,
     fps_default,
@@ -814,17 +938,18 @@ def process_folder(
         x0 = np.log([1.0, 1.0, max(2.0 * inj_dur_s, 1e-9), 1.0])
 
         number_of_plumes = cleaned_series.shape[0]
-        t_max_s = float(np.nanmax(time_s))
         for plume_idx in range(number_of_plumes):
             series = cleaned_series[plume_idx]
-            fit = fit_sigmoid(time_s, series, inj_dur_s, x0)
+            ts = time_s[plume_idx]
+            t_max_s = float(np.nanmax(ts)) if np.any(np.isfinite(ts)) else float('nan')
+            fit = fit_sigmoid(ts, series, inj_dur_s, x0)
             log_k_sqrt, log_k_quarter, log_t0, log_s = fit["log_params"]
 
-            valid = np.isfinite(time_s) & np.isfinite(series)
+            valid = np.isfinite(ts) & np.isfinite(series)
             if np.any(valid):
                 y_true = series[valid]
                 y_hat = spray_penetration_model_sigmoid(
-                    [log_k_sqrt, log_k_quarter, log_t0, log_s], time_s[valid]
+                    [log_k_sqrt, log_k_quarter, log_t0, log_s], ts[valid]
                 )
                 rmse = float(np.sqrt(np.mean((y_hat - y_true) ** 2)))
                 ss_res = float(np.sum((y_true - y_hat) ** 2))
@@ -902,6 +1027,18 @@ def process_folder(
         delay_clip_half_window=delay_clip_half_window,
     )
 
+    out_plot_raw_all_path = save_raw_plot(
+        folder,
+        results_df,
+        csv_files,
+        out_plots_raw_all_dir,
+        penetration_source,
+        mm_per_px_scale=mm_per_px_scale,
+        fps_default=fps_default,
+        max_hydraulic_delay_frames=max_hydraulic_delay_frames,
+        delay_clip_half_window=delay_clip_half_window,
+    )
+
     masked_df.to_csv(out_all_path, index=False)
     clean_df.to_csv(out_clean_path, index=False)
     flagged_df.to_csv(out_flagged_path, index=False)
@@ -919,7 +1056,8 @@ def process_folder(
         f"{out_series_wide_all_path.name} ({len(series_wide_all_df)} wide rows), "
         f"{out_series_wide_clean_path.name} ({len(series_wide_clean_df)} clean wide rows), "
         f"{out_plot_clean_path.name} (clean-curve plot), "
-        f"{out_plot_flagged_path.name} (flagged-curve plot) from {len(csv_files)} files"
+        f"{out_plot_flagged_path.name} (flagged-curve plot), "
+        f"{out_plot_raw_all_path.name} (raw-all plot) from {len(csv_files)} files"
     )
 
 
@@ -951,6 +1089,10 @@ def main():
         out_dir = data_out_dir / name
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        if not root.exists():
+            print(f"Skipping missing dataset root: {root}")
+            continue
+
         subdirs = sorted([p for p in root.iterdir() if p.is_dir()])
         if not subdirs:
             raise FileNotFoundError(f"No subdirs found in {root}")
@@ -967,6 +1109,7 @@ def main():
                 out_series_wide_clean_dir = metric_out_dir / "series_wide_clean"
                 out_plots_clean_dir = metric_out_dir / "plots_clean"
                 out_plots_flagged_dir = metric_out_dir / "plots_flagged"
+                out_plots_raw_all_dir = metric_out_dir / "plots_raw_all"
                 out_all_dir.mkdir(parents=True, exist_ok=True)
                 out_clean_dir.mkdir(parents=True, exist_ok=True)
                 out_series_all_dir.mkdir(parents=True, exist_ok=True)
@@ -975,6 +1118,7 @@ def main():
                 out_series_wide_clean_dir.mkdir(parents=True, exist_ok=True)
                 out_plots_clean_dir.mkdir(parents=True, exist_ok=True)
                 out_plots_flagged_dir.mkdir(parents=True, exist_ok=True)
+                out_plots_raw_all_dir.mkdir(parents=True, exist_ok=True)
 
                 process_folder(
                     folder,
@@ -986,6 +1130,7 @@ def main():
                     out_series_wide_clean_dir=out_series_wide_clean_dir,
                     out_plots_clean_dir=out_plots_clean_dir,
                     out_plots_flagged_dir=out_plots_flagged_dir,
+                    out_plots_raw_all_dir=out_plots_raw_all_dir,
                     penetration_source=penetration_source,
                     mm_per_px_scale=mm_per_px_scale,
                     fps_default=settings["fps_default"],

@@ -20,7 +20,7 @@ except Exception:  # ImportError, CUDA failure, etc.
     cp.asnumpy = lambda x: x  # type: ignore[attr-defined]
     CUPY_AVAILABLE = False
 
-from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize as triangle_binarize_gpu
 from OSCC_postprocessing.binary_ops.functions_bw import triangle_binarize_from_float
 from OSCC_postprocessing.utils.backend import get_array_module, get_cupy
 

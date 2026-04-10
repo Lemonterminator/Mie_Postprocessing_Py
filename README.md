@@ -73,6 +73,16 @@ Then import modules, e.g.:
 from OSCC_postprocessing.io.async_plot_saver import AsyncPlotSaver
 ```
 
+For triangle thresholding, prefer the unified entry point:
+
+```python
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize
+```
+
+`triangle_binarize_gpu` still exists as a compatibility alias, but new code
+should use `triangle_binarize` so CPU/GPU fallback stays consistent across the
+package.
+
 ## Masters-thesis CLI
 
 Then run:

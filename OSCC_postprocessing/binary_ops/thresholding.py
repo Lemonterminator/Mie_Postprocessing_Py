@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import os
 from concurrent.futures import ProcessPoolExecutor
+import os
 
 import cv2
 import numpy as np
-from scipy.ndimage import binary_fill_holes, binary_opening
+from scipy.ndimage import binary_fill_holes, binary_opening, gaussian_filter
 from skimage.filters import threshold_otsu
-from skimage.morphology import disk
 
-from ._backend import cp
+from ._backend import CUPY_AVAILABLE, cp
 
 
 def mask_video(video: np.ndarray, chamber_mask: np.ndarray) -> np.ndarray:
@@ -46,6 +45,8 @@ def calculate_bw_area(bw: np.ndarray) -> np.ndarray:
 
 def apply_morph_open(intermediate_frame, disk_size):
     """Apply 2D binary opening with a disk structuring element."""
+    from skimage.morphology import disk
+
     return binary_opening(intermediate_frame, disk(disk_size))
 
 
@@ -107,6 +108,7 @@ def fill_video_holes_gpu(bw_video: np.ndarray) -> np.ndarray:
 
 def _triangle_threshold_from_hist(hist):
     """Compute the triangle-method threshold from a 256-bin histogram."""
+    hist = np.asarray(hist).ravel()
     nz = np.flatnonzero(hist)
     if nz.size == 0:
         return 0
@@ -128,45 +130,223 @@ def _triangle_threshold_from_hist(hist):
     return int(idx[int(np.argmax(numerator))])
 
 
-def triangle_binarize_u8(u8, blur=True, ignore_zero=False, threshold_on_unblurred=True):
-    """Triangle-threshold an 8-bit image, optionally ignoring the zero bin."""
-    if u8.dtype != np.uint8:
-        u8 = u8.astype(np.uint8, copy=False)
+def _is_cupy_array(arr) -> bool:
+    return CUPY_AVAILABLE and hasattr(arr, "__cuda_array_interface__")
 
-    u8_for_threshold = (
-        u8
-        if (ignore_zero and threshold_on_unblurred)
-        else (cv2.GaussianBlur(u8, (5, 5), 0) if blur else u8)
-    )
 
+def _resolve_triangle_backend(arr, prefer_gpu: bool | str):
+    if prefer_gpu in (False, "cpu", "numpy"):
+        return "cpu"
+    if prefer_gpu in (True, "gpu", "cupy"):
+        return "gpu" if CUPY_AVAILABLE else "cpu"
+    if prefer_gpu == "auto":
+        return "gpu" if _is_cupy_array(arr) else "cpu"
+    raise ValueError("prefer_gpu must be one of auto/cpu/gpu or a bool")
+
+
+def _normalize_to_u8(arr, *, xp_backend, ignore_zero: bool):
+    if xp_backend is np:
+        arr_xp = np.asarray(cp.asnumpy(arr) if _is_cupy_array(arr) else arr)
+    else:
+        arr_xp = xp_backend.asarray(arr)
+    if arr_xp.size == 0:
+        return xp_backend.zeros_like(arr_xp, dtype=xp_backend.uint8)
+
+    if arr_xp.dtype == xp_backend.uint8:
+        u8 = arr_xp.astype(xp_backend.uint8, copy=False)
+        if ignore_zero:
+            u8 = u8.copy()
+        return u8
+
+    work = arr_xp.astype(xp_backend.float16, copy=False)
+    valid = work > 0 if ignore_zero else xp_backend.ones_like(work, dtype=bool)
+    nz = work[valid]
+    if nz.size == 0:
+        return xp_backend.zeros(arr_xp.shape, dtype=xp_backend.uint8)
+
+    vmin = nz.min().astype(xp_backend.float32, copy=False)
+    vmax = nz.max().astype(xp_backend.float32, copy=False)
+    if float(vmax - vmin) <= 1e-6:
+        fill = 255 if float(vmax) > 0 else 0
+        return xp_backend.full(arr_xp.shape, fill, dtype=xp_backend.uint8)
+    span = xp_backend.maximum(vmax - vmin, xp_backend.asarray(1e-6, dtype=xp_backend.float32))
+    scaled = (work.astype(xp_backend.float32, copy=False) - vmin) * (255.0 / span)
+    u8 = xp_backend.clip(scaled, 0, 255).astype(xp_backend.uint8)
     if ignore_zero:
-        hist = cv2.calcHist([u8_for_threshold], [0], None, [256], [0, 256]).flatten()
-        hist[0] = 0
-        if hist.sum() == 0:
-            return np.zeros_like(u8), 0
-        threshold = _triangle_threshold_from_hist(hist)
-        u8_apply = cv2.GaussianBlur(u8, (5, 5), 0) if blur else u8
-        _, binarized = cv2.threshold(u8_apply, threshold, 255, cv2.THRESH_BINARY)
-        return binarized, int(threshold)
+        u8 = u8.copy()
+        u8[~valid] = 0
+    return u8
 
-    u8_apply = cv2.GaussianBlur(u8, (5, 5), 0) if blur else u8
-    threshold, binarized = cv2.threshold(
-        u8_apply, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE
+
+def _maybe_blur_u8(u8, *, use_gpu: bool, blur: bool):
+    if not blur:
+        return u8
+    if use_gpu:
+        try:
+            from cupyx.scipy.ndimage import gaussian_filter as cupy_gaussian_filter  # type: ignore
+        except Exception as exc:  # pragma: no cover - runtime dependent
+            raise RuntimeError("GPU blur unavailable") from exc
+
+        blurred = cupy_gaussian_filter(u8.astype(cp.float32, copy=False), sigma=1.0, truncate=2.0)
+        return cp.clip(cp.rint(blurred), 0, 255).astype(cp.uint8)
+
+    blurred = gaussian_filter(np.asarray(u8, dtype=np.float32), sigma=1.0, truncate=2.0)
+    return np.clip(np.rint(blurred), 0, 255).astype(np.uint8)
+
+
+def triangle_binarize_with_threshold(
+    img,
+    *,
+    ignore_zero: bool = False,
+    blur: bool = True,
+    threshold_on_unblurred: bool = True,
+    prefer_gpu: bool | str = "auto",
+):
+    """Triangle-threshold an image and return both the mask and threshold.
+
+    The input is first normalized to an 8-bit working image. Floating-point
+    inputs are processed through a float16 working copy before min-max scaling,
+    which keeps the common GPU path compact and matches the repository's
+    preferred low-precision workflow.
+
+    Parameters
+    ----------
+    img:
+        2-D or 3-D image/volume slice.
+    ignore_zero:
+        If ``True``, zero-valued pixels are excluded from the histogram and are
+        always forced back to background.
+    blur:
+        Apply a small Gaussian blur before thresholding. This is useful for
+        noisy histograms and is available on both CPU and GPU paths.
+    threshold_on_unblurred:
+        When ``True`` and ``ignore_zero`` is enabled, compute the triangle
+        threshold from the unblurred 8-bit image while still applying it to the
+        blurred image.
+    prefer_gpu:
+        ``"auto"`` uses GPU only when the input is already CuPy-backed.
+        ``True``/``"gpu"`` force GPU when CuPy is available.
+    """
+    backend = _resolve_triangle_backend(img, prefer_gpu)
+
+    def _run_cpu():
+        u8 = _normalize_to_u8(img, xp_backend=np, ignore_zero=ignore_zero)
+        u8_for_threshold = u8 if (ignore_zero and threshold_on_unblurred) else _maybe_blur_u8(u8, use_gpu=False, blur=blur)
+        if int(np.max(u8_for_threshold)) == int(np.min(u8_for_threshold)):
+            u8_apply = _maybe_blur_u8(u8, use_gpu=False, blur=blur)
+            return (u8_apply > 0), 0
+        hist = np.histogram(u8_for_threshold, bins=256, range=(0, 256))[0]
+        if ignore_zero:
+            hist = hist.copy()
+            hist[0] = 0
+        if hist.sum() == 0:
+            mask = np.zeros_like(u8, dtype=bool)
+            return mask, 0
+        threshold = _triangle_threshold_from_hist(hist)
+        u8_apply = _maybe_blur_u8(u8, use_gpu=False, blur=blur)
+        return (u8_apply > threshold), int(threshold)
+
+    def _run_gpu():
+        u8 = _normalize_to_u8(img, xp_backend=cp, ignore_zero=ignore_zero)
+        u8_for_threshold = u8 if (ignore_zero and threshold_on_unblurred) else _maybe_blur_u8(u8, use_gpu=True, blur=blur)
+        if float(cp.max(u8_for_threshold)) == float(cp.min(u8_for_threshold)):
+            u8_apply = _maybe_blur_u8(u8, use_gpu=True, blur=blur)
+            return (u8_apply > 0), 0
+        hist = cp.histogram(u8_for_threshold, bins=256, range=(0, 256))[0]
+        if ignore_zero:
+            hist = hist.copy()
+            hist[0] = 0
+        if int(cp.asnumpy(hist).sum()) == 0:
+            mask = cp.zeros_like(u8, dtype=cp.bool_)
+            return mask, 0
+        threshold = _triangle_threshold_from_hist(cp.asnumpy(hist))
+        u8_apply = _maybe_blur_u8(u8, use_gpu=True, blur=blur)
+        return (u8_apply > threshold), int(threshold)
+
+    if backend == "gpu":
+        try:
+            return _run_gpu()
+        except Exception:
+            mask, threshold = _run_cpu()
+            if CUPY_AVAILABLE:
+                return cp.asarray(mask), threshold
+            return mask, threshold
+
+    return _run_cpu()
+
+
+def triangle_binarize(
+    img,
+    *,
+    ignore_zero: bool = False,
+    blur: bool = True,
+    threshold_on_unblurred: bool = True,
+    prefer_gpu: bool | str = "auto",
+):
+    """Return only the triangle-threshold mask."""
+    mask, _ = triangle_binarize_with_threshold(
+        img,
+        ignore_zero=ignore_zero,
+        blur=blur,
+        threshold_on_unblurred=threshold_on_unblurred,
+        prefer_gpu=prefer_gpu,
     )
-    return binarized, int(threshold)
+    return mask
+
+
+def triangle_binarize_u8(
+    u8,
+    blur: bool = True,
+    ignore_zero: bool = False,
+    threshold_on_unblurred: bool = True,
+    *,
+    prefer_gpu: bool | str = "auto",
+):
+    """Triangle-threshold an 8-bit image and return ``(mask, threshold)``."""
+    return triangle_binarize_with_threshold(
+        u8,
+        ignore_zero=ignore_zero,
+        blur=blur,
+        threshold_on_unblurred=threshold_on_unblurred,
+        prefer_gpu=prefer_gpu,
+    )
 
 
 def triangle_binarize_from_float(
     img_f32,
-    blur=True,
-    ignore_zero=False,
-    threshold_on_unblurred=True,
+    blur: bool = True,
+    ignore_zero: bool = False,
+    threshold_on_unblurred: bool = True,
+    *,
+    prefer_gpu: bool | str = "auto",
 ):
     """Normalize float input to ``uint8`` then apply triangle thresholding."""
-    u8 = cv2.normalize(img_f32, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    return triangle_binarize_u8(
-        u8,
-        blur=blur,
+    return triangle_binarize_with_threshold(
+        img_f32,
         ignore_zero=ignore_zero,
+        blur=blur,
         threshold_on_unblurred=threshold_on_unblurred,
+        prefer_gpu=prefer_gpu,
     )
+
+
+triangle_binarize_gpu = triangle_binarize
+
+
+__all__ = [
+    "_triangle_threshold_from_hist",
+    "apply_hole_filling",
+    "apply_hole_filling_video",
+    "apply_morph_open",
+    "apply_morph_open_video",
+    "binarize_video_global_threshold",
+    "calculate_bw_area",
+    "fill_video_holes_gpu",
+    "fill_video_holes_parallel",
+    "mask_video",
+    "triangle_binarize",
+    "triangle_binarize_from_float",
+    "triangle_binarize_gpu",
+    "triangle_binarize_u8",
+    "triangle_binarize_with_threshold",
+]

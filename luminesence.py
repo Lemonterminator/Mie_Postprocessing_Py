@@ -21,7 +21,7 @@ from OSCC_postprocessing.analysis.multihole_processing import (
     preprocess_multihole,
     rotate_segments_with_masks,
 )
-from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize as _triangle_binarize_gpu
 from OSCC_postprocessing.binary_ops.masking import (
     generate_angular_mask_from_tf,
     periodic_true_segment_lengths,

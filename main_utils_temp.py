@@ -106,7 +106,7 @@ from OSCC_postprocessing.analysis.multihole_processing import (
     preprocess_multihole,
     rotate_segments_with_masks,
 )
-from OSCC_postprocessing.analysis.thresholding import triangle_binarize_gpu as _triangle_binarize_gpu
+from OSCC_postprocessing.analysis.thresholding import triangle_binarize as _triangle_binarize_gpu
 from OSCC_postprocessing.binary_ops.masking import (
     generate_angular_mask_from_tf,
     generate_plume_mask,
@@ -117,7 +117,7 @@ from OSCC_postprocessing.binary_ops.masking import *
 from OSCC_postprocessing.filters.convolution_2d import *
 from OSCC_postprocessing.analysis.hysteresis import * 
 
-triangle_binarize_gpu = _triangle_binarize_gpu
+triangle_binarize = _triangle_binarize_gpu
 
 def _as_numpy(arr):
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
@@ -182,7 +182,7 @@ def mie_multihole_video_strip_processing(video,
     video_sum_all_frame = _min_max_scale(xp.sum(video, axis=0) * 1.0)
 
     # Create binary mask using triangle thresholding to identify spray regions
-    sum_mask = _triangle_binarize_gpu(video_sum_all_frame, ignore_zeros=False)
+    sum_mask = _triangle_binarize(video_sum_all_frame, ignore_zeros=False)
 
     # === Angular Signal Density Analysis ===
     # Use 720 bins for 0.5 degree resolution
@@ -204,7 +204,7 @@ def mie_multihole_video_strip_processing(video,
     # === Compute Occupied Angles ===
     # Create bin-wise mask and fill small gaps to get continuous plume regions
     bin_wise_mask = fill_short_false_runs(
-        _triangle_binarize_gpu(xp.sum(total_angular_signal_density, axis=0), ignore_zeros=True), 
+        _triangle_binarize(xp.sum(total_angular_signal_density, axis=0), ignore_zeros=True), 
         max_len=3
     )
 
@@ -307,10 +307,10 @@ def traingular_binarize_video_strips(segment, segment_masks=None, struct_filling
         struct_closing = xp.zeros((3, 3, 3), dtype=bool)
         struct_closing[1, :, :] = True
     if segment_masks is not None:
-        seg_hp_bw_filled = triangle_binarize_gpu(segment) * segment_masks
+        seg_hp_bw_filled = triangle_binarize(segment) * segment_masks
 
     else:
-       seg_hp_bw_filled = triangle_binarize_gpu(segment) 
+       seg_hp_bw_filled = triangle_binarize(segment) 
  
     for p in range(P):
         blob_3D = keep_largest_component_nd_cuda(

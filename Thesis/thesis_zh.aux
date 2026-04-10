@@ -332,38 +332,39 @@
 \citation{ZhouLiYi2021}
 \abx@aux@cite{0}{ZhouLiYi2021}
 \abx@aux@segm{0}{0}{ZhouLiYi2021}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces 从存储库工作流生成的逆仿射重映射阶段可视化。左上与右上分别为\texttt  {mapx}和\texttt  {mapy}，其像素亮度编码的是每个输出条带像素对应的原始图像\(x/y\)采样坐标，而不是喷雾亮度。左下为单个喷雾的旋转条带，图中标出\((H/2,\mathrm  {inner\_radius})\)处的喷孔局部原点；轴向穿深曲线以\(\mathrm  {inner\_radius}+\)metric的形式叠加，而极坐标二值穿深则画成以喷孔为圆心、半径为\(r\)的圆弧。右下为重映射后施加的三角喷雾掩码。}}{17}{figure.10}\protected@file@percent }
+\newlabel{fig:efficient-rotation}{{10}{17}{从存储库工作流生成的逆仿射重映射阶段可视化。左上与右上分别为\texttt {mapx}和\texttt {mapy}，其像素亮度编码的是每个输出条带像素对应的原始图像\(x/y\)采样坐标，而不是喷雾亮度。左下为单个喷雾的旋转条带，图中标出\((H/2,\mathrm {inner\_radius})\)处的喷孔局部原点；轴向穿深曲线以\(\mathrm {inner\_radius}+\)metric的形式叠加，而极坐标二值穿深则画成以喷孔为圆心、半径为\(r\)的圆弧。右下为重映射后施加的三角喷雾掩码。}{figure.10}{}}
 \citation{ZhouLiLaiWei2019}
 \abx@aux@cite{0}{ZhouLiLaiWei2019}
 \abx@aux@segm{0}{0}{ZhouLiLaiWei2019}
-\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces 从存储库工作流生成的逆仿射重映射阶段可视化。左上与右上分别为\texttt  {mapx}和\texttt  {mapy}，其像素亮度编码的是每个输出条带像素对应的原始图像\(x/y\)采样坐标，而不是喷雾亮度。左下为单个喷雾的旋转条带，图中标出\((H/2,\mathrm  {inner\_radius})\)处的喷孔局部原点；轴向穿深曲线以\(\mathrm  {inner\_radius}+\)metric的形式叠加，而极坐标二值穿深则画成以喷孔为圆心、半径为\(r\)的圆弧。右下为重映射后施加的三角喷雾掩码。}}{17}{figure.10}\protected@file@percent }
-\newlabel{fig:efficient-rotation}{{10}{17}{从存储库工作流生成的逆仿射重映射阶段可视化。左上与右上分别为\texttt {mapx}和\texttt {mapy}，其像素亮度编码的是每个输出条带像素对应的原始图像\(x/y\)采样坐标，而不是喷雾亮度。左下为单个喷雾的旋转条带，图中标出\((H/2,\mathrm {inner\_radius})\)处的喷孔局部原点；轴向穿深曲线以\(\mathrm {inner\_radius}+\)metric的形式叠加，而极坐标二值穿深则画成以喷孔为圆心、半径为\(r\)的圆弧。右下为重映射后施加的三角喷雾掩码。}{figure.10}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces 在喷雾对齐和二值化后生成的定量输出示例：穿深描述符、喷雾大小、锥角代理和代表性的二值喷雾条带最大投影。}}{18}{figure.11}\protected@file@percent }
 \newlabel{fig:mie-metrics-summary}{{11}{18}{在喷雾对齐和二值化后生成的定量输出示例：穿深描述符、喷雾大小、锥角代理和代表性的二值喷雾条带最大投影。}{figure.11}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.5}\codepath  {MLP/median_penetration_MSE.ipynb} 中的 Stage-1 确定性基线}{19}{subsection.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}\codepath  {MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}{20}{subsection.4.6}\protected@file@percent }
 \citation{ZhouLiYi2021}
 \abx@aux@cite{0}{ZhouLiYi2021}
 \abx@aux@segm{0}{0}{ZhouLiYi2021}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Warm-start 原始 CDF 细化与保守蒸馏}{21}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}\codepath  {MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}{21}{subsection.4.6}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces 对存档第二阶段NLL模型的代表性\(\SI {2000}{bar}\)，\(\SI {5}{bar}\)案例的玩具推理。该图说明了为什么需要后续原始序列细化：异方差预测平滑且表现良好，但轨迹的最早部分仍然主要受拟合目标先验影响，而后期部分接近实际光学观测限制。}}{22}{figure.12}\protected@file@percent }
 \newlabel{fig:stage2-toy-inference-early-time}{{12}{22}{对存档第二阶段NLL模型的代表性\(\SI {2000}{bar}\)，\(\SI {5}{bar}\)案例的玩具推理。该图说明了为什么需要后续原始序列细化：异方差预测平滑且表现良好，但轨迹的最早部分仍然主要受拟合目标先验影响，而后期部分接近实际光学观测限制。}{figure.12}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.8}原型推理 notebook}{22}{subsection.4.8}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces 来自 \codepath  {MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/plots_clean/T1.png} 的代表性清洗轨迹与拟合曲线。该图在此作为直接证据，说明轨迹清洗与拟合阶段已经产出了可重复使用的穿深目标。}}{23}{figure.13}\protected@file@percent }
-\newlabel{fig:clean-fit-example}{{13}{23}{来自 \codepath {MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/plots_clean/T1.png} 的代表性清洗轨迹与拟合曲线。该图在此作为直接证据，说明轨迹清洗与拟合阶段已经产出了可重复使用的穿深目标。}{figure.13}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}结果}{23}{section.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}已提取与清洗的轨迹资产}{23}{subsection.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Stage-1 基线模型}{23}{subsection.5.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces 从\codepath  {MLP/runs_mlp/stage1_median_penetration_20260306_172838/loss_curves.png}复制的存档第一阶段损失曲线。}}{24}{figure.14}\protected@file@percent }
-\newlabel{fig:stage1-loss}{{14}{24}{从\codepath {MLP/runs_mlp/stage1_median_penetration_20260306_172838/loss_curves.png}复制的存档第一阶段损失曲线。}{figure.14}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces 从\codepath  {MLP/runs_mlp/stage2_NLL_penetration_20260317_194155/loss_curves.png}复制的存档第二阶段损失曲线。}}{24}{figure.15}\protected@file@percent }
-\newlabel{fig:stage2-loss}{{15}{24}{从\codepath {MLP/runs_mlp/stage2_NLL_penetration_20260317_194155/loss_curves.png}复制的存档第二阶段损失曲线。}{figure.15}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Stage-2 不确定性感知扩展}{24}{subsection.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}原型推理 notebook}{24}{subsection.5.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces 已完成阶段与部分完成阶段的证据汇总。}}{25}{table.2}\protected@file@percent }
-\newlabel{tab:model-summary}{{2}{25}{已完成阶段与部分完成阶段的证据汇总。}{table.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}结果边界与可复现性状态}{25}{subsection.5.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}结论}{25}{section.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{References}{27}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Warm-start 原始 CDF 细化与保守蒸馏}{22}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.8}\codepath  {MLP/v2_engineered_feature} 中的工程化特征精化}{23}{subsection.4.8}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces 来自 \codepath  {MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/plots_clean/T1.png} 的代表性清洗轨迹与拟合曲线。该图在此作为直接证据，说明轨迹清洗与拟合阶段已经产出了可重复使用的穿深目标。}}{24}{figure.13}\protected@file@percent }
+\newlabel{fig:clean-fit-example}{{13}{24}{来自 \codepath {MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/plots_clean/T1.png} 的代表性清洗轨迹与拟合曲线。该图在此作为直接证据，说明轨迹清洗与拟合阶段已经产出了可重复使用的穿深目标。}{figure.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.9}原型推理 notebook}{24}{subsection.4.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}结果}{24}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}已提取与清洗的轨迹资产}{24}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Stage-1 基线模型}{24}{subsection.5.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces 从\codepath  {MLP/runs_mlp/stage1_median_penetration_20260306_172838/loss_curves.png}复制的存档第一阶段损失曲线。}}{25}{figure.14}\protected@file@percent }
+\newlabel{fig:stage1-loss}{{14}{25}{从\codepath {MLP/runs_mlp/stage1_median_penetration_20260306_172838/loss_curves.png}复制的存档第一阶段损失曲线。}{figure.14}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces 从\codepath  {MLP/runs_mlp/stage2_NLL_penetration_20260317_194155/loss_curves.png}复制的存档第二阶段损失曲线。}}{25}{figure.15}\protected@file@percent }
+\newlabel{fig:stage2-loss}{{15}{25}{从\codepath {MLP/runs_mlp/stage2_NLL_penetration_20260317_194155/loss_curves.png}复制的存档第二阶段损失曲线。}{figure.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Stage-2 不确定性感知扩展}{25}{subsection.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces 已完成阶段与部分完成阶段的证据汇总。}}{26}{table.2}\protected@file@percent }
+\newlabel{tab:model-summary}{{2}{26}{已完成阶段与部分完成阶段的证据汇总。}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}原型推理 notebook}{26}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}结果边界与可复现性状态}{26}{subsection.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}结论}{27}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{28}{section.6}\protected@file@percent }
 \abx@aux@read@bbl@mdfivesum{CDF9BB076C909E4221CF4408B6ED51A8}
 \abx@aux@defaultrefcontext{0}{ahmad2025fueldilution}{nty/global//global/global/global}
 \abx@aux@defaultrefcontext{0}{BishopPRML2006}{nty/global//global/global/global}
@@ -449,4 +450,4 @@
 \abx@aux@defaultlabelprefix{0}{ZackRogersLatt1977}{}
 \abx@aux@defaultlabelprefix{0}{ZhouLiYi2021}{}
 \abx@aux@defaultlabelprefix{0}{ZhouLiLaiWei2019}{}
-\gdef \@abspage@last{34}
+\gdef \@abspage@last{35}

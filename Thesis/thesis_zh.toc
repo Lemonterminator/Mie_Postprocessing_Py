@@ -33,14 +33,15 @@
 \contentsline {subsubsection}{\numberline {4.3.8}边界度量和几何代理}{15}{subsubsection.4.3.8}%
 \contentsline {subsection}{\numberline {4.4}\codepath {MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合}{16}{subsection.4.4}%
 \contentsline {subsection}{\numberline {4.5}\codepath {MLP/median_penetration_MSE.ipynb} 中的 Stage-1 确定性基线}{19}{subsection.4.5}%
-\contentsline {subsection}{\numberline {4.6}\codepath {MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}{20}{subsection.4.6}%
-\contentsline {subsection}{\numberline {4.7}Warm-start 原始 CDF 细化与保守蒸馏}{21}{subsection.4.7}%
-\contentsline {subsection}{\numberline {4.8}原型推理 notebook}{22}{subsection.4.8}%
-\contentsline {section}{\numberline {5}结果}{23}{section.5}%
-\contentsline {subsection}{\numberline {5.1}已提取与清洗的轨迹资产}{23}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Stage-1 基线模型}{23}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Stage-2 不确定性感知扩展}{24}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}原型推理 notebook}{24}{subsection.5.4}%
-\contentsline {subsection}{\numberline {5.5}结果边界与可复现性状态}{25}{subsection.5.5}%
-\contentsline {section}{\numberline {6}结论}{25}{section.6}%
-\contentsline {section}{References}{27}{section.6}%
+\contentsline {subsection}{\numberline {4.6}\codepath {MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}{21}{subsection.4.6}%
+\contentsline {subsection}{\numberline {4.7}Warm-start 原始 CDF 细化与保守蒸馏}{22}{subsection.4.7}%
+\contentsline {subsection}{\numberline {4.8}\codepath {MLP/v2_engineered_feature} 中的工程化特征精化}{23}{subsection.4.8}%
+\contentsline {subsection}{\numberline {4.9}原型推理 notebook}{24}{subsection.4.9}%
+\contentsline {section}{\numberline {5}结果}{24}{section.5}%
+\contentsline {subsection}{\numberline {5.1}已提取与清洗的轨迹资产}{24}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Stage-1 基线模型}{24}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Stage-2 不确定性感知扩展}{25}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}原型推理 notebook}{26}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}结果边界与可复现性状态}{26}{subsection.5.5}%
+\contentsline {section}{\numberline {6}结论}{27}{section.6}%
+\contentsline {section}{References}{28}{section.6}%
