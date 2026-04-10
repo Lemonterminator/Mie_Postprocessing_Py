@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 
 # Penetration-series switches.
 FIT_PENETRATION_CDF = True
-FIT_PENETRATION_BW_X = False
-FIT_PENETRATION_BW_POLAR = False
+FIT_PENETRATION_BW_X = True
+FIT_PENETRATION_BW_POLAR = True
 
 # Filtering switches.
 ENABLE_REPLACE_NEGATIVE_WITH_ZERO = True  # For bw_x only: clamp negative penetration to 0 before cleaning.
@@ -26,34 +26,11 @@ ENABLE_MASK_OUTLIER = True  # Remove robust-z outliers on t0, rmse, and cost_per
 NUM_POINTS_SOI_LINEAR_REGRESSION = 2
 MIN_INITIAL_VELOCITY = 1e-7
 
-def calculate_subframe_delay(time_s, series, first_valid_idx, n_points=3, fallback_delay_s=float('nan')):
-    max_idx = min(len(time_s), len(series))
-    
-    t_early = []
-    y_early = []
-    for i in range(first_valid_idx, max_idx):
-        if len(t_early) >= n_points:
-            break
-        if np.isfinite(series[i]) and series[i] > 0:
-            t_early.append(time_s[i])
-            y_early.append(series[i])
-            
-    if len(t_early) < 2:
-        return fallback_delay_s
-        
-    t_early_arr = np.array(t_early)
-    y_early_arr = np.array(y_early)
-    
-    slope, intercept = np.polyfit(t_early_arr, y_early_arr, 1)
-    if slope > MIN_INITIAL_VELOCITY:
-        t_intercept = -intercept / slope
-        if 0 <= t_intercept <= t_early_arr[-1]:
-            return float(t_intercept)
-    return fallback_delay_s
+
 
 # Input/output roots
 data_root = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\Mie_scattering_top_view_results")
-data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data_v2")
+data_out_dir = Path(r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data")
 
 
 names = [
@@ -90,7 +67,30 @@ DIFF_THRESHOLD_LOWER = 1.0 # mm
 DIFF_THRESHOLD_UPPER = 10.0  # mm
 MIN_TI = 0.0
 
-
+def calculate_subframe_delay(time_s, series, first_valid_idx, n_points=3, fallback_delay_s=float('nan')):
+    max_idx = min(len(time_s), len(series))
+    
+    t_early = []
+    y_early = []
+    for i in range(first_valid_idx, max_idx):
+        if len(t_early) >= n_points:
+            break
+        if np.isfinite(series[i]) and series[i] > 0:
+            t_early.append(time_s[i])
+            y_early.append(series[i])
+            
+    if len(t_early) < 2:
+        return fallback_delay_s
+        
+    t_early_arr = np.array(t_early)
+    y_early_arr = np.array(y_early)
+    
+    slope, intercept = np.polyfit(t_early_arr, y_early_arr, 1)
+    if slope > MIN_INITIAL_VELOCITY:
+        t_intercept = -intercept / slope
+        if 0 <= t_intercept <= t_early_arr[-1]:
+            return float(t_intercept)
+    return fallback_delay_s
 
 META_COLS = [
     "plumes",

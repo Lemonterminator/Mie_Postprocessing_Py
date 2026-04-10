@@ -997,6 +997,9 @@ def make_dataloaders(
 
 
 def split_mu_logvar(model_output: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    if model_output.shape[-1] == 3:
+        mu, log_var, _onset = torch.split(model_output, [1, 1, 1], dim=-1)
+        return mu, log_var
     mu, log_var = model_output.chunk(2, dim=-1)
     return mu, log_var
 
@@ -1368,7 +1371,7 @@ def unwrap_state_dict(state: Any) -> dict[str, torch.Tensor]:
 
 
 def resolve_model_path(run_dir: Path) -> Path:
-    for name in ("best_model_stage2.pt", "best_model_stage1.pt"):
+    for name in ("best_model_refinement.pt", "best_model_stage2.pt", "best_model_stage1.pt"):
         candidate = run_dir / name
         if candidate.exists():
             return candidate
@@ -1380,7 +1383,7 @@ def has_run_artifacts(run_dir: Path) -> bool:
         run_dir.is_dir()
         and (run_dir / "train_config_used.json").exists()
         and (run_dir / "scaler_state.json").exists()
-        and any((run_dir / name).exists() for name in ("best_model_stage1.pt", "best_model_stage2.pt"))
+        and any((run_dir / name).exists() for name in ("best_model_refinement.pt", "best_model_stage1.pt", "best_model_stage2.pt"))
     )
 
 
