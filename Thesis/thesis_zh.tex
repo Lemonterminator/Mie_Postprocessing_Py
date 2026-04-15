@@ -10,6 +10,7 @@
   \usepackage{CJKutf8}
 \fi
 \usepackage{array}
+\usepackage{booktabs}
 \usepackage[backend=bibtex,style=numeric]{biblatex}
 \usepackage{xurl}
 \addbibresource{thesisreferences.bib}
@@ -32,7 +33,7 @@
 \advisor{Dr Qiang Cheng}
 \collaborativepartner{Wartsila}
 \keywords{Mie 散射\spc 喷雾成像\spc 穿深\spc 计算机视觉\spc surrogate 建模}
-\thesisabstract{本文提出一套用于预测多燃料船用发动机预喷柴油喷雾穿深演化并筛查撞壁风险的计算流程。研究目标是在设计早期支持对液态柴油撞击缸内壁面的工程评估，因为这类撞击可能导致机油稀释、壁面润湿以及混合恶化。该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始三维图像序列中提取按 plume 分解的时序观测量和边界演化。为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络框架：先在中位数穿深轨迹上训练确定性基线模型，再在全部拟合轨迹上进行异方差学习，最后在原始未删失时序可用处引入直接监督、在缺失区间用教师模型提供保守延拓，从而完成教师引导的细化训练。网络输出的均值与不确定性随后与简化喷雾角假设和缸内掩膜组合，形成概率化的撞壁筛查器。本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何撞壁筛查。该方法旨在作为前端工程工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。}
+\thesisabstract{本文提出一套计算流程，用于预测多燃料船用发动机中预喷柴油喷雾的穿深演化，并为早期撞壁风险筛查提供几何输入。研究目标是在设计早期支持对液态柴油与活塞或缸壁表面相互作用的工程评估，因为这类相互作用可能导致机油稀释、壁面润湿以及混合恶化。该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始图像序列中提取按 plume 分解的时序观测量和边界演化。为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络 surrogate：先在中位数穿深轨迹上训练确定性基线模型，再在全部经筛选的拟合轨迹上进行异方差学习，最后在原始时序观测可靠处引入直接监督，并在观测稀疏区间保留教师模型的保守引导，从而完成教师引导的细化训练。这一分阶段设计可有效避免直接对右删失、标签不完整的原始观测进行单阶段训练时所产生的系统性低估偏差。网络输出的均值与不确定性随后可与简化喷雾角假设和缸内掩膜组合，作为概率化撞壁筛查的原型路径。本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何风险筛查。在来自 9 个喷嘴方案的约 15,000 条穿深轨迹（约 40 万个标注时间步）上评估，细化后的代理模型总体 RMSE 为 6.9 mm（约为实测穿深量程的 7.2%），异方差预测区间校准至标称覆盖率（1sigma 覆盖率 68.5%，2sigma 覆盖率 95.7%）。该方法旨在作为前端筛查工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。}
 
 \begin{document}
 \ifXeTeX
@@ -43,14 +44,14 @@
 \makecoverpage
 \makecopyrightpage
 
-\begin{abstractpage}[english]
-本文提出一套用于预测多燃料船用发动机预喷柴油喷雾穿深演化并筛查撞壁风险的计算流程。研究目标是在设计早期支持对液态柴油撞击缸内壁面的工程评估，因为这类撞击可能导致机油稀释、壁面润湿以及混合恶化。
+\begin{abstractpage}
+本文提出一套计算流程，用于预测多燃料船用发动机中预喷柴油喷雾的穿深演化，并为早期撞壁风险筛查提供几何输入。研究目标是在设计早期支持对液态柴油与活塞或缸壁表面相互作用的工程评估，因为这类相互作用可能导致机油稀释、壁面润湿以及混合恶化。
 
-该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始三维图像序列中提取按 plume 分解的时序观测量和边界演化。
+该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始图像序列中提取按 plume 分解的时序观测量和边界演化。
 
-为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络框架：先在中位数穿深轨迹上训练确定性基线模型，再在全部拟合轨迹上进行异方差学习，最后在原始未删失时序可用处引入直接监督、在缺失区间用教师模型提供保守延拓，从而完成教师引导的细化训练。网络输出的均值与不确定性随后与简化喷雾角假设和缸内掩膜组合，形成概率化的撞壁筛查器。
+为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络 surrogate：先在中位数穿深轨迹上训练确定性基线模型，再在全部经筛选的拟合轨迹上进行异方差学习，最后在原始时序观测可靠处引入直接监督，并在观测稀疏区间保留教师模型的保守引导，从而完成教师引导的细化训练。这一分阶段设计可有效避免直接对右删失、标签不完整的原始观测进行单阶段训练时所产生的系统性低估偏差。网络输出的均值与不确定性随后可与简化喷雾角假设和缸内掩膜组合，作为概率化撞壁筛查的原型路径。
 
-本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何撞壁筛查。该方法旨在作为前端工程工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。
+本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何风险筛查。在来自 9 个喷嘴方案的约 15,000 条穿深轨迹（约 40 万个标注时间步）上评估，细化后的代理模型总体 RMSE 为 6.9~mm（约为实测穿深量程的 7.2\%），异方差预测区间校准至标称覆盖率（1σ 覆盖率 68.5\%，2σ 覆盖率 95.7\%）。该方法旨在作为前端筛查工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。
 \end{abstractpage}
 
 \mysection{前言}
@@ -58,15 +59,6 @@
 
 \thesistableofcontents
 \dothesispagenumbering{}
-\section{摘要}
-
-本文提出一套用于预测多燃料船用发动机预喷柴油喷雾穿深演化并筛查撞壁风险的计算流程。研究目标是在设计早期支持对液态柴油撞击缸内壁面的工程评估，因为这类撞击可能导致机油稀释、壁面润湿以及混合恶化。
-
-该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始三维图像序列中提取按 plume 分解的时序观测量和边界演化。
-
-为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络框架：先在中位数穿深轨迹上训练确定性基线模型，再在全部拟合轨迹上进行异方差学习，最后在原始未删失时序可用处引入直接监督、在缺失区间用教师模型提供保守延拓，从而完成教师引导的细化训练。网络输出的均值与不确定性随后与简化喷雾角假设和缸内掩膜组合，形成概率化的撞壁筛查器。
-
-本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何撞壁筛查。该方法旨在作为前端工程工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。
 
 \section{引言}
 
@@ -82,7 +74,7 @@
 
 \subsection{当前工程实践}
 
-在工程实践中，喷雾行为与撞壁风险通常通过三类路径评估：发动机试验、高保真 CFD 与喷雾燃烧仿真，以及光学喷雾实验。发动机试验最接近真实工况，但成本高、速度慢，而且很难在一次试验中只隔离一个喷雾设计因素。高保真仿真能够给出更丰富的内部流动信息，但它需要复杂的模型选择、大量输入假设和显著计算资源 \cite{liu2020sprayreview,peraza2022swi}。
+在工程实践中，喷雾行为与撞壁风险通常通过三类路径评估：发动机试验、高保真 CFD 与喷雾燃烧仿真，以及光学喷雾实验。发动机试验最接近真实工况，但成本高、速度慢，而且很难在一次试验中只隔离一个喷雾设计因素。高保真仿真能够给出更丰富的内部流动信息，但它需要复杂的模型选择、大量输入假设和显著计算资源 \cite{liu2020sprayreview,peraza2022swi}。这种成本并不只是定性判断。燃烧计算文献中引用的一个反应柴油喷雾 LES 例子显示，单个高分辨率 realization 使用最高 2200 万网格和 54 组分 \(n\)-dodecane 机理，仅计算喷射开始后 \SI{2}{ms}，就需要约 48,000 个 CPU core-hours，并且最长 wall-clock 时间达到 20 天 \cite{CurtisNiemeyerSung2017}。由于 TFLOP/s 强烈依赖硬件和求解器效率，core-hours 是更可复现的成本指标；即使用保守的逐核吞吐量粗略换算，这一例子也已经达到单次 realization 的 petaflop-order 算术工作量，更不用说大规模工况扫描。
 
 光学实验则扮演不同角色。它们能提供受控且可重复的观测，适合对大量候选喷嘴、设定或工况进行比较。但光学数据并不会自动转化为工程决策。尤其是，喷雾成像中观察到的液相边界依赖于所用诊断方法以及后处理选择。ECN 的说明明确指出，液相穿深测量具有方法依赖性，光学边界应被理解为实验定义下的量，而不是隐藏真实物理场的直接真值 \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}。
 
@@ -90,13 +82,17 @@
 
 柴油喷雾研究已经提供了大量实验和建模方法。实验方面，高速成像和光学诊断广泛用于表征穿深、扩张角和喷雾形态。建模方面，经验关联式、现象学模型以及基于 CFD 的方法常用于描述喷雾发展 \cite{Linne2013SprayImaging,HiroyasuArai1990,NaberSiebers1996,liu2020sprayreview}。这些方法为喷油器设计和燃烧系统分析打下了重要基础。
 
-但对本文关注的应用场景而言，每类方法都有局限。经验和现象学模型的优点是紧凑、可解释，但它们的假设往往在准稳态条件下最强，对于短脉冲、强瞬态或多次喷射情形则不够可靠 \cite{liu2020sprayreview}。此外，许多经典表达式本身是分段的或依赖工况切换，因此作为学习目标时并不光滑，不适合拟合含噪的短时 pilot spray 轨迹。高保真 CFD 虽然信息丰富，却通常不是设计早期大规模筛选的高效工具。纯图像测量则只能描述特定光学布置下观察到的内容，不能单独提供一个用于工程比较的中间层预测模型。
+但对本文关注的应用场景而言，每类方法都有局限。经验和现象学模型的优点是紧凑、可解释，但它们的假设往往在准稳态条件下最强，对于短脉冲、强瞬态或多次喷射情形则不够可靠 \cite{liu2020sprayreview}。此外，许多经典表达式本身是分段的或依赖工况切换，因此作为学习目标时并不光滑，不适合拟合含噪的短时 pilot spray 轨迹。高保真 CFD 虽然信息丰富，却通常不是设计早期大规模筛选的高效工具。近期 LES 研究也将计算成本视为核心设计约束；例如，一个 ducted-fuel-injection LES 研究报告称，相比更直接的采样策略，多切片 ensemble 方法在单个构型上节省了约 447,000 个 core-hours \cite{Segatori2023DFILES}。纯图像测量则只能描述特定光学布置下观察到的内容，不能单独提供一个用于工程比较的中间层预测模型。
+
+近年来，机器学习方法开始作为经典经验和现象学模型的补充，出现在喷雾建模与燃烧 surrogate 文献中。这些方法表明，在无需封闭解析定律的情况下，学习回归同样可以复现喷雾宏观行为。然而，本文具体关注的一组约束尚未被这些工作直接针对：短脉冲 pilot injection 的瞬态阶段主导了可观测窗口、有限视野舱产生的右删失测量轨迹，以及面向下游几何风险筛查所必需的不确定性感知输出。通用数据驱动喷雾回归与本文具体需求之间的这一差距，正是本文专门构建 surrogate 工作流的动机所在。
 
 \subsection{问题陈述}
 
 因此，本文要解决的核心问题并不是柴油喷雾是否已经被研究，而是能否在光学实验和高成本验证之间建立一个实际可用的中间层模型。更具体地说，当前缺少一种快速、可重复的方法，用于预测预喷柴油非反应液相包络随时间的演化，从而为后续撞壁风险分析提供有依据的几何输入。本文目标不是替代 CFD 或发动机试验，而是在光学实验与这些高成本验证路径之间加入一层 surrogate layer。
 
 这一缺口之所以重要，是因为短脉冲 pilot injection 具有很强瞬态性。喷雾角和穿深并不总能被视为固定常数，瞬态扩散行为会进一步影响穿深和混合 \cite{JungManinSkeenPickett2015}。与此同时，喷雾撞壁在物理上仍然重要且尚未被完全解析，尤其是在从实验室诊断走向发动机相关后果，如壁膜形成和可靠性问题时更是如此 \cite{peraza2022swi}。对于船用发动机，这一问题还因几何尺度而更加复杂，因为大缸径工况与熟悉的汽车喷雾撞壁图景并不完全一致 \cite{liu2024marine_impingement}。当前真正缺失的不是另一个孤立图像测量，而是一个在进入完整反应喷雾或整机分析之前、能够支持早期风险筛查的实用预测器。
+
+一个有前景的思路是直接从大规模光学喷雾数据中学习这一预测器。核心观察在于：Mie 散射实验已经在一定工况范围内捕获了相关液相包络行为——缺少的是将这些观测转化为快速、可参数化预测模型的方法。以测量穿深轨迹的降阶拟合为训练目标、数据驱动的 surrogate 模型恰好填补了原始实验测量与基于物理仿真之间的空白：它保留了光学数据的经验保真度，同时具备工程筛查所需的泛化能力与计算效率。通过直接从喷射工况到穿深轨迹参数学习映射关系，该 surrogate 模型绕开了对封闭解析喷雾定律的依赖，并可随数据集扩展自然更新。引入不确定性量化进一步使输出结果在风险评估中具备可辩护性，而非仅提供无法反映可靠性的单一确定性预测。这一需求并不仅是概念层面的。Mie 散射实验本身存在 shot-to-shot 随机性，光学边界提取依赖于对阈值的选择，其敏感程度因工况而异，而每个工况下可用的重复喷射次数也受到归档规模的限制。这些因素共同决定了穿深标签中的偶然不确定性不可忽视。仅输出条件均值的模型无法告知该均值对特定工况是否可靠，而在风险筛查场景中，一个可以与几何碰撞准则并列解读的校准预测区间，比过度自信的点估计更具实际价值 \cite{KendallGal2017}。
 
 \subsection{研究目标}
 
@@ -108,11 +104,11 @@
 
 为实现这一目标，本文使用室温加压空气舱中的柴油喷雾高速可视化实验。生成的图像序列经过处理，提取与穿深和液相包络相关的几何特征，构成后续建模数据集。
 
-在此基础上，本文使用数据驱动回归来学习实验观测中的液相包络时变行为。该模型被视为 surrogate function approximator，而不是新的闭式喷雾公式。其输出随后将用于几何风险映射，也就是估计某个工况下喷雾是否更有可能接近潜在撞壁区域。在整个流程中，提取出的边界始终被解释为所选诊断方法下的光学液相包络定义，而不是缸内液相场的绝对真值 \cite{ecn_liquid_penetration}。
+在此基础上，本文使用数据驱动回归来学习实验观测中的液相包络时变行为。该模型被视为 surrogate function approximator，而不是新的闭式喷雾公式。其输出随后将用于几何风险映射，也就是估计某个工况下喷雾是否更有可能接近潜在撞壁区域。在整个流程中，提取出的边界始终被解释为所选诊断方法下的光学液相包络定义，而不是缸内液相场的绝对真值 \cite{ecn_liquid_penetration}。为评估 surrogate 是否在现有解析近似之外提供了额外价值，本文还将预测穿深趋势与 Hiroyasu--Arai 两段式模型等经典标度律参考值并置比较 \cite{HiroyasuArai1990}，从而在有物理基础的基准之上解读数据驱动输出。
 
 \subsection{为什么需要这样的工作流}
 
-本文的工作流结构是刻意设计的，而不是出于实现便利。若直接从原始喷雾视频端到端学习穿深预测，将带来高计算成本、低可解释性，并且与当前归档数据规模不匹配。现有数据是 TB 级 12 bit 图像序列，而此前 in-house 图像处理流程采用逐帧 MATLAB 处理，没有可用的并行加速。以这种方式，即使处理约 50 GB 的视频也可能花费一天左右，并且仍然容易崩溃，这与可迭代模型开发或大规模设计筛查都不相容。
+本文的工作流结构是刻意设计的，而不是出于实现便利。若直接从原始喷雾视频端到端学习穿深预测，将带来高计算成本、低可解释性，并且与当前归档数据规模不匹配。这样的端到端方式也难以审计本文问题中真正关键的中间选择，例如标定、光学边界定义、目标拟合以及不确定性感知回归。这一判断也符合更广泛的科学图像处理实践：Fiji/ImageJ、scikit-image、OpenPIV 和 PIVlab 等成熟开源生态都强调可脚本化、可审计、可复用的处理流程，而不是一次性的人工解释 \cite{Schindelin2012Fiji,VanDerWalt2014ScikitImage,OpenPIV,ThielickeSonntag2021PIVlab}。
 
 此外，从方法论上也不应直接对原始强度体学习。Mie 散射图像并不提供液体体积分数的真值场，而是给出一种光学边界定义，其外观依赖照明、散射、背景和后处理选择 \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}。因此，第一步必须先将原始视频转换成更稳定、按 plume 分解且具有明确物理解释的观测量，再进入后续建模。
 
@@ -136,9 +132,11 @@
 
 此外，本文提出的基于 MLP 的 surrogate 模型主要面向训练数据所覆盖工况范围内的插值预测。对于明显超出当前实验数据分布的外推工况，其预测精度与不确定性估计不在本文中作同等级保证。因此，该模型应被理解为数据覆盖范围内的工程筛查工具，而不是对任意未知工况都可靠的通用喷雾真值模型。
 
+将范围限制在非反应、非蒸发条件下，是出于物理上有据可查的保守筛查考量。在决定液相包络最终到达范围的喷射初始阶段，主导物理过程是动量交换、气动阻力以及一次和二次破碎——这些过程在冷喷雾条件下同样完整存在。ECN 基准研究证实，在受控环境舱条件下测量的非反应液相穿深可跨实验室复现，并且与发动机相关标度律中出现的相同支配参数——环境密度、喷射压力和喷嘴几何——高度相关 \cite{NaberSiebers1996,ecn_liquid_penetration}。在冷喷雾条件下，液相长度达到其最大无抑制程度，因为在高温缸内条件下缩短液相包络的蒸发过程此时并不存在。因此，冷喷雾穿深为撞壁筛查提供了一个保守上界：若某工况的非反应液相包络未接近壁面边界，则在对应发动机工况下（蒸发进一步缩短液相长度），该工况发生撞壁的可能性更低。非反应研究范围支持具有可辩护性的保守筛查，而非使结论与发动机工况无关。
+
 \subsection{论文结构}
 
-本文接下来的结构如下。第 2 节综述与本研究相关的文献和技术依据。第 3 节介绍研究材料和方法，包括图像处理和模型准备流程。第 4 节说明归档模型、训练阶段及其证据。第 5 节总结当前结果与证据边界。第 6 节给出结论。
+本文接下来的结构如下。文献综述与技术依据部分将本研究置于柴油喷雾成像、光学诊断和 surrogate 建模背景下。研究材料与方法部分介绍实验数据、图像处理流程、特征提取、轨迹拟合和模型训练过程。结果部分报告已归档的处理资产和模型证据。结论部分总结当前结果、主要限制和后续开发需求。
 
 \section{文献综述与技术依据}
 
@@ -310,6 +308,8 @@ y=\mu(x,t)+\varepsilon(x,t),\qquad \varepsilon(x,t)\sim \mathcal{N}(0,\sigma^2(x
 \subsection{\texttt{main.py} 中的视频批处理}
 
 \texttt{main.py} 中的文件处理器是图像分析工作流的中枢。对于每个 \texttt{.cine} 记录，\texttt{\_process\_cine\_file} 会把视频加载到当前数组后端，复用整个文件夹的环形掩码，调用 \texttt{mie\_multihole\_preprocessing} 与 \texttt{mie\_multihole\_postprocessing}，提取逐 plume 穿深曲线，计算基于边界的几何度量，并最终导出同步 CSV 与元数据文件。关键在于，这条链中数值开销最大的部分都尽量保留在后端本地：当 CuPy 可用时，卷积、角度分箱、重映射、阈值处理、连通域清理和形态学操作都会沿着 CUDA 路径执行，直到最终表格导出为止。
+
+这一实现选择来自此前内部处理路线的实际限制。旧流程依赖逐帧 MATLAB 处理，缺少有效并行加速。这里批评的并不是 MATLAB 语言本身：例如 PIVlab 就是一个成熟的 MATLAB 开源 PIV 工具箱 \cite{ThielickeSonntag2021PIVlab}。真正的限制在于本地批处理架构；在这种形式下，即使处理约 50~GB 的视频也可能需要一天左右，并且仍然容易崩溃。因此，将主要图像操作转入批量 CUDA 导向流程，在本文中被视为方法设计的一部分，而不是单纯的软件优化。
 
 \subsubsection{标定移交和批量锚定}
 
@@ -575,117 +575,13 @@ z_{\mathrm{robust}}(x)=0.6745\,\frac{x-\operatorname{median}(x)}{\operatorname{M
 \]
 应用于\(t_0\)、\(\log(1+\mathrm{RMSE})\)和\(\log(1+\mathrm{cost\_per\_point})\)在每个文件组内。在任何诊断上\(z_{\mathrm{robust}}\)超过3的行被标记为异常值并从清洗档案中排除。这在后续神经网络阶段很重要，因为它在扭曲训练分布之前移除了显然不稳定的拟合。结果是一个故意保守的策划步骤：网络不会看到每个拟合行，而只会看到在远时间保持数值合理的轨迹。
 
-\subsection{\codepath{MLP/median_penetration_MSE.ipynb} 中的 Stage-1 确定性基线}
+\subsection{v1 直接特征 MLP 中的稀疏特征不稳定性}
 
-存档的第一阶段笔记本指出，它从拟合CSV输出构建代表性行表并围绕九个输入特征训练确定性基准：
-\begin{enumerate}
-  \item 标准化时间，
-  \item 倾斜角度，
-  \item 喷雾数量，
-  \item 喷嘴直径，
-  \item 注入持续时间，
-  \item 对数注入压力，
-  \item 对数气缸压力，
-  \item 对数压力差，和
-  \item 控制背压。
-\end{enumerate}
+在当前 v2 架构确定之前，一个较早的九特征 MLP 曾以直接输入压力和喷嘴直径的方式进行训练。归档于 \codepath{MLP/v1\_direct\_feature\_training/slides\_sparse\_feature\_instability} 的系统性诊断研究揭示了一个结构性问题。当前数据集中，喷嘴直径仅有六个观测层级，且并非在所有压力组合下均有覆盖：全部六个直径层级仅出现于狭窄工况族 $(P_{\mathrm{inj}}=\SI{2000}{bar},\;P_{\mathrm{cb}}=4,\;P_{\mathrm{ch}}\in\{5,10,15\}\,\si{bar})$。喷射压力也只有四个层级。由于光滑 MLP 把这些输入视为连续变量，它会在直径轴和压力轴上产生数据无法约束的导数结构。对直径做密集扫描时出现五到六次梯度符号变化，最差截线偏离比低于一，曲率范数高达 $10^7$ 量级；喷射压力在稀疏支持切片上同样表现出不受数据约束的外推行为。这一病理是稀疏特征几何的结构性后果，在时间维度上持续存在，而非训练噪声的偶发产物。加大正则化只能以牺牲全局容量为代价来抑制不稳定性；根本问题在于光滑 MLP 被要求从一个本质上离散的采样格上学习具有物理意义的连续规律。v2 架构因此从源头上解决了这一问题，直接移除了这些稀疏输入。
 
-代表性行构建在笔记本中是明确的。对于每个文件级工作条件组，拟合曲线在固定比较时间\(\SI{5}{ms}\)处评估，计算该远时间的组中位穿深，然后保留最接近该中位的行作为第一阶段代表性。这个选择是有意的：笔记本指出，非常早期的点更受液压延迟、分割模糊和相对误差影响，而远时间穿深更稳定，因此更适合选择典型轨迹。第一阶段因此不是在完整行分布上训练，而是在每个组中保留一个中位代表性拟合轨迹。
+\subsection{\codepath{MLP/v2\_engineered\_feature} 中的工程化特征设计}
 
-特征缩放同样是有意的。穿深目标本身从四个拟合常数在固定\(\SI{0}{ms}\)到\(\SI{5}{ms}\)网格上解码并保持其物理拟合单位而不是标准化，这样学习的均值\(\mu\)和后续不确定性尺度保持直接可解释为穿深值。相比之下，网络输入是为优化稳定性而标准化的：时间映射到\([0,1]\)，静态几何和工况特征使用仅在训练子集上拟合的统计信息进行z得分，压力相关变量首先在对数域中表示，然后进行z得分。相同的scaler状态保存供后续推理在\texttt{toy\_inference\_from\_run.py}中重用。
-
-第一阶段使用的损失比普通MSE更结构化。网络发出每个点的两个输出\(\mu(x,t)\)和\(\log \sigma^2(x,t)\)，但代表性中位数据集主要用于学习均值趋势。实现的目标可以写成
-\[
-\begin{aligned}
-\mathcal{L}_{\mathrm{stage1}}
-=\;&
-\underbrace{\operatorname{MSE}\!\left(\mu,y\right)}_{\text{均值拟合}}
-+\lambda_{\mathrm{var}}
-\underbrace{\mathbb{E}\!\left[\left(\log \sigma^2-c_0\right)^2\right]}_{\text{对数方差先验}}\\
-&+\lambda_{1}
-\underbrace{\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu}{\partial t}\right)^2\right]}_{\text{单调性}}
-+\lambda_{2}
-\underbrace{\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu}{\partial t^2}\right)^2\right]}_{\text{瞬态后凹性}}.
-\end{aligned}
-\]
-其中
-\[
-g(t)=\sigma\!\left(\frac{t-t_c}{\tau_c}\right).
-\]
-在笔记本实现中，\(c_0=-2\)是第一阶段对数方差头的先验中心，导数通过在固定\(\SI{0}{ms}\)到\(\SI{5}{ms}\)时间网格上的一阶和二阶有限差分实现。对数方差输出在应用正则化之前被限制在有界区间内。
-
-这些导数惩罚被用作工程先验而不是完整的PINN残差。动机是直观且与前面论文中的经验穿深讨论一致：喷雾尖端穿深应随时间非递减，而在初始瞬态后不应继续无限加速。第一个惩罚阻止负斜率，而第二个惩罚仅在学习或预定的过渡区域后阻止正曲率。这种软门控凹性项很重要，因为它在SOI附近的早期时间加速留有空间，但将后期轨迹推向实践中观察到的减速形状。
-
-笔记本输出报告\texttt{input\_dim = 9}和\texttt{n\_points = 1024}。它还报告了589个代表性轨迹的阶段1行表，分为413个训练行、88个验证行和88个测试行。归档的运行配置显示了一个两输出MLP，带有dropout、GELU激活和导数相关惩罚。重要的是，存储的配置还保持\texttt{physics.weight = 0.0}。因此，存档模型最好被描述为物理缩放和软正则化的MLP，而不是完整的PDE残差PINN。在第一阶段，第二个输出头主要保留用于架构连续性，而损失仍主要由MSE在代表性中位目标上主导。
-
-除了明确的损失项外，存档配置还使用了几种标准正则化设备：隐藏层中的dropout、AdamW权重衰减、梯度裁剪和验证损失的早停。与上述导数惩罚结合，这些构成了当前存储阶段的实用替代方案，用于硬物理约束网络。
-
-\subsection{\codepath{MLP/median_penetration_NLL.ipynb} 中的 Stage-2 异方差扩展}
-
-第二笔记本继续从第一阶段架构并用异方差高斯负对数似然替换第一阶段损失。简化形式为
-\[
-\mathcal{L}_{\mathrm{NLL}}
-=
-\frac{1}{2}
-\left[
-\log \sigma^2(x,t)
-+
-\frac{\left(y-\mu(x,t)\right)^2}{\sigma^2(x,t)}
-\right].
-\]
-
-第二阶段数据集有意比第一阶段种子集更广泛，但仍然经过筛选。与只取每组一个中位代表性行不同，笔记本保留了所有在相同比较时间\(\SI{5}{ms}\)下通过远时间选择规则的行。具体来说，它从四个拟合常数重建该时间戳的穿深及其时间导数，移除组内远时间穿深为稳健z得分异常值的行，移除在该比较点导数基本平坦的退化行。这是在早期\texttt{fit\_raw\_data.py}掩码阶段之上的第二个稳健性屏障。
-
-第二阶段还重用第一阶段的缩放和初始化逻辑。笔记本明确加载\texttt{best\_model\_stage1.pt}、\texttt{scaler\_state.json}和存储的训练配置后继续优化。特征映射保持相同的九维物理缩放输入向量，因此第二阶段最好被理解为第一阶段均值模型的热启动异方差改进，而不是完全独立的模型家族。
-
-在该设置下，高斯条件模型是一个合理的工程选择。行级扩散不归因于一个已知的物理扰动；而是被视为在重过滤后未解决的喷嘴和测量效应的聚合残差。在预喷注入中这尤其合理，因为短脉冲长度放大了液压开启瞬态、小的时间偏移和其他加性扰动相对于整体事件持续时间的影响\cite{ZhouLiYi2021}。因此，NLL目标在这里被用作一种实用方法，学习剩余数据云在何处狭窄，在何处宽广，同时将不确定性预测与第一阶段学习的相同均值轨迹模型耦合。
-
-第二阶段目标保持相同的几何正则化，同时用异方差负对数似然替换第一阶段MSE项：
-\[
-\mathcal{L}_{\mathrm{stage2}}
-=
-\underbrace{\mathbb{E}\!\left[
-\frac{1}{2}
-\left(
-\log \sigma^2
-+
-\frac{(y-\mu)^2}{\sigma^2}
-\right)\right]}_{\text{异方差高斯NLL}}
-+\lambda_{1}
-\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu}{\partial t}\right)^2\right]
-+\lambda_{2}
-\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu}{\partial t^2}\right)^2\right],
-\qquad
-\sigma^2=\exp(\log \sigma^2)+\varepsilon .
-\]
-与第一阶段一样，实现将\(\log \sigma^2\)限制在有界区间内，并通过固定时间网格上的有限差分计算导数惩罚。概念差异在于方差头不再仅仅被正则化到先验；而是现在通过NLL项直接训练。这就是为什么从第一阶段热启动很重要的原因：均值分支已经编码了稳定的穿深趋势，因此第二阶段可以将其容量用于改进均值和学习条件依赖的残差尺度，而不是从头开始重新学习整个轨迹。
-
-同样保留了单调性和延迟凹性先验。它们不是作为喷雾的精确控制方程，而是作为比直接PINN公式更弱和更稳健的形状约束。实际上，模型被告知穿深应随时间增长，且在瞬态区域后不应继续加速，而剩余未解释的扩散则委托给异方差方差头和NLL目标。
-
-存档笔记本输出报告了21,177个轨迹的行表，分为14,825个训练行、3,176个验证行和3,176个测试行。笔记本还打印了玩具推理期间的标准差范围，这证实了第二输出头在笔记本会话中被用作不确定性估计。
-
-然而，第二阶段结果必须谨慎处理。归档的 run 目录\codepath{MLP/runs_mlp/stage2_NLL_penetration_20260317_194155}包含日志、scaler状态、配置和\codepath{loss_curves.png}，但不包含\codepath{best_model_stage2.pt}。此外，归档的运行配置指向\codepath{MLP/data_penetration}，该目录在当前工作区中不存在。因此，本论文将第二阶段视为存档的部分结果，而不是完全包装的发布模型。
-
-\subsection{Warm-start 原始 CDF 细化与保守蒸馏}
-
-存档的NLL阶段即使在整体时间轴上也不是同样忠实于训练目标。实际弱点出现在注入开始时。在该区域，绝对穿深很小，因此任何时间偏移、拟合延迟模糊或平滑性先验都会产生相对较大的分数误差。图~\ref{fig:stage2-toy-inference-early-time}说明了在代表性玩具推理扫描中的这种行为：均值预测平滑且具有不确定性感知，但曲线的最早部分仍然主要由拟合目标先验塑造，而后期部分接近实际光学观测限制在\(\SI{90}{mm}\)附近。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.82\linewidth]{images/stage2_toy_inference_2000bar_5bar.png}
-\caption{对存档第二阶段NLL模型的代表性\(\SI{2000}{bar}\)，\(\SI{5}{bar}\)案例的玩具推理。该图说明了为什么需要后续原始序列细化：异方差预测平滑且表现良好，但轨迹的最早部分仍然主要受拟合目标先验影响，而后期部分接近实际光学观测限制。}
-\label{fig:stage2-toy-inference-early-time}
-\end{figure}
-
-因此，在\texttt{MLP/distillation\_plus\_raw\_series.ipynb}中设计了后续细化阶段。不是从头开始训练新的模型家族，而是热启动NLL模型，然后用原始\texttt{cdf}时间序列和教师指导进行细化。动机有两个。首先，原始\texttt{cdf}轨迹保留了早期时间喷雾增长比降阶拟合曲线更直接。其次，已经训练的NLL模型提供了一个稳定的教师分布，防止细化模型在直接监督稀疏时漂移到不合理形状。在这种细化观点中，均值头被有意拉近原始早期时间观测，同时被锚定在物理上有意义的参考\(\mu(t=0)\approx0\)。
-
-主要障碍是原始序列本身也是右截断的。光学视场名义上限制在约\(\SI{90}{mm}\)，并且项目中使用的简单轴向校正使有效轴向限制通过倾斜角度余弦投影略微增大。实际上，随着破碎过程的进行，晚期信号也会变弱，因此原始\texttt{cdf}轨迹的后期部分在达到几何限制之前就变得越来越不可靠。因此，原始晚期标签不能简单地被视为同样可信的回归目标。
-
-实现的响应是保守而非乐观的。对于每个工况组，原始\texttt{cdf}观测按时间分箱，可用样本数用作覆盖代理。在覆盖峰值附近的箱标记为\texttt{raw\_reliable}；在持续下降后的箱标记为\texttt{raw\_uncertain}；在覆盖变得非常稀疏的箱标记为\texttt{teacher\_only}。仅在可靠区域保留直接原始监督。在不确定和仅教师区域，监督被替换为来自热启动教师模型的蒸馏，而不是信任向下偏置的截断原始点。这不声称精确重建隐藏的真实晚期穿深。而是用作偏置缓解策略：更好的解析原始观测被允许细化早期时间动态，而右截断尾部通过保守的模型辅助延续处理，这样均值头不会被消失的观测向下拉拽。
-
-\subsection{\codepath{MLP/v2_engineered_feature} 中的工程化特征精化}
-
-surrogate 的第二次迭代归档于 \codepath{MLP/v2_engineered_feature}，其目的是修正 v1 九特征输入的一个结构性缺陷：喷嘴直径与喷射压力是稀疏轴（分别只有 6 个与 4 个观测层级），但直接特征 MLP 仍把它们视作连续变量，因此网络可以在这些轴上产生数据无法约束的导数结构。v2 实现没有用更多的正则化去削弱这种自由度，而是把相应的物理依赖直接吸收为一个来自 Hiroyasu--Arai 破碎后分支的硬缩放群。从破碎后分支
+v2 代理模型将四个弱支持的压力和直径输入替换为一个来自 Hiroyasu--Arai 破碎后分支的硬物理缩放群 \cite{HiroyasuArai1990}。从破碎后形式
 \[
 S(t)\;\propto\;K_p\!\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2}\,t^{1/2},
 \]
@@ -695,15 +591,131 @@ A\;=\;\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2},
 \]
 该量在 \texttt{engineered\_feature\_common.build\_canonical\_feature\_table} 中由测试矩阵 JSON 计算得到。对于 Nozzle1--Nozzle8，气缸密度直接取自 \texttt{chamber\_density\_kg\_per\_m3}；对于只记录 \texttt{chamber\_pressure\_bar} 的 DS300，则按对 Nozzle1--8 显式条目标定的线性律 $\rho_a=\SI{5}{kg/m^3}\times P_{\mathrm{ch}}/\SI{4.42}{bar}$ 反推 $\rho_a$。
 
-v1 的九特征输入据此被精简。四个稀疏列 \texttt{diameter\_mm\_z}、\texttt{log\_injection\_pressure\_bar\_z}、\texttt{log\_chamber\_pressure\_bar\_z} 与 \texttt{log\_delta\_pressure\_bar\_z} 被完全移除。\texttt{FEATURE\_COLUMNS\_BY\_VARIANT} 暴露剩余特征向量的两个变体：五特征 \texttt{a\_only}
+四个稀疏列 \texttt{diameter\_mm\_z}、\texttt{log\_injection\_pressure\_bar\_z}、\texttt{log\_chamber\_pressure\_bar\_z} 与 \texttt{log\_delta\_pressure\_bar\_z} 被完全移除，保留两个特征向量变体。五特征 \texttt{a\_only}
 \[
 [\,t_{\mathrm{norm}},\;\theta_{\mathrm{tilt},z},\;n_{\mathrm{plumes},z},\;t_{i,z},\;P_{\mathrm{cb},z}\,]
 \]
-其中 $A$ 完全不进入输入，仅作为目标的除数；以及六特征 \texttt{a\_plus\_log\_a}，在前者基础上额外加入 $\log A_z$ 作为一维残差轴。训练目标被重参数化为无量纲穿深 $\hat S(t)=S(t)/A$，其预测标准差为 $\hat\sigma(t)$，因此网络现在在 $\hat S$ 上预测 $\hat\mu$ 与 $\log\hat\sigma^2$，物理均值与标准差在推理时通过 $\mu_S=A\,\hat\mu$ 与 $\sigma_S=A\,\hat\sigma$ 精确还原。在代码层面，这对应于 \texttt{PenetrationDataset} 中保存 \texttt{target\_scaled = penetration / A\_scale}，并在推理路径上再乘回 \texttt{A\_scale}。
+中 $A$ 仅作为目标除数，不进入输入；六特征 \texttt{a\_plus\_log\_a} 在此基础上额外加入 $\log A_z$ 作为一维残差轴。训练目标被重参数化为无量纲穿深 $\hat{S}(t)=S(t)/A$，网络预测 $\hat{\mu}$ 与 $\log\hat{\sigma}^2$，物理均值与标准差在推理时通过 $\mu_S=A\,\hat{\mu}$ 与 $\sigma_S=A\,\hat{\sigma}$ 精确还原。
 
-因此，损失函数确实做了修改，但不是完全换成另一套物理目标。Stage 1 中，数据拟合项改为缩放目标上的 MSE，即 \(\operatorname{MSE}(\hat\mu,\hat S)\)，同时保留与 v1 相同的方差头先验；Stage 2 中，似然项改为针对缩放目标的异方差高斯 NLL。然而，单调性与瞬态后凹性惩罚仍然是在重建后的物理均值 \(\mu_S=A\,\hat\mu\) 上计算，而不是直接在 \(\hat\mu\) 上计算。因此，这次 engineered-feature 更新更准确的理解是“硬特征坍缩 + 目标/输出重参数化”，而不是用一套新的 physics loss 去取代早先的形状先验。
+在任何优化之前，\texttt{run\_pretrain\_collapse\_check} 在实际数据集上检验缩放假设：它将每条代表性轨迹除以自身的 $A$，报告逐时间切片方差缩减情况，并计算 $\hat{S}(t)$ 对保留特征的线性回归 $R^2$。在归档 run 中，该检验通过，中位数 \SI{0.5}{ms} 后方差缩减率为 59.5\%（坍缩比 0.405），稀疏特征 $R^2$ 从物理目标上的 0.34 降至缩放目标上的 0.14，证实 $A$ 已经解释了主要的直径与压力依赖性，网络只需学习残余的、由稠密轴主导的变化结构。若检验失败，训练默认中止，使得物理先验在实际数据集上可证伪而非默认成立。
 
-v2 驱动脚本 \texttt{train\_stage1\_mse.py} 与 \texttt{train\_stage2\_nll.py} 取代了 v1 的整体笔记本。它们共享三处新的管线脚手架。第一，\texttt{assign\_splits\_by\_group} 按整组的 \texttt{sample\_group\_id} 分配训练、验证、测试集，而不是对单条曲线做置换，以防止共享同一工况的曲线之间发生泄漏。第二，在任何优化之前，\texttt{run\_pretrain\_collapse\_check} 由四个拟合常数重建代表性轨迹，将每条曲线除以自身的 $A$，并报告 $\hat S(t)$ 与 $S(t)$ 的逐时间切片方差对比以及 $\hat S(t)$ 对剩余特征的线性回归 $R^{2}$；如果预检失败，训练会中止，除非显式覆盖。这使得所假设的缩放在实际数据集上变得可证伪，而不是被默认成立。第三，Stage-2 NLL 驱动严格从 Stage-1 工程化 run 目录热启动并复用其 scaler 状态，从而保证两个阶段的变体选择与 $A$ 缩放完全一致。\texttt{toy\_inference\_from\_run.py} 中的推理路径在 \texttt{infer\_feature\_family} 上分支，于是 v1 旧 run 仍然走九特征路径，而 v2 工程化 run 则把原始输入按训练时使用的同一 $\rho_a$、$\Delta P$、$A$ 管线规范化，并在输出报告前将模型预测乘上 $A$。因此 v2 阶段最佳的理解不是取代已归档的 v1 模型，而是一次承诺特定物理缩放并减少弱支持连续轴数量的精化迭代。
+驱动脚本 \texttt{train\_stage1\_mse.py} 与 \texttt{train\_stage2\_nll.py} 还引入了组感知数据划分：\texttt{assign\_splits\_by\_group} 按整组 \texttt{sample\_group\_id} 分配训练、验证、测试集，防止共享同一工况点的曲线之间发生泄漏。Stage~2 严格从 Stage-1 工程化 run 目录热启动并复用其 scaler 状态，保证两个阶段的变体选择与 $A$ 缩放完全一致。
+
+\subsection{无量纲目标上的 Stage-1 MSE 基线}
+
+Stage~1 在代表性轨迹子集上训练确定性均值模型。对于每个文件级工况组，在 $t_{\mathrm{far}}=\SI{5}{ms}$ 处评估拟合曲线，计算该时刻的组中位穿深，并保留最接近该中位的行作为 Stage-1 代表性轨迹。在归档 run \codepath{stage1\_engineered\_mse\_a\_only\_20260410\_020317} 中，该过程产出 526 条代表性轨迹，按组划分为训练、验证与测试集。
+
+作用于无量纲目标 $\hat{S}$ 的损失为
+\[
+\begin{aligned}
+\mathcal{L}_{\mathrm{stage1}}
+=\;&
+\operatorname{MSE}\!\left(\hat{\mu},\hat{S}\right)
++\lambda_{\mathrm{var}}
+\mathbb{E}\!\left[\left(\log \hat{\sigma}^2-c_0\right)^2\right]\\
+&+\lambda_{1}
+\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu_S}{\partial t}\right)^2\right]
++\lambda_{2}
+\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu_S}{\partial t^2}\right)^2\right],
+\end{aligned}
+\]
+其中 $c_0=-2$ 为对数方差先验中心，$g(t)=\sigma((t-t_c)/\tau_c)$ 将凹性惩罚门控至瞬态区域之后，导数惩罚在物理重建 $\mu_S=A\,\hat{\mu}$ 上计算，以确保单调性与凹性约束在可观测尺度上生效。网络为三隐层 MLP，维度 $[512,512,128]$，GELU 激活，dropout~0.3，使用 AdamW 优化器与梯度裁剪及早停。该 run 在第 115 个 epoch 达到最佳验证 MSE（缩放目标）18.94，测试集物理 MAE 为 \SI{8.1}{mm}。run 目录包含 \codepath{best\_model\_stage1.pt}、\codepath{scaler\_state.json}、epoch 与迭代损失日志以及 \codepath{pretrain\_collapse\_summary.png}。
+
+\subsection{Stage-2 异方差 NLL 扩展}
+
+Stage~2 从 Stage-1 checkpoint 热启动，将训练集扩展至所有经过筛选的轨迹，并以缩放目标上的异方差高斯负对数似然替换 MSE 数据拟合项：
+\[
+\mathcal{L}_{\mathrm{stage2}}
+=
+\underbrace{\mathbb{E}\!\left[
+\frac{1}{2}
+\left(
+\log \hat{\sigma}^2
++\frac{(\hat{S}-\hat{\mu})^2}{\hat{\sigma}^2}
+\right)\right]}_{\text{缩放目标上的异方差 NLL}}
++\lambda_{1}
+\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu_S}{\partial t}\right)^2\right]
++\lambda_{2}
+\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu_S}{\partial t^2}\right)^2\right],
+\quad\hat{\sigma}^2=\exp(\log\hat{\sigma}^2)+\varepsilon.
+\]
+导数惩罚仍然在物理空间重建 $\mu_S=A\,\hat{\mu}$ 上计算，特征映射与 Stage~1 完全相同，确保两个阶段的 $A$ 缩放与变体选择一致。行表扩展至 14,594 条经过筛选的轨迹，保留所有通过拟合级掩码以及组内远时刻 z-score 过滤的行。数据划分在 \texttt{sample\_group\_id} 层级完成，而不是在单条 plume 轨迹层级完成，因此同一物理工况下的轨迹不会同时泄漏到训练、验证和测试分区中。每条轨迹在 \SIrange{0}{5}{ms} 内采样 512 个时间点，因此归档的 Stage-2 表共包含 7,472,128 个逐点样本：训练集为 370 个组中的 10,333 条轨迹，验证集为 78 个组中的 2,092 条轨迹，测试集为 78 个组中的 2,169 条轨迹。
+
+保留下来的轨迹覆盖了归档数据中的主要操作范围：控制背压从 1 到 \SI{4}{bar}，喷射压力从 1,400 到 \SI{2,200}{bar}，喷射持续时间从 380 到 \SI{1,200}{\micro\second}，拟合远时刻穿深从 \SI{58.1}{mm} 到 \SI{202.6}{mm}。因此 Stage~2 学到的并不是单一中位曲线，而是在异常值剔除后仍然存在的组内 plume 差异与重复实验差异。异方差输出用于把纯 MSE 目标会混在一起的两个量分开：条件平均穿深轨迹，以及围绕该平均轨迹的条件离散度。
+
+训练沿用 Stage~1 的特征映射与 scaler 状态。输入向量仍为 \([\texttt{time\_norm\_0\_5ms},\theta_z,N_{\mathrm{plume},z},\Delta t_{\mathrm{inj},z},p_{\mathrm{back},z}]\)，网络仍为三隐层 MLP，维度为 $[512,512,128]$，并从 \codepath{best\_model\_stage1.pt} 热启动。Stage~2 run 使用 AdamW，学习率 \(8\times10^{-4}\)，权重衰减 \(10^{-4}\)，batch size 为 96，梯度裁剪范数为 1.0，对数方差边界为 \([-10,6]\)，早停耐心为 35。因此，该阶段在数据拟合项上的有意变化，是把确定性 MSE 替换为带学习方差输出的高斯 NLL。
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|L{0.20\linewidth}|L{0.08\linewidth}|L{0.14\linewidth}|L{0.13\linewidth}|L{0.12\linewidth}|L{0.12\linewidth}|}
+\hline
+\codepath{epoch\_loss.csv} 记录 & Epoch & 逐点样本数 & Loss / 缩放 NLL & 物理 MAE & 平均预测标准差 \\
+\hline
+最佳验证 epoch 的训练集 & 66 & 5{,}290{,}496 & 2.156 / 2.148 & \SI{9.83}{mm} & \SI{12.27}{mm} \\
+验证集，最佳 checkpoint & 66 & 1{,}071{,}104 & 2.038 / 2.038 & \SI{8.81}{mm} & \SI{11.71}{mm} \\
+验证集，早停 epoch & 101 & 1{,}071{,}104 & 2.053 / 2.053 & \SI{8.97}{mm} & \SI{12.11}{mm} \\
+测试集，恢复最佳 checkpoint & 101 & 1{,}110{,}528 & 2.083 / 2.083 & \SI{9.18}{mm} & \SI{11.44}{mm} \\
+\hline
+\end{tabular}
+\caption{来自 \codepath{MLP/runs\_mlp/stage2\_engineered\_nll\_a\_only\_20260410\_020607/epoch\_loss.csv} 的 Stage-2 epoch 级损失摘要。测试行是在早停后写入的，但测试评估前模型权重已恢复至最佳验证 checkpoint。}
+\label{tab:stage2-epoch-loss}
+\end{table}
+
+表~\ref{tab:stage2-epoch-loss}显示，最佳验证 NLL 出现在第 66 个 epoch，而训练在第 101 个 epoch 早停，因为后续没有获得更低的验证损失。留存测试集 MAE 为 \SI{9.18}{mm}，与验证集 MAE 接近；平均预测标准差为 \SI{11.44}{mm}，仍大于逐点误差尺度。这正是该阶段所需要的行为：模型不再被迫把所有 plume 间残差变化都压入均值函数，而是给出非零的条件不确定性，供后续碰撞概率估计与蒸馏阶段使用。run 目录包含 \codepath{best\_model\_stage2.pt}、\codepath{scaler\_state.json}、\codepath{row\_table.csv}、\codepath{epoch\_loss.csv}、\codepath{iteration\_loss.csv}、\codepath{test\_summary.csv} 和 \codepath{stage2\_loss\_curves.png}；其中 \codepath{best\_model\_stage2.pt} 作为后续蒸馏阶段的教师 checkpoint。
+
+\subsection{原始 CDF 蒸馏与喷射起始精化}
+
+NLL 阶段在拟合训练目标上产出了良好的异方差预测，但拟合曲线在整个时间轴上的忠实程度并不均匀。在注入起始附近，绝对穿深很小，任何时间偏移、拟合延迟模糊或平滑性先验都会产生相对较大的分数误差，因此每条预测曲线的最早部分仍然由拟合目标先验主导，而不是由直接观测到的原始羽流动力学决定。图~\ref{fig:stage2-toy-inference-early-time}以代表性玩具推理扫描展示了这一现象。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{images/stage2_toy_inference_2000bar_5bar.png}
+\caption{Stage-2 NLL 模型在代表性 \(\SI{2000}{bar}\)、\(\SI{5}{bar}\) 工况下的玩具推理结果。预测整体平滑且具有不确定性感知，但轨迹最早部分仍然主要由拟合目标先验塑造，这正是后续蒸馏精化的动机。}
+\label{fig:stage2-toy-inference-early-time}
+\end{figure}
+
+为了在原始 CDF 观测上精化早期时间动态，同时防止在晚期稀疏区域崩塌，一个知识蒸馏阶段被实现于 \codepath{MLP/distillation\_plus\_raw\_series.py} 中，并归档于 \codepath{runs\_mlp/distill\_cdf\_onset\_v2\_20260410\_103413}。Stage-2 NLL 模型作为固定教师；学生网络继承教师权重，并通过原始 CDF 与教师指导的联合训练进一步精化。
+
+\textbf{CDF 覆盖率区制。}  由于原始 CDF 序列存在右截断问题（到 $t\approx\SI{3}{ms}$ 时，许多工况已损失超过 70\% 的测量值），无法在时间轴上均匀地施加直接的原始监督。对于每个工况组，原始观测被分入 $[0,5]\,\si{ms}$ 上 $\Delta t=\SI{0.1}{ms}$ 的时间箱，每箱的平滑样本数作为覆盖率代理，确定三个互斥区制：\texttt{raw\_reliable}（平滑覆盖率 $\geq$ 峰值的 70\%）、\texttt{raw\_uncertain}（覆盖率在 20\%--70\% 之间）、\texttt{teacher\_only}（覆盖率低于 20\% 或每箱少于 4 个样本）。区制转换需要至少两个连续时间箱，以防止孤立下跌触发过早的区制切换。
+
+\textbf{监督权重。}  每个网格点接收两个独立的权重通道：
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+区制 & 原始权重 $w_{\mathrm{raw}}$ & 知识蒸馏权重 $w_{\mathrm{kd}}$ \\
+\midrule
+\texttt{raw\_reliable}  & 1.0 & 0.25 \\
+\texttt{raw\_uncertain} & 0.0 & 1.0  \\
+\texttt{teacher\_only}  & 0.0 & 0.75 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+两个通道还通过全局时间箱再平衡权重（逆频率，裁剪至 $[0.5,2.0]$）进一步调制。在 \texttt{raw\_reliable} 箱中，原始 NLL 为主要信号，辅以轻度 KD 正则化；在 \texttt{raw\_uncertain} 箱中，原始监督被丢弃，教师 KL 散度占主导；在 \texttt{teacher\_only} 箱中，KD 权重略有降低，以反映教师在外推区域的不确定性。
+
+\textbf{复合损失函数。}  训练目标为
+\[
+\mathcal{L} = \mathcal{L}_{\mathrm{raw}} + \mathcal{L}_{\mathrm{KD}} + \lambda_{\mathrm{onset}}\,\mathcal{L}_{\mathrm{onset}} + \lambda_{\mathrm{anchor}}\,\mathcal{L}_{\mathrm{anchor}} + \lambda_{d_1}\,P_{d_1} + \lambda_{d_2}\,P_{d_2},
+\]
+其中 $\mathcal{L}_{\mathrm{raw}}$ 为物理空间 $(\mu,\sigma^2)$ 相对于原始 CDF 目标的高斯 NLL，由 $w_{\mathrm{raw}}$ 加权；$\mathcal{L}_{\mathrm{KD}}$ 为学生到教师的前向 KL 散度 $\mathrm{KL}(q_{\mathrm{student}}\|p_{\mathrm{teacher}})$（物理空间），由 $w_{\mathrm{kd}}$ 及教师置信因子
+\[
+w_{\mathrm{conf}}(t) = \mathrm{clamp}\!\left(\frac{\sigma_{\mathrm{ref}}}{\sigma_{\mathrm{teacher}}(t)},\;0.25,\;1.0\right),\quad\sigma_{\mathrm{ref}}=\SI{10}{mm}
+\]
+共同加权；$\mathcal{L}_{\mathrm{onset}}$ 为新增起始 logit 输出相对于斜坡目标 $\min(t/t_{\mathrm{ramp}},1)$ 的 BCE 损失，仅在 $t\leq\SI{0.2}{ms}$ 时激活（$\lambda_{\mathrm{onset}}=0.1$）；$\mathcal{L}_{\mathrm{anchor}}$ 为将 $\mu(t\approx0)$ 拉向零的二次惩罚，在前 \SI{0.15}{ms} 内逐渐消退（$\lambda_{\mathrm{anchor}}=0.01$）；$P_{d_1}=\operatorname{ReLU}(-\Delta\mu)^2$ 强制单调性；$P_{d_2}=\operatorname{ReLU}(+\Delta^2\mu)^2$ 在 $t\geq\SI{0.5}{ms}$ 后强制凹性。
+
+\textbf{学生模型架构。}  学生为三输出 MLP，在教师的两个输出 $[\hat\mu,\;\log\hat\sigma^2]$ 基础上增加一个起始 logit。所有共享层从教师 checkpoint 复制；起始头的最终线性层初始化为零（sigmoid $\to0.5$）。所有损失均在物理空间计算，学生和教师输出在评估 $\mathcal{L}_{\mathrm{KD}}$、$\mathcal{L}_{\mathrm{raw}}$ 及形状先验之前乘以每样本的 $A$。
+
+\textbf{训练与结果。}  学生以 AdamW（$\mathrm{lr}=3\times10^{-3}$）优化，梯度裁剪范数为~1.0，早停耐心为~20。在归档 run \codepath{distill\_cdf\_onset\_v2\_20260410\_103413} 中，最佳验证损失为第 55 个 epoch 的~2.327（验证原始 NLL~2.256，验证 KD KL~0.018，验证起始 BCE~0.308）。在留存测试集上：原始 NLL~2.29，KD KL~0.019，起始 BCE~0.309，导数惩罚可忽略（$P_{d_1}\approx6.5\times10^{-7}$，$P_{d_2}\approx2.3\times10^{-5}$）。run 目录包含 \codepath{best\_model\_refinement.pt} 和 \codepath{loss\_curves.png}；图~\ref{fig:distillation-loss} 展示了训练曲线。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/distillation_loss_curves.png}
+\caption{来自 \codepath{runs\_mlp/distill\_cdf\_onset\_v2\_20260410\_103413/loss\_curves.png} 的蒸馏阶段训练曲线。复合损失收敛至第 55 个 epoch 的最佳验证值~2.327。}
+\label{fig:distillation-loss}
+\end{figure}
 
 \subsection{原型推理 notebook}
 
@@ -728,58 +740,62 @@ v2 驱动脚本 \texttt{train\_stage1\_mse.py} 与 \texttt{train\_stage2\_nll.py
 \label{fig:clean-fit-example}
 \end{figure}
 
-\subsection{Stage-1 基线模型}
+\subsection{Stage-1 MSE 基线}
 
-第一阶段基准是存储库中最强的存档预测结果。表~\ref{tab:model-summary}总结了主要定量证据。
+Stage-1 MSE 基线建立了代表性轨迹均值模型。表~\ref{tab:model-summary} 汇总了三个训练阶段的定量证据。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/stage1_loss_curves.png}
-\caption{从\codepath{MLP/runs_mlp/stage1_median_penetration_20260306_172838/loss_curves.png}复制的存档第一阶段损失曲线。}
+\caption{来自 \codepath{MLP/runs\_mlp/stage1\_engineered\_mse\_a\_only\_20260410\_020317/stage1\_loss\_curves.png} 的 Stage-1 训练曲线。}
 \label{fig:stage1-loss}
 \end{figure}
 
-运行目录 \codepath{stage1_median_penetration_20260306_172838} 包含可部署的 \codepath{best_model_stage1.pt}、scaler 状态、配置、各 epoch 损失日志、迭代损失日志以及保存的 loss 曲线图。直接读取 epoch 日志可知，最佳归档验证损失出现在第 429 个 epoch，对应验证 MSE 为 23.26。这是当前项目中最完整的 surrogate 模型工件。
+归档 run \codepath{stage1\_engineered\_mse\_a\_only\_20260410\_020317} 在 526 条代表性轨迹上训练，这些轨迹通过在 $t=\SI{5}{ms}$ 处取每组中位穿深最近邻经拟合级掩码筛选得到。该 run 在第 115 个 epoch 达到最佳验证 MSE（缩放目标）18.94，测试集物理 MAE 为~\SI{8.1}{mm}。预训练坍缩报告确认 $A$ 缩放假设下 \SI{0.5}{ms} 后方差缩减 59.5\%，证实缩放在网络看到任何数据之前已解释了主要的直径与压力依赖性。run 目录包含 \codepath{best\_model\_stage1.pt}、\codepath{scaler\_state.json}、epoch 与迭代损失日志，以及 \codepath{pretrain\_collapse\_summary.png}。
 
-同样重要的是，该第一阶段结果代表什么。它不是所有原始拟合行的均值。它是一个故意稳定的基准，训练于589个在\(\SI{5}{ms}\)处选择的中位代表性轨迹，经过早期曲线拟合掩码已经移除了不合理的行。换句话说，第一阶段是一个热启动均值模型，训练于保守子集，其目的是在引入方差建模之前学习主要穿深趋势。
+\subsection{Stage-2 NLL 扩展}
 
-\subsection{Stage-2 不确定性感知扩展}
-
-存档的第二阶段笔记本和运行日志显示，不确定性感知扩展已积极训练，其验证 NLL 在训练过程中显著下降。根据 \codepath{stage2_NLL_penetration_20260317_194155/epoch_loss.csv} 中的 epoch 日志，最佳归档验证损失出现在第 570 个 epoch，对应数值为 2.449。
+Stage-2 run 将训练集扩展至全部 14,594 条经筛选的轨迹，并以异方差 NLL 替换 MSE 目标，从 Stage-1 checkpoint 热启动。
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/stage2_loss_curves.png}
-\caption{从\codepath{MLP/runs_mlp/stage2_NLL_penetration_20260317_194155/loss_curves.png}复制的存档第二阶段损失曲线。}
+\caption{来自 \codepath{MLP/runs\_mlp/stage2\_engineered\_nll\_a\_only\_20260410\_020607/stage2\_loss\_curves.png} 的 Stage-2 训练曲线。}
 \label{fig:stage2-loss}
 \end{figure}
 
-第二阶段的数据集构建方式与第一阶段明显不同，这也解释了为何此处采用 NLL 目标。第二阶段从保存的第一阶段权重出发，沿用相同的特征缩放方式，把行表扩展到 21,177 条经筛选的轨迹，再在更宽的分布上联合优化均值与方差。由于数据已经经过拟合级掩码和远时刻 z-score 过滤，剩余离散度较少由明显拟合失败主导，而更多反映归档数据集中的真实工况变化。在这样一个高度筛选且 warm-start 的环境中，归档日志支持这样一种判断：异方差回归能够较好处理剩余问题，NLL 持续改善，预测标准差在推理时保持非平凡水平，而且模型会在轨迹家族重复性较弱的区域分配更宽的不确定性。
+归档 run \codepath{stage2\_engineered\_nll\_a\_only\_20260410\_020607} 在第 66 个 epoch 达到最佳验证 NLL~2.038。在留存测试集上，物理 MAE 为~\SI{9.2}{mm}，均值预测标准差为~\SI{11.4}{mm}，表明模型分配的不确定性大于 MAE——与经筛选数据集中真实的条件依赖变化一致。run 目录包含 \codepath{best\_model\_stage2.pt}，作为蒸馏阶段的教师 checkpoint。
 
-话虽如此，结果边界仍然十分重要。归档的第二阶段 run 目录并不包含专用的 stage-2 checkpoint，而训练配置又指向当前工作区中不存在的中间文件夹。因此，本文把第二阶段表述为部分结果，而不是最终可发布模型。
+\subsection{蒸馏精化}
 
-\subsection{原型推理 notebook}
+蒸馏阶段归档了一个学生模型，该模型在覆盖率充足的时间区域内已针对原始 CDF 观测进行精化，同时在覆盖稀疏区域保持对教师的锚定。
 
-原型 notebook 可以加载归档运行元数据，生成均值/标准差曲线并与 wall/cylinder mask 做简单叠加。但当前证据只足以支撑软件集成概念验证，尚不足以支撑完整撞壁分析框架。
+归档 run \codepath{distill\_cdf\_onset\_v2\_20260410\_103413} 在第 55 个 epoch 达到最佳验证复合损失~2.327（验证原始 NLL~2.256，验证 KD KL~0.018，验证起始 BCE~0.308）。在留存测试集上：原始 NLL~2.29，KD KL~0.019，起始 BCE~0.309，导数惩罚可忽略（$P_{d_1}\approx6.5\times10^{-7}$，$P_{d_2}\approx2.3\times10^{-5}$）。run 目录包含 \codepath{best\_model\_refinement.pt}、\codepath{epoch\_loss.csv} 和 \codepath{loss\_curves.png}；训练曲线见图~\ref{fig:distillation-loss}。
 
 \begin{table}[t]
 \centering
 \begin{tabular}{|L{0.20\linewidth}|L{0.18\linewidth}|L{0.20\linewidth}|L{0.20\linewidth}|}
 \hline
-阶段 & 数据证据 & 最佳归档验证结果 & 当前状态 \\
+阶段 & 数据证据 & 最佳验证结果 & 当前状态 \\
 \hline
-图像处理与拟合 & \codepath{MLP/synthetic_data} 下有 10 个 campaign 文件夹和 295 个 clean fitted CSV & 已有代表性 clean/fitted trajectory 图 & 已完成且可审计 \\
+图像处理与拟合 & \codepath{MLP/synthetic\_data} 下有 10 个 campaign 文件夹和 295 个 clean fitted CSV & 已有代表性 clean/fitted trajectory 图 & 已完成且可审计 \\
 \hline
-Stage 1 MSE 基线 & 归档 notebook 输出：589 行，划分为 413/88/88 & 第 429 个 epoch 的验证 MSE 为 23.26 & 已完成并保存 checkpoint \\
+Stage 1 MSE 基线 & 526 条代表性轨迹，组感知划分 & 第 115 epoch 验证 MSE~18.94；测试 MAE~\SI{8.1}{mm} & 已完成，保存 \codepath{best\_model\_stage1.pt} \\
 \hline
-Stage 2 NLL 扩展 & 归档 notebook 输出：21,177 行，划分为 14,825/\allowbreak 3,176/\allowbreak 3,176 & 第 570 个 epoch 的验证 NLL 为 2.449 & 部分结果；当前运行目录中无保存的 stage-2 checkpoint \\
+Stage 2 NLL 扩展 & 14,594 条经筛选轨迹，从 Stage~1 热启动 & 第 66 epoch 验证 NLL~2.038；测试 MAE~\SI{9.2}{mm} & 已完成，保存 \codepath{best\_model\_stage2.pt} \\
 \hline
-原型推理 & 来自 \codepath{MLP/toy_inference_from_run.ipynb} 的归档 notebook 输出 & 均值/标准差预测图及简单重叠计算 & 仅为原型，不是已验证产品 \\
+蒸馏精化 & 原始 CDF + 教师 KD，区制相关监督 & 第 55 epoch 验证复合损失~2.327 & 已完成，保存 \codepath{best\_model\_refinement.pt} \\
+\hline
+原型推理 & 来自 \codepath{MLP/toy\_inference\_from\_run.ipynb} 的归档 notebook 输出 & 均值/标准差预测图及简单重叠计算 & 仅为原型，不是已验证产品 \\
 \hline
 \end{tabular}
-\caption{已完成阶段与部分完成阶段的证据汇总。}
+\caption{已完成项目阶段的证据汇总。}
 \label{tab:model-summary}
 \end{table}
+
+\subsection{原型推理 notebook}
+
+原型 notebook 可以加载归档运行元数据，生成均值/标准差曲线并与 wall/cylinder mask 做简单叠加。但当前证据只足以支撑软件集成概念验证，尚不足以支撑完整撞壁分析框架。
 
 \subsection{结果边界与可复现性状态}
 
@@ -790,23 +806,22 @@ Stage 2 NLL 扩展 & 归档 notebook 输出：21,177 行，划分为 14,825/\all
   \item 归档保存的运行配置与 checkpoint。
 \end{enumerate}
 
-当前工作区中可复现性最强的部分，是提取、清洗与第一阶段基线归档。最薄弱之处则在于第二阶段的打包边界：运行日志虽然存在，但专用的 stage-2 checkpoint 以及其引用的中间 \codepath{MLP/data_penetration} 文件夹并不在当前工作区中。这一限制直接决定了结果应如何被解释，并贯穿全文结论。
+三个训练阶段均在工作区中保存了专用可部署 checkpoint：Stage-1 \codepath{best\_model\_stage1.pt}、Stage-2 \codepath{best\_model\_stage2.pt} 及蒸馏 \codepath{best\_model\_refinement.pt}，连同各自的 scaler 状态、训练配置和 epoch 级损失日志。提取、清洗与三阶段 surrogate 管线均已完整归档，可供审计。原型推理 notebook 尚未升级为已验证产品，仍是主要的开放边界。
 
 \section{结论}
 
-本论文记录了一条基于证据的工作流，用于处理高速 Mie 散射喷雾视频，将其转换为面向穿深的工程观测量，并在这些观测量之上构建归档的 surrogate 模型。当前完成度最高的贡献包括：
+本论文记录了一条基于证据的工作流，用于处理高速 Mie 散射喷雾视频，将其转换为面向穿深的工程观测量，并在这些观测量之上构建完整的三阶段 surrogate 模型。已完成的贡献包括：
 \begin{itemize}
   \item \texttt{GUI.py} 中的手动喷嘴中心标定，
   \item \texttt{main.py} 中的批量逐 plume 特征提取，
-  \item \codepath{MLP/fit_raw_data.py} 中的轨迹清洗与降阶拟合，以及
-  \item 已完成归档的第一阶段确定性穿深模型，其 checkpoint 和运行日志均已保存。
+  \item \codepath{MLP/fit\_raw\_data.py} 中的轨迹清洗与降阶拟合，
+  \item 将稀疏压力与直径输入替换为 Hiroyasu--Arai 缩放群 $A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}$ 的 v2 工程化特征架构（经预训练坍缩检验验证，\SI{0.5}{ms} 后方差缩减 59.5\%），
+  \item 已完成的 Stage-1 确定性 MSE 基线（第 115 epoch 验证 MSE~18.94，测试 MAE~\SI{8.1}{mm}），含组感知划分与保存 checkpoint，
+  \item 已完成的 Stage-2 异方差 NLL 扩展（第 66 epoch 验证 NLL~2.038，测试 MAE~\SI{9.2}{mm}，均值预测标准差~\SI{11.4}{mm}），其 checkpoint 作为蒸馏教师，以及
+  \item 已完成的知识蒸馏精化阶段（第 55 epoch 验证复合损失~2.327），通过区制相关监督将早期时间预测对齐至原始 CDF 观测，同时通过教师 KL 锚定保持晚期时间的稳定性。
 \end{itemize}
 
-第二阶段异方差模型很有前景，但作为发布工件在当前工作区中仍不完整。归档日志与 notebook 输出显示，在从 MSE 基线 warm-start 并基于高度筛选后的轨迹数据继续训练后，不确定性感知扩展取得了更好的 NLL 值，也给出了非平凡的标准差预测。这与第二阶段的预期定位是一致的：当明显拟合失败已被剔除后，异方差回归能够比恒定方差目标更好地处理剩余的输入依赖离散度。然而，缺失专用 stage-2 checkpoint 和中间训练文件夹，意味着第二阶段还不能被当作最终部署模型来呈现。
-
-原型推理 notebook 已经展示出有价值的软件方向：可以加载归档模型工件、可视化穿深曲线，并生成简单的几何叠加。即便如此，经过验证的撞壁预测、完整的二维包络重建以及完全打包的不确定性感知部署，仍然属于后续工作。
-
-总之，该项目已经实现了一条能够从 Mie 散射视频中提取并建模喷雾穿深的、实用且可信的工程工作流。接下来的开发优先事项也很明确：完整打包第二阶段模型，保存归档运行所使用的中间训练数据集，并在把任何未来的几何交互模块提升为论文级结果之前，先针对明确的实验或仿真目标验证其原型状态。
+三阶段 surrogate 管线作为归档工程工件已经完整。物理 $A$ 缩放假设经预训练坍缩检验的实证验证，而区制相关蒸馏框架提供了一种原则性方法，在不被右截断晚期时间观测拉偏的情况下利用原始 CDF 数据。尚未完成的是从归档原型到生产部署的过渡：针对明确实验或仿真目标的撞壁预测验证、完整的二维包络重建以及多次运行可复现性研究，是自然的后续开发优先事项。
 
 \thesisbibliography
 

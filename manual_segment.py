@@ -3,12 +3,19 @@
 Local changes:
 - keep the original brush workflow for local touch-up
 - add contour-fill and contour-erase tools for fast large-area editing with lower UI cost
+- use SAM3 text/visual prompts for assisted foreground segmentation
 - preserve the rest of the export/review pipeline so auto masks can be refined manually
 """
 
 import csv
 import json
 import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import sys
+import threading
 from datetime import datetime, timezone
 import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, ttk
@@ -16,7 +23,6 @@ from tkinter import colorchooser, filedialog, messagebox, ttk
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
-from OSCC_postprocessing.utils import resolve_sam2_paths
 
 from OSCC_postprocessing.cine.cine_utils import CineReader
 from OSCC_postprocessing.analysis.cone_angle import angle_signal_density
@@ -29,6 +35,8 @@ from OSCC_postprocessing.binary_ops.functions_bw import (
     keep_largest_component_cuda,
 )
 from OSCC_postprocessing.binary_ops.masking import generate_plume_mask
+from OSCC_postprocessing.playback.video_playback import play_video_with_boundaries_cv2
+from OSCC_postprocessing.utils.scaling import robust_scale
 from OSCC_postprocessing.utils.zoom_utils import enlarge_image
 
 try:
@@ -46,15 +54,14 @@ except Exception:
 
 try:
     import torch
-    from sam2.build_sam import build_sam2
-    from sam2.sam2_image_predictor import SAM2ImagePredictor
+    from transformers import Sam3Model, Sam3Processor
 
-    SAM2_AVAILABLE = True
+    SAM3_AVAILABLE = True
 except Exception:
     torch = None
-    build_sam2 = None
-    SAM2ImagePredictor = None
-    SAM2_AVAILABLE = False
+    Sam3Model = None
+    Sam3Processor = None
+    SAM3_AVAILABLE = False
 
 class ManualSegmenter:
     """Interactive tool to create and export pixel-wise masks for rotated plume videos."""
@@ -94,11 +101,11 @@ class ManualSegmenter:
         self.plume_videos = []  # Rotated plume-specific videos
         self.plume_masks = []  # Per-plume, per-frame masks
         self.current_img = None  # Current display-processed frame (uint8)
-        self.current_raw = None  # Current raw rotated frame (float)
+        self.current_raw = None  # Current rotated/cropped frame before display gain/gamma.
         self.current_frame = 0
         self.current_plume = 0
         self.zoom = 1
-        self.tool = "grabcut"
+        self.tool = "sam"
         self.brush_size = tk.IntVar(value=5)
         self.start_pos = None
         self.last_pos = None
@@ -107,11 +114,21 @@ class ManualSegmenter:
 
         self.gain = tk.DoubleVar(value=1.0)
         self.gamma = tk.DoubleVar(value=1.0)
-        self.grabcut_iters = tk.IntVar(value=3)
-        self.sam_predictor = None
+        self.robust_qmin = tk.DoubleVar(value=5.0)
+        self.robust_qmax = tk.DoubleVar(value=99.0)
+        self.video_normalization = "raw"
+        self.video_normalization_params = {}
         self.sam_model = None
+        self.sam_processor = None
         self.sam_model_key = None
         self.sam_device = None
+        self.sam_text_prompt = tk.StringVar(value="")
+        self.sam_score_threshold = tk.DoubleVar(value=0.5)
+        self.sam_mask_threshold = tk.DoubleVar(value=0.5)
+        self.sam_point_box_radius = tk.IntVar(value=8)
+        self.sam_merge_detections = tk.BooleanVar(value=False)
+        self.sam_video_thread = None
+        self.last_sam3_video_result = None
         self.sam_points_pos = []
         self.sam_points_neg = []
         self.sam_box = None
@@ -152,6 +169,8 @@ class ManualSegmenter:
         row3.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
         row4 = ttk.Frame(top)
         row4.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        row5 = ttk.Frame(top)
+        row5.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
 
         row1_left = ttk.Frame(row1)
         row1_left.pack(side=tk.LEFT)
@@ -170,6 +189,12 @@ class ManualSegmenter:
 
         row4_left = ttk.Frame(row4)
         row4_left.pack(side=tk.LEFT)
+        row4_right = ttk.Frame(row4)
+        row4_right.pack(side=tk.RIGHT)
+        row5_left = ttk.Frame(row5)
+        row5_left.pack(side=tk.LEFT)
+        row5_right = ttk.Frame(row5)
+        row5_right.pack(side=tk.RIGHT)
 
         ttk.Button(row1_left, text="Load Video", command=self.load_video).pack(side=tk.LEFT)
         ttk.Button(row1_left, text="Load Config", command=self.load_config).pack(side=tk.LEFT)
@@ -221,9 +246,6 @@ class ManualSegmenter:
         ttk.Button(
             row2_right, text="Contour Erase", command=lambda: self.set_tool("contour_erase")
         ).pack(side=tk.LEFT)
-        ttk.Button(row2_right, text="GrabCut Tool", command=lambda: self.set_tool("grabcut")).pack(
-            side=tk.LEFT
-        )
         ttk.Button(
             row2_right, text="Static Block Tool", command=lambda: self.set_tool("static_block")
         ).pack(side=tk.LEFT)
@@ -248,10 +270,17 @@ class ManualSegmenter:
             side=tk.LEFT
         )
 
-        ttk.Button(row3_right, text="Load SAM", command=self.load_sam_model).pack(side=tk.LEFT)
-        ttk.Button(row3_right, text="SAM Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
-        ttk.Button(row3_right, text="Apply SAM", command=self.apply_sam_current).pack(side=tk.LEFT)
-        ttk.Button(row3_right, text="Clear SAM", command=self.clear_sam_prompts).pack(side=tk.LEFT)
+        ttk.Label(row3_right, text="SAM3 Text").pack(side=tk.LEFT, padx=(8, 0))
+        self.sam_text_entry = ttk.Entry(row3_right, width=28, textvariable=self.sam_text_prompt)
+        self.sam_text_entry.pack(side=tk.LEFT)
+        self.sam_text_entry.bind("<Return>", lambda _e: self.apply_sam_current())
+        ttk.Button(row3_right, text="Load SAM3", command=self.load_sam_model).pack(side=tk.LEFT)
+        ttk.Button(row3_right, text="SAM3 Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
+        ttk.Button(row3_right, text="Apply SAM3", command=self.apply_sam_current).pack(side=tk.LEFT)
+        ttk.Button(row3_right, text="Apply SAM3 Video", command=self.apply_sam_video_current_plume).pack(
+            side=tk.LEFT
+        )
+        ttk.Button(row3_right, text="Clear SAM3", command=self.clear_sam_prompts).pack(side=tk.LEFT)
 
         ttk.Checkbutton(row4_left, text="Overwrite", variable=self.overwrite_existing).pack(
             side=tk.LEFT, padx=(8, 0)
@@ -277,6 +306,65 @@ class ManualSegmenter:
         )
         self.dataset_label = ttk.Label(row4_left, text="Dataset: (not set)")
         self.dataset_label.pack(side=tk.LEFT, padx=(10, 0))
+
+        ttk.Label(row4_right, text="SAM3 Score").pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Spinbox(
+            row4_right,
+            from_=0.0,
+            to=1.0,
+            increment=0.05,
+            width=5,
+            textvariable=self.sam_score_threshold,
+        ).pack(side=tk.LEFT)
+        ttk.Label(row4_right, text="Mask").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Spinbox(
+            row4_right,
+            from_=0.0,
+            to=1.0,
+            increment=0.05,
+            width=5,
+            textvariable=self.sam_mask_threshold,
+        ).pack(side=tk.LEFT)
+        ttk.Label(row4_right, text="Point Box").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Spinbox(
+            row4_right,
+            from_=1,
+            to=80,
+            increment=1,
+            width=5,
+            textvariable=self.sam_point_box_radius,
+        ).pack(side=tk.LEFT)
+        ttk.Checkbutton(row4_right, text="Merge Detections", variable=self.sam_merge_detections).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+
+        ttk.Label(row5_left, text="Robust qmin").pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Spinbox(
+            row5_left,
+            from_=0.0,
+            to=100.0,
+            increment=0.5,
+            width=6,
+            textvariable=self.robust_qmin,
+        ).pack(side=tk.LEFT)
+        ttk.Label(row5_left, text="qmax").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Spinbox(
+            row5_left,
+            from_=0.0,
+            to=100.0,
+            increment=0.5,
+            width=6,
+            textvariable=self.robust_qmax,
+        ).pack(side=tk.LEFT)
+        ttk.Button(row5_left, text="Apply Robust Scale", command=self.apply_robust_scale_video).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+        ttk.Button(row5_right, text="Play SAM3 Probability", command=self.play_last_sam3_video_probability).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+        ttk.Button(row5_right, text="Play SAM3 Boundary", command=self.play_last_sam3_video_boundary).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
 
         cf = ttk.Frame(self.master)
         cf.pack(fill=tk.BOTH, expand=True)
@@ -329,12 +417,15 @@ class ManualSegmenter:
         self.reader = reader
         self.video_path = path
         self.video = np.stack(frames, axis=0)
+        self.video_normalization = "raw"
+        self.video_normalization_params = {}
         self.current_frame = 0
         self.current_plume = 0
         self.plume_videos = []
         self.plume_masks = []
         self.current_raw = None
         self.current_img = None
+        self.last_sam3_video_result = None
         self.update_image()
 
     def load_config(self):
@@ -368,8 +459,15 @@ class ManualSegmenter:
         crop = generate_CropRect(inner, outer, n_plumes, cx, cy)
         # Keep crop height from geometric crop, but use nozzle-aligned strip width like pipeline usage.
         frame_h, frame_w = int(self.video.shape[1]), int(self.video.shape[2])
-        crop_h = int(min(max(1, crop[3]), frame_h))
-        crop_w = int(min(max(1, outer), frame_w))
+        crop_h_raw = int(min(max(1, crop[3]), frame_h))
+        crop_w_raw = int(min(max(1, outer), frame_w))
+        crop_h, crop_w = self._even_spatial_shape(crop_h_raw, crop_w_raw)
+        if (crop_h, crop_w) != (crop_h_raw, crop_w_raw):
+            print(
+                f"[manual-segment] adjusted rotate/crop shape from {(crop_h_raw, crop_w_raw)} "
+                f"to even {(crop_h, crop_w)}",
+                flush=True,
+            )
         out_shape = (crop_h, crop_w)
         calibration_point = (0.0, float(cy))
 
@@ -443,8 +541,38 @@ class ManualSegmenter:
 
         self.update_image()
 
+    @staticmethod
+    def _even_spatial_shape(height, width):
+        height = int(height)
+        width = int(width)
+        if height > 1 and height % 2:
+            height -= 1
+        if width > 1 and width % 2:
+            width -= 1
+        return max(1, height), max(1, width)
+
+    @classmethod
+    def _crop_video_even_spatial(cls, video):
+        arr = np.asarray(video)
+        if arr.ndim < 3:
+            return arr
+        height, width = int(arr.shape[-2]), int(arr.shape[-1])
+        even_h, even_w = cls._even_spatial_shape(height, width)
+        if (even_h, even_w) == (height, width):
+            return arr
+        slices = [slice(None)] * arr.ndim
+        slices[-2] = slice(0, even_h)
+        slices[-1] = slice(0, even_w)
+        print(
+            f"[manual-segment] cropped plume video shape from {(height, width)} to even {(even_h, even_w)}",
+            flush=True,
+        )
+        return arr[tuple(slices)]
+
     def _set_plume_videos(self, plume_videos):
-        self.plume_videos = plume_videos
+        self.plume_videos = [self._crop_video_even_spatial(seg) for seg in plume_videos]
+        self.video_normalization = "raw"
+        self.video_normalization_params = {}
         self.plume_masks = [
             [np.zeros(seg[0].shape, dtype=np.uint8) for _ in range(seg.shape[0])]
             for seg in self.plume_videos
@@ -452,6 +580,7 @@ class ManualSegmenter:
         self.static_block_masks = [np.zeros(seg[0].shape, dtype=np.uint8) for seg in self.plume_videos]
         self.current_frame = 0
         self.current_plume = 0
+        self.last_sam3_video_result = None
         self.clear_sam_prompts(update=False)
 
     # ---------------------------------------------------------------
@@ -497,11 +626,69 @@ class ManualSegmenter:
     def apply_gain_gamma(self, frame):
         g = self.gain.get()
         gm = self.gamma.get()
-        img = frame / 4096.0 * g
+        if np.issubdtype(frame.dtype, np.integer) and frame.dtype.itemsize == 1:
+            img = frame.astype(np.float32, copy=False) / 255.0
+        else:
+            frame_f = np.asarray(frame, dtype=np.float32)
+            finite = frame_f[np.isfinite(frame_f)]
+            if finite.size and float(finite.min()) >= 0.0 and float(finite.max()) <= 1.5:
+                img = frame_f
+            else:
+                img = frame_f / 4096.0
+        img = img * g
         img = np.clip(img, 0, 1)
         if gm != 1:
             img = img ** gm
         return (img * 255).astype(np.uint8)
+
+    def apply_robust_scale_video(self):
+        if not self.plume_videos:
+            return
+        try:
+            qmin = float(self.robust_qmin.get())
+            qmax = float(self.robust_qmax.get())
+        except Exception:
+            messagebox.showerror("Robust Scale", "qmin and qmax must be numeric.")
+            return
+        if not (0.0 <= qmin < qmax <= 100.0):
+            messagebox.showerror("Robust Scale", "Expected 0 <= qmin < qmax <= 100.")
+            return
+
+        scaled_videos = []
+        stats = []
+        try:
+            for idx, seg in enumerate(self.plume_videos):
+                seg_f = np.asarray(seg, dtype=np.float32)
+                low, high = np.percentile(seg_f, [qmin, qmax])
+                scaled = robust_scale(seg_f, q_min=qmin, q_max=qmax)
+                seg_u8 = np.clip(np.rint(np.asarray(scaled) * 255.0), 0, 255).astype(np.uint8)
+                scaled_videos.append(seg_u8)
+                stats.append(
+                    {
+                        "plume_idx": int(idx),
+                        "qmin_value": float(low),
+                        "qmax_value": float(high),
+                    }
+                )
+        except Exception as e:
+            messagebox.showerror("Robust Scale", f"Failed to robust-scale video:\n{e}")
+            return
+
+        self.plume_videos = scaled_videos
+        self.video_normalization = "robust_u8"
+        self.video_normalization_params = {
+            "qmin": qmin,
+            "qmax": qmax,
+            "scope": "per_plume_full_video",
+            "stats": stats,
+        }
+        self.gain.set(1.0)
+        self.gamma.set(1.0)
+        self.current_raw = None
+        self.current_img = None
+        self.last_sam3_video_result = None
+        self.update_image()
+        self.master.title(f"Manual Segmenter - robust scaled to uint8 q={qmin:g}-{qmax:g}")
 
     def update_image(self):
         self.canvas.delete("all")
@@ -622,8 +809,6 @@ class ManualSegmenter:
         elif self.tool == "sam" and self.start_pos is not None:
             self.sam_dragging = True
             self._draw_live_rect(self.start_pos, (x, y), outline="cyan")
-        elif self.tool == "grabcut" and self.start_pos is not None:
-            self._draw_live_rect(self.start_pos, (x, y), outline="lime")
 
     def on_left_release(self, event):
         if not self.plume_videos:
@@ -644,15 +829,8 @@ class ManualSegmenter:
         if self.tool in {"contour_fill", "contour_erase"}:
             self._finish_contour(event)
             return
-        if not self.plume_videos or self.tool != "grabcut" or self.start_pos is None:
-            return
-        x0, y0 = self.start_pos
-        x1 = int(self.canvas.canvasx(event.x) / self.zoom)
-        y1 = int(self.canvas.canvasy(event.y) / self.zoom)
-        rect = (min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
         self.start_pos = None
         self._clear_live_rect()
-        self.run_grabcut(rect, add=True)
 
     def on_right_press(self, event):
         if not self.plume_videos:
@@ -708,8 +886,6 @@ class ManualSegmenter:
         elif self.tool == "sam" and self.start_pos is not None:
             self.sam_dragging = True
             self._draw_live_rect(self.start_pos, (x, y), outline="red")
-        elif self.tool == "grabcut" and self.start_pos is not None:
-            self._draw_live_rect(self.start_pos, (x, y), outline="red")
 
     def on_right_release(self, event):
         if not self.plume_videos:
@@ -735,16 +911,8 @@ class ManualSegmenter:
         if self.tool in {"contour_fill", "contour_erase"}:
             self._finish_contour(event)
             return
-        if not self.plume_videos or self.tool != "grabcut" or self.start_pos is None:
-            return
-        x0, y0 = self.start_pos
-        x1 = int(self.canvas.canvasx(event.x) / self.zoom)
-        y1 = int(self.canvas.canvasy(event.y) / self.zoom)
-        mask = self.plume_masks[self.current_plume][self.current_frame]
-        cv2.rectangle(mask, (min(x0, x1), min(y0, y1)), (max(x0, x1), max(y0, y1)), 0, -1)
         self.start_pos = None
         self._clear_live_rect()
-        self.update_image()
 
     def _on_zoom(self, event):
         direction = 1 if getattr(event, "delta", 0) > 0 or getattr(event, "num", None) == 4 else -1
@@ -809,55 +977,105 @@ class ManualSegmenter:
             self.plume_masks[self.current_plume][f] &= keep
         self.update_image()
 
+    @staticmethod
+    def _default_sam3_model_dir():
+        return Path(
+            os.environ.get(
+                "SAM3_MODEL_DIR",
+                Path(__file__).resolve().parent / ".models" / "sam3_hf",
+            )
+        ).expanduser()
+
     def load_sam_model(self):
-        if not SAM2_AVAILABLE:
+        if not SAM3_AVAILABLE:
             messagebox.showerror(
-                "SAM2 Not Available",
-                "Missing SAM2 runtime. Install in this env:\n"
-                "pip install sam2 torch torchvision",
+                "SAM3 Not Available",
+                "Missing SAM3 runtime. Use the project venv or install:\n"
+                "pip install torch torchvision transformers pillow",
             )
             return False
 
-        try:
-            paths = resolve_sam2_paths()
-        except Exception as e:
-            messagebox.showerror("SAM2 Paths", str(e))
+        model_dir = self._default_sam3_model_dir()
+        config_path = model_dir / "config.json"
+        has_weights = any(
+            candidate.exists()
+            for candidate in (
+                model_dir / "model.safetensors",
+                model_dir / "pytorch_model.bin",
+                model_dir / "model.safetensors.index.json",
+                model_dir / "pytorch_model.bin.index.json",
+            )
+        )
+        if not model_dir.exists() or not config_path.exists() or not has_weights:
+            messagebox.showerror(
+                "SAM3 Model",
+                f"Local SAM3 model is incomplete:\n{model_dir}\n\n"
+                "Run scripts/download_sam3.py first, or set SAM3_MODEL_DIR.",
+            )
             return False
 
-        model_key = str(paths.get("model_key", "unknown"))
-        config_path = str(paths["config"])
-        checkpoint_path = str(paths["checkpoint"])
         device = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"
+        model_key = f"{model_dir.resolve()}|{device}"
 
-        # Reuse existing predictor when already loaded with same model+device.
         if (
-            self.sam_predictor is not None
+            self.sam_model is not None
+            and self.sam_processor is not None
             and self.sam_model_key == model_key
             and self.sam_device == device
         ):
             return True
 
         try:
-            model = build_sam2(config_path, checkpoint_path, device=device)
-            predictor = SAM2ImagePredictor(model)
+            model = Sam3Model.from_pretrained(str(model_dir)).to(device)
+            model.eval()
+            processor = Sam3Processor.from_pretrained(str(model_dir))
         except Exception as e:
-            messagebox.showerror("SAM2 Load Error", f"Failed to load SAM2:\n{e}")
+            messagebox.showerror("SAM3 Load Error", f"Failed to load SAM3:\n{e}")
             return False
 
         self.sam_model = model
-        self.sam_predictor = predictor
+        self.sam_processor = processor
         self.sam_model_key = model_key
         self.sam_device = device
-        messagebox.showinfo("SAM2", f"SAM2 loaded ({model_key}) on {device}.")
+        messagebox.showinfo("SAM3", f"SAM3 loaded on {device}:\n{model_dir}")
         return True
+
+    def _sam3_boxes_and_labels(self, image_shape):
+        h, w = int(image_shape[0]), int(image_shape[1])
+        boxes = []
+        labels = []
+
+        def add_box(x0, y0, x1, y1, label):
+            x0 = max(0, min(w - 1, int(round(x0))))
+            y0 = max(0, min(h - 1, int(round(y0))))
+            x1 = max(0, min(w, int(round(x1))))
+            y1 = max(0, min(h, int(round(y1))))
+            if x1 - x0 >= 1 and y1 - y0 >= 1:
+                boxes.append([float(x0), float(y0), float(x1), float(y1)])
+                labels.append(int(label))
+
+        if self.sam_box is not None:
+            x, y, bw, bh = self.sam_box
+            add_box(x, y, x + bw, y + bh, 1)
+
+        radius = max(1, int(self.sam_point_box_radius.get()))
+        for px, py in self.sam_points_pos:
+            add_box(px - radius, py - radius, px + radius + 1, py + radius + 1, 1)
+        for px, py in self.sam_points_neg:
+            add_box(px - radius, py - radius, px + radius + 1, py + radius + 1, 0)
+
+        return boxes, labels
 
     def apply_sam_current(self):
         if not self.plume_videos or self.current_img is None:
             return
-        if not self.sam_points_pos and not self.sam_points_neg and self.sam_box is None:
+        prompt_text = self.sam_text_prompt.get().strip()
+        boxes, box_labels = self._sam3_boxes_and_labels(self.current_img.shape)
+        if not prompt_text and not boxes:
             messagebox.showinfo(
-                "SAM2 Prompts",
-                "Add prompt(s) first: left click=positive, right click=negative, left drag=box, right drag=erase mask.",
+                "SAM3 Prompts",
+                "Add a text prompt or visual prompt first:\n"
+                "left click=positive point, right click=negative point, left drag=positive box, right drag=erase mask.",
             )
             return
         if not self.load_sam_model():
@@ -866,56 +1084,68 @@ class ManualSegmenter:
         frame = self.current_img
         if frame.ndim == 2:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        elif frame.shape[2] == 4:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
         else:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        kwargs = {"multimask_output": True}
-        pts = []
-        labels = []
-        for p in self.sam_points_pos:
-            pts.append([float(p[0]), float(p[1])])
-            labels.append(1)
-        for p in self.sam_points_neg:
-            pts.append([float(p[0]), float(p[1])])
-            labels.append(0)
-        if pts:
-            kwargs["point_coords"] = np.asarray(pts, dtype=np.float32)
-            kwargs["point_labels"] = np.asarray(labels, dtype=np.int32)
-        if self.sam_box is not None:
-            x, y, w, h = self.sam_box
-            kwargs["box"] = np.asarray([x, y, x + w, y + h], dtype=np.float32)
-
         try:
-            self.sam_predictor.set_image(frame_rgb)
-            masks, scores, _logits = self.sam_predictor.predict(**kwargs)
+            image = Image.fromarray(frame_rgb.astype(np.uint8, copy=False))
+            processor_kwargs = {
+                "images": image,
+                "return_tensors": "pt",
+            }
+            if prompt_text:
+                processor_kwargs["text"] = prompt_text
+            if boxes:
+                processor_kwargs["input_boxes"] = [boxes]
+                processor_kwargs["input_boxes_labels"] = [box_labels]
+
+            inputs = self.sam_processor(**processor_kwargs).to(self.sam_device)
+            with torch.inference_mode():
+                outputs = self.sam_model(**inputs)
+
+            target_sizes = inputs["original_sizes"].detach().cpu().tolist()
+            result = self.sam_processor.post_process_instance_segmentation(
+                outputs,
+                threshold=float(self.sam_score_threshold.get()),
+                mask_threshold=float(self.sam_mask_threshold.get()),
+                target_sizes=target_sizes,
+            )[0]
         except Exception as e:
-            messagebox.showerror("SAM2 Predict Error", f"SAM2 failed on current frame:\n{e}")
+            messagebox.showerror("SAM3 Predict Error", f"SAM3 failed on current frame:\n{e}")
             return
 
+        masks = result.get("masks")
+        scores = result.get("scores")
         if masks is None:
             return
-        masks = np.asarray(masks)
-        if masks.ndim == 2:
-            best_mask = masks
-        elif masks.ndim == 3:
-            if scores is not None and len(scores) == masks.shape[0]:
-                idx = int(np.argmax(scores))
-            else:
-                idx = 0
-            best_mask = masks[idx]
-        else:
-            messagebox.showerror("SAM2 Predict Error", f"Unexpected mask shape: {masks.shape}")
+        if len(masks) == 0:
+            messagebox.showinfo("SAM3", "No detections for the current prompt/threshold.")
             return
 
-        out = (best_mask > 0).astype(np.uint8)
+        if bool(self.sam_merge_detections.get()):
+            best_score = float(scores.max().detach().cpu().item()) if scores is not None and len(scores) else None
+            best_mask = torch.any(masks > 0, dim=0)
+        else:
+            if scores is not None and len(scores) == len(masks):
+                idx = int(torch.argmax(scores).detach().cpu().item())
+                best_score = float(scores[idx].detach().cpu().item())
+            else:
+                idx = 0
+                best_score = None
+            best_mask = masks[idx]
+
+        out = best_mask.detach().cpu().numpy().astype(np.uint8)
         # Keep only the dominant spray blob to suppress isolated SAM false positives.
-        try:
-            out = keep_largest_component_cuda(out, connectivity=2).astype(np.uint8, copy=False)
-        except Exception:
-            out = keep_largest_component(out, connectivity=2).astype(np.uint8, copy=False)
+        if not bool(self.sam_merge_detections.get()):
+            try:
+                out = keep_largest_component_cuda(out, connectivity=2).astype(np.uint8, copy=False)
+            except Exception:
+                out = keep_largest_component(out, connectivity=2).astype(np.uint8, copy=False)
         if out.shape != self.plume_masks[self.current_plume][self.current_frame].shape:
             messagebox.showerror(
-                "SAM2 Predict Error",
+                "SAM3 Predict Error",
                 f"Mask shape mismatch: SAM={out.shape}, target={self.plume_masks[self.current_plume][self.current_frame].shape}",
             )
             return
@@ -932,7 +1162,758 @@ class ManualSegmenter:
         else:
             # Without a box prompt, preserve existing mask and only add SAM positives.
             target_mask[:] = np.maximum(target_mask, out)
+        score_text = "none" if best_score is None else f"{best_score:.3f}"
+        self.master.title(f"Manual Segmenter - SAM3 detections={len(masks)} best_score={score_text}")
         self.update_image()
+
+    def apply_sam_video_current_plume(self):
+        if not self.plume_videos:
+            return
+        if self.sam_video_thread is not None and self.sam_video_thread.is_alive():
+            messagebox.showinfo("SAM3 Video", "SAM3 video segmentation is already running.")
+            return
+
+        prompt_text = self.sam_text_prompt.get().strip()
+        if not prompt_text:
+            messagebox.showinfo(
+                "SAM3 Video",
+                "Enter a SAM3 Text prompt first. The full-video path currently uses the official text-prompt video predictor.",
+            )
+            return
+
+        checkpoint_path = self._default_sam3_model_dir() / "sam3.pt"
+        if not checkpoint_path.exists():
+            messagebox.showerror("SAM3 Video", f"Missing official SAM3 checkpoint:\n{checkpoint_path}")
+            return
+
+        plume_idx = int(self.current_plume)
+        frame_idx = int(self.current_frame)
+        plume_video = np.asarray(self.plume_videos[plume_idx])
+        export_root = self._sam3_video_export_root(plume_idx, frame_idx)
+        input_avi = export_root / "input.avi"
+        output_root = export_root / "sam3_video_export"
+
+        try:
+            self._write_sam3_input_video(plume_video, input_avi, fps=30)
+        except Exception as e:
+            messagebox.showerror("SAM3 Video", f"Failed to write temporary AVI:\n{e}")
+            return
+
+        cmd = self._build_sam3_video_command(
+            video_path=input_avi,
+            checkpoint_path=checkpoint_path,
+            output_root=output_root,
+            prompt=prompt_text,
+            frame_index=frame_idx,
+            fps=30,
+        )
+        self.master.title(f"Manual Segmenter - SAM3 video running plume={plume_idx} frame={frame_idx}")
+        print(
+            f"[sam3-video] start plume={plume_idx} prompt_frame={frame_idx} frames={plume_video.shape[0]} "
+            f"input={input_avi}",
+            flush=True,
+        )
+        print(f"[sam3-video] command: {subprocess.list2cmdline([str(part) for part in cmd])}", flush=True)
+
+        def worker():
+            try:
+                env = os.environ.copy()
+                env.setdefault("USE_PERFLIB", "0")
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(Path(__file__).resolve().parent),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=env,
+                    bufsize=1,
+                )
+                output_tail = []
+                if process.stdout is not None:
+                    for line in process.stdout:
+                        line = line.rstrip()
+                        if line:
+                            print(f"[sam3-video] {line}", flush=True)
+                            output_tail.append(line)
+                            output_tail = output_tail[-60:]
+                return_code = process.wait()
+                if return_code != 0:
+                    detail = "\n".join(output_tail)
+                    raise RuntimeError(detail or f"command returned {return_code}")
+                masks_loaded = self._load_sam3_video_masks(output_root, plume_video.shape[0], plume_idx)
+            except Exception as exc:
+                self.master.after(0, lambda exc=exc: self._finish_sam3_video_error(exc, export_root))
+                return
+            self.master.after(
+                0,
+                lambda masks_loaded=masks_loaded: self._finish_sam3_video_success(
+                    plume_idx, masks_loaded, output_root, input_avi
+                ),
+            )
+
+        self.sam_video_thread = threading.Thread(target=worker, daemon=True)
+        self.sam_video_thread.start()
+
+    def _sam3_video_export_root(self, plume_idx, frame_idx):
+        repo_root = Path(__file__).resolve().parent
+        video_stem = Path(self.video_path).stem if self.video_path else "video"
+        safe_stem = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in video_stem)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return repo_root / "Results" / "manual_segment_sam3_video" / (
+            f"{safe_stem}_plume{plume_idx:02d}_frame{frame_idx:05d}_{stamp}"
+        )
+
+    def _write_sam3_input_video(self, plume_video, output_path, fps=30):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if plume_video.ndim != 3:
+            raise ValueError(f"Expected grayscale plume video with shape (frames, h, w), got {plume_video.shape}")
+
+        height, width = plume_video.shape[1:]
+        encoded_height = int(height + (height % 2))
+        encoded_width = int(width + (width % 2))
+        pad_bottom = encoded_height - int(height)
+        pad_right = encoded_width - int(width)
+        if pad_bottom or pad_right:
+            print(
+                f"[sam3-video] padding input AVI from {(int(height), int(width))} "
+                f"to {(encoded_height, encoded_width)} for codec compatibility",
+                flush=True,
+            )
+        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+        writer = cv2.VideoWriter(str(output_path), fourcc, float(fps), (encoded_width, encoded_height))
+        if not writer.isOpened():
+            raise RuntimeError(f"Could not open VideoWriter for {output_path}")
+        try:
+            for frame in plume_video:
+                img8 = self.apply_gain_gamma(frame)
+                bgr = cv2.cvtColor(img8, cv2.COLOR_GRAY2BGR)
+                if pad_bottom or pad_right:
+                    bgr = cv2.copyMakeBorder(
+                        bgr,
+                        0,
+                        pad_bottom,
+                        0,
+                        pad_right,
+                        borderType=cv2.BORDER_REPLICATE,
+                    )
+                writer.write(bgr)
+        finally:
+            writer.release()
+
+    @staticmethod
+    def _to_wsl_path(path):
+        path_str = str(Path(path).resolve())
+        if len(path_str) >= 2 and path_str[1] == ":":
+            drive = path_str[0].lower()
+            rest = path_str[2:].replace("\\", "/").lstrip("/")
+            return f"/mnt/{drive}/{rest}"
+        return path_str.replace("\\", "/")
+
+    def _build_sam3_video_command(self, video_path, checkpoint_path, output_root, prompt, frame_index, fps=30):
+        repo_root = Path(__file__).resolve().parent
+        script_path = repo_root / "scripts" / "export_sam3_video_results.py"
+        prompt_args = self._sam3_video_prompt_args()
+        args = [
+            "--video-path",
+            str(video_path),
+            "--checkpoint",
+            str(checkpoint_path),
+            "--version",
+            "sam3",
+            "--prompt",
+            str(prompt),
+            "--frame-index",
+            str(int(frame_index)),
+            "--output-root",
+            str(output_root),
+            "--save-format",
+            "npz",
+            "--fps",
+            str(int(fps)),
+            "--mask-threshold",
+            str(float(self.sam_mask_threshold.get())),
+            "--score-threshold",
+            str(float(self.sam_score_threshold.get())),
+            "--progress-every",
+            "1",
+        ]
+        args.extend(prompt_args)
+
+        if os.name == "nt" and shutil.which("wsl.exe"):
+            wsl_args = args.copy()
+            for flag in ("--video-path", "--checkpoint", "--output-root"):
+                value_index = wsl_args.index(flag) + 1
+                wsl_args[value_index] = self._to_wsl_path(wsl_args[value_index])
+            inner = [
+                "./scripts/run_in_sam3_wsl_env.sh",
+                "python",
+                "-u",
+                "scripts/export_sam3_video_results.py",
+                *wsl_args,
+            ]
+            command = "cd " + shlex.quote(self._to_wsl_path(repo_root)) + " && export USE_PERFLIB=0 && " + " ".join(
+                shlex.quote(part) for part in inner
+            )
+            return ["wsl.exe", "bash", "-lc", command]
+
+        return [sys.executable, "-u", str(script_path), *args]
+
+    def _sam3_video_prompt_args(self):
+        if not self.plume_videos:
+            return []
+
+        frame_shape = self.plume_videos[self.current_plume][0].shape
+        height, width = int(frame_shape[-2]), int(frame_shape[-1])
+        args = []
+        boxes = []
+
+        if self.sam_box is not None:
+            x, y, bw, bh = self.sam_box
+            x0 = max(0.0, min(float(width), float(x)))
+            y0 = max(0.0, min(float(height), float(y)))
+            x1 = max(0.0, min(float(width), float(x) + float(bw)))
+            y1 = max(0.0, min(float(height), float(y) + float(bh)))
+            if x1 > x0 and y1 > y0:
+                boxes = [[x0 / width, y0 / height, (x1 - x0) / width, (y1 - y0) / height]]
+                print(
+                    f"[sam3-video] using drawn box prompt xywh=({int(x0)}, {int(y0)}, {int(x1 - x0)}, {int(y1 - y0)})",
+                    flush=True,
+                )
+        elif self.plume_masks:
+            mask = np.asarray(self.plume_masks[self.current_plume][self.current_frame]) > 0
+            if mask.shape == (height, width) and np.any(mask):
+                ys, xs = np.where(mask)
+                pad = max(2, int(round(0.02 * max(width, height))))
+                x0 = max(0, int(xs.min()) - pad)
+                y0 = max(0, int(ys.min()) - pad)
+                x1 = min(width, int(xs.max()) + 1 + pad)
+                y1 = min(height, int(ys.max()) + 1 + pad)
+                if x1 > x0 and y1 > y0:
+                    boxes = [[x0 / width, y0 / height, (x1 - x0) / width, (y1 - y0) / height]]
+                    print(
+                        f"[sam3-video] using current mask bbox prompt xywh=({x0}, {y0}, {x1 - x0}, {y1 - y0})",
+                        flush=True,
+                    )
+
+        if boxes:
+            args.extend(
+                [
+                    "--boxes-json",
+                    json.dumps(boxes, separators=(",", ":")),
+                    "--box-labels-json",
+                    "[1]",
+                ]
+            )
+
+        points = []
+        labels = []
+        for px, py in self.sam_points_pos:
+            points.append([float(px) / width, float(py) / height])
+            labels.append(1)
+        for px, py in self.sam_points_neg:
+            points.append([float(px) / width, float(py) / height])
+            labels.append(0)
+
+        if not points and self.plume_masks:
+            mask = np.asarray(self.plume_masks[self.current_plume][self.current_frame]) > 0
+            if mask.shape == (height, width) and np.any(mask):
+                auto_points, auto_labels = self._sam3_video_points_from_mask(mask)
+                for px, py in auto_points:
+                    points.append([float(px) / width, float(py) / height])
+                labels.extend(auto_labels)
+                pos_count = int(sum(1 for label in auto_labels if label == 1))
+                neg_count = int(sum(1 for label in auto_labels if label == 0))
+                print(
+                    f"[sam3-video] using current mask point prompts pos={pos_count} neg={neg_count}",
+                    flush=True,
+                )
+
+        if points:
+            clipped_points = [
+                [max(0.0, min(1.0, float(x))), max(0.0, min(1.0, float(y)))]
+                for x, y in points
+            ]
+            args.extend(
+                [
+                    "--points-json",
+                    json.dumps(clipped_points, separators=(",", ":")),
+                    "--point-labels-json",
+                    json.dumps(labels, separators=(",", ":")),
+                ]
+            )
+
+        return args
+
+    @staticmethod
+    def _sam3_video_points_from_mask(mask):
+        mask = np.asarray(mask) > 0
+        height, width = mask.shape
+        ys, xs = np.where(mask)
+        if xs.size == 0:
+            return [], []
+
+        points = []
+        labels = []
+
+        dist = cv2.distanceTransform(mask.astype(np.uint8), cv2.DIST_L2, 5)
+        _, _, _, max_loc = cv2.minMaxLoc(dist)
+        points.append((float(max_loc[0]), float(max_loc[1])))
+        labels.append(1)
+
+        x0, x1 = int(xs.min()), int(xs.max())
+        mask_width = max(1, x1 - x0 + 1)
+        sample_xs = [x0 + 0.25 * mask_width, x0 + 0.50 * mask_width, x0 + 0.75 * mask_width]
+        for sample_x in sample_xs:
+            band = np.abs(xs.astype(np.float32) - float(sample_x)) <= max(3.0, 0.03 * mask_width)
+            if not np.any(band):
+                continue
+            band_ys = ys[band]
+            band_xs = xs[band]
+            median_idx = int(np.argsort(band_ys)[len(band_ys) // 2])
+            candidate = (float(band_xs[median_idx]), float(band_ys[median_idx]))
+            if all((candidate[0] - px) ** 2 + (candidate[1] - py) ** 2 > 100 for px, py in points):
+                points.append(candidate)
+                labels.append(1)
+
+        y0, y1 = int(ys.min()), int(ys.max())
+        pad = max(8, int(round(0.05 * max(height, width))))
+        neg_candidates = [
+            (x0 - pad, y0 - pad),
+            (x0 - pad, y1 + pad),
+            (x1 + pad, y0 - pad),
+            (x1 + pad, y1 + pad),
+            ((x0 + x1) / 2.0, y0 - pad),
+            ((x0 + x1) / 2.0, y1 + pad),
+        ]
+        for px, py in neg_candidates:
+            px = float(np.clip(px, 0, width - 1))
+            py = float(np.clip(py, 0, height - 1))
+            if not mask[int(round(py)), int(round(px))]:
+                points.append((px, py))
+                labels.append(0)
+            if sum(1 for label in labels if label == 0) >= 4:
+                break
+
+        return points[:8], labels[:8]
+
+    @staticmethod
+    def _sam3_video_mask_stats(mask_frames):
+        areas = [int(np.count_nonzero(mask)) for mask in mask_frames]
+        total_area = int(sum(areas))
+        frames_with_mask = int(sum(area > 0 for area in areas))
+        return total_area, frames_with_mask
+
+    @staticmethod
+    def _windows_path_from_wsl(path):
+        path_str = str(path).replace("\\", "/")
+        if os.name == "nt" and path_str.startswith("/mnt/"):
+            parts = path_str.split("/")
+            if len(parts) > 3 and parts[1] == "mnt":
+                return Path(parts[2].upper() + ":\\" + "\\".join(parts[3:]))
+        return Path(path)
+
+    @staticmethod
+    def _fit_sam3_mask_array_to_shape(mask_array, target_shape):
+        arr = np.asarray(mask_array)
+        target_h, target_w = int(target_shape[0]), int(target_shape[1])
+
+        if arr.ndim == 2:
+            out = np.zeros((target_h, target_w), dtype=arr.dtype)
+            copy_h = min(target_h, arr.shape[0])
+            copy_w = min(target_w, arr.shape[1])
+            if copy_h > 0 and copy_w > 0:
+                out[:copy_h, :copy_w] = arr[:copy_h, :copy_w]
+            return out
+
+        if arr.ndim == 3:
+            out = np.zeros((arr.shape[0], target_h, target_w), dtype=arr.dtype)
+            copy_h = min(target_h, arr.shape[1])
+            copy_w = min(target_w, arr.shape[2])
+            if copy_h > 0 and copy_w > 0:
+                out[:, :copy_h, :copy_w] = arr[:, :copy_h, :copy_w]
+            return out
+
+        return arr
+
+    def _sam3_video_summary_and_npz_dir(self, output_root):
+        summary_path = Path(output_root) / "summary.json"
+        if not summary_path.exists():
+            raise RuntimeError(f"Missing SAM3 video summary: {summary_path}")
+        with open(summary_path, "r", encoding="utf-8") as f:
+            summary = json.load(f)
+
+        npz_dir = self._windows_path_from_wsl(summary["artifacts"]["mask_npz_dir"])
+        return summary, npz_dir
+
+    def _load_sam3_video_masks(self, output_root, expected_frames, plume_idx, score_threshold=None):
+        summary, npz_dir = self._sam3_video_summary_and_npz_dir(output_root)
+        if score_threshold is None:
+            score_threshold = float(self.sam_score_threshold.get())
+        else:
+            score_threshold = float(score_threshold)
+        new_masks = [
+            np.zeros_like(self.plume_masks[plume_idx][0], dtype=np.uint8)
+            for _ in range(int(expected_frames))
+        ]
+        shape_warning_done = False
+        for record in summary.get("records", []):
+            frame_index = int(record["frame_index"])
+            if frame_index < 0 or frame_index >= len(new_masks):
+                continue
+            target_shape = new_masks[frame_index].shape
+            npz_path = npz_dir / f"{record['frame_name']}.npz"
+            if not npz_path.exists():
+                continue
+            with np.load(npz_path) as data:
+                if "raw_masks" in data.files:
+                    masks = np.asarray(data["raw_masks"], dtype=np.uint8)
+                    probs = np.asarray(
+                        data["raw_probabilities"] if "raw_probabilities" in data.files else [],
+                        dtype=np.float32,
+                    )
+                    if probs.ndim >= 1 and masks.ndim == 3 and masks.shape[0] == probs.shape[0]:
+                        masks = masks[probs >= score_threshold]
+                else:
+                    masks = np.asarray(data["masks"], dtype=np.uint8)
+            if masks.ndim in (2, 3) and masks.shape[-2:] != target_shape:
+                if not shape_warning_done:
+                    print(
+                        f"[sam3-video] fitting SAM3 mask shape {masks.shape[-2:]} "
+                        f"to GUI target shape {target_shape}; this is usually AVI codec padding/cropping.",
+                        flush=True,
+                    )
+                    shape_warning_done = True
+                masks = self._fit_sam3_mask_array_to_shape(masks, target_shape)
+            if masks.ndim == 3 and masks.shape[0] > 0:
+                mask = np.any(masks > 0, axis=0).astype(np.uint8)
+            elif masks.ndim == 2:
+                mask = (masks > 0).astype(np.uint8)
+            else:
+                mask = np.zeros_like(new_masks[frame_index], dtype=np.uint8)
+
+            block = self.static_block_masks[plume_idx].astype(bool) if self.static_block_masks else None
+            if block is not None and np.any(block):
+                mask = mask.copy()
+                mask[block] = 0
+            new_masks[frame_index] = mask
+
+        return new_masks
+
+    def _load_sam3_probability_frames(self, output_root, expected_frames, plume_idx):
+        summary, npz_dir = self._sam3_video_summary_and_npz_dir(output_root)
+        target_shape = self.plume_masks[plume_idx][0].shape
+        prob_frames = [np.zeros(target_shape, dtype=np.float32) for _ in range(int(expected_frames))]
+        max_probs = [None for _ in range(int(expected_frames))]
+        raw_counts = [0 for _ in range(int(expected_frames))]
+        shape_warning_done = False
+
+        for record in summary.get("records", []):
+            frame_index = int(record["frame_index"])
+            if frame_index < 0 or frame_index >= len(prob_frames):
+                continue
+            npz_path = npz_dir / f"{record['frame_name']}.npz"
+            if not npz_path.exists():
+                continue
+            with np.load(npz_path) as data:
+                if "raw_masks" in data.files:
+                    masks = np.asarray(data["raw_masks"], dtype=np.uint8)
+                    probs = np.asarray(
+                        data["raw_probabilities"] if "raw_probabilities" in data.files else [],
+                        dtype=np.float32,
+                    )
+                else:
+                    masks = np.asarray(data["masks"], dtype=np.uint8)
+                    probs = np.asarray(
+                        data["probabilities"] if "probabilities" in data.files else [],
+                        dtype=np.float32,
+                    )
+
+            if masks.ndim == 2:
+                masks = masks[None, ...]
+            if masks.ndim != 3:
+                continue
+            if masks.shape[1:] != target_shape:
+                if not shape_warning_done:
+                    print(
+                        f"[sam3-video] fitting SAM3 probability mask shape {masks.shape[1:]} "
+                        f"to GUI target shape {target_shape}; this is usually AVI codec padding/cropping.",
+                        flush=True,
+                    )
+                    shape_warning_done = True
+                masks = self._fit_sam3_mask_array_to_shape(masks, target_shape)
+            if probs.ndim < 1 or probs.shape[0] != masks.shape[0]:
+                probs = np.ones((masks.shape[0],), dtype=np.float32)
+
+            raw_counts[frame_index] = int(masks.shape[0])
+            if probs.size:
+                max_probs[frame_index] = float(np.max(probs))
+            if masks.shape[0] > 0:
+                weighted = (masks > 0).astype(np.float32) * probs[:, None, None]
+                prob_frames[frame_index] = np.max(weighted, axis=0).astype(np.float32, copy=False)
+
+        return prob_frames, max_probs, raw_counts
+
+    def _refresh_last_sam3_video_masks_from_score(self, warn_if_empty=False):
+        if self.last_sam3_video_result is None:
+            raise RuntimeError("No SAM3 video result to refresh.")
+
+        plume_idx = int(self.last_sam3_video_result["plume_idx"])
+        if plume_idx < 0 or plume_idx >= len(self.plume_videos):
+            raise RuntimeError(f"SAM3 video plume index is no longer valid: {plume_idx}")
+
+        output_root = Path(self.last_sam3_video_result["output_root"])
+        expected_frames = len(self.plume_videos[plume_idx])
+        score_threshold = float(self.sam_score_threshold.get())
+        masks = self._load_sam3_video_masks(
+            output_root,
+            expected_frames,
+            plume_idx,
+            score_threshold=score_threshold,
+        )
+        total_area, frames_with_mask = self._sam3_video_mask_stats(masks)
+        self.last_sam3_video_result["masks"] = masks
+        self.last_sam3_video_result["score_threshold"] = score_threshold
+        self.last_sam3_video_result["total_area"] = int(total_area)
+        self.last_sam3_video_result["frames_with_mask"] = int(frames_with_mask)
+
+        if total_area == 0:
+            print(
+                f"[sam3-video] score={score_threshold:.3f} generated empty masks; existing GUI masks kept.",
+                flush=True,
+            )
+            if warn_if_empty:
+                messagebox.showwarning(
+                    "SAM3 Score",
+                    "The current SAM3 Score produces no foreground from the last video result.\n"
+                    "Lower SAM3 Score and try Play SAM3 Boundary again.",
+                )
+            return masks, total_area, frames_with_mask
+
+        self.plume_masks[plume_idx] = masks
+        print(
+            f"[sam3-video] regenerated GUI masks from raw video result score={score_threshold:.3f} "
+            f"frames_with_mask={frames_with_mask} total_area={total_area}",
+            flush=True,
+        )
+        self.update_image()
+        return masks, total_area, frames_with_mask
+
+    def _finish_sam3_video_success(self, plume_idx, masks_loaded, output_root, input_avi):
+        total_area, frames_with_mask = self._sam3_video_mask_stats(masks_loaded)
+        self.last_sam3_video_result = {
+            "plume_idx": int(plume_idx),
+            "input_avi": str(input_avi),
+            "output_root": str(output_root),
+            "masks": masks_loaded,
+            "score_threshold": float(self.sam_score_threshold.get()),
+            "total_area": int(total_area),
+            "frames_with_mask": int(frames_with_mask),
+        }
+        if total_area == 0:
+            print(
+                f"[sam3-video] result is empty for all {len(masks_loaded)} frames; keeping existing GUI masks. output={output_root}",
+                flush=True,
+            )
+            self.master.title("Manual Segmenter - SAM3 video returned empty; existing masks kept")
+            messagebox.showwarning(
+                "SAM3 Video",
+                "SAM3 video returned no foreground, so the existing GUI masks were kept.\n\n"
+                f"Artifacts:\n{output_root}",
+            )
+            self.update_image()
+            return
+
+        self.plume_masks[plume_idx] = masks_loaded
+        print(
+            f"[sam3-video] loaded masks plume={plume_idx} frames={len(masks_loaded)} "
+            f"frames_with_mask={frames_with_mask} total_area={total_area} output={output_root}",
+            flush=True,
+        )
+        print(
+            "[sam3-video] use 'Play SAM3 Probability' to inspect raw probabilities, "
+            "then adjust SAM3 Score and click 'Play SAM3 Boundary'.",
+            flush=True,
+        )
+        self.master.title(f"Manual Segmenter - SAM3 video masks loaded. Tune Score or preview boundary")
+        self.update_image()
+
+    def _finish_sam3_video_error(self, exc, export_root):
+        self.master.title("Manual Segmenter - SAM3 video failed")
+        messagebox.showerror(
+            "SAM3 Video Error",
+            f"{exc}\n\nArtifacts, if any:\n{export_root}",
+        )
+
+    @staticmethod
+    def _read_grayscale_video_float(video_path):
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            raise RuntimeError(f"Could not open SAM3 input video: {video_path}")
+        frames = []
+        try:
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                if frame.ndim == 3:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                else:
+                    gray = frame
+                frames.append(gray.astype(np.float32) / 255.0)
+        finally:
+            cap.release()
+        if not frames:
+            raise RuntimeError(f"No frames decoded from SAM3 input video: {video_path}")
+        return np.stack(frames, axis=0)
+
+    @staticmethod
+    def _masks_to_boundary_points(mask_frames):
+        boundaries = []
+        empty = np.empty((0, 2), dtype=np.int32)
+        kernel = np.ones((3, 3), dtype=np.uint8)
+        for mask in mask_frames:
+            mask_u8 = (np.asarray(mask) > 0).astype(np.uint8)
+            if np.any(mask_u8):
+                eroded = cv2.erode(mask_u8, kernel, iterations=1)
+                edge = (mask_u8 > 0) & (eroded == 0)
+                coords_yx = np.argwhere(edge > 0).astype(np.int32)
+            else:
+                coords_yx = empty
+            boundaries.append((coords_yx, empty))
+        return boundaries
+
+    @classmethod
+    def _fit_video_frames_to_shape(cls, video, target_shape):
+        return np.stack(
+            [cls._fit_sam3_mask_array_to_shape(frame, target_shape) for frame in np.asarray(video)],
+            axis=0,
+        )
+
+    @staticmethod
+    def _play_probability_overlay(video, prob_frames, max_probs, raw_counts, score_threshold, intv=17):
+        video = np.asarray(video)
+        total = min(len(video), len(prob_frames))
+        for idx in range(total):
+            frame = np.asarray(video[idx])
+            prob = np.clip(np.asarray(prob_frames[idx], dtype=np.float32), 0.0, 1.0)
+            frame_u8 = np.clip(frame * 255.0, 0, 255).astype(np.uint8)
+            if frame_u8.shape != prob.shape:
+                frame_u8 = ManualSegmenter._fit_sam3_mask_array_to_shape(frame_u8, prob.shape)
+            frame_bgr = cv2.cvtColor(frame_u8, cv2.COLOR_GRAY2BGR)
+
+            prob_u8 = np.round(prob * 255.0).astype(np.uint8)
+            color_map = getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_JET)
+            color = cv2.applyColorMap(prob_u8, color_map)
+            mask_any = prob > 0
+            if np.any(mask_any):
+                blended = cv2.addWeighted(color, 0.55, frame_bgr, 0.45, 0.0)
+                frame_bgr[mask_any] = blended[mask_any]
+
+            threshold_mask = prob >= float(score_threshold)
+            if np.any(threshold_mask):
+                edge = threshold_mask.astype(np.uint8)
+                edge = edge - cv2.erode(edge, np.ones((3, 3), dtype=np.uint8), iterations=1)
+                frame_bgr[edge > 0] = (0, 255, 255)
+
+            max_prob = max_probs[idx]
+            max_text = "none" if max_prob is None else f"{max_prob:.3f}"
+            text = f"frame {idx} raw={raw_counts[idx]} max_p={max_text} score={score_threshold:.3f}"
+            cv2.putText(
+                frame_bgr,
+                text,
+                (12, 28),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                frame_bgr,
+                text,
+                (12, 28),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 0),
+                1,
+                cv2.LINE_AA,
+            )
+
+            cv2.imshow("SAM3 Probability", frame_bgr)
+            if cv2.waitKey(intv) & 0xFF == ord("q"):
+                break
+
+        cv2.destroyAllWindows()
+
+    def play_last_sam3_video_probability(self):
+        if self.last_sam3_video_result is None:
+            messagebox.showinfo("SAM3 Probability", "No SAM3 video result to preview yet.")
+            return
+
+        input_avi = Path(self.last_sam3_video_result["input_avi"])
+        output_root = Path(self.last_sam3_video_result["output_root"])
+        plume_idx = int(self.last_sam3_video_result["plume_idx"])
+        try:
+            video = self._read_grayscale_video_float(input_avi)
+            prob_frames, max_probs, raw_counts = self._load_sam3_probability_frames(
+                output_root,
+                len(video),
+                plume_idx,
+            )
+            total_raw = int(sum(raw_counts))
+            print(
+                f"[sam3-video] playing probability preview frames={len(video)} raw_objects_total={total_raw} "
+                f"score={float(self.sam_score_threshold.get()):.3f} input={input_avi}",
+                flush=True,
+            )
+            self._play_probability_overlay(
+                video,
+                prob_frames,
+                max_probs,
+                raw_counts,
+                score_threshold=float(self.sam_score_threshold.get()),
+                intv=17,
+            )
+        except Exception as e:
+            messagebox.showerror("SAM3 Probability", f"Failed to play SAM3 probability preview:\n{e}")
+
+    def play_last_sam3_video_boundary(self):
+        if self.last_sam3_video_result is None:
+            messagebox.showinfo("SAM3 Boundary", "No SAM3 video result to preview yet.")
+            return
+
+        input_avi = Path(self.last_sam3_video_result["input_avi"])
+        try:
+            masks, total_area, frames_with_mask = self._refresh_last_sam3_video_masks_from_score(
+                warn_if_empty=True
+            )
+            if total_area == 0:
+                return
+            video = self._read_grayscale_video_float(input_avi)
+            total = min(len(video), len(masks))
+            if total <= 0:
+                raise RuntimeError("SAM3 video preview is empty.")
+            video = self._fit_video_frames_to_shape(video[:total], masks[0].shape)
+            boundaries = self._masks_to_boundary_points(masks[:total])
+            print(
+                f"[sam3-video] playing boundary preview frames={total} frames_with_mask={frames_with_mask} "
+                f"score={float(self.sam_score_threshold.get()):.3f} input={input_avi}",
+                flush=True,
+            )
+            play_video_with_boundaries_cv2(
+                video,
+                boundaries,
+                gain=1.0,
+                intv=17,
+                color_top=(0, 0, 255),
+                color_bottom=(0, 0, 255),
+                thickness=1,
+                alpha=1.0,
+            )
+        except Exception as e:
+            messagebox.showerror("SAM3 Boundary", f"Failed to play SAM3 boundary preview:\n{e}")
 
     def _draw_live_rect(self, p0, p1, outline="lime"):
         x0, y0 = p0
@@ -951,57 +1932,6 @@ class ManualSegmenter:
         if self.live_rect_id is not None:
             self.canvas.delete(self.live_rect_id)
             self.live_rect_id = None
-
-    def run_grabcut(self, rect, add=True):
-        if self.current_img is None:
-            return
-        if rect[2] < 2 or rect[3] < 2:
-            return
-
-        # Use the display image (gain/gamma-adjusted uint8) for GrabCut to match what user sees.
-        frame = self.current_img
-        if frame.ndim == 2:
-            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        mask = self.plume_masks[self.current_plume][self.current_frame]
-
-        x, y, w, h = rect
-        x0 = max(0, int(x))
-        y0 = max(0, int(y))
-        x1 = min(frame.shape[1], x0 + int(w))
-        y1 = min(frame.shape[0], y0 + int(h))
-        if x1 - x0 < 2 or y1 - y0 < 2:
-            return
-
-        pad = 16
-        rx0 = max(0, x0 - pad)
-        ry0 = max(0, y0 - pad)
-        rx1 = min(frame.shape[1], x1 + pad)
-        ry1 = min(frame.shape[0], y1 + pad)
-        roi_frame = frame[ry0:ry1, rx0:rx1]
-        roi_mask = mask[ry0:ry1, rx0:rx1]
-        gc_mask = np.where(roi_mask, cv2.GC_FGD, cv2.GC_BGD).astype(np.uint8)
-        roi_rect = (x0 - rx0, y0 - ry0, x1 - x0, y1 - y0)
-
-        bgd = np.zeros((1, 65), np.float64)
-        fgd = np.zeros((1, 65), np.float64)
-        try:
-            cv2.grabCut(
-                roi_frame,
-                gc_mask,
-                roi_rect,
-                bgd,
-                fgd,
-                int(self.grabcut_iters.get()),
-                cv2.GC_INIT_WITH_RECT,
-            )
-        except Exception:
-            return
-        new_mask = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 1, 0).astype(np.uint8)
-        if add:
-            roi_mask[:] = np.maximum(roi_mask, new_mask)
-        else:
-            roi_mask[:] = roi_mask & (~new_mask)
-        self.update_image()
 
     # ---------------------------------------------------------------
     #                       Dataset export utilities
@@ -1084,7 +2014,12 @@ class ManualSegmenter:
 
     @staticmethod
     def _to_uint16(frame):
+        if np.issubdtype(frame.dtype, np.integer) and frame.dtype.itemsize == 1:
+            return frame.astype(np.uint16) * np.uint16(257)
         arr = np.nan_to_num(frame, nan=0.0, posinf=65535.0, neginf=0.0)
+        finite = arr[np.isfinite(arr)]
+        if finite.size and float(finite.min()) >= 0.0 and float(finite.max()) <= 1.5:
+            arr = arr * 65535.0
         arr = np.clip(arr, 0, 65535)
         return arr.astype(np.uint16)
 
@@ -1166,6 +2101,8 @@ class ManualSegmenter:
             "raw_max": int(raw_u16.max()),
             "gain": float(self.gain.get()),
             "gamma": float(self.gamma.get()),
+            "video_normalization": self.video_normalization,
+            "video_normalization_params": self.video_normalization_params,
             "n_plumes": int(self.n_plumes) if self.n_plumes is not None else len(self.plume_videos),
             "centre_x": float(self.centre_x) if self.centre_x is not None else None,
             "centre_y": float(self.centre_y) if self.centre_y is not None else None,
