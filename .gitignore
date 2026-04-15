@@ -80,6 +80,7 @@ OSCC_postprocessing/dewe/DeweFileLibrary/*.so
 OSCC_postprocessing/dewe/DeweFileLibrary/*.zip
 
 # LaTeX auxiliary files
+Thesis/build_artifacts/
 *.aux
 *.bbl
 *.blg
