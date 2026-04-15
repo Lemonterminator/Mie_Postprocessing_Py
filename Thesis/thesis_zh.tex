@@ -288,7 +288,7 @@ D_{\mathrm{KL}}\!\left(\mathcal{N}(\mu_1,\sigma_1^2)\,\|\,\mathcal{N}(\mu_2,\sig
 \hline
 \codepath{GUI.py} & 人工喷嘴中心标定 & 某组视频的中心、半径和角向偏移 \\
 \hline
-\codepath{main.py} & 批量预处理与特征提取 & 按 plume 分解的穿深轨迹、二值几何指标和可选边界 CSV \\
+\codepath{mie_multi_hole.py} & 批量预处理与特征提取 & 按 plume 分解的穿深轨迹、二值几何指标和可选边界 CSV \\
 \hline
 \codepath{MLP/fit_raw_data.py} & 清洗、时延对齐与降阶拟合 & 清洗后的轨迹、标记轨迹、拟合参数以及拟合图 \\
 \hline
@@ -332,9 +332,9 @@ D_{\mathrm{KL}}\!\left(\mathcal{N}(\mu_1,\sigma_1^2)\,\|\,\mathcal{N}(\mu_2,\sig
 
 这种设计适合当前数据集，因为摄像机和喷嘴几何在记录内保持固定。一次校准并为所有帧重用相同中心可以避免下游喷雾角度分析中的帧间抖动。
 
-\subsection{\texttt{main.py} 中的视频批处理}
+\subsection{\texttt{mie_multi_hole.py} 中的视频批处理}
 
-\texttt{main.py} 中的文件处理器是图像分析工作流的中枢。对于每个 \texttt{.cine} 记录，\texttt{\_process\_cine\_file} 会把视频加载到当前数组后端，复用整个文件夹的环形掩码，调用 \texttt{mie\_multihole\_preprocessing} 与 \texttt{mie\_multihole\_postprocessing}，提取逐 plume 穿深曲线，计算基于边界的几何度量，并最终导出同步 CSV 与元数据文件。关键在于，这条链中数值开销最大的部分都尽量保留在后端本地：当 CuPy 可用时，卷积、角度分箱、重映射、阈值处理、连通域清理和形态学操作都会沿着 CUDA 路径执行，直到最终表格导出为止。
+\texttt{mie_multi_hole.py} 中的文件处理器是图像分析工作流的中枢。对于每个 \texttt{.cine} 记录，\texttt{\_process\_cine\_file} 会把视频加载到当前数组后端，复用整个文件夹的环形掩码，调用 \texttt{mie\_multihole\_preprocessing} 与 \texttt{mie\_multihole\_postprocessing}，提取逐 plume 穿深曲线，计算基于边界的几何度量，并最终导出同步 CSV 与元数据文件。关键在于，这条链中数值开销最大的部分都尽量保留在后端本地：当 CuPy 可用时，卷积、角度分箱、重映射、阈值处理、连通域清理和形态学操作都会沿着 CUDA 路径执行，直到最终表格导出为止。
 
 这一实现选择来自此前内部处理路线的实际限制。旧流程依赖逐帧 MATLAB 处理，缺少有效并行加速。这里批评的并不是 MATLAB 语言本身：例如 PIVlab 就是一个成熟的 MATLAB 开源 PIV 工具箱 \cite{ThielickeSonntag2021PIVlab}。真正的限制在于本地批处理架构；在这种形式下，即使处理约 50~GB 的视频也可能需要一天左右，并且仍然容易崩溃。因此，将主要图像操作转入批量 CUDA 导向流程，在本文中被视为方法设计的一部分，而不是单纯的软件优化。
 
@@ -348,7 +348,7 @@ x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \[
 c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
 \]
-同一程序还从点击的边缘点相对于理想等距集估计平均角度偏移。\texttt{GUI.py}将这些值写入\texttt{config.json}，之后\texttt{main.py}可以处理整个文件夹而无需手动重新中心。这种一次校准是故意面向用户的，而不是完全自动的：操作员可以缩放、选择代表性帧，并用物理上有意义的喷嘴中心锚定整个批量\cite{Pratt1987CircleFit,Taubin1991CircleFit}。
+同一程序还从点击的边缘点相对于理想等距集估计平均角度偏移。\texttt{GUI.py}将这些值写入\texttt{config.json}，之后\texttt{mie_multi_hole.py}可以处理整个文件夹而无需手动重新中心。这种一次校准是故意面向用户的，而不是完全自动的：操作员可以缩放、选择代表性帧，并用物理上有意义的喷嘴中心锚定整个批量\cite{Pratt1987CircleFit,Taubin1991CircleFit}。
 
 \subsubsection{批量和鲁棒预处理}
 
@@ -399,6 +399,13 @@ F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
 \[
 S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2}.
 \]
+
+一个更深层的效率来自Sobel核本身的秩1结构。在\texttt{build\_2d\_kernel}中，每个方向核被显式构造为外积，
+\[
+K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf{g},
+\]
+其中\(\mathbf{g}\)是离散高斯包络，\(\mathbf{d}_g\)是其导数。外积矩阵的代数秩恰好为1。函数\texttt{\_separable\_factors\_cupy}通过计算核矩阵的截断SVD分解$K \approx \sigma_1 \mathbf{u}_1 \mathbf{v}_1^{\top}$自动检验这一性质：若第二奇异值可以忽略，则将二维卷积替换为沿空间轴的两次顺序一维卷积。对于$k \times k$核，每像素乘加运算量从$O(k^2)$降至$O(2k)$。由于Sobel核在构造上始终为秩1，可分离路径在运行时无条件执行，$K_x$和$K_y$均以一对一维卷积的形式应用于整个视频立方体。
+
 然后再次进行稳健缩放并用环形几何掩码。在实现术语中这很重要，因为它将低对比度灰度喷雾转换为边缘主导表示，同时保持整个操作在CuPy后端。贡献不是Sobel算子本身，这是经典的，而是将其集成到避免重复主机-设备复制的批量视频工作流中，为每个喷雾准备相同的下游几何处理\cite{GonzalezWoodsDIP,Szeliski2010Vision}。
 
 \begin{figure}[t]
@@ -433,7 +440,7 @@ D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 =
 -\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
 \]
-这就是使对齐自适应的原因：代码使用当前数据集的观测谐波相位而不是为每个记录手动输入参考角度。\texttt{main.py}然后构建喷雾方向
+这就是使对齐自适应的原因：代码使用当前数据集的观测谐波相位而不是为每个记录手动输入参考角度。\texttt{mie_multi_hole.py}然后构建喷雾方向
 \[
 \phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
 \]
@@ -515,7 +522,7 @@ C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi
 \[
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
-其中\(q\)接近1。然后通过\texttt{np.maximum.accumulate}强制单调性，从喷嘴环形减去内半径以表示距离，\texttt{main.py}中丢弃显示非物理后退跳跃或只有很短有效运行的轨迹。这个CDF前沿是工作流的主要实用贡献：它比朴素的最大索引定义对断裂的边缘像素不那么敏感，同时仍然产生与标准柴油喷雾使用对齐的穿深量\cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}。
+其中\(q\)接近1。然后通过\texttt{np.maximum.accumulate}强制单调性，从喷嘴环形减去内半径以表示距离，\texttt{mie_multi_hole.py}中丢弃显示非物理后退跳跃或只有很短有效运行的轨迹。这个CDF前沿是工作流的主要实用贡献：它比朴素的最大索引定义对断裂的边缘像素不那么敏感，同时仍然产生与标准柴油喷雾使用对齐的穿深量\cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}。
 
 \subsubsection{边界度量和几何代理}
 
@@ -840,7 +847,7 @@ Stage 2 NLL 扩展 & 14,594 条经筛选轨迹，从 Stage~1 热启动 & 第 66 
 本论文记录了一条基于证据的工作流，用于处理高速 Mie 散射喷雾视频，将其转换为面向穿深的工程观测量，并在这些观测量之上构建完整的三阶段 surrogate 模型。已完成的贡献包括：
 \begin{itemize}
   \item \texttt{GUI.py} 中的手动喷嘴中心标定，
-  \item \texttt{main.py} 中的批量逐 plume 特征提取，
+  \item \texttt{mie_multi_hole.py} 中的批量逐 plume 特征提取，
   \item \codepath{MLP/fit\_raw\_data.py} 中的轨迹清洗与降阶拟合，
   \item 将稀疏压力与直径输入替换为 Hiroyasu--Arai 缩放群 $A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}$ 的 v2 工程化特征架构（经预训练坍缩检验验证，\SI{0.5}{ms} 后方差缩减 59.5\%），
   \item 已完成的 Stage-1 确定性 MSE 基线（第 115 epoch 验证 MSE~18.94，测试 MAE~\SI{8.1}{mm}），含组感知划分与保存 checkpoint，

@@ -264,13 +264,13 @@ Table~\ref{tab:workflow} summarizes the implemented workflow and the role of eac
 
 \begin{table}[t]
 \centering
-\begin{tabular}{|L{0.21\linewidth}|L{0.26\linewidth}|L{0.33\linewidth}|}
+\begin{tabular}{|L{0.21\linewidth}|C:\Users\LJI008\Mie_Postprocessing_Py\Thesis\mie_video_to_1d_dataflow.texL{0.26\linewidth}|L{0.33\linewidth}|}
 \hline
 Artifact & Main role & Primary output \\
 \hline
 \codepath{GUI.py} & Manual nozzle-center calibration & Center, radius, and angular offset for a video set \\
 \hline
-\codepath{main.py} & Batch preprocessing and feature extraction & Plume-wise penetration traces, binary metrics, and optional boundary CSVs \\
+\codepath{mie_multi_hole.py} & Batch preprocessing and feature extraction & Plume-wise penetration traces, binary metrics, and optional boundary CSVs \\
 \hline
 \codepath{MLP/fit_raw_data.py} & Cleaning, delay alignment, and reduced-order fitting & Cleaned trajectories, flagged trajectories, fitted parameters, and fit plots \\
 \hline
@@ -314,9 +314,9 @@ The point-selection dialog enforces at least three clicks and computes the circl
 
 This design is appropriate for the current datasets because the camera and injector geometry stay fixed within a recording. Calibrating once and reusing the same center for all frames avoids frame-to-frame jitter in the downstream plume-angle analysis.
 
-\subsection{Batch video processing in \texttt{main.py}}
+\subsection{Batch video processing in \texttt{mie_multi_hole.py}}
 
-The file processor in \texttt{main.py} is the operational center of the image-analysis workflow. For each \texttt{.cine} recording, \texttt{\_process\_cine\_file} loads the video to the active array backend, reuses an annular ring mask for the whole folder, calls \texttt{mie\_multihole\_preprocessing}, calls \texttt{mie\_multihole\_postprocessing}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and finally exports synchronized CSV and metadata files. The important engineering point is that the numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final tabular export.
+The file processor in \texttt{mie_multi_hole.py} is the operational center of the image-analysis workflow. For each \texttt{.cine} recording, \texttt{\_process\_cine\_file} loads the video to the active array backend, reuses an annular ring mask for the whole folder, calls \texttt{mie\_multihole\_preprocessing}, calls \texttt{mie\_multihole\_postprocessing}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and finally exports synchronized CSV and metadata files. The important engineering point is that the numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final tabular export.
 
 This implementation choice was motivated by the practical limits of the earlier in-house route, which relied on frame-by-frame MATLAB processing without effective parallel acceleration. The criticism is not directed at MATLAB as a language: PIVlab, for example, is a mature MATLAB-based open-source PIV toolbox \cite{ThielickeSonntag2021PIVlab}. Rather, the limitation was the local batch architecture. In that form, processing about 50~GB of video could take roughly a day and still remain prone to crashes. Moving the heavy image operations into a bulk CUDA-oriented pipeline is therefore treated here as part of the method rather than as a cosmetic software optimization.
 
@@ -330,7 +330,7 @@ solved in least-squares form by \texttt{np.linalg.lstsq}. The recovered paramete
 \[
 c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
 \]
-and the same routine also estimates an average angular offset from the clicked rim points relative to an ideal equally spaced set. \texttt{GUI.py} writes these values to \texttt{config.json}, after which \texttt{main.py} can process a full folder without manual re-centering. This one-time calibration is deliberately user-facing rather than fully automatic: the operator can zoom, choose a representative frame, and anchor the full batch with a physically meaningful nozzle center \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
+and the same routine also estimates an average angular offset from the clicked rim points relative to an ideal equally spaced set. \texttt{GUI.py} writes these values to \texttt{config.json}, after which \texttt{mie_multi_hole.py} can process a full folder without manual re-centering. This one-time calibration is deliberately user-facing rather than fully automatic: the operator can zoom, choose a representative frame, and anchor the full batch with a physically meaningful nozzle center \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
 
 \subsubsection{Bulk and robust preprocessing}
 
@@ -381,6 +381,13 @@ The second contribution is the explicit edge-enhancing high-pass stage applied d
 \[
 S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2}.
 \]
+
+A subtler efficiency comes from the rank-1 structure of the Sobel kernel itself. In \texttt{build\_2d\_kernel}, each directional kernel is assembled as an explicit outer product,
+\[
+K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf{g},
+\]
+where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative. An outer-product matrix has algebraic rank exactly one. The function \texttt{\_separable\_factors\_cupy} tests for this automatically: it computes a truncated SVD of the kernel matrix, \(K \approx \sigma_1 \mathbf{u}_1 \mathbf{v}_1^{\top}\), and if the second singular value is negligible the 2-D convolution is replaced by two sequential 1-D passes along the spatial axes. For a \(k \times k\) kernel this reduces the per-pixel multiply-add cost from \(O(k^2)\) to \(O(2k)\). Because the Sobel kernel is rank-1 by construction, the separable path is taken unconditionally at runtime, and both \(K_x\) and \(K_y\) are applied as a pair of 1-D convolutions across the full video cube.
+
 The output is then robust-scaled again and masked by the ring geometry. In implementation terms this matters because it converts a low-contrast grayscale plume into an edge-dominant representation while keeping the whole operation on the CuPy backend. The contribution is not the Sobel operator itself, which is classical, but its integration into a bulk video workflow that avoids repeated host-device copies and prepares every plume for the same downstream geometric treatment \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
 
 \begin{figure}[t]
@@ -415,7 +422,7 @@ be the time-summed angular profile, and let \(P\) be the known number of plumes.
 =
 -\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
 \]
-This is what makes the alignment self-adaptive: the code uses the observed harmonic phase of the current dataset instead of assuming a manually typed reference angle for every recording. \texttt{main.py} then constructs plume directions
+This is what makes the alignment self-adaptive: the code uses the observed harmonic phase of the current dataset instead of assuming a manually typed reference angle for every recording. \texttt{mie_multi_hole.py} then constructs plume directions
 \[
 \phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
 \]
@@ -497,7 +504,7 @@ and defines the penetration front as the first location satisfying
 \[
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
-with \(q\) close to one. The code then enforces monotonicity by \texttt{np.maximum.accumulate}, subtracts the inner radius to express distance from the nozzle annulus, and in \texttt{main.py} discards traces that show non-physical backward jumps or only very short valid runs. This CDF front is one of the main practical contributions of the workflow: it is much less sensitive to broken leading-edge pixels than a naive max-index definition, while still producing a penetration quantity aligned with standard diesel-spray usage \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
+with \(q\) close to one. The code then enforces monotonicity by \texttt{np.maximum.accumulate}, subtracts the inner radius to express distance from the nozzle annulus, and in \texttt{mie_multi_hole.py} discards traces that show non-physical backward jumps or only very short valid runs. This CDF front is one of the main practical contributions of the workflow: it is much less sensitive to broken leading-edge pixels than a naive max-index definition, while still producing a penetration quantity aligned with standard diesel-spray usage \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
 
 \subsubsection{Boundary metrics and geometric proxies}
 
@@ -818,7 +825,7 @@ All three training stages have dedicated deployable checkpoints in the workspace
 This thesis documented an evidence-grounded workflow for processing high-speed Mie-scattering spray videos into penetration-oriented engineering observables and for building a complete three-stage surrogate model on top of those observables. The completed contributions are:
 \begin{itemize}
   \item manual nozzle-center calibration in \texttt{GUI.py},
-  \item batch plume-wise feature extraction in \texttt{main.py},
+  \item batch plume-wise feature extraction in \texttt{mie_multi_hole.py},
   \item trajectory cleaning and reduced-order fitting in \codepath{MLP/fit\_raw\_data.py},
   \item a v2 engineered-feature architecture that replaces sparse pressure and diameter inputs with the Hiroyasu--Arai scaling group $A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}$, validated by a pretrain collapse check showing 59.5\% post-\SI{0.5}{ms} variance reduction,
   \item a completed Stage-1 deterministic MSE baseline (val MSE~18.94 at epoch~115, test MAE~\SI{8.1}{mm}) with group-aware splits and a saved checkpoint,
