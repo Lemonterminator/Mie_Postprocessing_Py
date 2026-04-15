@@ -1,0 +1,776 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                            %%
+%% thesistemplate_short.tex version 4.10 (2025/06/30)                         %%
+%% The LaTeX template file to be used with the aaltothesis.sty (version 4.10) %%
+%% style file.                                                                %%
+%% This package requires pdfx.sty v. 1.5.84 (2017/05/18) or newer.            %%
+%%                                                                            %%
+%% This is licensed under the terms of the MIT license below.                 %%
+%%                                                                            %%
+%% Written by Luis R.J. Costa.                                                %%
+%% Currently developed at Teacher services, Learning Services of Aalto        %%
+%% University by Luis R.J. Costa since May 2019.                              %%
+%%                                                                            %%
+%% Copyright 2017-2025 aaltothesis.cls by Luis R.J. Costa,                    %%
+%% luis.costa@aalto.fi.                                                       %%
+%% Copyright 2017-2018 Swedish translations in aaltothesis.cls by Elisabeth   %%
+%% Nyberg and Henrik Wallén henrik.wallen@aalto.fi.                           %%
+%% Copyright 2017-2018 Finnish documentation in the template opinnatepohja.tex%%
+%% by Perttu Puska, perttu.puska@aalto.fi, and Luis R.J. Costa.               %%
+%% Finnish documentation in the template opinnatepohja.tex translated from    %%
+%% the English template documentation.                                        %%
+%% Copyright 2025 English template thesistemplate.tex by Luis R.J. Costa,     %%
+%% Maurice Forget, Henrik Wallén.                                             %%
+%% Copyright 2018-2025 Swedish template kandidatarbetsbotten.tex by Henrik    %%
+%% Wallen.                                                                    %%
+%%                                                                            %%
+%% Permission is hereby granted, free of charge, to any person obtaining a    %%
+%% copy of this software and associated documentation files (the "Software"), %%
+%% to deal in the Software without restriction, including without limitation  %%
+%% the rights to use, copy, modify, merge, publish, distribute, sublicense,   %%
+%% and/or sell copies of the Software, and to permit persons to whom the      %%
+%% Software is furnished to do so, subject to the following conditions:       %%
+%% The above copyright notice and this permission notice shall be included in %%
+%% all copies or substantial portions of the Software.                        %%
+%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR %%
+%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   %%
+%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    %%
+%% THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER %%
+%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    %%
+%% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        %%
+%% DEALINGS IN THE SOFTWARE.                                                  %%
+%%                                                                            %%
+%%                                                                            %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                            %%
+%% A concise template in English. For more detailed instructions in the use   %%
+%% of this template and LaTeX-specific example see the English and Finnish    %%
+%% templates thesistemplate.tex and opinnaytepohja.tex.                       %%
+%%                                                                            %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                            %%
+%%                                                                            %%
+%% An example for writting your thesis using LaTeX                            %%
+%% Original version and development work by Luis Costa, changes to the text   %% 
+%% in the Finnish template by Perttu Puska.                                   %%
+%% Support for Swedish added 15092014                                         %%
+%% PDF/A-b support added on 15092017                                          %%
+%% PDF/A-2 support added on 24042018                                          %%
+%% Layout design and typesettin changed 15072021                              %%
+%%                                                                            %%
+%% This example consists of the files                                         %%
+%%       thesistemplate.tex (version 4.10) (for text in English)              %%
+%%       opinnaytepohja.tex (version 4.10) (for text in Finnish)              %%
+%%       kandidatarbetsbotten.tex (version 1.20) (for text in Swedish)        %%
+%%       thesistemplate_short.tex (version 4.10) (abridged for text in        %%
+%%                                                English)                    %%
+%%       aaltothesis.cls                                                      %%
+%%       linediagram.pdf (graphics file)                                      %%
+%%       curves.pdf      (graphics file)                                      %%
+%%       ledspole.jpg    (graphics file)                                      %%
+%%                                                                            %%
+%%                                                                            %%
+%% Typeset in Linux with                                                      %%
+%% pdflatex: (recommended method)                                             %%
+%%             $ pdflatex thesistemplate                                      %%
+%%             $ pdflatex thesistemplate                                      %%
+%%                                                                            %%
+%%   The result is the file thesistemplate.pdf that is PDF/A compliant, if    %%
+%%   you have chosen the proper \documenclass options (see comments below)    %%
+%%   and your included graphics files have no problems.                       %%
+%%                                                                            %%
+%%                                                                            %%
+%% Explanatory comments in this example begin with the characters %%, and     %%
+%% changes that the user can make with the character %                        %%
+%%                                                                            %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%%
+%% USE one of the following three \documentclass set-ups:
+%% * the first when using pdflatex to directly typeset your document in the
+%%   chosen pdf/a format for online publishing (centred page layout),
+%% * the second for one-sided printing your thesis with the layout (wide left 
+%%   margin), or
+%% * the third for two-sided printing.
+%%
+\documentclass[english, 12pt, a4paper, elec, utf8, a-1b, online]{aaltothesis}
+%\documentclass[english, 12pt, a4paper, elec, utf8, a-2b, print]{aaltothesis}
+%\documentclass[english, 12pt, a4paper, elec, utf8, a-2b, print, twoside]{aaltothesis}
+
+%% Use the following options in the \documentclass macro above:
+%% your school: arts, biz, chem, elec, eng, sci
+%% the character encoding scheme used by your editor: utf8, latin1
+%% thesis language: english, finnish, swedish
+%% make an archiveable PDF/A-1b or PDF/A-2b compliant file: a-1b, a-2b
+%%                    (with pdflatex, a normal pdf containing metadata is
+%%                     produced without the a-*b option)
+%% typset for online document or print on paper: online, print
+%%        online: typeset in symmetric layout and blue hypertext for online
+%%                publishing
+%%        print: typeset in a symmetric layout and black hypertext for printing
+%%               on paper
+%%          two-side printing: twoside (default is one-sided printing)
+%%               typeset in a wide margin on the binding side of the page and
+%%               black hypertext. Use with print only.
+%%
+
+%% FOR USERS OF AMS PACKAGES:
+%% * newtxmath used in this template loads amsmath, so
+%%   you needn't load it. If you want to use options in amsmath, load it here, 
+%%   before \setupthesisfonts below to pass the options to amsmath.
+%% * If you want to use amsthm, load it here before \setupthesisfonts to avoid
+%%   a clash with newtxmath.
+%% * If using amsmath with options and you want to use amsthm, load amsthms
+%%   after amsmath, as described in the amsthm documentation.
+%% * Don't use amsbsym or amsfonts. The symbols [and macros] there are defined in
+%%   newtxmath and so clash if used.
+%\usepackage[options]{amsmath}
+%\usepackage{amsthm}
+
+%% DO NOT MOVE OR REMOVE \setupthesisfonts
+\setupthesisfonts
+
+%%
+%% Add here the packges you need
+%%
+\usepackage{graphicx}
+
+
+%% For tables that span multiple pages; used to split a paraphrasing example in
+%% the appendix. If you don't need it, remove it.
+\usepackage{longtable}
+
+%% A package for generating Creative Commons copyright terms. If you don't use
+%% the CC copyright terms, remove it, since otherwise undesired information may
+%% be added to this document's metadata.
+%\usepackage[type={CC}, modifier={by-nc-sa}, version={4.0}]{doclicense}
+%% Find below three examples for typesetting the CC license notice.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%% FOR THOSE WHO USE BIBLATEX %%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Package to use BibLaTeX with some settings. Adjust and add BibLaTeX settings
+%% to suit you needs. The bibliography printing and associated commands are
+%% below between the conclusions and the appendix.
+%%
+\usepackage[
+backend=biber,
+style=numeric-comp, % citations and references are numerical (Vancouver, IEEE)
+sorting=none, % cited reference is first in the bibliography followed by all 
+              % references in the database references.bib
+firstinits=true, % show initial of first name in bibliography
+urldate=long % date is expressed as Month dd, yyyy
+]{biblatex}
+\addbibresource{thesisreferences.bib}
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% END BIBLATEX STUFF %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Edit to conform to your degree programme
+%% Capitalise the words in the name of the degree programme: it's a name
+\degreeprogram{Electronics and Electrical Engineering}
+%%
+
+%% Your major
+%%
+\major{An appropriate major}
+%%
+
+%% Choose one of the three below
+%%
+%\univdegree{BSc}
+\univdegree{MSc}
+%\univdegree{Lic}
+%%
+
+%% Your name (self explanatory...)
+%%
+\thesisauthor{Eddie Engineer}
+%%
+
+%% Your thesis title and possible subtitle comes here and possibly, again,
+%% together with the Finnish or Swedish abstract. Do not hyphenate the title
+%% (and subtitle), and avoid writing too long a title. Should LaTeX typeset a
+%% long title (and/or subtitle) unsatisfactorily, you might have to force a
+%% linebreak using the \\ control characters. In this case...
+%% * Remember, the title should not be hyphenated!
+%% * A possible 'and' in the title should not be the last word in the line; it
+%%   begins the next line.
+%% * Specify the title (and/or subtitle) again without the linebreak characters
+%%   in the optional argument in box brackets. This is done because the title
+%%   is part of the metadata in the pdf/a file, and the metadata cannot contain
+%%   linebreaks.
+%%
+\thesistitle{Title of the thesis}
+%\thesistitle[Title of the thesis]{Title of\\ the thesis}
+%%
+%% Either remove or leave \thesissubtitle{} empty if you don't use it
+%%
+\thesissubtitle{A possible subtitle}
+%\thesissubtitle[Subtitle of the thesis]{Subtitle of\\ the thesis}
+%\thesissubtitle{}
+
+%%
+\place{Espoo}
+%%
+
+%% The date for the bachelor's thesis is the day it is presented
+%%
+\date{30 June 2025}
+%%
+
+%% Thesis supervisor
+%% Note the "\" character in the title after the period and before the space
+%% and the following character string.
+%% This is because the period is not the end of a sentence after which a
+%% slightly longer space follows, but what is desired is a regular interword
+%% space.
+%%
+\supervisor{Prof.\ Pirjo Professori}
+%%
+
+%% Advisor(s)---two at the most---of the thesis. Check with your supervisor how
+%% many official advisors you can have.
+%%
+\advisor{Dr Alan Advisor}
+\advisor{Ms Elsa Expert (MSc)}
+%%
+
+%% If you do your thesis work in a company of other institute, give the name of
+%% the company or instution here. Otherwise, leave the macro empty, comment it
+%% out, or remove it. This will remove this field from the abstract page.
+%%
+\collaborativepartner{Company or institute name (if relevant)}
+%%
+
+%% Aaltologo: syntax:
+%% \uselogo{?|!|'|aalto?|aalto!|aalto'|<empty>}
+%% The logo language is set to be the same as the thesis language.
+%%
+%\uselogo{?}
+%\uselogo{!}
+\uselogo{'}
+%\uselogo{aalto?}
+%\uselogo{aalto!}
+%\uselogo{aalto'}
+%\uselogo{}
+%%
+
+%%%%%%%%%%%%%%%%%%               COPYRIGHT TEXT               %%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Copyright of a work is with the creator/author of the work regardless of
+%% whether the copyright mark is explicitly in the work or not. You may, if you
+%% wish---we encourage you to do so---publish your work under a Creative
+%% Commons license (see creativecommons.org), in which case the license text
+%% must be visible in the work. Write here the copyright text you want using the
+%% macro \copyrighttext, which writes the text into the metadata of the pdf file
+%% as well.
+%%
+%% Syntax:
+%% \copyrigthtext{metadata text}{text visible on the page}
+%%
+%% CHOOSE ONE OF THE COPYRIGHT NOTICE STYLES BELOW.
+%% IF USING THE CC TERMS, CHOOSE THE LICENSE YOU WANT TO USE.
+%% The different CC licenses are listed at 
+%% https://creativecommons.org/about/cclicenses/.
+%% If you use the icons from the doclicense.sty package, add the package above
+%% (\usepackage{doclicense}).
+%% IMPORTANT NOTE!! Manually write the CC text in the \copyrighttext metadata
+%% text field.
+%%
+%% NOTE: In the macros below, the text written in the metadata must have a
+%% \noexpand macro before the \copyright special character. When not in pdf/a
+%% mode (i.e. a-1b or a-2b are not specified in \documentclass), two \noexpands
+%% are required in the metadata text to correctly render the copyright mark in
+%% the pdf metadata. In pdf/a mode one \noexpand suffices.
+%%
+%% EXAMPLE OF PLAIN COPYRIGHT TEXT
+%% The macros \copyright and \year below must be separated by the \ character 
+%% (space chacter) from the text that follows. The macros in the argument of the
+%% \copyrighttext macro automatically insert the year and the author's name.
+%% (Note! \ThesisAuthor is an internal macro of the aaltothesis.cls class file).
+%%
+%\copyrighttext{Copyright \noexpand\textcopyright\ \number\year\ \ThesisAuthor}
+%{Copyright \textcopyright{} \number\year{} \ThesisAuthor}
+%%
+%% Of course, the same text could have simply been written as
+%% \copyrighttext{Copyright \noexpand\copyright\ 2018 Eddie Engineer}
+%% {Copyright \copyright{} 2022 Eddie Engineer}
+%%
+%% EXAMPLES OF CC LICENSE: different ways to display the same license
+%% 1. A simple Creative Commons license text with a link to the copyright notice:
+\copyrighttext{\noexpand\textcopyright\ \number\year. This work is 
+	licensed under a CC BY-NC-SA 4.0 license.}{\textcopyright{} 
+	\number\year. This work is licensed under a 
+	\href{https://creativecommons.org/licenses/by-nc-nd/4.0/}{CC BY-NC-SA 4.0} 
+	license.}
+%
+%% To get the URL of the license of your choice, go to 
+%% https://creativecommons.org/about/cclicenses/, click on the chosen license
+%% you want to use, and copy-and-paste the URL in the macro \href above.
+%%
+%% 2. A short Creative Commons license text containing the respective CC icons
+%% (requires the package doclicense.sty to be added in the preamble as done
+%% above) and a link to the corresponding Creative Commons license webpage (see
+%% the doclicense package documentation for other license icons):
+%\copyrighttext{\noexpand\textcopyright\ \number\year. This work is licensed
+%	under a CC BY-NC-SA 4.0 license.}{
+%	\parbox{95mm}{\noindent\textcopyright\ \number\year. \doclicenseText} 
+%	\hspace{1em}\parbox{35mm}{\doclicenseImage}
+%}
+%%
+%% 3. An expanded Creative Commons license text containing the respective CC
+%% icons text and as generated by the doclicense.sty package (the license is set
+%% via package options in \usepackage[options]{doclicense} above; see the
+%% doclicense package documentation for other license texts and icons):
+%\copyrighttext{\noexpand\textcopyright\ \number\year. This work is 
+%	licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 
+%	International" (BY-NC-SA 4.0) license.}{\noindent\textcopyright\ \number
+%	\year \ \doclicenseThis}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%% The English abstract:
+%% All the details (name, title, etc.) on the abstract page appear as specified
+%% above.
+%% Thesis keywords:
+%% Note! The keywords are separated using the \spc macro
+%%
+\keywords{For keywords choose\spc concepts that are\spc central to your\spc 
+thesis}
+%%
+
+%% The abstract text. This text in one paragraph is included in the metadata of
+%% the pdf file as well as the abstract page. To have paragraphs in your
+%% abstract rewrite it in the abstarct environment as described below.
+%%
+\thesisabstract{%
+The abstract is a short description of the essential contents of the thesis
+usually in one paragraph: what was studied and how and what were the main
+findings. For a Finnish thesis, the abstract should be written in both Finnish
+and English; for a Swedish thesis, in Swedish and English. The abstracts for
+English theses written by Finnish or Swedish speakers should be written in
+English and either in Finnish or in Swedish, depending on the student’s language
+of basic education. Students educated in languages other than Finnish or Swedish
+write the abstract only in English. Students may include a second or third
+abstract in their native language, if they wish. 
+The abstract text of this thesis is written on the readable abstract page as
+well as into the pdf file's metadata via the thesisabstract macro (see the 
+comment in the TeX file). Write here the text that goes into the metadata. The 
+metadata cannot contain special characters, linebreak or paragraph break 
+characters, so these must not be used here. If your abstract does not contain 
+special characters and it does not require paragraphs, you may take advantage of
+the abstracttext macro (see the comment in the TeX file below). Otherwise, the 
+metadata abstract text must be identical to the text on the abstract page.
+}
+
+%% You can prevent LaTeX from writing into the xmpdata file (it contains all the 
+%% metadata to be written into the pdf file) by setting the writexmpdata switch
+%% to 'false'. This allows you to write the metadata in the correct format
+%% directly into the file thesistemplate.xmpdata.
+%\setboolean{writexmpdatafile}{false}
+
+
+%% All that is printed on paper starts here
+%%
+\begin{document}
+
+%% Create the coverpage
+%%
+\makecoverpage
+
+%% Typeset the copyright text.
+%% If you wish, you may leave out the copyright text from the human-readable
+%% page of the pdf file. This may seem like a attractive idea for the printed
+%% document especially if "Copyright (c) yyyy Eddie Engineer" is the only text
+%% on the page. However, the recommendation is to print this copyright text.
+%%
+\makecopyrightpage
+
+\clearpage
+%% Note that when writing your thesis in English, place the English abstract
+%% first followed by the possible Finnish or Swedish abstract.
+
+%% Abstract text
+%% All the details (name, title, etc.) on the abstract page appear as specified
+%% above. Add your abstarct text with paragraphs here to have paragraphs in the
+%% visible abstract page. Nonetheless, write the abstarct text without
+%% paragraphs in the macro \thesismacro so that it is added to the metadata as
+%% well.
+%%
+\begin{abstractpage}[english]
+  The abstract is a short description of the essential contents of the thesis,
+  usually in one paragraph: what was studied and how and what were the main
+  findings.
+
+  For a Finnish thesis, the abstract should be written in both Finnish and
+  English; for a Swedish thesis, in Swedish and English. The abstracts for
+  English theses written by Finnish or Swedish speakers should be written in
+  English and either in Finnish or in Swedish, depending on the student’s
+  language of basic education. Students educated in languages other than Finnish
+  or Swedish write the abstract only in English. Students may include a second
+  or third abstract in their native language, if they wish.
+\end{abstractpage}
+
+%% The text in the \thesisabstract macro is stored in the macro \abstractext, so
+%% you can use the text metadata abstract directly as follows:
+%%
+%\begin{abstractpage}[english]
+%	\abstracttext{}
+%\end{abstractpage}
+
+%% Force a new page so that the possible Finnish or Swedish abstract does not
+%% begin on the same page
+%%
+\newpage
+%%
+%% Abstract in Finnish. Delete if you don't need it. 
+%%
+%% Respecify those fields that differ from the earlier specification or simply
+%% respecify all fields.
+\thesistitle{Opinnäyteen otsikko}
+\thesissubtitle{Opinnäytteen mahdollinen alaotsikko}
+\supervisor{Prof.\ Pirjo Professori}
+\advisor{TkT Alan Advisor}
+\advisor{DI Elsa Expert}
+\degreeprogram{Elektroniikka ja sähkötekniikka}
+\major{Sopiva pääaine}
+\collaborativepartner{Yhtiön tai laitoksen nimi (tarvittaessa)}
+\date{30.6.2025}
+%% The keywords need not be separated by \spc now.
+\keywords{Vastus, resistanssi, lämpötila}
+%% Abstract text
+\begin{abstractpage}[finnish]
+Tiivistelmä on lyhyt kuvaus työn keskeisestä sisällöstä usein yhtenä kappaleena:
+mitä tutkittiin ja miten sekä mitkä olivat tärkeimmät tulokset.
+
+Suomenkielisen opinnäytteen tiivistelmä kirjoitetaan suomeksi ja englanniksi ja 
+ruotsinkielisen vastaavasti ruotsiksi ja englanniksi. Suomen- tai
+ruotsinkielisten opiskelijoiden, joiden opinnäytteen kieli on englanti, tulee 
+kirjoittaa tiivistelmänsä englanniksi ja koulusivistyskielellään. Muiden kuin
+koulusivistyskieleltään suomen- tai ruotsinkielisten tulee kirjoittaa
+tiivistelmänsä vain englanniksi. Opiskelija voi halutessaan lisätä
+opinnäytteeseensä toisen tai kolmannen tiivistelmän omalla äidinkielellään.
+\end{abstractpage}
+
+%% Force new page so that the Swedish abstract starts from a new page
+\newpage
+
+%% Swedish abstract. Delete it if you don't need it. 
+%% 
+%% Respecify those fields that differ from the earlier specification or simply
+%% respecify all fields.
+\thesistitle{Arbetets titel}
+\supervisor{Prof.\ Pirjo Professori}
+\advisor{TkD Alan Advisor} %
+\advisor{DI Elsa Expert}
+\degreeprogram{Electronik och electroteknik}
+\collaborativepartner{Company or institute name in Swedish (if relevant)}
+%\date{30.6.2025}
+%% Abstract keywords
+\keywords{Nyckelord p\aa{} svenska, temperatur}
+%% Abstract text
+\begin{abstractpage}[swedish]
+Sammandraget är en kort beskrivning av arbetets centrala innehåll: vad 
+undersöktes, hur undersöktes det och vilka var de viktigaste resultaten?
+
+I lärdomsprov som skrivs på svenska skrivs sammandraget på svenska och engelska, 
+på motsvarande sätt skrivs sammandraget på finska och engelska i lärdomsprov på 
+finska. Finsk- eller svenskspråkiga studerande som skriver sitt lärdomsprov på 
+engelska ska skriva sammandraget på engelska och på sitt skolutbildningsspråk. 
+Studerande vars skolutbildningsspråk inte är svenska eller finska skriver 
+sammandraget endast på engelska. Den studerande kan om hen så önskar lägga till 
+ett andra eller tredje sammandrag på sitt eget modersmål. Sammandraget fungerar 
+då ofta som mognadsprov och bör i så fall vara minst 300 ord långt. Information 
+om mognadsprov på svenska finns på MyCourses:\\
+\url{https://mycourses.aalto.fi/course/view.php?id=26872}.
+\end{abstractpage}
+
+
+\dothesispagenumbering{}
+
+%% Preface
+%%
+%% This section is optional. Remove it if you do not want a preface.
+\mysection{Preface}
+%\mysection{Esipuhe}
+I want to thank Professor Pirjo Professor and my instructors Dr Alan Advisor and
+Ms Elsa Expert for their guidance.
+
+I also want to thank my partner for keeping me sane and alive.
+
+\vspace{5cm}
+Otaniemi, 30 June 2025\\
+
+\vspace{5mm}
+{\hfill Eddie E.\ Engineer \hspace{1cm}}
+
+%% Force a new page after the preface
+%%
+\newpage
+
+
+%% Table of contents. 
+%%
+\thesistableofcontents
+
+
+%% Symbols and abbreviations
+\mysection{Symbols and abbreviations}
+
+\subsection*{Symbols}
+
+\begin{tabular}{ll}
+$\mathbf{B}$  & magnetic flux density  \\
+$c$              & speed of light in vacuum $\approx 3\times10^8$ [m/s]\\
+$\omega_{\mathrm{D}}$    & Debye frequency \\
+$\omega_{\mathrm{latt}}$ & average phonon frequency of lattice \\
+$\uparrow$       & electron spin direction up\\
+$\downarrow$     & electron spin direction down
+\end{tabular}
+
+\subsection*{Operators}
+
+\begin{tabular}{ll}
+$\nabla \times \mathbf{A}$              & curl of vectorin $\mathbf{A}$\\
+$\displaystyle\frac{\mbox{d}}{\mbox{d} t}$ & derivative with respect to 
+variable $t$\\[3mm]
+$\displaystyle\frac{\partial}{\partial t}$  & partial derivative with respect 
+to variable $t$ \\[3mm]
+$\sum_i $                       & sum over index $i$\\
+$\mathbf{A} \cdot \mathbf{B}$    & dot product of vectors $\mathbf{A}$ and 
+$\mathbf{B}$
+\end{tabular}
+
+\subsection*{Abbreviations}
+
+\begin{tabular}{ll}
+AC         & alternating current \\
+APLAC      & an object-oriented analog circuit simulator and design tool \\
+           & (originally Analysis Program for Linear Active Circuits) \\
+BCS        & Bardeen-Cooper-Schrieffer \\ %% dash between the names
+DC         & direct current \\
+TEM        & transverse eletromagnetic
+\end{tabular}
+
+
+%% \clearpage is similar to \newpage, but it also flushes the floats (figures
+%% and tables).
+%%
+\cleardoublepage
+
+%% Text body begins. 
+%%
+\section{Introduction}
+\label{sec:intro}
+
+%% Leave page number of the first page empty
+%% 
+\thispagestyle{empty}
+
+This is the template file for writing your bachelor’s, master’s or licentiate 
+thesis. The template contains parts and text to accommodate the different degree 
+levels, bachelor’s and master’s, and so it may contain parts that may not be 
+relevant to your thesis. If so, simply delete those parts in the thesis that you
+do not need. This applies particularly to the abstract pages, the list of
+symbols, the list of abbreviations, and appendices. You may also want to adjust
+the template section titles to better suit your work.
+
+See the file thesistemplate.tex or opinnaytepohja.tex for examples and 
+descriptions on the use of various document elements like lists, figureas, 
+tables equations and more. 
+
+\subsection{Typical content in the introduction}
+
+In principle, the introduction is like the abstract, only broader in scope, and
+more detailed. The introduction generally describes the following:
+
+%% An example of an unordered (itemised) list. Instead on the default bullet
+%% point, an endash (-- in LaTeX code) is used as the item label.
+\begin{itemize}
+	\item[--] a description of the background of the field of study, what
+	similar work others have already done, as well as an overview of the study,
+	\item[--] the goals of the study,
+	\item[--] the primary research question and the sub-problems in the line
+	of inquiry, and
+	\item[--] the scope and constraints of the study along with the main
+	concepts involved.
+\end{itemize}
+
+Although the introduction is a general description of the study, be concise and 
+avoid writing a lengthy introduction. A concise introduction need not have any 
+subsections.
+
+%% In a thesis, every section/chapter starts a new page, hence the \clearpage
+\clearpage
+
+\section{Literature review}
+\subsection{Structure of the thesis}
+
+The thesis comprises the front matter, the main matter and possible appendices.
+The front matter in the required order is:
+
+%% An example of an unordered (itemised) list with the default bullet point
+%% label.
+\begin{itemize}
+	\item a cover page,
+	\item a page containing copyright information,
+	\item the abstract page(s),
+	\item an optional preface, and
+	\item a table of contents.
+\end{itemize}
+
+If the thesis contains mathematical equations, give the list of symbols used to 
+represent various quantities along with the mathematical operators used.
+The list must contain all the abbreviations used as well. Note that lists of
+figures and tables are not required.
+
+Note that the chapters and sections within the main matter are 
+numbered, and that they appear in the table of contents. The references, or the 
+bibliography, is also shown in the table of contents, but without a number 
+labelling it.
+
+The appendix or appendices, when necessary, are presented in the last part of
+the thesis. They contain things like questionnaires used in the study, 
+[selected parts of] data, derivations of mathematical results, a more detailed 
+exposition of some aspect in the thesis, or code listings. Number them in the 
+table of contents.
+
+
+\clearpage
+
+\section{Research material and methods}
+
+This part is the core of your work, where you explain the methodological choices
+you made, its limitations, how you pick your research material or subjects, the 
+implementation of your study and the methods used. This section determines the 
+methodological strengths and weaknesses of your thesis. Any earlier description 
+of the method should limit itself to work done earlier by others. Here you tell 
+your reader what you have done.
+
+\clearpage
+
+\section{Results}
+
+Present the results of your study here and answer the research questions, asked 
+earlier in the thesis (in the introduction, perhaps), this study strives to 
+answer. The scientific value of your work is measured by the results you obtain 
+along with the arguments you give to back the answers to your research 
+questions.
+
+Be critical of the significance of your results. You may critically scrutinise 
+the results and your interpretation of the results here, or you may do so later 
+in the chapter with the discussion of your work or in the conclusions part.
+
+This part should discuss how reliable the data used in the study are. You may 
+discuss the reliability of the conclusions drawn from the study either in this 
+chapter or later in the discussions part. You may have the discussion in a 
+chapter of its own, separate from the summary or conclusions.
+
+
+\clearpage
+
+\section{Summary/Conclusions}
+\label{sec:summary}
+
+This is where you tie up any loose ends. Tell your reader briefly and clearly 
+what you have done, what you have discovered, and the value of your discovery 
+in the context of similar work done earlier. Draw clear conclusions regarding 
+the research problem, sub-problems or hypotheses. You also discuss future lines 
+of study and new questions your study might have posed.
+
+As the author of the thesis, you alone are responsible for ensuring that the 
+layout, form and structure of your thesis adheres to the guidelines outlined by 
+your school. This template aims to help you meet these requirements.
+
+Finally, a dummy citation \cite{Dyson} to get a reference to an item in the bibliography.
+
+
+
+\clearpage
+%% Bibliography / list of references
+%%
+
+%%%%%% FOR THOSE WHO USE BIBLATEX %%%%%%
+% Redefine 'visited on' to 'Accessed on' the 
+%\DeclareFieldFormat{urldate}{%
+%	(Accessed on %
+%	\mkbibmonth{\thefield{urlmonth}}\addspace%
+%	\thefield{urlday}\addcomma \addspace      %
+%	\thefield{urlyear}\isdot)}
+
+\nocite{*} % print uncited references in the bibliography
+\printbibliography[heading=bibintoc] %, add the title to the table of contents title={References}]
+
+%%%%%%%%%% END BIBLATEX STUFF %%%%%%%%%%
+
+%% The hand-written bibliography
+%\thesisbibliography % Required to get the bibliography title in toc and to get
+                     % the page number hyperlink to the page correct.
+
+%\begin{thebibliography}{99}
+%
+%  \bibitem{aaltolib} Citation Guide: Making a bibliography, \textit{Aalto 
+%  	University Learning Centre}. Online article. Available  
+%    \url{https://libguides.aalto.fi/c.php?g=410674&p=2797572}
+%    (accessed on 14.7.2021)
+%
+%  \bibitem{Bringhurst} Bringhurst, R., \textit{Horizontal Motion. The Elements 
+%  	of Typographic Style}, Point Roberts, WA: Hartley \& Marks, 1992. p. 26, 
+%    pp.\ 25--36. Also available online as version 3.0 at  
+%    %\url{https://smallpressblog.files.wordpress.com/2017/11/bringhurstelementsselections1.pdf} (accessed on 7 May 2021).
+%
+%  \bibitem{Dyson} Dyson, M. C., and Kipping, G. J., ``The Effects of Line Length 
+%    and Method of Movement on Patterns of Reading from Screen,'' 
+%    \textit{Visible Language,} vol.~2, no.~2, pp. 150--181, 1998.
+%
+%  \bibitem{Wikilinelength} Wikipedia contributors, ``Line length,'' 
+%    \textit{Wikipedia: The Free Encyclopedia}, Wikimedia Foundation, Inc., 
+%    22 July 2004.
+%    \url{https://en.wikipedia.org/w/index.php?title=Line_length&oldid=997524503}
+%    (accessed on 7 May 2021).
+%
+%\end{thebibliography}
+
+%% Appendices
+%% If you don't have appendices, your thesis ends here. Remove \clearpage,
+%% \thesisappendix and the following text below. The last command of this file
+%% is \end{document}.
+\clearpage
+
+\thesisappendix
+
+\section{Contents of an appendix}
+\label{app:contents}
+
+Appendices are not essential in a thesis, and so you must plan the content of 
+your thesis as if it does not contain an appendix. The appendix cannot be used 
+as a dumping ground for text and ideas from an overgrown thesis.
+
+An appendix is an independent entity, even though it complements the thesis. 
+So, the appendix is not, say, just a list or image or table, but contains 
+explanatory text as well that indicates the purpose of its content. It can 
+contain code listings, like the one below for a simplified list of commands to 
+create an appendix.
+
+The appendix can contain figures that do not fit in to complement the text in 
+the thesis. The numbering of figures is like that of equations: see figure~\ref{appfig:refraction}.
+
+The numbering of tables is like that for equations and figures, as is evident 
+from the caption of table~\ref{apptab:schedule}.
+
+%% Example of a table in the appendix. Note how h places the table in the
+%% current position.
+\begin{table}[htb]
+	\centering
+	\caption{Caption for the table.}
+	\label{apptab:schedule}
+	\sffamily% change the font in the table to sans serif
+	\fbox{
+		\begin{tabular}{lp{0.5\linewidth}}
+			9.00--9.55  & Safety instructions on the use of laboratories\\
+			9.55--10.00 & Transfer to the laboratory
+		\end{tabular}}
+\end{table}
+
+\end{document}

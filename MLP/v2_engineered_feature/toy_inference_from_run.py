@@ -42,11 +42,17 @@ def choose_device(device_arg: str) -> str | None:
     return device_arg
 
 
+def resolve_default_ambient_pressure_bar(artifacts) -> float:
+    canonical = artifacts.scaler_state.get("canonicalization", {})
+    return float(canonical.get("reference_pressure_bar", 4.42))
+
+
 def main() -> None:
     args = parse_args()
     registry = build_dataset_registry()
     artifacts = load_run_artifacts(args.run_dir, device=choose_device(args.device))
     time_ms = np.linspace(float(args.time_start_ms), float(args.time_end_ms), int(args.n_points), dtype=np.float32)
+    assumed_ambient_pressure_bar = None
 
     raw = {
         "dataset_key": args.dataset_key,
@@ -66,6 +72,10 @@ def main() -> None:
         raw["chamber_pressure_bar"] = float(args.chamber_state_raw)
     elif args.ambient_pressure_bar_phys is not None:
         raw["chamber_pressure_bar"] = float(args.ambient_pressure_bar_phys)
+    elif args.ambient_density_kg_m3 is None:
+        assumed_ambient_pressure_bar = resolve_default_ambient_pressure_bar(artifacts)
+        raw["ambient_pressure_bar_phys"] = assumed_ambient_pressure_bar
+        raw["chamber_pressure_bar"] = assumed_ambient_pressure_bar
 
     prediction = predict_physical_sweep(artifacts, raw, time_ms, registry)
     mu = prediction["mu_physical"]
@@ -94,6 +104,8 @@ def main() -> None:
     print("Loaded checkpoint:", artifacts.model_path)
     print("Feature matrix shape:", prediction["feature_matrix_shape"])
     print("Canonical raw state:", prediction["canonical"])
+    if assumed_ambient_pressure_bar is not None:
+        print("Assumed ambient pressure [bar]:", assumed_ambient_pressure_bar)
     print("Predicted std range:", float(np.min(std)), float(np.max(std)))
 
 

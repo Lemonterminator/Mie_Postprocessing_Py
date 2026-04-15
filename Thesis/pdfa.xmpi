@@ -1,0 +1,105 @@
+<?xpacket begin='' id='W5M0MpCehiHzreSzNTczkc9d' ?> 
+
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 4.0-c316 44.253921, Sun Oct 01 2006 17:14:39"> 
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"> 
+  <rdf:Description rdf:about="" 
+   xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" 
+   xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" 
+   xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#" 
+    > 
+   <pdfaExtension:schemas> 
+   <rdf:Bag> 
+     <rdf:li rdf:parseType="Resource"> 
+       <pdfaSchema:namespaceURI>http://ns.adobe.com/pdfx/1.3/</pdfaSchema:namespaceURI> 
+       <pdfaSchema:prefix>pdfx</pdfaSchema:prefix> 
+       <pdfaSchema:schema>PDF/X Schema</pdfaSchema:schema> 
+       <pdfaSchema:property><rdf:Seq> 
+          <rdf:li rdf:parseType="Resource"> 
+            <pdfaProperty:category>external</pdfaProperty:category> 
+            <pdfaProperty:description>URL to an online version or preprint</pdfaProperty:description> 
+            <pdfaProperty:name>AuthoritativeDomain</pdfaProperty:name> 
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType> 
+          </rdf:li></rdf:Seq> 
+       </pdfaSchema:property> 
+   </rdf:li> 
+   <rdf:li rdf:parseType="Resource"> 
+      <pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI> 
+      <pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix> 
+      <pdfaSchema:schema>PDF/UA ID Schema</pdfaSchema:schema> 
+      <pdfaSchema:property><rdf:Seq> 
+         <rdf:li rdf:parseType="Resource"> 
+            <pdfaProperty:category>internal</pdfaProperty:category> 
+            <pdfaProperty:description>Part of PDF/UA standard</pdfaProperty:description> 
+            <pdfaProperty:name>part</pdfaProperty:name> 
+            <pdfaProperty:valueType>Integer</pdfaProperty:valueType> 
+         </rdf:li></rdf:Seq> 
+      </pdfaSchema:property> 
+   </rdf:li> 
+   <rdf:li rdf:parseType="Resource"> 
+      <pdfaSchema:schema>PRISM metadata</pdfaSchema:schema> 
+      <pdfaSchema:namespaceURI>http://prismstandard.org/namespaces/basic/2.2/</pdfaSchema:namespaceURI> 
+      <pdfaSchema:prefix>prism</pdfaSchema:prefix> 
+      <pdfaSchema:property><rdf:Seq> 
+        <rdf:li rdf:parseType="Resource">
+            <pdfaProperty:name>aggregationType</pdfaProperty:name>
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType>
+            <pdfaProperty:category>external</pdfaProperty:category>
+            <pdfaProperty:description>The type of publication. If defined, must be one of book, catalog, feed, journal, magazine, manual, newsletter, pamphlet.</pdfaProperty:description>
+      </rdf:li> 
+   <rdf:li rdf:parseType="Resource">
+    <pdfaProperty:name>url</pdfaProperty:name>
+    <pdfaProperty:valueType>URL</pdfaProperty:valueType>
+    <pdfaProperty:category>external</pdfaProperty:category>
+    <pdfaProperty:description>URL for the article or unit of content</pdfaProperty:description>
+  </rdf:li> 
+      </rdf:Seq></pdfaSchema:property> 
+   </rdf:li> 
+   </rdf:Bag> 
+   </pdfaExtension:schemas> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/"> 
+   <pdf:Producer>pdfTeX</pdf:Producer> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"> 
+   <dc:format>application/pdf</dc:format> 
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">基于证据的 Mie 散射喷雾视频处理与穿深预测</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>Linan Jiang</rdf:li></rdf:Seq></dc:creator>
+   <dc:language><rdf:Bag><rdf:li>en</rdf:li></rdf:Bag></dc:language>
+   <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></dc:rights>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">本文提出一套计算流程，用于预测多燃料船用发动机中预喷柴油喷雾的穿深演化，并为早期撞壁风险筛查提供几何输入。研究目标是在设计早期支持对液态柴油与活塞或缸壁表面相互作用的工程评估，因为这类相互作用可能导致机油稀释、壁面润湿以及混合恶化。该流程建立在室温光学喷雾燃烧舱中的 Mie 散射高速成像实验之上。数据由固定相机布置下、同一喷射器在多种工况和喷嘴几何参数下采集的 TB 级 12 bit 灰度视频构成。首先通过人工标定确定喷嘴中心和像素到物理长度的映射。随后利用 CUDA 加速的处理流程，从原始图像序列中提取按 plume 分解的时序观测量和边界演化。为构造适合监督学习的目标，本文以降阶经验拟合表示穿深轨迹，用以缓解有限观测窗口带来的右删失、改善不同工况间的时间对齐，并构造更具代表性的穿深目标。在此基础上，建立了多阶段神经网络 surrogate：先在中位数穿深轨迹上训练确定性基线模型，再在全部经筛选的拟合轨迹上进行异方差学习，最后在原始时序观测可靠处引入直接监督，并在观测稀疏区间保留教师模型的保守引导，从而完成教师引导的细化训练。这一分阶段设计可有效避免直接对右删失、标签不完整的原始观测进行单阶段训练时所产生的系统性低估偏差。网络输出的均值与不确定性随后可与简化喷雾角假设和缸内掩膜组合，作为概率化撞壁筛查的原型路径。本文的主要结果是一套面向工程的 surrogate workflow，将大规模光学喷雾成像连接到穿深预测和几何风险筛查。在来自 9 个喷嘴方案的约 15,000 条穿深轨迹（约 40 万个标注时间步）上评估，细化后的代理模型总体 RMSE 为 6.9 mm（约为实测穿深量程的 7.2%），异方差预测区间校准至标称覆盖率（1sigma 覆盖率 68.5%，2sigma 覆盖率 95.7%）。该方法旨在作为前端筛查工具，而不是完整的缸内喷雾物理真值模型。其当前范围仍局限于室温、非反应数据和简化碰撞几何，但为未来引入物理正则和更高维发动机分析提供了基础。</rdf:li></rdf:Alt></dc:description>
+   <dc:subject><rdf:Bag><rdf:li>Mie 散射</rdf:li>
+     <rdf:li>喷雾成像</rdf:li>
+     <rdf:li>穿深</rdf:li>
+     <rdf:li>计算机视觉</rdf:li>
+     <rdf:li>surrogate 建模</rdf:li></rdf:Bag></dc:subject>
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:prism="http://prismstandard.org/namespaces/basic/2.2/"> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/"> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"> 
+   <pdfaid:part>2</pdfaid:part> 
+   <pdfaid:conformance>B</pdfaid:conformance> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"> 
+   <xmp:CreatorTool>LaTeX with hyperref</xmp:CreatorTool> 
+   <xmp:ModifyDate>2026-04-15T16:10:34+03:00</xmp:ModifyDate> 
+   <xmp:CreateDate>2026-04-15T16:10:34+03:00</xmp:CreateDate> 
+   <xmp:MetadataDate>2026-04-15T16:10:34+03:00</xmp:MetadataDate> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmpRights = "http://ns.adobe.com/xap/1.0/rights/"> 
+   <xmpRights:Marked>True</xmpRights:Marked>
+   <xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></xmpRights:UsageTerms>
+   <xmpRights:WebStatement>https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en</xmpRights:WebStatement>
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"> 
+   <xmpMM:DocumentID>uuid:F78D18BF-7FBF-2447-F37B-95D09FF822DB</xmpMM:DocumentID> 
+   <xmpMM:InstanceID>uuid:3EC7ACF8-F1FF-0CA5-1D4F-9D38AAF2592A</xmpMM:InstanceID> 
+  </rdf:Description> 
+ </rdf:RDF> 
+</x:xmpmeta> 
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+<?xpacket end='w'?> 

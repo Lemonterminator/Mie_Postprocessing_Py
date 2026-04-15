@@ -7,6 +7,34 @@
     "latex-workshop.latex.outDir": "%DIR%",
     "latex-workshop.latex.tools": [
         {
+            "name": "pdflatex",
+            "command": "pdflatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "biber",
+            "command": "biber",
+            "args": [
+                "%DOCFILE%"
+            ]
+        },
+        {
+            "name": "latexmk-xelatex",
+            "command": "latexmk",
+            "args": [
+                "-xelatex",
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
             "name": "xelatex",
             "command": "xelatex",
             "args": [
@@ -18,6 +46,21 @@
         }
     ],
     "latex-workshop.latex.recipes": [
+        {
+            "name": "pdflatex -> biber -> pdflatex x2",
+            "tools": [
+                "pdflatex",
+                "biber",
+                "pdflatex",
+                "pdflatex"
+            ]
+        },
+        {
+            "name": "latexmk-xelatex",
+            "tools": [
+                "latexmk-xelatex"
+            ]
+        },
         {
             "name": "xelatex",
             "tools": [
@@ -35,5 +78,8 @@
             "approve": true,
             "matchCommandLine": true
         }
-    }
+    },
+    "cmake.sourceDirectory": "C:/Users/LJI008/Mie_Postprocessing_Py/native/nvidia_of_bridge",
+    "chatgpt.openOnStartup": true,
+    "chatgpt.runCodexInWindowsSubsystemForLinux": true
 }

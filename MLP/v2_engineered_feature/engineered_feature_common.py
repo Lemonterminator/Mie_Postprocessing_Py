@@ -1378,13 +1378,110 @@ def resolve_model_path(run_dir: Path) -> Path:
     raise FileNotFoundError(f"No supported checkpoint found under: {run_dir}")
 
 
+def has_supported_checkpoint(run_dir: Path) -> bool:
+    return run_dir.is_dir() and any(
+        (run_dir / name).exists()
+        for name in ("best_model_refinement.pt", "best_model_stage1.pt", "best_model_stage2.pt")
+    )
+
+
 def has_run_artifacts(run_dir: Path) -> bool:
     return (
-        run_dir.is_dir()
+        has_supported_checkpoint(run_dir)
         and (run_dir / "train_config_used.json").exists()
         and (run_dir / "scaler_state.json").exists()
-        and any((run_dir / name).exists() for name in ("best_model_refinement.pt", "best_model_stage1.pt", "best_model_stage2.pt"))
     )
+
+
+def _resolve_teacher_run_dir(run_dir: Path) -> Path | None:
+    teacher_path_file = run_dir / "teacher_run_dir.txt"
+    if not teacher_path_file.exists():
+        return None
+
+    teacher_raw = teacher_path_file.read_text(encoding="utf-8").strip()
+    if not teacher_raw:
+        return None
+
+    saved_teacher = Path(teacher_raw).expanduser()
+    candidate_paths: list[Path] = []
+    candidate_paths.append(saved_teacher.resolve())
+    if not saved_teacher.is_absolute():
+        candidate_paths.append((run_dir / saved_teacher).resolve())
+
+    teacher_name = saved_teacher.name
+    if teacher_name:
+        candidate_paths.append((run_dir.parent / teacher_name).resolve())
+        candidate_paths.append((DEFAULT_RUNS_ROOT / teacher_name).resolve())
+
+        refine_config_path = run_dir / "refine_config.json"
+        if refine_config_path.exists():
+            refine_config = _load_json(refine_config_path)
+            runs_root_raw = str(refine_config.get("runs_root", "")).strip()
+            if runs_root_raw:
+                runs_root = Path(runs_root_raw).expanduser()
+                candidate_paths.append((runs_root / teacher_name).resolve())
+                candidate_paths.append((run_dir.parent / runs_root.name / teacher_name).resolve())
+
+    seen: set[Path] = set()
+    for candidate in candidate_paths:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if has_run_artifacts(candidate):
+            return candidate
+    return None
+
+
+def _infer_output_dim_from_state(state: Mapping[str, torch.Tensor]) -> int | None:
+    last_linear_idx = -1
+    output_dim: int | None = None
+    for key, tensor in state.items():
+        if not isinstance(tensor, torch.Tensor) or tensor.ndim != 2 or not key.endswith(".weight"):
+            continue
+        match = re.search(r"\.(\d+)\.weight$", key)
+        if match is None:
+            continue
+        layer_idx = int(match.group(1))
+        if layer_idx >= last_linear_idx:
+            last_linear_idx = layer_idx
+            output_dim = int(tensor.shape[0])
+    return output_dim
+
+
+def _load_run_metadata(run_dir: Path, model_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    config_path = run_dir / "train_config_used.json"
+    scaler_path = run_dir / "scaler_state.json"
+    teacher_run_dir = None
+
+    if config_path.exists():
+        config = _load_json(config_path)
+    else:
+        teacher_run_dir = _resolve_teacher_run_dir(run_dir)
+        if teacher_run_dir is None:
+            raise FileNotFoundError(
+                f"Missing train_config_used.json under: {run_dir}. "
+                "No portable teacher run could be resolved from teacher_run_dir.txt."
+            )
+        config = _load_json(teacher_run_dir / "train_config_used.json")
+
+    if scaler_path.exists():
+        scaler_state = _load_json(scaler_path)
+    else:
+        teacher_run_dir = teacher_run_dir or _resolve_teacher_run_dir(run_dir)
+        if teacher_run_dir is None:
+            raise FileNotFoundError(
+                f"Missing scaler_state.json under: {run_dir}. "
+                "No portable teacher run could be resolved from teacher_run_dir.txt."
+            )
+        scaler_state = _load_json(teacher_run_dir / "scaler_state.json")
+
+    if model_path.name == "best_model_refinement.pt":
+        config = dict(config)
+        config["stage"] = "refinement"
+        if teacher_run_dir is not None:
+            config["teacher_run_dir"] = str(teacher_run_dir)
+
+    return config, scaler_state
 
 
 def resolve_run_dir(path_str: str) -> Path:
@@ -1393,12 +1490,12 @@ def resolve_run_dir(path_str: str) -> Path:
         raise FileNotFoundError(f"Path does not exist: {base}")
     if base.is_file():
         base = base.parent
-    if has_run_artifacts(base):
+    if has_supported_checkpoint(base):
         return base
 
     candidates: list[tuple[float, Path]] = []
     for child in base.iterdir():
-        if has_run_artifacts(child):
+        if has_supported_checkpoint(child):
             candidates.append((resolve_model_path(child).stat().st_mtime, child))
     if not candidates:
         raise FileNotFoundError(f"Could not find run artifacts under: {base}")
@@ -1408,14 +1505,18 @@ def resolve_run_dir(path_str: str) -> Path:
 
 def load_run_artifacts(run_dir: Path | str, device: torch.device | str | None = None) -> RunArtifacts:
     resolved = resolve_run_dir(str(run_dir))
-    config = _load_json(resolved / "train_config_used.json")
-    scaler_state = _load_json(resolved / "scaler_state.json")
+    model_path = resolve_model_path(resolved)
+    config, scaler_state = _load_run_metadata(resolved, model_path)
     requested_device = str(device or config.get("device", "cpu"))
     if device is None and requested_device.startswith("cuda") and not torch.cuda.is_available():
         requested_device = "cpu"
     device_obj = torch.device(requested_device)
+    state = unwrap_state_dict(torch.load(model_path, map_location=device_obj))
+    inferred_output_dim = _infer_output_dim_from_state(state)
+    if inferred_output_dim is not None and int(config.get("output_dim", inferred_output_dim)) != inferred_output_dim:
+        config = dict(config)
+        config["output_dim"] = inferred_output_dim
     model = build_model(config)
-    state = unwrap_state_dict(torch.load(resolve_model_path(resolved), map_location=device_obj))
     model.load_state_dict(state)
     model.to(device_obj)
     model.eval()
@@ -1424,7 +1525,7 @@ def load_run_artifacts(run_dir: Path | str, device: torch.device | str | None = 
         train_config=config,
         scaler_state=scaler_state,
         run_dir=resolved,
-        model_path=resolve_model_path(resolved),
+        model_path=model_path,
     )
 
 

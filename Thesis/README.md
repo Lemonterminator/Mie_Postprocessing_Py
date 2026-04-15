@@ -20,3 +20,16 @@ This folder contains the LaTeX thesis sources, presentation slides, generated PD
 - `build_artifacts/`: LaTeX-generated auxiliary files such as `.aux`, `.log`, `.toc`, `.bbl`, `.xdv`, and related files.
 
 Keep source files and bibliography files in this directory unless the relative paths in the `.tex` files are updated.
+
+## Environment and compilation
+
+See [LATEX_ENVIRONMENT.md](LATEX_ENVIRONMENT.md) for the full environment specification,
+required MiKTeX version, VS Code setup, and known issues.
+
+**Quick start (command line):**
+
+```bash
+pdflatex thesis && biber thesis && pdflatex thesis && pdflatex thesis
+```
+
+**VS Code:** Save the file — the `pdflatex -> biber -> pdflatex x2` recipe runs automatically.
