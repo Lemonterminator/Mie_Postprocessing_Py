@@ -1,0 +1,282 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage{iftex}
+\ifXeTeX
+  \usepackage{fontspec}
+  \usepackage{xeCJK}
+  \setmainfont{Times New Roman}
+  \IfFontExistsTF{Microsoft JhengHei}{
+    \setCJKmainfont{Microsoft JhengHei}
+    \setCJKsansfont{Microsoft JhengHei}
+    \setCJKmonofont{Microsoft JhengHei}
+  }{
+    \setCJKmainfont{SimSun}
+    \setCJKsansfont{SimSun}
+    \setCJKmonofont{SimSun}
+  }
+  \IfFontExistsTF{Consolas}{\setmonofont{Consolas}}{}
+\fi
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{xurl}
+\usepackage{xcolor}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\graphicspath{{images/neural_network_fit_results/}}
+
+\newcommand{\goodtext}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warntext}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\notetext}[1]{\textcolor{blue!65!black}{#1}}
+\newcommand{\pathtext}[1]{\texttt{\footnotesize\detokenize{#1}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\title[NN Fitting Results]{神经网络拟合结果}
+\subtitle{Clean split 上的 MLP penetration surrogate 推理评估}
+\author{Linan Jiang}
+\institute{Aalto University}
+\date{15 April 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{评估对象}
+\small
+\begin{block}{本次结果来源}
+推理脚本从 refined student model 读取权重，并在 \texttt{series\_wide\_clean} 轨迹上逐点预测 penetration mean 与 predictive standard deviation。
+\end{block}
+
+\vspace{0.4em}
+\begin{tabular}{L{0.30\linewidth}L{0.60\linewidth}}
+\toprule
+项目 & 设置 \\
+\midrule
+Refinement run & \pathtext{distill_cdf_onset_v2_20260410_103413} \\
+Teacher run & \pathtext{stage2_engineered_nll_a_only_20260410_020607} \\
+Evaluation split & \texttt{clean}, time window \SIrange{0}{5}{ms} \\
+Input features & time, tilt angle, plume count, injection duration, control backpressure \\
+Outputs & predicted penetration \(\mu\), predicted uncertainty \(\sigma\), onset logit \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+\footnotesize
+Raw result folder: \pathtext{MLP/inference_testing/rmse_eval_clean_20260415_092112}
+\end{frame}
+
+\begin{frame}{数据规模与整体误差}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{tabular}{L{0.55\linewidth}R{0.32\linewidth}}
+\toprule
+Metric & Value \\
+\midrule
+CSV files & 266 \\
+Trajectories & 14,972 \\
+Prediction points & 399,738 \\
+Truth range & \SIrange{0.00}{95.88}{mm} \\
+\midrule
+RMSE & \SI{6.90}{mm} \\
+MAE & \SI{5.16}{mm} \\
+Bias & \SI{-1.29}{mm} \\
+Median absolute error & \SI{3.97}{mm} \\
+P90 / P95 absolute error & \SI{11.20}{mm} / \SI{14.17}{mm} \\
+Range-normalized RMSE & 7.19\% \\
+\bottomrule
+\end{tabular}
+\end{column}
+
+\begin{column}{0.48\linewidth}
+\begin{block}{读法}
+\footnotesize
+\begin{itemize}
+  \item \goodtext{典型误差较小}：median absolute error 约 \SI{4}{mm}。
+  \item \notetext{整体偏差为负}：模型平均低估 penetration 约 \SI{1.3}{mm}。
+  \item \warntext{尾部误差明显}：P95 absolute error 达 \SI{14.2}{mm}，说明部分工况或轨迹仍是主要风险来源。
+\end{itemize}
+\end{block}
+
+\begin{block}{不确定性}
+\footnotesize
+\begin{itemize}
+  \item Mean predicted \(\sigma\): \SI{6.36}{mm}
+  \item 1\(\sigma\) coverage: 68.47\%
+  \item 2\(\sigma\) coverage: 95.67\%
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Predicted vs. Measured Penetration}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.55\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.77\textheight,keepaspectratio]{pred_vs_actual.png}
+\end{column}
+\begin{column}{0.41\linewidth}
+\small
+\begin{block}{主要观察}
+\begin{itemize}
+  \item 主体点云沿 \(y=x\) 分布，说明模型捕捉到了主要 penetration trend。
+  \item 高 penetration 区域的离散度更大，是 RMSE 的主要来源之一。
+  \item 低 penetration 区域存在少量非零预测，和 onset 附近的 timing/threshold uncertainty 有关。
+\end{itemize}
+\end{block}
+\vspace{0.5em}
+\footnotesize
+图中每个点是一个 time sample；横轴为 measured penetration，纵轴为 predicted penetration。
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Residual Distribution 与校准}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.56\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.76\textheight,keepaspectratio]{residual_histogram.png}
+\end{column}
+\begin{column}{0.40\linewidth}
+\small
+\begin{block}{Residual 定义}
+\[
+e = \hat{y}_{\mathrm{pen}} - y_{\mathrm{pen}}
+\]
+\end{block}
+
+\begin{itemize}
+  \item Bias = \SI{-1.29}{mm}，整体略偏向 under-prediction。
+  \item 1\(\sigma\) coverage = 68.47\%，接近 Gaussian one-sigma reference。
+  \item 2\(\sigma\) coverage = 95.67\%，接近 Gaussian two-sigma reference。
+  \item 校准结果说明 predicted \(\sigma\) 在整体尺度上可用，但不能替代逐工况误差分析。
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{按实验资料夹分组的 RMSE}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.57\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.68\textheight,keepaspectratio]{per_folder_rmse.png}
+\end{column}
+\begin{column}{0.39\linewidth}
+\scriptsize
+\begin{tabular}{L{0.62\linewidth}R{0.24\linewidth}}
+\toprule
+Folder & RMSE mean \\
+\midrule
+Nozzle7 & \SI{3.68}{mm} \\
+Nozzle5 & \SI{3.95}{mm} \\
+Nozzle8 & \SI{5.05}{mm} \\
+Nozzle1 & \SI{5.21}{mm} \\
+Nozzle6 & \SI{5.22}{mm} \\
+Nozzle4 & \SI{5.24}{mm} \\
+Nozzle2 & \SI{6.40}{mm} \\
+DS300 top view & \SI{6.77}{mm} \\
+Nozzle3 & \SI{8.96}{mm} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\footnotesize
+\begin{itemize}
+  \item Best group: Nozzle7/Nozzle5, RMSE below \SI{4}{mm}.
+  \item Hardest group: Nozzle3, mean RMSE near \SI{9}{mm}.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{表现较好的轨迹组：Nozzle5 / T10}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.62\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{traj_nozzle5_T10.png}
+\end{column}
+\begin{column}{0.34\linewidth}
+\footnotesize
+\begin{block}{代表性特征}
+\begin{itemize}
+  \item Per-folder RMSE mean: \SI{3.95}{mm}
+  \item 1\(\sigma\) coverage: 73.65\%
+  \item 2\(\sigma\) coverage: 97.15\%
+\end{itemize}
+\end{block}
+
+\begin{itemize}
+  \item 增长趋势被稳定跟踪。
+  \item uncertainty band 对多数 plume/repeat 有覆盖能力。
+  \item engineered features + refinement 捕捉了主要条件依赖。
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{误差较大的轨迹组：DS300 / T8}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.62\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{traj_ds300_T8.png}
+\end{column}
+\begin{column}{0.34\linewidth}
+\footnotesize
+\begin{block}{风险信号}
+\begin{itemize}
+  \item DS300 folder RMSE mean: \SI{6.77}{mm}
+  \item 1\(\sigma\) coverage: 60.00\%
+  \item 2\(\sigma\) coverage: 92.98\%
+\end{itemize}
+\end{block}
+
+\begin{itemize}
+  \item Worst cases concentrated in DS300/T8, RMSE about \SIrange{23.8}{24.5}{mm}。
+  \item 低 coverage 说明 uncertainty 对 outlier 仍偏窄。
+  \item 需要回查 raw segmentation、delay alignment 与工况分布。
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{结论}
+\small
+\begin{enumerate}
+  \item \goodtext{整体拟合可用}：clean split 上 RMSE 为 \SI{6.90}{mm}，NRMSE 为 7.19\%，median absolute error 为 \SI{3.97}{mm}。
+  \item \goodtext{不确定性整体校准合理}：1\(\sigma\)/2\(\sigma\) coverage 为 68.47\%/95.67\%，接近 Gaussian reference。
+  \item \notetext{误差不是均匀分布}：Nozzle5/7 表现较好；Nozzle3、DS300 和部分 high-penetration 轨迹贡献主要尾部误差。
+  \item \warntext{下一步重点}：针对高误差 folder/test 做 segmentation QA、delay alignment QA、feature coverage check，并评估是否需要 folder-aware calibration。
+\end{enumerate}
+
+\vspace{0.8em}
+\begin{block}{可写入论文的短结论}
+该 neural surrogate 能在 \SIrange{0}{5}{ms} 窗口内复现多数 penetration trajectories，并给出整体尺度上合理的 predictive uncertainty；后续改进应集中在跨资料集 domain shift 和少数高误差轨迹。
+\end{block}
+\end{frame}
+
+\begin{frame}{文件索引}
+\small
+\begin{tabular}{L{0.28\linewidth}L{0.60\linewidth}}
+\toprule
+内容 & 文件 \\
+\midrule
+Slides source & \pathtext{Thesis/neural_network_fit_results_slides_zh.tex} \\
+Compiled PDF & \pathtext{Thesis/neural_network_fit_results_slides_zh.pdf} \\
+Copied figures & \pathtext{Thesis/images/neural_network_fit_results/} \\
+Result folder & \pathtext{rmse_eval_clean_20260415_092112} \\
+Overall metrics & \pathtext{metrics_summary.json} \\
+Per-folder table & \pathtext{per_folder.csv} \\
+Per-trajectory table & \pathtext{per_trajectory.csv} \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\end{document}
