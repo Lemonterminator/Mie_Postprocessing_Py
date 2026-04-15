@@ -50,6 +50,8 @@ Thumbs.db
 ex.npy
 MLP/synthetic_data/
 MLP/synthetic_data.zip
+MLP/inference_testing/
+Results/manual_segment_sam3_video/
 *.npy
 *.npz
 *.pkl
