@@ -170,3 +170,29 @@ TeX comment characters, discarding the rest of the line including the closing `}
 **Cause**: `biber` was not run after the first `pdflatex` pass.  
 **Fix**: Always run the full four-step sequence (pdflatex → biber → pdflatex × 2).
 The VS Code recipe handles this automatically.
+
+### One-command build in this workspace
+
+From Windows `cmd.exe`:
+
+```bat
+cd C:\Users\Jiang\Documents\Mie_Postprocessing_Py\Thesis
+build_thesis.cmd
+```
+
+From WSL/bash:
+
+```bash
+./Thesis/build_thesis_wsl.sh
+```
+
+Both scripts run the same four-step sequence for `thesis.tex` and `thesis_zh.tex`:
+
+```text
+pdflatex -> biber -> pdflatex -> pdflatex
+```
+
+The thesis files load the local Aalto template directly through
+`\documentclass[..., elec, a-2b, online]{aaltothesis}`. Keep `aaltothesis.cls`,
+`pdfa.xmpi`, the `.xmpdata` files, and `logos/` in `Thesis/` so both PDFs keep the
+Aalto cover, abstract-page styling, and PDF/A metadata.

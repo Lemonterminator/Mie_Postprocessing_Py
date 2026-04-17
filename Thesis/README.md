@@ -26,10 +26,17 @@ Keep source files and bibliography files in this directory unless the relative p
 See [LATEX_ENVIRONMENT.md](LATEX_ENVIRONMENT.md) for the full environment specification,
 required MiKTeX version, VS Code setup, and known issues.
 
-**Quick start (command line):**
+**Quick start (Windows command line):**
+
+```bat
+cd C:\Users\Jiang\Documents\Mie_Postprocessing_Py\Thesis
+build_thesis.cmd
+```
+
+**Quick start (WSL/bash from this repo):**
 
 ```bash
-pdflatex thesis && biber thesis && pdflatex thesis && pdflatex thesis
+./Thesis/build_thesis_wsl.sh
 ```
 
 **VS Code:** Save the file — the `pdflatex -> biber -> pdflatex x2` recipe runs automatically.

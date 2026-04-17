@@ -5,43 +5,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-
-def quarter_of_a_circle_complement_mask(
-    canvas: np.ndarray,
-    grid_size: float,
-    circle_center: tuple[float, float],
-    radius_mm: float,
-    loc: str = "top_left",
-    negative_mask: bool = True,
-) -> np.ndarray:
-    """Return the complement of a quadrant circle within its bounding square."""
-    height_px, width_px = canvas.shape
-    x_mm, y_mm = circle_center
-    radius_px = max(1, int(round(radius_mm / grid_size)))
-
-    cx = int(round(x_mm / grid_size))
-    cy = int(round(y_mm / grid_size))
-
-    loc = loc.replace("-", "_").lower()
-    valid_locs = {"top_left", "top_right", "bottom_left", "bottom_right"}
-    if loc not in valid_locs:
-        raise ValueError(f"loc must be one of {sorted(valid_locs)}, got {loc!r}")
-
-    yy, xx = np.ogrid[:height_px, :width_px]
-    circle_mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= radius_px**2
-
-    # Select the square that bounds the requested quadrant in grid coordinates.
-    if loc == "top_left":
-        square_mask = (xx >= cx - radius_px) & (xx <= cx) & (yy >= cy) & (yy <= cy + radius_px)
-    elif loc == "top_right":
-        square_mask = (xx >= cx) & (xx <= cx + radius_px) & (yy >= cy) & (yy <= cy + radius_px)
-    elif loc == "bottom_left":
-        square_mask = (xx >= cx - radius_px) & (xx <= cx) & (yy >= cy - radius_px) & (yy <= cy)
-    else:
-        square_mask = (xx >= cx) & (xx <= cx + radius_px) & (yy >= cy - radius_px) & (yy <= cy)
-
-    complement_mask = square_mask & (~circle_mask)
-    return ~complement_mask if negative_mask else complement_mask
+from piston.utils import clip_polygon_mm_to_px, quarter_of_a_circle_complement_mask
 
 
 def _validate_design_a_geometry(
@@ -77,12 +41,6 @@ def _validate_design_a_geometry(
             f"but piston_height = {piston_height}"
         )
 
-
-def _clip_polygon_mm_to_px(points_mm: np.ndarray, grid_size: float, shape: tuple[int, int]) -> np.ndarray:
-    points_px = np.rint(points_mm / grid_size).astype(np.int32)
-    points_px[:, 0] = np.clip(points_px[:, 0], 0, shape[1] - 1)
-    points_px[:, 1] = np.clip(points_px[:, 1], 0, shape[0] - 1)
-    return points_px
 
 
 def build_piston_design_a_components(
@@ -127,7 +85,7 @@ def build_piston_design_a_components(
         ],
         dtype=np.float32,
     )
-    trapezoid_points_px = _clip_polygon_mm_to_px(trapezoid_points_mm, grid_size, base_mask.shape)
+    trapezoid_points_px = clip_polygon_mm_to_px(trapezoid_points_mm, grid_size, base_mask.shape)
     cv2.fillPoly(base_mask, [trapezoid_points_px], color=1)
 
     # Right block: outer crown / ring land section up to the bore radius.
@@ -140,7 +98,7 @@ def build_piston_design_a_components(
         ],
         dtype=np.float32,
     )
-    rectangle_points_px = _clip_polygon_mm_to_px(rectangle_points_mm, grid_size, base_mask.shape)
+    rectangle_points_px = clip_polygon_mm_to_px(rectangle_points_mm, grid_size, base_mask.shape)
     cv2.fillPoly(base_mask, [rectangle_points_px], color=1)
 
     # Add the small top-right floor fillet to round the inner bowl corner.
@@ -175,6 +133,14 @@ def build_piston_design_a_components(
         negative_mask=True,
     )
     final_mask = after_lip & qt_mask_3
+
+    # Fill everything below the piston bottom (solid material / skirt region).
+    piston_bottom_px = int(round((cylinder_head_offset + piston_height) / grid_size))
+    final_mask[piston_bottom_px:, :] = True
+
+    # Clip to bore radius — nothing outside the cylinder wall.
+    bore_px = int(round(r_bore / grid_size))
+    final_mask[:, bore_px:] = False
 
     return {
         "trapezoid_points_mm": trapezoid_points_mm,

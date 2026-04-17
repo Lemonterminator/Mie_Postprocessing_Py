@@ -49,9 +49,12 @@ Thumbs.db
 # Project data/artifacts
 ex.npy
 MLP/synthetic_data/
+MLP/synthetic_data_old/
 MLP/synthetic_data.zip
 MLP/inference_testing/
 Results/manual_segment_sam3_video/
+Processed_Results/
+examples/data/
 *.npy
 *.npz
 *.pkl
@@ -78,6 +81,10 @@ optical_flow_packages/Optical_Flow_SDK*/**
 OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
 OSCC_postprocessing/dewe/DeweFileLibrary/*.so
 OSCC_postprocessing/dewe/DeweFileLibrary/*.zip
+
+# Downloaded papers/reference source caches
+downloaded_papers/
+Thesis/reference_sources/
 
 # LaTeX auxiliary files
 Thesis/build_artifacts/
