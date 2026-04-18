@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -26,25 +27,36 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 if __package__ in {None, ""}:
-    import sys
-
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from engineered_feature_common import (
-    PenetrationMLP,
-    build_dataset_registry,
-    build_feature_matrix_np,
-    build_model,
-    infer_feature_family,
-    load_run_artifacts,
-    split_mu_logvar,
-    RunArtifacts,
-    TIME_FEATURE,
-)
+    from engineered_feature_common import (
+        PenetrationMLP,
+        build_dataset_registry,
+        build_feature_matrix_np,
+        build_model,
+        infer_feature_family,
+        load_run_artifacts,
+        split_mu_logvar,
+        RunArtifacts,
+        TIME_FEATURE,
+    )
+else:
+    from .engineered_feature_common import (
+        PenetrationMLP,
+        build_dataset_registry,
+        build_feature_matrix_np,
+        build_model,
+        infer_feature_family,
+        load_run_artifacts,
+        split_mu_logvar,
+        RunArtifacts,
+        TIME_FEATURE,
+    )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MLP_ROOT = PROJECT_ROOT / "MLP"
 SYNTHETIC_ROOT = MLP_ROOT / "synthetic_data"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 SOURCES = ["cdf", "bw_x", "bw_polar"]
 
@@ -60,7 +72,7 @@ COMMON_META_COLS = [
 ]
 MERGE_KEYS = ["experiment_name", "file_path", "file_name", "file_stem", "plume_idx"]
 
-# ── regime labeling constants ──
+# ── regime labeling defaults ──
 BIN_MS = 0.1
 REGIME_TIME_MAX_MS = 5.0
 N_BINS = int(REGIME_TIME_MAX_MS / BIN_MS)
@@ -82,6 +94,62 @@ UNCERTAIN_RATIO = 0.7
 TEACHER_RATIO = 0.2
 TEACHER_MIN_COUNT = 4
 CONSECUTIVE_BINS = 2
+TIME_BIN_WEIGHT_MIN = 0.5
+TIME_BIN_WEIGHT_MAX = 2.0
+TEACHER_CONF_WEIGHT_MIN = 0.25
+TEACHER_CONF_WEIGHT_MAX = 1.0
+
+
+def value_or_default(value: Any, default: float | int) -> float | int:
+    return default if value is None else value
+
+
+def compute_n_regime_bins(regime_bin_ms: float, regime_time_max_ms: float) -> int:
+    if regime_bin_ms <= 0:
+        raise ValueError(f"regime_bin_ms must be > 0, got {regime_bin_ms}.")
+    if regime_time_max_ms <= 0:
+        raise ValueError(f"regime_time_max_ms must be > 0, got {regime_time_max_ms}.")
+    return max(1, int(math.ceil(regime_time_max_ms / regime_bin_ms)))
+
+
+def build_regime_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    regime_bin_ms = float(value_or_default(args.regime_bin_ms, BIN_MS))
+    regime_time_max_ms = float(value_or_default(args.regime_time_max_ms, REGIME_TIME_MAX_MS))
+    config = {
+        "regime_bin_ms": regime_bin_ms,
+        "regime_time_max_ms": regime_time_max_ms,
+        "n_regime_bins": compute_n_regime_bins(regime_bin_ms, regime_time_max_ms),
+        "uncertain_ratio": float(value_or_default(args.uncertain_ratio, UNCERTAIN_RATIO)),
+        "teacher_ratio": float(value_or_default(args.teacher_ratio, TEACHER_RATIO)),
+        "teacher_min_count": int(value_or_default(args.teacher_min_count, TEACHER_MIN_COUNT)),
+        "consecutive_bins": int(value_or_default(args.consecutive_bins, CONSECUTIVE_BINS)),
+        "time_bin_weight_min": float(value_or_default(args.time_bin_weight_min, TIME_BIN_WEIGHT_MIN)),
+        "time_bin_weight_max": float(value_or_default(args.time_bin_weight_max, TIME_BIN_WEIGHT_MAX)),
+    }
+    validate_regime_config(config)
+    return config
+
+
+def validate_regime_config(config: dict[str, Any]) -> None:
+    if not (0.0 <= float(config["uncertain_ratio"]) <= 1.0):
+        raise ValueError(f"uncertain_ratio must be in [0, 1], got {config['uncertain_ratio']}.")
+    if not (0.0 <= float(config["teacher_ratio"]) <= 1.0):
+        raise ValueError(f"teacher_ratio must be in [0, 1], got {config['teacher_ratio']}.")
+    if int(config["teacher_min_count"]) < 1:
+        raise ValueError(f"teacher_min_count must be >= 1, got {config['teacher_min_count']}.")
+    if int(config["consecutive_bins"]) < 1:
+        raise ValueError(f"consecutive_bins must be >= 1, got {config['consecutive_bins']}.")
+    if float(config["time_bin_weight_min"]) <= 0:
+        raise ValueError(f"time_bin_weight_min must be > 0, got {config['time_bin_weight_min']}.")
+    if float(config["time_bin_weight_max"]) < float(config["time_bin_weight_min"]):
+        raise ValueError(
+            "time_bin_weight_max must be >= time_bin_weight_min, "
+            f"got {config['time_bin_weight_max']} < {config['time_bin_weight_min']}."
+        )
+
+
+def time_ms_to_regime_bins(time_ms: np.ndarray, *, regime_bin_ms: float, n_regime_bins: int) -> np.ndarray:
+    return np.floor(np.asarray(time_ms) / regime_bin_ms).astype(int).clip(0, n_regime_bins - 1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -256,7 +324,14 @@ class RawSeriesDataset(Dataset):
 # CDF regime labeling
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def wide_source_to_long(source_wide_df: pd.DataFrame) -> pd.DataFrame:
+def wide_source_to_long(source_wide_df: pd.DataFrame, *, regime_config: dict[str, Any] | None = None) -> pd.DataFrame:
+    if regime_config is None:
+        regime_config = {
+            "regime_bin_ms": BIN_MS,
+            "n_regime_bins": N_BINS,
+        }
+    regime_bin_ms = float(regime_config["regime_bin_ms"])
+    n_regime_bins = int(regime_config["n_regime_bins"])
     frame_ids = sorted({
         frame_id
         for frame_id in available_frame_ids(source_wide_df, "time_ms_")
@@ -278,7 +353,11 @@ def wide_source_to_long(source_wide_df: pd.DataFrame) -> pd.DataFrame:
     repeated["time_ms"] = time_mat.reshape(-1)
     repeated["penetration_mm"] = pen_mat.reshape(-1)
     repeated = repeated.loc[np.isfinite(repeated["time_ms"]) & np.isfinite(repeated["penetration_mm"])].copy()
-    repeated["time_bin"] = np.floor(repeated["time_ms"] / BIN_MS).astype(int).clip(0, N_BINS - 1)
+    repeated["time_bin"] = time_ms_to_regime_bins(
+        repeated["time_ms"],
+        regime_bin_ms=regime_bin_ms,
+        n_regime_bins=n_regime_bins,
+    )
     return repeated.reset_index(drop=True)
 
 
@@ -291,7 +370,23 @@ def _first_consecutive(mask: np.ndarray, run_len: int) -> int | None:
     return None
 
 
-def build_time_bin_regimes(cdf_long_df: pd.DataFrame) -> pd.DataFrame:
+def build_time_bin_regimes(cdf_long_df: pd.DataFrame, *, regime_config: dict[str, Any] | None = None) -> pd.DataFrame:
+    if regime_config is None:
+        regime_config = {
+            "regime_bin_ms": BIN_MS,
+            "n_regime_bins": N_BINS,
+            "uncertain_ratio": UNCERTAIN_RATIO,
+            "teacher_ratio": TEACHER_RATIO,
+            "teacher_min_count": TEACHER_MIN_COUNT,
+            "consecutive_bins": CONSECUTIVE_BINS,
+        }
+    regime_bin_ms = float(regime_config["regime_bin_ms"])
+    n_regime_bins = int(regime_config["n_regime_bins"])
+    uncertain_ratio = float(regime_config["uncertain_ratio"])
+    teacher_ratio = float(regime_config["teacher_ratio"])
+    teacher_min_count = int(regime_config["teacher_min_count"])
+    consecutive_bins = int(regime_config["consecutive_bins"])
+
     df = cdf_long_df.copy()
     dedup = df.drop_duplicates(subset=REGIME_GROUP_COLS + CDF_SAMPLE_ID_COLS[1:] + ["time_bin"])
 
@@ -300,7 +395,7 @@ def build_time_bin_regimes(cdf_long_df: pd.DataFrame) -> pd.DataFrame:
         counts = (
             g.groupby("time_bin", dropna=False)
             .size()
-            .reindex(range(N_BINS), fill_value=0)
+            .reindex(range(n_regime_bins), fill_value=0)
             .to_numpy(dtype=float)
         )
         counts_smooth = (
@@ -314,15 +409,15 @@ def build_time_bin_regimes(cdf_long_df: pd.DataFrame) -> pd.DataFrame:
         n_ref = float(max(counts_smooth[b_peak], 1.0))
         coverage_ratio = counts_smooth / n_ref
 
-        uncertain_mask = coverage_ratio[b_peak:] < UNCERTAIN_RATIO
-        rel_uncertain = _first_consecutive(uncertain_mask, CONSECUTIVE_BINS)
-        b_uncertain_start = b_peak + rel_uncertain if rel_uncertain is not None else N_BINS
+        uncertain_mask = coverage_ratio[b_peak:] < uncertain_ratio
+        rel_uncertain = _first_consecutive(uncertain_mask, consecutive_bins)
+        b_uncertain_start = b_peak + rel_uncertain if rel_uncertain is not None else n_regime_bins
 
-        teacher_mask = (coverage_ratio[b_uncertain_start:] < TEACHER_RATIO) | (counts[b_uncertain_start:] < TEACHER_MIN_COUNT)
-        rel_teacher = _first_consecutive(teacher_mask, CONSECUTIVE_BINS)
-        b_teacher_start = b_uncertain_start + rel_teacher if rel_teacher is not None else N_BINS
+        teacher_mask = (coverage_ratio[b_uncertain_start:] < teacher_ratio) | (counts[b_uncertain_start:] < teacher_min_count)
+        rel_teacher = _first_consecutive(teacher_mask, consecutive_bins)
+        b_teacher_start = b_uncertain_start + rel_teacher if rel_teacher is not None else n_regime_bins
 
-        for b in range(N_BINS):
+        for b in range(n_regime_bins):
             if b < b_uncertain_start:
                 regime = "raw_reliable"
             elif b < b_teacher_start:
@@ -333,8 +428,8 @@ def build_time_bin_regimes(cdf_long_df: pd.DataFrame) -> pd.DataFrame:
             row = {col: val for col, val in zip(REGIME_GROUP_COLS, group_key)}
             row.update({
                 "time_bin": b,
-                "time_bin_start_ms": b * BIN_MS,
-                "time_bin_end_ms": (b + 1) * BIN_MS,
+                "time_bin_start_ms": b * regime_bin_ms,
+                "time_bin_end_ms": (b + 1) * regime_bin_ms,
                 "n_raw": int(counts[b]),
                 "n_raw_smooth": float(counts_smooth[b]),
                 "coverage_ratio": float(coverage_ratio[b]),
@@ -467,7 +562,13 @@ class CDFRefinementSequenceDataset(Dataset):
         self.time_max_ms = float(config["time_max_ms"])
         self.n_points = int(config["n_points"])
         self.time_grid_ms = np.linspace(self.time_min_ms, self.time_max_ms, self.n_points, dtype=np.float32)
-        self.time_bins = np.floor(self.time_grid_ms / BIN_MS).astype(int).clip(0, N_BINS - 1)
+        self.regime_bin_ms = float(config.get("regime_bin_ms", BIN_MS))
+        self.n_regime_bins = int(config.get("n_regime_bins", N_BINS))
+        self.time_bins = time_ms_to_regime_bins(
+            self.time_grid_ms,
+            regime_bin_ms=self.regime_bin_ms,
+            n_regime_bins=self.n_regime_bins,
+        )
 
         self.time_cols = prefixed_columns(self.df, "time_ms_")
         self.pen_cols = prefixed_columns(self.df, "penetration_mm_")
@@ -481,7 +582,7 @@ class CDFRefinementSequenceDataset(Dataset):
         raw_lut: dict[tuple, np.ndarray] = {}
         kd_lut: dict[tuple, np.ndarray] = {}
         for group_key, g in regime_bins_df.groupby(REGIME_GROUP_COLS, dropna=False):
-            arr = np.full(N_BINS, "teacher_only", dtype=object)
+            arr = np.full(self.n_regime_bins, "teacher_only", dtype=object)
             g_sorted = g.sort_values("time_bin")
             arr[g_sorted["time_bin"].to_numpy(dtype=int)] = g_sorted["regime"].to_numpy(dtype=object)
             raw_lut[group_key] = np.asarray([self.config["raw_weights"][reg] for reg in arr], dtype=np.float32)
@@ -500,8 +601,8 @@ class CDFRefinementSequenceDataset(Dataset):
             valid = np.isfinite(time_vals) & np.isfinite(pen_vals)
             if np.any(valid):
                 first_t = float(np.nanmin(time_vals[valid]))
-                onset_bins[idx] = int(np.floor(first_t / BIN_MS))
-        return onset_bins.clip(0, N_BINS - 1)
+                onset_bins[idx] = int(np.floor(first_t / self.regime_bin_ms))
+        return onset_bins.clip(0, self.n_regime_bins - 1)
 
     def __len__(self) -> int:
         return len(self.df)
@@ -712,7 +813,11 @@ def refinement_loss(
     # KD KL in physical space
     teacher_std_phys = torch.sqrt(teacher_var_phys)
     kl_point = 0.5 * (torch.log(var_phys / teacher_var_phys) + (teacher_var_phys + (teacher_mu_phys - mu_phys).pow(2)) / var_phys - 1.0)
-    conf_weight = torch.clamp(float(config["sigma_conf_ref_mm"]) / teacher_std_phys, min=0.25, max=1.0).squeeze(-1)
+    conf_weight = torch.clamp(
+        float(config["sigma_conf_ref_mm"]) / teacher_std_phys,
+        min=float(config.get("teacher_conf_weight_min", TEACHER_CONF_WEIGHT_MIN)),
+        max=float(config.get("teacher_conf_weight_max", TEACHER_CONF_WEIGHT_MAX)),
+    ).squeeze(-1)
     kd_loss = weighted_mean(kl_point.squeeze(-1), kd_weight * conf_weight)
 
     # Onset BCE
@@ -832,6 +937,79 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--patience", type=int, default=20)
     p.add_argument("--no-train", action="store_true", help="Only run diagnostics, skip training.")
     p.add_argument("--save-figures", action="store_true")
+    p.add_argument("--run-name-prefix", default="distill_cdf_onset_v2",
+                   help="Prefix for the refinement run directory under MLP/runs_mlp.")
+    p.add_argument("--ablation-name", default=None,
+                   help="Optional label stored in refine_config.json.")
+
+    loss_group = p.add_argument_group("Stage3 loss tuning")
+    loss_group.add_argument("--lambda-anchor", type=float, default=None,
+                            help="Override early-time anchor loss weight. Default: 1e-2.")
+    loss_group.add_argument("--anchor-window-ms", type=float, default=None,
+                            help="Override early-time anchor window length. Default: 0.15.")
+    loss_group.add_argument("--lambda-onset", type=float, default=None,
+                            help="Override onset BCE loss weight. Default: 0.1.")
+    loss_group.add_argument("--onset-ramp-ms", type=float, default=None,
+                            help="Override onset target ramp length. Default: 0.12.")
+    loss_group.add_argument("--onset-loss-window-ms", type=float, default=None,
+                            help="Override onset BCE time window. Default: 0.2.")
+    loss_group.add_argument("--d1-positive-weight", type=float, default=None,
+                            help="Override positive-slope penalty weight. Default: 5e-5.")
+    loss_group.add_argument("--d2-concave-weight", type=float, default=None,
+                            help="Override concavity penalty weight. Default: 5e-4.")
+    loss_group.add_argument("--d2-start-ms", type=float, default=None,
+                            help="Override d2 penalty sigmoid start time. Default: 0.5.")
+    loss_group.add_argument("--d2-transition-ms", type=float, default=None,
+                            help="Override d2 penalty sigmoid transition width. Default: 0.05.")
+    loss_group.add_argument("--log-var-min", type=float, default=None,
+                            help="Override minimum log-variance clamp. Default inherits teacher config or -10.0.")
+    loss_group.add_argument("--log-var-max", type=float, default=None,
+                            help="Override maximum log-variance clamp. Default inherits teacher config or 6.0.")
+    loss_group.add_argument("--nll-eps", type=float, default=None,
+                            help="Override variance epsilon in NLL/KL terms. Default inherits teacher config or 1e-12.")
+    loss_group.add_argument("--std-clamp-min", type=float, default=None,
+                            help="Override teacher std clamp minimum. Default inherits teacher config or 1e-3.")
+    loss_group.add_argument("--sigma-conf-ref-mm", type=float, default=None,
+                            help="Override teacher confidence reference sigma in mm. Default: 10.0.")
+    loss_group.add_argument("--teacher-conf-weight-min", type=float, default=None,
+                            help="Override lower clamp for KD confidence weights. Default: 0.25.")
+    loss_group.add_argument("--teacher-conf-weight-max", type=float, default=None,
+                            help="Override upper clamp for KD confidence weights. Default: 1.0.")
+
+    loss_group.add_argument("--raw-reliable-raw-weight", type=float, default=None)
+    loss_group.add_argument("--raw-reliable-kd-weight", type=float, default=None)
+    loss_group.add_argument("--raw-uncertain-raw-weight", type=float, default=None)
+    loss_group.add_argument("--raw-uncertain-kd-weight", type=float, default=None)
+    loss_group.add_argument("--teacher-only-raw-weight", type=float, default=None)
+    loss_group.add_argument("--teacher-only-kd-weight", type=float, default=None)
+
+    loss_group.add_argument("--regime-bin-ms", type=float, default=None,
+                            help="Override regime time-bin width. Default: 0.1.")
+    loss_group.add_argument("--regime-time-max-ms", type=float, default=None,
+                            help="Override regime labeling horizon. Default: 5.0.")
+    loss_group.add_argument("--uncertain-ratio", type=float, default=None,
+                            help="Override raw-uncertain coverage ratio threshold. Default: 0.7.")
+    loss_group.add_argument("--teacher-ratio", type=float, default=None,
+                            help="Override teacher-only coverage ratio threshold. Default: 0.2.")
+    loss_group.add_argument("--teacher-min-count", type=int, default=None,
+                            help="Override teacher-only minimum raw count threshold. Default: 4.")
+    loss_group.add_argument("--consecutive-bins", type=int, default=None,
+                            help="Override consecutive bins required for a regime transition. Default: 2.")
+    loss_group.add_argument("--time-bin-weight-min", type=float, default=None,
+                            help="Override lower clamp for global time-bin reweighting. Default: 0.5.")
+    loss_group.add_argument("--time-bin-weight-max", type=float, default=None,
+                            help="Override upper clamp for global time-bin reweighting. Default: 2.0.")
+
+    p.add_argument("--skip-post-train-eval", action="store_true",
+                   help="Skip automatic RMSE inference evaluation after training.")
+    p.add_argument("--eval-split", choices=("clean", "all"), default="clean",
+                   help="series_wide split for automatic post-training RMSE evaluation.")
+    p.add_argument("--eval-t-min-ms", type=float, default=0.0)
+    p.add_argument("--eval-t-max-ms", type=float, default=5.0)
+    p.add_argument("--eval-rel-err-floor-mm", type=float, default=5.0)
+    p.add_argument("--eval-output-root", type=Path, default=MLP_ROOT / "inference_testing")
+    p.add_argument("--eval-tag", type=str, default=None,
+                   help="Optional extra tag appended to the automatic RMSE evaluation folder.")
     return p.parse_args()
 
 
@@ -842,8 +1020,155 @@ def set_global_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def sanitize_run_name(text: str) -> str:
+    """Keep run directory names portable across Windows and WSL."""
+    cleaned = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in str(text).strip())
+    return cleaned.strip("_") or "distill_cdf_onset_v2"
+
+
+def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    """Apply CLI ablation overrides while recording exactly what changed."""
+    overrides: dict[str, Any] = {}
+
+    scalar_map = {
+        "lambda_anchor": args.lambda_anchor,
+        "anchor_window_ms": args.anchor_window_ms,
+        "lambda_onset": args.lambda_onset,
+        "onset_ramp_ms": args.onset_ramp_ms,
+        "onset_loss_window_ms": args.onset_loss_window_ms,
+        "d1_positive_weight": args.d1_positive_weight,
+        "d2_concave_weight": args.d2_concave_weight,
+        "d2_start_ms": args.d2_start_ms,
+        "d2_transition_ms": args.d2_transition_ms,
+        "nll_eps": args.nll_eps,
+        "std_clamp_min": args.std_clamp_min,
+        "sigma_conf_ref_mm": args.sigma_conf_ref_mm,
+        "teacher_conf_weight_min": args.teacher_conf_weight_min,
+        "teacher_conf_weight_max": args.teacher_conf_weight_max,
+        "regime_bin_ms": args.regime_bin_ms,
+        "regime_time_max_ms": args.regime_time_max_ms,
+        "uncertain_ratio": args.uncertain_ratio,
+        "teacher_ratio": args.teacher_ratio,
+        "time_bin_weight_min": args.time_bin_weight_min,
+        "time_bin_weight_max": args.time_bin_weight_max,
+    }
+    for key, value in scalar_map.items():
+        if value is not None:
+            refine_config[key] = float(value)
+            overrides[key] = float(value)
+
+    int_map = {
+        "teacher_min_count": args.teacher_min_count,
+        "consecutive_bins": args.consecutive_bins,
+    }
+    for key, value in int_map.items():
+        if value is not None:
+            refine_config[key] = int(value)
+            overrides[key] = int(value)
+
+    log_var_bounds = list(refine_config["log_var_bounds"])
+    log_var_changed = False
+    if args.log_var_min is not None:
+        log_var_bounds[0] = float(args.log_var_min)
+        log_var_changed = True
+    if args.log_var_max is not None:
+        log_var_bounds[1] = float(args.log_var_max)
+        log_var_changed = True
+    if log_var_changed:
+        refine_config["log_var_bounds"] = tuple(log_var_bounds)
+        overrides["log_var_bounds"] = [float(log_var_bounds[0]), float(log_var_bounds[1])]
+
+    if any(value is not None for value in (args.regime_bin_ms, args.regime_time_max_ms)):
+        refine_config["n_regime_bins"] = compute_n_regime_bins(
+            float(refine_config["regime_bin_ms"]),
+            float(refine_config["regime_time_max_ms"]),
+        )
+        overrides["n_regime_bins"] = int(refine_config["n_regime_bins"])
+
+    weight_map = {
+        ("raw_weights", "raw_reliable"): args.raw_reliable_raw_weight,
+        ("kd_weights", "raw_reliable"): args.raw_reliable_kd_weight,
+        ("raw_weights", "raw_uncertain"): args.raw_uncertain_raw_weight,
+        ("kd_weights", "raw_uncertain"): args.raw_uncertain_kd_weight,
+        ("raw_weights", "teacher_only"): args.teacher_only_raw_weight,
+        ("kd_weights", "teacher_only"): args.teacher_only_kd_weight,
+    }
+    for (weight_group, regime), value in weight_map.items():
+        if value is not None:
+            refine_config[weight_group][regime] = float(value)
+            overrides.setdefault(weight_group, {})[regime] = float(value)
+
+    refine_config["run_name_prefix"] = sanitize_run_name(args.run_name_prefix)
+    if args.ablation_name:
+        refine_config["ablation_name"] = str(args.ablation_name)
+    if overrides:
+        refine_config["cli_overrides"] = overrides
+        print()
+        print("Applied refinement ablation overrides:")
+        print(json.dumps(overrides, indent=2, default=str))
+
+    validate_refine_config(refine_config)
+    return refine_config
+
+
+def validate_refine_config(refine_config: dict[str, Any]) -> None:
+    log_var_min, log_var_max = [float(x) for x in refine_config["log_var_bounds"]]
+    if log_var_max < log_var_min:
+        raise ValueError(f"log_var_max must be >= log_var_min, got {log_var_max} < {log_var_min}.")
+    if float(refine_config["nll_eps"]) <= 0:
+        raise ValueError(f"nll_eps must be > 0, got {refine_config['nll_eps']}.")
+    if float(refine_config["std_clamp_min"]) < 0:
+        raise ValueError(f"std_clamp_min must be >= 0, got {refine_config['std_clamp_min']}.")
+    if float(refine_config["teacher_conf_weight_min"]) < 0:
+        raise ValueError(
+            f"teacher_conf_weight_min must be >= 0, got {refine_config['teacher_conf_weight_min']}."
+        )
+    if float(refine_config["teacher_conf_weight_max"]) < float(refine_config["teacher_conf_weight_min"]):
+        raise ValueError(
+            "teacher_conf_weight_max must be >= teacher_conf_weight_min, "
+            f"got {refine_config['teacher_conf_weight_max']} < {refine_config['teacher_conf_weight_min']}."
+        )
+    validate_regime_config(refine_config)
+
+
+def run_post_training_rmse_eval(
+    *,
+    run_dir_refine: Path,
+    device: torch.device,
+    args: argparse.Namespace,
+) -> None:
+    """Run the same RMSE analysis as MLP/inference_testing after training."""
+    from MLP.inference_testing.inference_rmse_on_series import run_rmse_evaluation
+
+    eval_tag = args.eval_tag or run_dir_refine.name
+    print()
+    print("Running automatic post-training RMSE evaluation...")
+    out_dir, summary = run_rmse_evaluation(
+        refinement_run=run_dir_refine,
+        split=args.eval_split,
+        device=device,
+        t_min_ms=float(args.eval_t_min_ms),
+        t_max_ms=float(args.eval_t_max_ms),
+        rel_err_floor_mm=float(args.eval_rel_err_floor_mm),
+        output_root=args.eval_output_root,
+        tag=eval_tag,
+    )
+    pointer = {
+        "eval_output_dir": str(out_dir),
+        "metrics_summary": str(out_dir / "metrics_summary.json"),
+        "split": args.eval_split,
+        "overall": summary.get("overall", {}),
+    }
+    (run_dir_refine / "post_train_rmse_eval.json").write_text(
+        json.dumps(pointer, indent=2, default=str),
+        encoding="utf-8",
+    )
+    print("Post-training RMSE evaluation saved to:", out_dir)
+
+
 def main() -> None:
     args = parse_args()
+    regime_config = build_regime_config_from_args(args)
 
     # ── resolve run artifacts ──
     device_str = None if args.device == "auto" else args.device
@@ -912,8 +1237,8 @@ def main() -> None:
 
     # ── CDF regime labeling ──
     cdf_wide_df = source_tables["cdf"].copy()
-    cdf_long_df = wide_source_to_long(cdf_wide_df)
-    cdf_regime_bins_df = build_time_bin_regimes(cdf_long_df)
+    cdf_long_df = wide_source_to_long(cdf_wide_df, regime_config=regime_config)
+    cdf_regime_bins_df = build_time_bin_regimes(cdf_long_df, regime_config=regime_config)
     cdf_labeled_df = attach_regimes_to_cdf_long(cdf_long_df, cdf_regime_bins_df)
 
     print("cdf_wide_df shape:", cdf_wide_df.shape)
@@ -967,15 +1292,27 @@ def main() -> None:
         "onset_loss_window_ms": 0.2,
         "anchor_window_ms": 0.15,
         "sigma_conf_ref_mm": 10.0,
+        "teacher_conf_weight_min": TEACHER_CONF_WEIGHT_MIN,
+        "teacher_conf_weight_max": TEACHER_CONF_WEIGHT_MAX,
         "raw_weights": {"raw_reliable": 1.0, "raw_uncertain": 0.0, "teacher_only": 0.0},
         "kd_weights": {"raw_reliable": 0.25, "raw_uncertain": 1.0, "teacher_only": 0.75},
         "runs_root": str(MLP_ROOT / "runs_mlp"),
+        **regime_config,
     }
+    apply_refine_config_overrides(refine_config, args)
     set_global_seed(refine_config["seed"])
 
-    raw_time_bin_counts = cdf_labeled_df.groupby("time_bin", dropna=False).size().reindex(range(N_BINS), fill_value=0).astype(float)
+    raw_time_bin_counts = cdf_labeled_df.groupby("time_bin", dropna=False).size().reindex(
+        range(int(refine_config["n_regime_bins"])),
+        fill_value=0,
+    ).astype(float)
     raw_time_bin_reference = float(raw_time_bin_counts[raw_time_bin_counts > 0].mean()) if np.any(raw_time_bin_counts > 0) else 1.0
-    global_time_bin_weights = (raw_time_bin_reference / raw_time_bin_counts.replace(0.0, np.nan)).fillna(1.0).clip(0.5, 2.0).to_numpy(dtype=np.float32)
+    global_time_bin_weights = (
+        raw_time_bin_reference / raw_time_bin_counts.replace(0.0, np.nan)
+    ).fillna(1.0).clip(
+        float(refine_config["time_bin_weight_min"]),
+        float(refine_config["time_bin_weight_max"]),
+    ).to_numpy(dtype=np.float32)
 
     # ── build refinement datasets ──
     train_idx, val_idx, test_idx = split_indices(
@@ -1117,7 +1454,7 @@ def main() -> None:
     )
 
     run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir_refine = Path(refine_config["runs_root"]) / f"distill_cdf_onset_v2_{run_stamp}"
+    run_dir_refine = Path(refine_config["runs_root"]) / f"{refine_config['run_name_prefix']}_{run_stamp}"
     run_dir_refine.mkdir(parents=True, exist_ok=False)
     (run_dir_refine / "refine_config.json").write_text(json.dumps(refine_config, indent=2, default=str), encoding="utf-8")
     (run_dir_refine / "teacher_run_dir.txt").write_text(str(artifacts.run_dir), encoding="utf-8")
@@ -1191,6 +1528,10 @@ def main() -> None:
     plt.close(fig)
 
     print("Saved refinement run to:", run_dir_refine)
+    if args.skip_post_train_eval:
+        print("Automatic post-training RMSE evaluation skipped.")
+    else:
+        run_post_training_rmse_eval(run_dir_refine=run_dir_refine, device=device, args=args)
 
 
 if __name__ == "__main__":
