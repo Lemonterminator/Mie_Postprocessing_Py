@@ -148,9 +148,10 @@ These are packages loaded directly in `thesis.tex` / `thesis_zh.tex` (beyond wha
 
 ## Known Issues and Fixes Applied
 
-### 1. `figureversions.sty` undefined control sequence (MiKTeX 24.1)
-**Cause**: MiKTeX 24.1 bundles LaTeX kernel `2023-11-01`; the template requires `2024-11-01`.  
-**Fix**: Updated MiKTeX to 26.2 via `miktex packages update`.
+### 1. Old LaTeX kernel errors (`figureversions.sty` or `siunitx`)
+**Cause**: MiKTeX 24.1 bundles LaTeX kernel `2023-11-01`; the template and current
+`siunitx` package require `2024-11-01` or newer.  
+**Fix**: Update MiKTeX to 26.2 or newer via MiKTeX Console or `miktex packages update`.
 
 ### 2. `\thesisabstract{}` — "File ended while scanning"
 **Cause**: Unescaped `%` characters inside a `\newcommand` argument are treated as
@@ -176,7 +177,7 @@ The VS Code recipe handles this automatically.
 From Windows `cmd.exe`:
 
 ```bat
-cd C:\Users\Jiang\Documents\Mie_Postprocessing_Py\Thesis
+cd C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\Thesis
 build_thesis.cmd
 ```
 
