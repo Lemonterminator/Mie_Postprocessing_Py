@@ -101,11 +101,7 @@ and all Wärtsilä collaborators around the spray-imaging workflow for helping s
 
 \section{Introduction}
 
-\subsection{Research relevance}
-
-
-
-Shipping is decarbonising under deadline pressure from climate targets. The 2023 IMO greenhouse-gas strategy imposes increasingly stringent carbon-intensity targets while also 
+Marine propulsion has entered a rapid decarbonisation phase driven by climate-target deadlines. The 2023 IMO greenhouse-gas strategy imposes increasingly stringent carbon-intensity targets while also 
 mandating an uptake target for zero- or near-zero-emission energy by 2030, and the practical effect has been to accelerate engineering interest in alternative-fuel 
 propulsion well beyond the conceptual stage \cite{imo2023ghgstrategy}. Industry tracking confirms the shift: LNG, methanol, ammonia, and other alternative 
 fuels are no longer slide-deck options but are already shaping concrete vessel and orderbook decisions \cite{classnk2025alternativefuels}. This direction also 
@@ -126,8 +122,7 @@ If the liquid reaches the piston bowl or cylinder wall before a useful ignition 
 For an injector developer screening early designs, that is precisely the kind of failure mode worth catching before a design is committed 
 to expensive engine tests or week-long high-fidelity combustion simulations by computational fluid dynamics (CFD).
 
-
-\subsection{Current engineering practice}
+Addressing this need, however, depends on having the right tools.
 Practitioners typically rely on one of three routes when assessing spray behaviour and impingement risk: 
 engine test campaigns, CFD-based spray-combustion simulations, and optical spray experiments. 
 Each route has distinct costs and limitations, and none is a clean substitute for the others. 
@@ -158,9 +153,6 @@ they are also functions of the diagnostic method and the post-processing chain t
 The ECN community has been deliberate on this point: liquid-penetration measurements are method-dependent, 
 and optical boundaries should be read as experimentally defined quantities rather than as direct access to 
 hidden ground truth \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}.
-
-
-\subsection{Existing solutions}
 
 A large body of research on diesel sprays has developed alongside the growth of the automotive industry. 
 Optical diagnostics based on high-speed imaging have long been used to measure spray characteristics 
@@ -204,10 +196,6 @@ However, what remains unaddressed in the current literature is the specific comb
 (iii) uncertainty-aware outputs intended for downstream geometric risk screening. 
 The space between general data-driven spray regression and those three constraints is exactly what motivates 
 the purpose-built surrogate workflow described in this thesis.
-
-
-\subsection{Problem statement}
-
 
 This thesis does not seek to reexamine the fundamental physics of diesel spray --- a field that has been extensively researched.
 
@@ -257,8 +245,6 @@ A model that outputs only a conditional mean cannot inform its user whether that
 for risk screening, a calibrated predictive interval that can be read together with the geometric collision criterion 
 is far more applicable than an overconfident point estimate \cite{KendallGal2017}.
 
-\subsection{Research aim}
-
 The aim of this thesis is, accordingly, to develop a data-driven non-reacting liquid-envelope prediction model 
 for pilot diesel spray --- one that maps injection-condition and time information to the spray envelope and penetration trend, 
 and pairs each prediction with a calibrated uncertainty quantification that an engineer can actually act on.
@@ -266,8 +252,6 @@ and pairs each prediction with a calibrated uncertainty quantification that an e
 What the thesis does not claim is equally important. It does not claim to disentangle real-engine wall wetting or reacting spray --wall interaction with a closed-form solution. The model is positioned more precisely as an early stage surrogate for 
 impingement-risk screening in marine dual-fuel engine development. In other words, the target contribution is a practical engineering tool 
 that narrows the design candidate space and feeds later, higher-fidelity validation rather than competing with it.
-
-\subsection{Research methods}
 
 To achieve this aim, this research utilises high-speed visualisations of diesel sprays --- acquired in the Wärtsilä OSCC (Optical Spray Combustion Chamber) under room-temperature, non-reacting conditions across various operating parameters --- as its primary raw data.
 These videos are then processed by an automated image-processing pipeline to extract penetration and liquid-envelope-related geometric features,
@@ -287,42 +271,6 @@ the predicted penetration trends are also placed alongside empirical spray-law r
 such as the Hiroyasu--Arai two-stage model \cite{HiroyasuArai1990}; 
 this gives a physically grounded baseline against which the data-driven output can be assessed.
 
-\subsection{Why this workflow is necessary}
-
-The pipeline used in this work is structured deliberately rather than being designed for implementation convenience. 
-While a video-based end-to-end regressor --- such as a 3D convolutional or transformer architecture --- might seem appealing, 
-it would face severe data starvation and computational bottlenecks at the present archive scale. 
-More importantly, such an opaque ``black box'' is almost impossible to audit at the intermediate decision stages 
-that actually matter for engineering applications: calibration, optical boundary definition, and target fitting. 
-Furthermore, an end-to-end model offers no natural treatment for right-censored labels. 
-This concern is hardly idiosyncratic. Mature scientific image-processing ecosystems such as Fiji/ImageJ, 
-scikit-image, OpenPIV, and PIVlab have all settled on the same direction: 
-scriptable, inspectable, reusable pipelines beat one-off manual interpretation, 
-even when the latter is faster on a single dataset 
-\cite{Schindelin2012Fiji,VanDerWalt2014ScikitImage,OpenPIV,ThielickeSonntag2021PIVlab}.
-
-Beyond pipeline architecture, there is a more principled reason not to feed raw intensity volumes straight into a learner. 
-Mie-scattering images do not deliver a direct liquid-volume-fraction truth field
---- image intensity is not a linear proxy for liquid density,
-what they deliver is an optical boundary definition whose appearance depends on 
-illumination, scattering, background, and post-processing choices 
-\cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}. 
-The first requirement, therefore, is to convert raw videos into plume-resolved observables that are stable enough 
---- and physically explicit enough --- to support what follows.
-
-The finite observation window introduces a further complication.
-In the present setup, the visible radial extent is bounded. Consequently, 
-some operating conditions produce right-censored penetration traces whose late-time evolution is simply not observed. 
-Treating those incomplete trajectories naively as direct labels would introduce unnatural saturation or plateaus, 
-and the learning target becomes biased downward in exactly the region 
-where robust extrapolation matters most: 
-the model gets quietly trained to interpret \emph{leaving the field of view} as \emph{the spray stopped}. 
-The reduced-order fitting stage, combined with numerical filtering, is therefore more than a smoothing device. 
-It is a censoring-aware target-construction step: it supports conservative extrapolation beyond the visible window, 
-improves temporal alignment across conditions, 
-ensures uniformity in data density across operating conditions with varying observation durations, 
-and yields targets that behave well when later passed to uncertainty-aware regression.
-
 \subsection{Main contributions}
 
 The main contributions of this thesis are as follows:
@@ -332,8 +280,6 @@ The main contributions of this thesis are as follows:
   \item a multi-stage uncertainty-aware learning framework that combines deterministic MSE training, heteroscedastic NLL training, and teacher-guided refinement on partially observed raw trajectories; and
   \item a simplified probabilistic impingement-screening method that decouples penetration prediction from downstream geometric collision evaluation.
 \end{enumerate}
-
-\subsection{Research scope}
 
 The scope of this work is bounded on purpose. 
 The thesis addresses non-reacting, non-evaporating pilot diesel spray under controlled pressurised-chamber conditions, 
@@ -351,25 +297,9 @@ neither the predicted mean nor the uncertainty estimate is claimed at the same l
 The model is therefore best understood as an engineering screening tool within its supported data domain, 
 not as a universally reliable predictor for arbitrary unseen conditions.
 
-Restricting the work to non-reacting, non-evaporating conditions is, importantly, 
-a physics-grounded conservative choice rather than a convenience. 
-In the early injection phase that determines how far the liquid envelope can reach, 
-the dominant physics are momentum exchange, aerodynamic drag, and primary and secondary breakup 
---- all of which are fully present in cold-spray conditions. 
-ECN benchmark studies confirm that non-reacting liquid penetration measured under controlled ambient conditions 
-is reproducible across laboratories, and correlates with the same governing parameters 
---- ambient density, injection pressure, nozzle geometry --- 
-that show up in engine-relevant scaling laws \cite{NaberSiebers1996,ecn_liquid_penetration}. 
-In a cold-spray environment, the liquid length reaches its maximum uninhibited extent because evaporation, 
-which would shorten the liquid envelope under hot in-cylinder conditions, is absent. 
-Cold-spray penetration therefore acts as a conservative upper bound for impingement screening: 
-a condition whose non-reacting envelope does not approach a wall boundary is unlikely to impinge 
-under the corresponding engine condition, where evaporative shortening would only reduce the liquid reach further. 
-The non-reacting scope supports defensible conservative screening rather than making the results irrelevant to engine conditions.
-
 \subsection{Thesis structure}
 
-The remainder of this thesis is organised as follows. The literature review and technical rationale chapter situates the work in diesel spray imaging, optical diagnostics, and surrogate modelling. The research materials and methods chapter describes the experimental data, image-processing workflow, feature extraction, trajectory fitting, and model-training procedure. The results chapter reports the archived processing assets and the accumulated model evidence. The conclusion gathers the current outcome, the main limitations, and the development still to do.
+The remainder of this thesis is organised as follows. Chapter 2 reviews the literature and establishes the technical rationale, situating the work in diesel spray imaging, optical diagnostics, and surrogate modelling. Chapter 3 describes the research materials and methods, covering the experimental data, image-processing workflow, feature extraction, trajectory fitting, and model-training procedure. Chapter 4 reports the results, including the archived processing assets and the accumulated model evidence. Chapter 5 gathers the conclusions, summarising the current outcome, main limitations, and future development priorities.
 
 \section{Literature Review and Technical Rationale}
 
@@ -592,6 +522,13 @@ The point-selection dialog enforces at least three clicks and computes the circl
 This design is appropriate for the current datasets because the camera and injector geometry stay fixed within a recording. Calibrating once and reusing the same center for all frames avoids frame-to-frame jitter in the downstream plume-angle analysis.
 
 \subsection{Batch video processing in \codepath{mie_multi_hole.py}}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\linewidth]{../images/Multi-Hole Top-View Mie Scattering Video Processing Piepeline.png}
+\caption{Overview of the multi-hole top-view Mie scattering video processing pipeline, from raw \texttt{.cine} recordings through calibration, CUDA-accelerated preprocessing, plume registration, penetration extraction, and CSV export.}
+\label{fig:pipeline-overview}
+\end{figure}
 
 The file processor in \codepath{mie_multi_hole.py} is the operational center of the image-analysis workflow. For each \texttt{.cine} recording, \texttt{\_process\_cine\_file} loads the video to the active array backend, reuses an annular ring mask for the whole folder, calls \texttt{mie\_multihole\_preprocessing}, calls \texttt{mie\_multihole\_postprocessing}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and finally exports synchronized CSV and metadata files. The important engineering point is that the numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final tabular export.
 

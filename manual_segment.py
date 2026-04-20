@@ -7,6 +7,10 @@ Local changes:
 - preserve the rest of the export/review pipeline so auto masks can be refined manually
 """
 
+DEFAULT_ASPECT_RATIO = 2.0
+DEFAULT_FRAME_LIMIT = 200
+
+
 import csv
 import json
 import os
@@ -21,6 +25,8 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox, ttk
 
 import cv2
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 from PIL import Image, ImageTk
 
@@ -34,6 +40,7 @@ from OSCC_postprocessing.binary_ops.functions_bw import (
     keep_largest_component,
     keep_largest_component_cuda,
 )
+from OSCC_postprocessing.binary_ops.feature_extraction import extract_single_plume_features
 from OSCC_postprocessing.binary_ops.masking import generate_plume_mask
 from OSCC_postprocessing.playback.video_playback import play_video_with_boundaries_cv2
 from OSCC_postprocessing.utils.scaling import robust_scale
@@ -114,6 +121,8 @@ class ManualSegmenter:
 
         self.gain = tk.DoubleVar(value=1.0)
         self.gamma = tk.DoubleVar(value=1.0)
+        self.frame_var = tk.IntVar(value=1)
+        self.frame_spin = None  # assigned in _build_ui
         self.robust_qmin = tk.DoubleVar(value=5.0)
         self.robust_qmax = tk.DoubleVar(value=99.0)
         self.video_normalization = "raw"
@@ -161,210 +170,162 @@ class ManualSegmenter:
         top = ttk.Frame(self.master)
         top.pack(side=tk.TOP, fill=tk.X)
 
-        row1 = ttk.Frame(top)
+        # Two-column layout: right column packs first so it anchors to the top.
+        top_right = ttk.Frame(top)
+        top_right.pack(side=tk.RIGHT, anchor=tk.N, padx=(8, 0))
+        top_left = ttk.Frame(top)
+        top_left.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Left column rows
+        row1 = ttk.Frame(top_left)
         row1.pack(side=tk.TOP, fill=tk.X)
-        row2 = ttk.Frame(top)
+        row2 = ttk.Frame(top_left)
         row2.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
-        row3 = ttk.Frame(top)
-        row3.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
-        row4 = ttk.Frame(top)
+        row3_left = ttk.Frame(top_left)
+        row3_left.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        row4 = ttk.Frame(top_left)
         row4.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
-        row5 = ttk.Frame(top)
-        row5.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        row5_left = ttk.Frame(top_left)
+        row5_left.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
 
-        row1_left = ttk.Frame(row1)
-        row1_left.pack(side=tk.LEFT)
-        row1_right = ttk.Frame(row1)
-        row1_right.pack(side=tk.RIGHT)
+        # Right column rows — compact, no gaps, starting from row 1
+        rr1 = ttk.Frame(top_right)
+        rr1.pack(side=tk.TOP, fill=tk.X)
+        rr2 = ttk.Frame(top_right)
+        rr2.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        rr3 = ttk.Frame(top_right)
+        rr3.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        rr4 = ttk.Frame(top_right)
+        rr4.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        rr5 = ttk.Frame(top_right)
+        rr5.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
 
-        row2_left = ttk.Frame(row2)
-        row2_left.pack(side=tk.LEFT)
-        row2_right = ttk.Frame(row2)
-        row2_right.pack(side=tk.RIGHT)
+        # --- row1: load buttons ---
+        ttk.Button(row1, text="Load Video", command=self.load_video).pack(side=tk.LEFT)
+        ttk.Button(row1, text="Load Config", command=self.load_config).pack(side=tk.LEFT)
+        ttk.Button(row1, text="No Config", command=self.load_no_config).pack(side=tk.LEFT)
 
-        row3_left = ttk.Frame(row3)
-        row3_left.pack(side=tk.LEFT)
-        row3_right = ttk.Frame(row3)
-        row3_right.pack(side=tk.RIGHT)
-
-        row4_left = ttk.Frame(row4)
-        row4_left.pack(side=tk.LEFT)
-        row4_right = ttk.Frame(row4)
-        row4_right.pack(side=tk.RIGHT)
-        row5_left = ttk.Frame(row5)
-        row5_left.pack(side=tk.LEFT)
-        row5_right = ttk.Frame(row5)
-        row5_right.pack(side=tk.RIGHT)
-
-        ttk.Button(row1_left, text="Load Video", command=self.load_video).pack(side=tk.LEFT)
-        ttk.Button(row1_left, text="Load Config", command=self.load_config).pack(side=tk.LEFT)
-        ttk.Button(row1_left, text="No Config", command=self.load_no_config).pack(side=tk.LEFT)
-
-        ttk.Label(row1_right, text="Brush").pack(side=tk.LEFT, padx=(8, 0))
+        # --- row2: robust scale + gain/gamma ---
+        ttk.Label(row2, text="Robust qmin").pack(side=tk.LEFT, padx=(8, 0))
         ttk.Spinbox(
-            row1_right,
-            from_=1,
-            to=200,
-            increment=1,
-            width=5,
-            textvariable=self.brush_size,
+            row2, from_=0.0, to=100.0, increment=0.5, width=6,
+            textvariable=self.robust_qmin,
         ).pack(side=tk.LEFT)
-        ttk.Label(row1_right, text="Gain").pack(side=tk.LEFT, padx=(10, 0))
+        ttk.Label(row2, text="qmax").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Spinbox(
+            row2, from_=0.0, to=100.0, increment=0.5, width=6,
+            textvariable=self.robust_qmax,
+        ).pack(side=tk.LEFT)
+        ttk.Button(row2, text="Apply Robust Scale", command=self.apply_robust_scale_video).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+        ttk.Separator(row2, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=(10, 0))
+        ttk.Label(row2, text="Gain").pack(side=tk.LEFT, padx=(6, 0))
         gain_box = ttk.Spinbox(
-            row1_right,
-            from_=0.1,
-            to=10,
-            increment=0.1,
-            width=6,
-            textvariable=self.gain,
-            command=self.update_image,
+            row2, from_=0.1, to=10, increment=0.1, width=6,
+            textvariable=self.gain, command=self.update_image,
         )
         gain_box.pack(side=tk.LEFT)
-        ttk.Label(row1_right, text="Gamma").pack(side=tk.LEFT)
+        ttk.Label(row2, text="Gamma").pack(side=tk.LEFT, padx=(4, 0))
         gamma_box = ttk.Spinbox(
-            row1_right,
-            from_=0.1,
-            to=3,
-            increment=0.05,
-            width=6,
-            textvariable=self.gamma,
-            command=self.update_image,
+            row2, from_=0.1, to=3, increment=0.05, width=6,
+            textvariable=self.gamma, command=self.update_image,
         )
         gamma_box.pack(side=tk.LEFT)
-
-        ttk.Button(row2_left, text="Prev Frame", command=self.prev_frame).pack(side=tk.LEFT)
-        ttk.Button(row2_left, text="Next Frame", command=self.next_frame).pack(side=tk.LEFT)
-        ttk.Button(row2_left, text="Prev Plume", command=self.prev_plume).pack(side=tk.LEFT)
-        ttk.Button(row2_left, text="Next Plume", command=self.next_plume).pack(side=tk.LEFT)
-
-        ttk.Button(row2_right, text="Brush Tool", command=lambda: self.set_tool("brush")).pack(
-            side=tk.LEFT
-        )
-        ttk.Button(
-            row2_right, text="Contour Fill", command=lambda: self.set_tool("contour_fill")
-        ).pack(side=tk.LEFT)
-        ttk.Button(
-            row2_right, text="Contour Erase", command=lambda: self.set_tool("contour_erase")
-        ).pack(side=tk.LEFT)
-        ttk.Button(
-            row2_right, text="Static Block Tool", command=lambda: self.set_tool("static_block")
-        ).pack(side=tk.LEFT)
         gain_box.bind("<Return>", lambda _e: self.update_image())
         gain_box.bind("<FocusOut>", lambda _e: self.update_image())
         gamma_box.bind("<Return>", lambda _e: self.update_image())
         gamma_box.bind("<FocusOut>", lambda _e: self.update_image())
 
-        ttk.Button(row3_left, text="Save Dataset Dir", command=self.set_dataset_root).pack(side=tk.LEFT)
-        ttk.Button(row3_left, text="Save Current", command=self.save_current_sample).pack(side=tk.LEFT)
-        ttk.Button(row3_left, text="Save Plume", command=self.save_current_plume_labeled).pack(
-            side=tk.LEFT
+        # --- row3: frame/plume navigation ---
+        ttk.Button(row3_left, text="Prev Frame", command=self.prev_frame).pack(side=tk.LEFT)
+        ttk.Button(row3_left, text="Next Frame", command=self.next_frame).pack(side=tk.LEFT)
+        ttk.Label(row3_left, text="Frame:").pack(side=tk.LEFT, padx=(8, 0))
+        self.frame_spin = ttk.Spinbox(
+            row3_left, from_=1, to=9999, increment=1, width=6,
+            textvariable=self.frame_var,
         )
-        ttk.Button(row3_left, text="Save All Labeled", command=self.save_all_labeled).pack(
-            side=tk.LEFT
-        )
-        ttk.Button(row3_left, text="Generate Splits", command=self.generate_splits).pack(side=tk.LEFT)
-        ttk.Button(
-            row3_left, text="Apply Static Block", command=self.apply_static_block_current_plume
-        ).pack(side=tk.LEFT)
-        ttk.Button(row3_left, text="Clear Static Block", command=self.clear_static_block_current_plume).pack(
-            side=tk.LEFT
-        )
+        self.frame_spin.pack(side=tk.LEFT)
+        ttk.Button(row3_left, text="Go", command=self.goto_frame).pack(side=tk.LEFT, padx=(2, 0))
+        self.frame_spin.bind("<Return>", lambda _e: self.goto_frame())
+        ttk.Separator(row3_left, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=(8, 0))
+        ttk.Button(row3_left, text="Prev Plume", command=self.prev_plume).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(row3_left, text="Next Plume", command=self.next_plume).pack(side=tk.LEFT)
 
-        ttk.Label(row3_right, text="SAM3 Text").pack(side=tk.LEFT, padx=(8, 0))
-        self.sam_text_entry = ttk.Entry(row3_right, width=28, textvariable=self.sam_text_prompt)
-        self.sam_text_entry.pack(side=tk.LEFT)
-        self.sam_text_entry.bind("<Return>", lambda _e: self.apply_sam_current())
-        ttk.Button(row3_right, text="Load SAM3", command=self.load_sam_model).pack(side=tk.LEFT)
-        ttk.Button(row3_right, text="SAM3 Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
-        ttk.Button(row3_right, text="Apply SAM3", command=self.apply_sam_current).pack(side=tk.LEFT)
-        ttk.Button(row3_right, text="Apply SAM3 Video", command=self.apply_sam_video_current_plume).pack(
-            side=tk.LEFT
-        )
-        ttk.Button(row3_right, text="Clear SAM3", command=self.clear_sam_prompts).pack(side=tk.LEFT)
+        # --- row4: static block actions ---
+        ttk.Button(row4, text="Apply Static Block", command=self.apply_static_block_current_plume).pack(side=tk.LEFT)
+        ttk.Button(row4, text="Clear Static Block", command=self.clear_static_block_current_plume).pack(side=tk.LEFT)
 
-        ttk.Checkbutton(row4_left, text="Overwrite", variable=self.overwrite_existing).pack(
+        # --- row5: checkboxes / block display ---
+        ttk.Checkbutton(row5_left, text="Overwrite", variable=self.overwrite_existing).pack(
             side=tk.LEFT, padx=(8, 0)
         )
-        ttk.Checkbutton(row4_left, text="Save Empty Masks", variable=self.include_empty_masks).pack(
-            side=tk.LEFT
-        )
+        ttk.Checkbutton(row5_left, text="Save Empty Masks", variable=self.include_empty_masks).pack(side=tk.LEFT)
         ttk.Checkbutton(
-            row4_left, text="Show Static Block", variable=self.show_static_block, command=self.update_image
+            row5_left, text="Show Static Block", variable=self.show_static_block, command=self.update_image
         ).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Label(row4_left, text="Block Alpha").pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Label(row5_left, text="Block Alpha").pack(side=tk.LEFT, padx=(8, 0))
         ttk.Spinbox(
-            row4_left,
-            from_=0,
-            to=255,
-            increment=5,
-            width=5,
-            textvariable=self.static_block_alpha,
-            command=self.update_image,
+            row5_left, from_=0, to=255, increment=5, width=5,
+            textvariable=self.static_block_alpha, command=self.update_image,
         ).pack(side=tk.LEFT)
-        ttk.Button(row4_left, text="Block Color", command=self.choose_static_block_color).pack(
+        ttk.Button(row5_left, text="Block Color", command=self.choose_static_block_color).pack(
             side=tk.LEFT, padx=(6, 0)
         )
-        self.dataset_label = ttk.Label(row4_left, text="Dataset: (not set)")
+        self.dataset_label = ttk.Label(row5_left, text="Dataset: (not set)")
         self.dataset_label.pack(side=tk.LEFT, padx=(10, 0))
 
-        ttk.Label(row4_right, text="SAM3 Score").pack(side=tk.LEFT, padx=(8, 0))
+        # --- rr1: drawing tools ---
+        ttk.Label(rr1, text="Brush").pack(side=tk.LEFT, padx=(0, 2))
         ttk.Spinbox(
-            row4_right,
-            from_=0.0,
-            to=1.0,
-            increment=0.05,
-            width=5,
+            rr1, from_=1, to=200, increment=1, width=5,
+            textvariable=self.brush_size,
+        ).pack(side=tk.LEFT)
+        ttk.Button(rr1, text="Brush Tool", command=lambda: self.set_tool("brush")).pack(side=tk.LEFT, padx=(4, 0))
+        ttk.Button(rr1, text="Contour Fill", command=lambda: self.set_tool("contour_fill")).pack(side=tk.LEFT)
+        ttk.Button(rr1, text="Contour Erase", command=lambda: self.set_tool("contour_erase")).pack(side=tk.LEFT)
+        ttk.Button(rr1, text="Static Block Tool", command=lambda: self.set_tool("static_block")).pack(side=tk.LEFT)
+
+        # --- rr2: SAM3 thresholds ---
+        ttk.Label(rr2, text="SAM3 Score").pack(side=tk.LEFT)
+        ttk.Spinbox(
+            rr2, from_=0.0, to=1.0, increment=0.05, width=5,
             textvariable=self.sam_score_threshold,
         ).pack(side=tk.LEFT)
-        ttk.Label(row4_right, text="Mask").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Label(rr2, text="Mask").pack(side=tk.LEFT, padx=(6, 0))
         ttk.Spinbox(
-            row4_right,
-            from_=0.0,
-            to=1.0,
-            increment=0.05,
-            width=5,
+            rr2, from_=0.0, to=1.0, increment=0.05, width=5,
             textvariable=self.sam_mask_threshold,
         ).pack(side=tk.LEFT)
-        ttk.Label(row4_right, text="Point Box").pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Label(rr2, text="Point Box").pack(side=tk.LEFT, padx=(6, 0))
         ttk.Spinbox(
-            row4_right,
-            from_=1,
-            to=80,
-            increment=1,
-            width=5,
+            rr2, from_=1, to=80, increment=1, width=5,
             textvariable=self.sam_point_box_radius,
         ).pack(side=tk.LEFT)
-        ttk.Checkbutton(row4_right, text="Merge Detections", variable=self.sam_merge_detections).pack(
+        ttk.Checkbutton(rr2, text="Merge Detections", variable=self.sam_merge_detections).pack(
             side=tk.LEFT, padx=(6, 0)
         )
 
-        ttk.Label(row5_left, text="Robust qmin").pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Spinbox(
-            row5_left,
-            from_=0.0,
-            to=100.0,
-            increment=0.5,
-            width=6,
-            textvariable=self.robust_qmin,
-        ).pack(side=tk.LEFT)
-        ttk.Label(row5_left, text="qmax").pack(side=tk.LEFT, padx=(6, 0))
-        ttk.Spinbox(
-            row5_left,
-            from_=0.0,
-            to=100.0,
-            increment=0.5,
-            width=6,
-            textvariable=self.robust_qmax,
-        ).pack(side=tk.LEFT)
-        ttk.Button(row5_left, text="Apply Robust Scale", command=self.apply_robust_scale_video).pack(
+        # --- rr3: SAM3 controls ---
+        ttk.Label(rr3, text="SAM3 Text").pack(side=tk.LEFT)
+        self.sam_text_entry = ttk.Entry(rr3, width=28, textvariable=self.sam_text_prompt)
+        self.sam_text_entry.pack(side=tk.LEFT)
+        self.sam_text_entry.bind("<Return>", lambda _e: self.apply_sam_current())
+        ttk.Button(rr3, text="Load SAM3", command=self.load_sam_model).pack(side=tk.LEFT)
+        ttk.Button(rr3, text="SAM3 Tool", command=lambda: self.set_tool("sam")).pack(side=tk.LEFT)
+        ttk.Button(rr3, text="Apply SAM3", command=self.apply_sam_current).pack(side=tk.LEFT)
+        ttk.Button(rr3, text="Apply SAM3 Video", command=self.apply_sam_video_current_plume).pack(side=tk.LEFT)
+        ttk.Button(rr3, text="Clear SAM3", command=self.clear_sam_prompts).pack(side=tk.LEFT)
+
+        # --- rr4: playback ---
+        ttk.Button(rr4, text="Play SAM3 Probability", command=self.play_last_sam3_video_probability).pack(side=tk.LEFT)
+        ttk.Button(rr4, text="Play Boundary", command=self.play_boundary).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(rr4, text="Calculate Spray Metrics", command=self.calculate_spray_metrics).pack(
             side=tk.LEFT, padx=(6, 0)
         )
-        ttk.Button(row5_right, text="Play SAM3 Probability", command=self.play_last_sam3_video_probability).pack(
-            side=tk.LEFT, padx=(6, 0)
-        )
-        ttk.Button(row5_right, text="Play SAM3 Boundary", command=self.play_last_sam3_video_boundary).pack(
-            side=tk.LEFT, padx=(6, 0)
-        )
+
+        # --- rr5: save metrics ---
+        ttk.Button(rr5, text="Save Spray Metrics", command=self.save_spray_metrics).pack(side=tk.LEFT)
 
         cf = ttk.Frame(self.master)
         cf.pack(fill=tk.BOTH, expand=True)
@@ -412,7 +373,7 @@ class ManualSegmenter:
             messagebox.showerror("Error", f"Could not open video:\n{e}")
             return
         frames = []
-        for i in range(reader.frame_count):
+        for i in range(min(reader.frame_count, DEFAULT_FRAME_LIMIT)):
             frames.append(reader.read_frame(i).astype(np.float32))
         self.reader = reader
         self.video_path = path
@@ -459,8 +420,10 @@ class ManualSegmenter:
         crop = generate_CropRect(inner, outer, n_plumes, cx, cy)
         # Keep crop height from geometric crop, but use nozzle-aligned strip width like pipeline usage.
         frame_h, frame_w = int(self.video.shape[1]), int(self.video.shape[2])
-        crop_h_raw = int(min(max(1, crop[3]), frame_h))
+        # crop_h_raw = int(min(max(1, crop[3]), frame_h))
         crop_w_raw = int(min(max(1, outer), frame_w))
+        crop_h_raw = round(crop_w_raw / DEFAULT_ASPECT_RATIO)
+
         crop_h, crop_w = self._even_spatial_shape(crop_h_raw, crop_w_raw)
         if (crop_h, crop_w) != (crop_h_raw, crop_w_raw):
             print(
@@ -582,6 +545,10 @@ class ManualSegmenter:
         self.current_plume = 0
         self.last_sam3_video_result = None
         self.clear_sam_prompts(update=False)
+        if self.frame_spin is not None and self.plume_videos:
+            n_frames = int(self.plume_videos[0].shape[0])
+            self.frame_spin.configure(to=n_frames)
+            self.frame_var.set(1)
 
     # ---------------------------------------------------------------
     #                       Navigation
@@ -690,11 +657,21 @@ class ManualSegmenter:
         self.update_image()
         self.master.title(f"Manual Segmenter - robust scaled to uint8 q={qmin:g}-{qmax:g}")
 
+    def goto_frame(self):
+        if not self.plume_videos:
+            return
+        max_frame = self.plume_videos[0].shape[0] - 1
+        idx = max(0, min(max_frame, int(self.frame_var.get()) - 1))
+        self.current_frame = idx
+        self.update_image()
+
     def update_image(self):
         self.canvas.delete("all")
         self.live_rect_id = None
         if not self.plume_videos:
             return
+        # Keep the frame spinbox in sync with the current frame
+        self.frame_var.set(self.current_frame + 1)
         frame = self.plume_videos[self.current_plume][self.current_frame]
         img8 = self.apply_gain_gamma(frame)
         self.current_raw = frame
@@ -1655,7 +1632,7 @@ class ManualSegmenter:
 
         return prob_frames, max_probs, raw_counts
 
-    def _refresh_last_sam3_video_masks_from_score(self, warn_if_empty=False):
+    def _refresh_last_sam3_video_masks_from_score(self, warn_if_empty=False, write_to_gui=True):
         if self.last_sam3_video_result is None:
             raise RuntimeError("No SAM3 video result to refresh.")
 
@@ -1691,13 +1668,14 @@ class ManualSegmenter:
                 )
             return masks, total_area, frames_with_mask
 
-        self.plume_masks[plume_idx] = masks
-        print(
-            f"[sam3-video] regenerated GUI masks from raw video result score={score_threshold:.3f} "
-            f"frames_with_mask={frames_with_mask} total_area={total_area}",
-            flush=True,
-        )
-        self.update_image()
+        if write_to_gui:
+            self.plume_masks[plume_idx] = masks
+            print(
+                f"[sam3-video] regenerated GUI masks from raw video result score={score_threshold:.3f} "
+                f"frames_with_mask={frames_with_mask} total_area={total_area}",
+                flush=True,
+            )
+            self.update_image()
         return masks, total_area, frames_with_mask
 
     def _finish_sam3_video_success(self, plume_idx, masks_loaded, output_root, input_avi):
@@ -1879,31 +1857,29 @@ class ManualSegmenter:
         except Exception as e:
             messagebox.showerror("SAM3 Probability", f"Failed to play SAM3 probability preview:\n{e}")
 
-    def play_last_sam3_video_boundary(self):
-        if self.last_sam3_video_result is None:
-            messagebox.showinfo("SAM3 Boundary", "No SAM3 video result to preview yet.")
+    def play_boundary(self):
+        if not self.plume_videos or not self.plume_masks:
+            messagebox.showinfo("Play Boundary", "No plume video or masks loaded.")
             return
-
-        input_avi = Path(self.last_sam3_video_result["input_avi"])
+        plume_idx = self.current_plume
+        masks = self.plume_masks[plume_idx]
+        raw_video = self.plume_videos[plume_idx]
+        n = min(len(raw_video), len(masks))
+        if n <= 0:
+            messagebox.showinfo("Play Boundary", "No frames to play.")
+            return
         try:
-            masks, total_area, frames_with_mask = self._refresh_last_sam3_video_masks_from_score(
-                warn_if_empty=True
-            )
-            if total_area == 0:
-                return
-            video = self._read_grayscale_video_float(input_avi)
-            total = min(len(video), len(masks))
-            if total <= 0:
-                raise RuntimeError("SAM3 video preview is empty.")
-            video = self._fit_video_frames_to_shape(video[:total], masks[0].shape)
-            boundaries = self._masks_to_boundary_points(masks[:total])
+            video_u8 = np.stack(
+                [self.apply_gain_gamma(np.asarray(raw_video[i])) for i in range(n)], axis=0
+            ).astype(np.float32) / 255.0
+            boundaries = self._masks_to_boundary_points(masks[:n])
+            frames_with_mask = sum(1 for b in boundaries if len(b[0]) > 0)
             print(
-                f"[sam3-video] playing boundary preview frames={total} frames_with_mask={frames_with_mask} "
-                f"score={float(self.sam_score_threshold.get()):.3f} input={input_avi}",
+                f"[play-boundary] plume={plume_idx} frames={n} frames_with_mask={frames_with_mask}",
                 flush=True,
             )
             play_video_with_boundaries_cv2(
-                video,
+                video_u8,
                 boundaries,
                 gain=1.0,
                 intv=17,
@@ -1913,7 +1889,198 @@ class ManualSegmenter:
                 alpha=1.0,
             )
         except Exception as e:
-            messagebox.showerror("SAM3 Boundary", f"Failed to play SAM3 boundary preview:\n{e}")
+            messagebox.showerror("Play Boundary", f"Failed to play boundary preview:\n{e}")
+
+    def calculate_spray_metrics(self):
+        if not self.plume_masks:
+            messagebox.showinfo("Spray Metrics", "No plume masks loaded.")
+            return
+
+        plume_idx = self.current_plume
+        masks = self.plume_masks[plume_idx]
+
+        bw_video = np.stack([np.asarray(m, dtype=np.uint8) for m in masks], axis=0)
+
+        if not np.any(bw_video):
+            messagebox.showinfo("Spray Metrics", "All masks are empty for this plume.")
+            return
+
+        try:
+            metrics = extract_single_plume_features(
+                bw_video,
+                nozzle_opening_detection_height=20,
+                nozzle_opening_detection_width=30,
+                umbrella_angle=180.0,
+                thres_penetration_num_pix=5,
+                inner_radius=float(self.inner_radius),
+            )
+        except Exception as e:
+            messagebox.showerror("Spray Metrics", f"Failed to compute metrics:\n{e}")
+            return
+
+        # Separate scalars (nozzle_opening, nozzle_closing) from per-frame series
+        scalars = {k: v for k, v in metrics.items() if k != "boundary" and np.isscalar(v)}
+        series = {k: np.asarray(v, dtype=np.float64)
+                  for k, v in metrics.items()
+                  if k != "boundary" and not np.isscalar(v) and v is not None}
+
+        n_series = len(series)
+        if n_series == 0:
+            messagebox.showinfo("Spray Metrics", "No per-frame series to plot.")
+            return
+
+        # Build figure — same layout as plot_metrics_dataframe in mie_single_hole.py:
+        # 3 columns, as many rows as needed, one subplot per metric
+        n_cols_plot = 3
+        n_rows_plot = max(1, (n_series + n_cols_plot - 1) // n_cols_plot)
+        fig, axes = plt.subplots(
+            n_rows_plot, n_cols_plot,
+            figsize=(12, 2.5 * n_rows_plot),
+            squeeze=False,
+        )
+        axes_flat = axes.flatten()
+        x = np.arange(len(next(iter(series.values()))))
+
+        for i, (col, values) in enumerate(series.items()):
+            ax = axes_flat[i]
+            ax.plot(x, values, linewidth=1.0)
+            ax.set_title(col, fontsize=9)
+            ax.set_xlabel("Frame")
+            ax.grid(alpha=0.25)
+            ax.tick_params(labelsize=7)
+            # Mark nozzle open/close if available
+            if "nozzle_opening" in scalars and np.isfinite(float(scalars["nozzle_opening"])):
+                ax.axvline(float(scalars["nozzle_opening"]), color="g", linewidth=0.8, label="open")
+            if "nozzle_closing" in scalars and np.isfinite(float(scalars["nozzle_closing"])):
+                ax.axvline(float(scalars["nozzle_closing"]), color="r", linewidth=0.8, label="close")
+
+        for j in range(n_series, len(axes_flat)):
+            axes_flat[j].set_visible(False)
+
+        scalar_str = "  |  ".join(f"{k}: {v}" for k, v in scalars.items())
+        fig.suptitle(f"Plume {plume_idx} — {scalar_str}", fontsize=9)
+        fig.tight_layout()
+
+        # Embed in a Toplevel so it stays inside the tkinter event loop
+        win = tk.Toplevel(self.master)
+        win.title(f"Spray Metrics — Plume {plume_idx}")
+        canvas = FigureCanvasTkAgg(fig, master=win)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        win.protocol("WM_DELETE_WINDOW", lambda: (plt.close(fig), win.destroy()))
+
+    def save_spray_metrics(self):
+        """Save BW spray metrics CSV + boundary CSV to a user-chosen directory.
+
+        Output matches the format produced by mie_single_hole_pipeline / process_all.py:
+          - {stem}_metrics.csv  — one row per frame, columns from features_to_binarized_metrics_df
+          - {stem}_boundary_points.csv — per-point boundary table (frame, side, y, x)
+        """
+        if not self.plume_masks:
+            messagebox.showinfo("Save Spray Metrics", "No plume masks loaded.")
+            return
+
+        plume_idx = self.current_plume
+        masks = self.plume_masks[plume_idx]
+        bw_video = np.stack([np.asarray(m, dtype=np.uint8) for m in masks], axis=0)
+
+        if not np.any(bw_video):
+            messagebox.showinfo("Save Spray Metrics", "All masks are empty for this plume.")
+            return
+
+        try:
+            from OSCC_postprocessing.binary_ops.feature_extraction import (
+                extract_single_plume_features,
+                features_to_binarized_metrics_df,
+            )
+            from OSCC_postprocessing.analysis.single_plume import save_boundary_csv
+        except ImportError as e:
+            messagebox.showerror("Save Spray Metrics", f"Missing dependency:\n{e}")
+            return
+
+        try:
+            metrics = extract_single_plume_features(
+                bw_video,
+                nozzle_opening_detection_height=20,
+                nozzle_opening_detection_width=30,
+                umbrella_angle=180.0,
+                thres_penetration_num_pix=5,
+                inner_radius=float(self.inner_radius),
+            )
+        except Exception as e:
+            messagebox.showerror("Save Spray Metrics", f"Failed to compute metrics:\n{e}")
+            return
+
+        # Default stem from loaded video filename
+        video_stem = Path(self.video_path).stem if self.video_path else "manual_segment"
+        safe_stem = f"{video_stem}_plume{plume_idx:02d}"
+
+        out_dir = filedialog.askdirectory(
+            title="Choose output directory for spray metrics",
+            initialdir=str(Path(self.video_path).parent) if self.video_path else str(Path.cwd()),
+        )
+        if not out_dir:
+            return
+        out_dir = Path(out_dir)
+
+        metrics_path = out_dir / f"{safe_stem}_metrics.csv"
+        boundary_path = out_dir / f"{safe_stem}_boundary_points.csv"
+
+        try:
+            df = features_to_binarized_metrics_df(metrics)
+            df.to_csv(metrics_path, index=False)
+            print(f"[save-metrics] written {metrics_path}", flush=True)
+        except Exception as e:
+            messagebox.showerror("Save Spray Metrics", f"Failed to write metrics CSV:\n{e}")
+            return
+
+        boundary = metrics.get("boundary")
+
+        try:
+            if boundary:
+                save_boundary_csv(boundary, boundary_path)
+                print(f"[save-metrics] written {boundary_path}", flush=True)
+        except Exception as e:
+            print(f"[save-metrics] boundary CSV skipped: {e}", flush=True)
+
+        # Save boundary visualization video (same rendering as Play Boundary)
+        boundary_video_path = out_dir / f"{safe_stem}_boundary.avi"
+        try:
+            from OSCC_postprocessing.playback.video_playback import save_video_with_boundaries_cv2
+
+            raw_video = self.plume_videos[plume_idx]
+            n = min(len(raw_video), len(masks))
+            video_u8 = np.stack(
+                [self.apply_gain_gamma(np.asarray(raw_video[i])) for i in range(n)], axis=0
+            ).astype(np.float32) / 255.0
+            boundaries = self._masks_to_boundary_points(masks[:n])
+            save_video_with_boundaries_cv2(
+                video_u8,
+                boundaries,
+                gain=1.0,
+                fps=20,
+                save_path=str(boundary_video_path),
+                color_top=(0, 0, 255),
+                color_bottom=(0, 0, 255),
+                thickness=1,
+                alpha=1.0,
+            )
+            print(f"[save-metrics] written {boundary_video_path}", flush=True)
+        except Exception as e:
+            print(f"[save-metrics] boundary video skipped: {e}", flush=True)
+            boundary_video_path = None
+
+        scalars = {k: v for k, v in metrics.items() if k != "boundary" and np.isscalar(v)}
+        scalar_str = "  |  ".join(f"{k}: {v}" for k, v in scalars.items())
+        saved_files = f"  {metrics_path.name}\n  {boundary_path.name}"
+        if boundary_video_path and boundary_video_path.exists():
+            saved_files += f"\n  {boundary_video_path.name}"
+        messagebox.showinfo(
+            "Save Spray Metrics",
+            f"Saved to {out_dir}\n\n"
+            f"{saved_files}\n\n"
+            f"{scalar_str}",
+        )
 
     def _draw_live_rect(self, p0, p1, outline="lime"):
         x0, y0 = p0

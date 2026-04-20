@@ -1,0 +1,22 @@
+\frametitle{Step 2 — Launch \texttt {manual\_segment.py}}
+\begin{columns}
+    \column{0.50\linewidth}
+      Run from a terminal in the repo root:
+      \begin{lstlisting}[language=bash]
+python manual_segment.py
+      \end{lstlisting}
+      \medskip
+      \textbf{Load Video}\\
+      Click \emph{Load Video} $\to$ select the \texttt{.cine} file.\\
+      The video is extracted into per-plume strip arrays stored in \texttt{plume\_videos}.
+
+      \medskip
+      \textbf{Load Config}\\
+      Click \emph{Load Config} $\to$ select \texttt{config.json}.\\
+      Sets centre, rotation, inner/outer radius; strips are re-extracted and aligned automatically.
+
+      \medskip
+      \textit{Tip:} use \emph{No Config} only for exploratory viewing — metrics will use default (zero) inner radius.
+    \column{0.47\linewidth}
+      \includegraphics[width=0.95\linewidth]{main window after loading.png}
+  \end{columns}

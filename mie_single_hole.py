@@ -98,6 +98,7 @@ global timing
 timing = True
 
 def _as_numpy(arr):
+    """Convert a CuPy array to NumPy; return as-is if already a NumPy array."""
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
         return cp.asnumpy(arr)
     return np.asarray(arr)
@@ -144,11 +145,34 @@ def _compute_full_solver_metrics_from_bw(
     umbrella_angle: float,
     thres_penetration_num_pix=5
 ):
+    """
+    Compute a full set of spatial spray features from a binarized spray video.
+
+    Args:
+        bw_video: Binary video (F, H, W); white pixels represent the spray region.
+        H: Frame height in pixels.
+        F: Number of frames.
+        umbrella_angle: Spray umbrella angle in degrees. 180° means the spray axis
+            is orthogonal to the line of sight; tilted views require an x-axis scale correction.
+        thres_penetration_num_pix: Minimum number of white pixels in a column to count
+            as spray for the penetration index.
+
+    Returns:
+        dict with keys: area, penetration_bw_x, boundary, estimated_volume,
+        estimated_volume_max, estimated_volume_min, penetration_bw_polar,
+        cone_angle_average, avg_up, avg_low,
+        cone_angle_linear_regression, lg_up, lg_low
+    """
+    # Sum along the height axis (axis=1) to get the white-pixel count per column per frame
     bw_video_col_sum = bw_video.sum(axis=1)
+    # Projected spray area: total white pixels per frame
     area = bw_video_col_sum.sum(axis=-1)
+    # X-axis penetration depth: index of the rightmost column with enough white pixels
     penetration_bw_x = penetration_bw_to_index(bw_video_col_sum > thres_penetration_num_pix)
+    # Extract all boundary points per frame (upper and lower edge coordinates)
     boundary = bw_boundaries_all_points_single_plume(bw_video, parallel=True, umbrella_angle=180.0)
 
+    # If the viewing angle is tilted, apply a geometric x-scale correction to recover true penetration length
     if umbrella_angle == 180.0:
         x_scale = 1.0
     else:
@@ -156,17 +180,21 @@ def _compute_full_solver_metrics_from_bw(
         tilt_angle_rad = tilt_angle / 180.0 * np.pi
         x_scale = 1.0 / np.cos(tilt_angle_rad)
 
+    # Accumulate spray width in upper and lower halves separately (white pixels per column)
     upper_bw_width = bw_video[:, : H // 2, :].sum(axis=1)
     lower_bw_width = bw_video[:, H // 2 :, :].sum(axis=1)
 
+    # Assuming a circular spray cross-section, estimate volume via solid-of-revolution (stacked cylinders)
     estimated_volume = x_scale * np.pi * 0.25 * np.sum((upper_bw_width + lower_bw_width) ** 2, axis=1)
 
+    # Upper/lower bound on volume using the max and min half-width as the effective radius
     max_plume_radius = np.maximum(upper_bw_width, lower_bw_width)
     min_plume_radius = np.minimum(upper_bw_width, lower_bw_width)
 
     estimated_volume_max = np.pi * x_scale * np.sum(max_plume_radius**2, axis=1)
     estimated_volume_min = np.pi * x_scale * np.sum(min_plume_radius**2, axis=1)
 
+    # Polar penetration: maximum radial distance from the nozzle origin among all boundary points per frame
     penetration_bw_polar = np.zeros(F)
     for i in range(F):
         pts = boundary[i]
@@ -178,6 +206,7 @@ def _compute_full_solver_metrics_from_bw(
             max_r_lower = np.max(np.sqrt(ly**2 + lx**2))
             penetration_bw_polar[i] = max(max_r_upper, max_r_lower)
 
+    # Filter boundary points to an x-band near the penetration tip; used for cone angle estimation
     points_all_frames = bw_boundaries_xband_filter_single_plume(boundary, _as_numpy(penetration_bw_x))
 
     lg_up = np.full(F, np.nan)
@@ -191,18 +220,22 @@ def _compute_full_solver_metrics_from_bw(
             uy, ux = points[1][:, 0], points[1][:, 1]
             ly, lx = points[0][:, 0], points[0][:, 1]
 
+            # Angle of each boundary point relative to the nozzle origin (measured from the x-axis)
             ang_up = np.atan(uy / ux) * 180.0 / np.pi
             ang_low = np.atan(ly / lx) * 180.0 / np.pi
 
+            # Method 1: mean angle across all boundary points
             avg_up[i] = np.nanmean(ang_up)
             avg_low[i] = np.nanmean(ang_low)
 
             try:
+                # Method 2: origin-fixed linear regression on boundary points; slope → angle
                 lg_up[i] = np.atan(linear_regression_fixed_intercept(ux, uy, 0.0)) * 180.0 / np.pi
                 lg_low[i] = np.atan(linear_regression_fixed_intercept(lx, ly, 0.0)) * 180.0 / np.pi
             except ValueError:
                 pass
 
+    # Full cone angle = upper half-angle − lower half-angle (both positive w.r.t. the x-axis, subtraction gives the total spread)
     cone_angle_average = avg_up - avg_low
     cone_angle_linear_regression = lg_up - lg_low
 
@@ -224,7 +257,6 @@ def _compute_full_solver_metrics_from_bw(
 
 
 
-# Rotation + Crop + Filtering
 def mie_preprocessing(
     video,
     centre,
@@ -239,7 +271,21 @@ def mie_preprocessing(
     outer_radius=None,
     preview=True,
 ):
-    
+    """
+    Three-step preprocessing for a single-hole Mie scattering video:
+    rotation alignment, bilateral filtering, and background subtraction.
+
+    1. Rotate the video so the nozzle is at the origin, then crop a rectangular
+       strip from the nozzle out to the quartz-window edge.
+    2. Apply bilateral filtering to the cropped strip (edge-preserving denoising).
+    3. Use the mean of the first blank_frames frames as the background and
+       subtract it pixel-wise to isolate the spray signal.
+
+    Returns: (segment, foreground, bkg)
+        segment    — rotated and cropped raw strip video
+        foreground — background-subtracted spray signal video
+        bkg        — background frame (temporal mean of the blank frames)
+    """
     # 3D grayscale Numpy array
     F0 = video.shape[0]
 
@@ -343,6 +389,26 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
 
     
 
+    """
+    End-to-end post-processing pipeline for a single-hole Mie scattering video.
+
+    1. Preprocessing (mie_preprocessing): rotation alignment, bilateral filtering,
+       background subtraction.
+    2. Nozzle open/close timing: track near-nozzle patch intensity with a hysteresis
+       threshold to find the hydraulic delay and nozzle-closing frame.
+    3. Time-Distance (TD) map analysis: integrate the foreground along the height axis
+       to produce a (W, F) heatmap, apply gain compensation, binarize with Triangle
+       threshold, and extract the penetration curve (penetration_TD).
+    4. Cone angle (Angular Density): compute per-frame angular intensity density to
+       obtain upper and lower half-cone angles, summed into the total cone angle (cone_angle_AD).
+    5. [solver="full"] Full solver: binarize the 3D foreground video, select the largest
+       spray blob by proximity to the centreline, then per-frame 2D filtering and hole-filling
+       to compute area, volume, BW penetration (X and polar), and BW cone angles.
+    6. Save all per-frame metrics to CSV; optionally save the rotated strip video
+       (.avi/.npz) and a metrics plot (.png).
+
+    Returns: pandas DataFrame containing all per-frame metrics.
+    """
     if preview:
         # Debug inputs
         print("Processing Cine file: ", file_name)
@@ -440,7 +506,7 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
         Lo_Hi[:] = False
     else:    
 
-        (hd, nc, _, _) = res   # 这里 hd/nc 是 x_start/x_end（如果你 x=None）
+        (hd, nc, _, _) = res   # hd/nc are x_start/x_end of the detected high interval
         hydraulic_delay = hd.get().item()
         
         # Shifting hydraulic delay by 1 frame 
@@ -617,34 +683,34 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
                         )
         '''
         
+        # Step 1: Min-Max normalise then binarize the entire foreground video with Triangle threshold
         bw_video_0 = triangle_binarize_gpu(_min_max_scale(foreground))
 
-        # Same connectivity as keep_largest_component_nd_cuda (e.g. 2 for 18-neighbors in 3D)
-        
-        # Check for regional Properties in 3D
-        # Get label image to reconstruct blobs
+        # Step 2: 3D connected-component analysis (18-neighbourhood), producing a blob property table and label volume
         props, labels = regionprops_3d(bw_video_0, connectivity=2, return_labels=True, centroid=True)
 
-        # Find the L2 distance for each 3D blob from the y = H//2 axis
+        # Step 3: Compute each blob's y-distance from the image centreline.
+        # The real spray sits near the centreline (nozzle at centre); blobs far from it are stray reflections.
         props["y-dist"] = np.abs(props["centroid_1"] - bw_video_0.shape[1]//2)
-        
-        # Distance based filtering
         filtered_props = props[props["y-dist"] <= maximum_bw_spray_tolerance_y_axis]
 
-        # Fall back to all regions when no 3D blob passes the y-axis proximity filter.
+        # Fall back to all blobs when none pass the proximity filter
         if len(filtered_props) == 0:
             filtered_props = props.copy()
 
-        # Retain the largest blob
+        # Step 4: Among proximity-filtered blobs, select the largest by volume as the main spray blob
         filtered_props = filtered_props.sort_values("volume", ascending=False)
-
-        # Get the value from the "label" column of the first row (at position 0)
         label_id = filtered_props.iloc[0]["label"]
 
-        # Reconstruct the video based on filtered labels
+        # Reconstruct the binary video from the selected label
         largest_blob = reconstruct_blob(labels, label_id)
 
         def _filter_frame_components_by_axis(frame_bw, tolerance_px, y_mid):
+            """
+            Run 2D connected-component analysis on a single binary frame.
+            Keep the component that is both large and closest to the centreline.
+            Falls back to the largest component when all are outside the tolerance.
+            """
             frame_u8 = np.asarray(frame_bw, dtype=np.uint8)
             if frame_u8.ndim != 2 or not np.any(frame_u8):
                 return frame_u8.astype(bool)
@@ -673,7 +739,8 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
 
             return (label_img == selected_label)
 
-        # Per-frame keep the component that is both large and sufficiently close to the centerline.
+        # Step 5: Per-frame 2D refinement of the 3D-filtered result —
+        # handles cases where the selected 3D blob contains off-axis fragments in individual frames
         y_mid = largest_blob.shape[1] / 2.0
         filtered_frames = []
         for f in range(F):
@@ -687,6 +754,7 @@ def mie_single_hole_pipeline(video: xp.ndarray, file_name: str,
 
         largest_blob = xp.asarray(np.stack(filtered_frames, axis=0))
 
+        # Step 6: Fill binary holes (dark regions inside the spray) per frame to produce the final binary video
         if USING_CUPY and hasattr(largest_blob, "__cuda_array_interface__"):
             bw_video = _binary_fill_holes_gpu(largest_blob, mode="2D")
         else:
@@ -833,8 +901,8 @@ def main():
 
     # Normalize the grayscale video to [0, 1] brightness range
     if use_gpu: 
-        video = cp.asarray(video, dtype=cp.float16)     # 直接生成 float16，少一次 astype 临时
-        video *= cp.float16(1.0 / brightness_levels)              # 就地，不产生新数组
+        video = cp.asarray(video, dtype=cp.float16)     # create float16 directly, avoiding a temporary astype copy
+        video *= cp.float16(1.0 / brightness_levels)              # in-place multiply, no new array allocated
     else:
         video *= np.float16(1.0 / brightness_levels)
 
