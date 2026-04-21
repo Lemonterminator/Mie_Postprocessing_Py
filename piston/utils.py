@@ -40,6 +40,40 @@ def quarter_of_a_circle_complement_mask(
     return ~complement_mask if negative_mask else complement_mask
 
 
+def circular_arc_complement_mask(
+    canvas: np.ndarray,
+    grid_size: float,
+    circle_center: tuple[float, float],
+    x_start: float,
+    x_end: float,
+    radius_mm: float,
+    negative_mask: bool = True,
+) -> np.ndarray:
+    """Return a strip-limited circle mask/complement for an arc span.
+
+    The output is always zero outside the inclusive x-range [x_start, x_end].
+    Inside that span, ``negative_mask=False`` returns the local complement of
+    the circle, while ``negative_mask=True`` returns the corresponding local
+    negative mask.
+    """
+    height_px, width_px = canvas.shape
+    x_mm, y_mm = circle_center
+    radius_px = max(1, int(round(radius_mm / grid_size)))
+
+    cx = int(round(x_mm / grid_size))
+    cy = int(round(y_mm / grid_size))
+
+    x0_px = int(round(min(x_start, x_end) / grid_size))
+    x1_px = int(round(max(x_start, x_end) / grid_size))
+
+    yy, xx = np.ogrid[:height_px, :width_px]
+    circle_mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= radius_px**2
+    x_strip_mask = (xx >= x0_px) & (xx <= x1_px)
+
+    complement_mask = x_strip_mask & (~circle_mask)
+    return x_strip_mask & (~complement_mask) if negative_mask else complement_mask
+
+
 def clip_polygon_mm_to_px(points_mm: np.ndarray, grid_size: float, shape: tuple[int, int]) -> np.ndarray:
     """Convert mm polygon vertices to clipped pixel coordinates."""
     points_px = np.rint(points_mm / grid_size).astype(np.int32)
