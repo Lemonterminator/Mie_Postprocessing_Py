@@ -79,7 +79,7 @@
             "matchCommandLine": true
         }
     },
-    "cmake.sourceDirectory": "C:/Users/LJI008/Mie_Postprocessing_Py/native/nvidia_of_bridge",
+    "cmake.sourceDirectory": "C:/Users/Jiang/Documents/Mie_Postprocessing_Py/native/nvidia_of_bridge",
     "chatgpt.openOnStartup": true,
     "chatgpt.runCodexInWindowsSubsystemForLinux": true
 }
