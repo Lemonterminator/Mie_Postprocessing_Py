@@ -10,10 +10,16 @@ import re
 import gc
 import json
 import pandas as pd
+from scipy import ndimage as ndi
 
 # ---- Library imports ----
 from OSCC_postprocessing.cine.functions_videos import load_cine_video, get_subfolder_names, cine
-from OSCC_postprocessing.binary_ops.functions_bw import spary_features_from_bw_video
+from OSCC_postprocessing.binary_ops.functions_bw import (
+    cndi,
+    keep_largest_component_cuda,
+    keep_largest_component_nd_cuda,
+    spary_features_from_bw_video,
+)
 from OSCC_postprocessing.binary_ops.masking import generate_ring_mask
 from OSCC_postprocessing.playback.video_playback import play_video_cv2
 from OSCC_postprocessing.utils.scaling import robust_scale
@@ -109,6 +115,7 @@ nozzle_opening_detection_width = 30
 thres_penetration_num_pix = 5  # minimum width of the binarized spray for x-axis penetration detection
 segment_bw_q_min = 5
 segment_bw_q_max = 99.9
+repair_bw = False
 penetration_cleanup_min_len = 5
 
 save_boundary_points_csv = False
@@ -269,6 +276,37 @@ def _empty_spray_metrics(num_frames: int) -> dict:
         "nozzle_opening": np.nan,
         "nozzle_closing": np.nan,
     }
+
+
+def repair_binary_plume_video(bw_video):
+    """
+    Refine a plume-wise BW video with the legacy multihole morphology sequence.
+
+    The input is expected to have shape ``(plume, frame, height, width)``.
+    Each plume is repaired as one 3-D volume, then each frame is cleaned again
+    to keep the dominant connected envelope used by downstream BW metrics.
+    """
+    P, F, _, _ = bw_video.shape
+    is_gpu_array = hasattr(bw_video, "__cuda_array_interface__")
+    xp_backend = xp if is_gpu_array else np
+    ndi_backend = cndi if is_gpu_array else ndi
+    repaired = bw_video.astype(bool, copy=True)
+
+    struct_3d = xp_backend.ones((3, 3, 3), dtype=bool)
+
+    for plume_idx in range(P):
+        blob_3d = keep_largest_component_nd_cuda(
+            ndi_backend.binary_fill_holes(
+                ndi_backend.binary_closing(
+                    repaired[plume_idx],
+                    structure=struct_3d,
+                )
+            )
+        )
+        for frame_idx in range(F):
+            repaired[plume_idx, frame_idx] = keep_largest_component_cuda(blob_3d[frame_idx])
+
+    return repaired.astype(bw_video.dtype, copy=False)
 
 
 def _compute_spray_metrics_for_segment(args):
@@ -638,9 +676,13 @@ def _process_cine_file(
             BORDER_MODE=border_mode
         )
         state["hp_segments"] = state["postprocess"]["segments_fg"]
+        # Need to ignore zeros in the histogram for large number of zeros made by masking.
         state["hp_segments_bw"] = triangle_binarize_gpu(
-            robust_scale(state["hp_segments"], segment_bw_q_min, segment_bw_q_max)
+            robust_scale(state["hp_segments"], segment_bw_q_min, segment_bw_q_max), ignore_zero=True
         )
+        if repair_bw:
+            state["hp_segments_bw"] = repair_binary_plume_video(state["hp_segments_bw"])
+
         umbrella_angle_for_penetration = float(
             nozzle_props.get("umbrella_angle_deg", umbrella_angle_deg_default)
         )

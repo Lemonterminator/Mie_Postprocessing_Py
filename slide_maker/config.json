@@ -1,0 +1,76 @@
+{
+    "directories": {
+        
+        "mie": "G:\\MeOH_test\\Mie",
+        "schlieren": "G:\\MeOH_test\\Schlieren",
+        "luminescence": "G:\\MeOH_test\\NFL",
+        "dewe": "G:\\MeOH_test\\Dewe"
+    },
+
+    "comparison_sets": {
+        "Fuel Temperature N-heptane - Reactive": [46, 51],
+        "Fuel Temperature N-heptane - Evaporative" : [27, 32],
+        "Fuel Temperature N-heptane - Cold" : [7, 9],
+        "Fuel Pressure N-heptane - Reactive" : [46, 51],
+        "Fuel Pressure N-heptane - Evaporative" : [27, 29],
+        "Fuel Pressure N-heptane - Cold" : [7, 48],
+        "Oxygen Content - MeOH - Reactive" : [41, 44, 45],
+        "Oxygen Content - MeOH - All Conditions" : [41, 22, 6],
+        "Oxygen Content - MeOH - N-heptane - Reactive": [52, 55, 56],
+        "Oxygen Content - MeOH - N-heptane - All Conditions" : [52, 31, 9],
+        "Fuel Temperature - Reactive" : [36, 42],
+        "Fuel Temperature - Evaporative": [17, 23],
+        "Fuel Temperature - Cold": [2, 6],
+        "Gas Temperature - Reactive" : [36, 35, 37], 
+        "Gas Temperature - Evaporative" : [17, 16, 18], 
+        "Gas Tempearture - Cold" : [2, 6], 
+        "Gas Temperature (2) - Reactive" : [42, 41, 43],
+        "Gas Temperature (2) - Evaporative" : [23, 22, 24],
+        "N-heptane & MeOH - Reactive": [36, 46],
+        "N-heptane & MeOH - Evaporative": [17, 27],
+        "N-heptane & MeOH - Cold": [2, 7], 
+        "N-heptane & MeOH (2) - Reactive": [42, 51],
+        "N-heptane & MeOH (2) - Evaporative": [23, 32],
+        "N-heptane & MeOH (2) - Cold": [6, 9], 
+        "Duration - Reactive": [26, 28, 30],
+        "Duration - Cold": [15, 16, 17]
+    },
+    "processing": {
+        "mode": "average",
+        "save_processed_video_strips": false,
+        "saved_video_fps": 20,
+        "video_bits": 12,
+        "frame_limit": 200
+    },
+    "quantization": {
+        "enabled": false,
+        "targets": ["rotated_videos"],
+        "mode": "uint8_full_range",
+        "float_upper_bound": 1.0,
+        "clip_negative_to_zero": true,
+        "store_metadata": true
+    },
+    "hrr_parameters": {
+        "V_m3": 8.5e-3,
+        "gamma": 1.35,
+        "fc_p": 1000.0,
+        "fc_hrr": 600.0
+    },
+    "alignment": {
+        "grad_threshold": 5,
+        "pre_samples": 50,
+        "window_ms": 10.0
+    },
+    "column_names": {
+        "chamber_pressure": ["Chamber pressure (BarA)", "Chamber pressure", "chamber_pressure"],
+        "chamber_temperature": ["Temperature acc. Ideal gas law", "Chamber gas temperature", "chamber_temperature"],
+        "heat_release": ["Heat Release", "HRR", "heat_release"],
+        "injection_current": ["Main Injector - Current Profile", "Current Profile", "injection_current"],
+        "mie_area": ["Area", "area", "Spray Area"]
+    },
+    "output": {
+        "video_file": "comparison_output.mp4",
+        "fps": 10,
+        "debug": false
+    }
+}
