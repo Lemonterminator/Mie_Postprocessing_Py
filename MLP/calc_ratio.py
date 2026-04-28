@@ -3,7 +3,7 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-data_dir = Path(r'C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data')
+data_dir = Path(__file__).resolve().parent / "synthetic_data"
 results = []
 
 for nozzle_dir in data_dir.glob('*'):
@@ -58,7 +58,7 @@ plt.ylabel('Count')
 plt.title('Distribution of Branch Amplitude Ratio at Transition $t_0$')
 plt.legend()
 plt.grid(alpha=0.3)
-out_path = Path(r'C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\figures\amplitude_ratio_dist.png')
+out_path = Path(__file__).resolve().parent / "figures" / "amplitude_ratio_dist.png"
 out_path.parent.mkdir(exist_ok=True, parents=True)
 plt.savefig(out_path, dpi=300, bbox_inches='tight')
 print(f'Saved distribution plot to {out_path}')

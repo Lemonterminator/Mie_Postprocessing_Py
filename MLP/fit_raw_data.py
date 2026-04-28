@@ -1141,3 +1141,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from summarize_dataset import main as _summarize_main
+    _summarize_main()

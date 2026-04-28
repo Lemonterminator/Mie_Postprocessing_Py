@@ -1,6 +1,6 @@
 """Run ablation 1: remove KD from raw-reliable bins.
 
-Hypothesis: deterministic/raw-supported DS300 bins should not be pulled toward
+Hypothesis: deterministic/raw-supported Nozzle0 bins should not be pulled toward
 the teacher if raw CDF supervision is already available.
 """
 

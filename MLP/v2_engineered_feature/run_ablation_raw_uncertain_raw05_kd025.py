@@ -1,7 +1,7 @@
 """Run ablation 2: restore raw supervision in raw-uncertain bins.
 
 Hypothesis: the previous raw_uncertain setting was too teacher-dominated for
-deterministic DS300 trajectories. This script uses raw_weight=0.5 and
+deterministic Nozzle0 trajectories. This script uses raw_weight=0.5 and
 kd_weight=0.25 by default, while allowing either value to be overridden.
 """
 

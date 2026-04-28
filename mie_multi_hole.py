@@ -75,7 +75,7 @@ experiment_configs = [
 
 # parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
 
-# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"]
+# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle0.json"]
 
 
 # Optional single-run fallback used by CLI/env overrides.
@@ -90,7 +90,7 @@ DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier = 2  # Nozzle 1-8: 3; DS300: 2
+noise_floor_multiplier = 2  # Nozzle 1-8: 3; Nozzle0: 2
 
 # Pre-processing histogram scaling settings
 sobel_wsize=3
@@ -632,6 +632,7 @@ def _process_cine_file(
 
         start_time = time.time()
         state["video"] = _load_video_to_backend(file)
+        t_load = time.time()
 
         # The raw loader can legally return an empty array for malformed or
         # unreadable inputs. In that case we skip the rest of the pipeline.
@@ -663,6 +664,7 @@ def _process_cine_file(
             q_min_highpass=q_min_highpass,
             q_max_highpass=q_max_highpass
         )
+        t_preproc = time.time()
 
         state["postprocess"] = mie_multihole_postprocessing(
             state["foreground"],
@@ -692,8 +694,7 @@ def _process_cine_file(
             quantile=upper_quantile_cdf,
             umbrella_angle=umbrella_angle_for_penetration,
         )
-
-        print("GPU work completed in {:.2f}s".format(time.time() - start_time))
+        t_gpu = time.time()
 
         # ========================================================================
         # Extracting results
@@ -755,6 +756,7 @@ def _process_cine_file(
         metric_columns, all_boundaries = _collect_metric_columns(
             state["hp_segments_bw"], num_frames, umbrella_angle, ir_
         )
+        t_metrics = time.time()
         if metric_columns:
             state["df"] = pd.concat(
                 [state["df"], pd.DataFrame(metric_columns, index=state["df"].index)],
@@ -792,10 +794,21 @@ def _process_cine_file(
             metadata_payload,
             metadata_path,
         )
+        t_save_csv = time.time()
         _save_boundary_points(save_path_subfolder, video_name, all_boundaries)
+        t_boundary = time.time()
 
-        elapsed = time.time() - start_time
-        done_message = f"Completed: {relative_label} in {elapsed:.2f}s"
+        elapsed = t_boundary - start_time
+        done_message = (
+            f"Completed: {relative_label} in {elapsed:.2f}s  "
+            f"[load={t_load - start_time:.2f}s  "
+            f"preproc={t_preproc - t_load:.2f}s  "
+            f"postproc+cdf={t_gpu - t_preproc:.2f}s  "
+            f"bw_metrics={t_metrics - t_gpu:.2f}s  "
+            f"save_csv={t_save_csv - t_metrics:.2f}s"
+            + (f"  boundary={t_boundary - t_save_csv:.2f}s" if save_boundary_points_csv else "")
+            + "]"
+        )
         print(done_message)
         _append_processing_log(log_path, done_message)
         _write_checkpoint(

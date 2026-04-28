@@ -175,13 +175,13 @@ d2 back & 6.66 & -0.59 \\
 \begin{itemize}
   \item Lowering KD in reliable raw bins fixes the main bias direction.
   \item Combining raw/KD reweighting with shorter onset anchor gives the best overall fit.
-  \item Moving the d2 gate back helps some HZ nozzles but hurts DS300 and overall RMSE.
+  \item Moving the d2 gate back helps some HZ nozzles but hurts Nozzle0 and overall RMSE.
 \end{itemize}
 \end{column}
 \end{columns}
 \end{frame}
 
-\begin{frame}{Where the Best Run Changes DS300}
+\begin{frame}{Where the Best Run Changes Nozzle0}
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.62\linewidth}
   \centering
@@ -189,11 +189,11 @@ d2 back & 6.66 & -0.59 \\
 \end{column}
 \begin{column}{0.34\linewidth}
 \footnotesize
-\begin{block}{DS300 response}
+\begin{block}{Nozzle0 response}
 \begin{itemize}
-  \item DS300 mean RMSE: \SI{6.77}{mm} \(\rightarrow\) \SI{6.12}{mm}.
-  \item DS300 MAE: \SI{5.99}{mm} \(\rightarrow\) \SI{5.25}{mm}.
-  \item DS300 bias: \SI{-3.36}{mm} \(\rightarrow\) \SI{-2.35}{mm}.
+  \item Nozzle0 mean RMSE: \SI{6.77}{mm} \(\rightarrow\) \SI{6.12}{mm}.
+  \item Nozzle0 MAE: \SI{5.99}{mm} \(\rightarrow\) \SI{5.25}{mm}.
+  \item Nozzle0 bias: \SI{-3.36}{mm} \(\rightarrow\) \SI{-2.35}{mm}.
 \end{itemize}
 \end{block}
 
@@ -223,7 +223,7 @@ Nozzle6 & \SI{4.65}{mm} \\
 Nozzle8 & \SI{4.81}{mm} \\
 Nozzle4 & \SI{5.40}{mm} \\
 Nozzle1 & \SI{5.73}{mm} \\
-DS300 top view & \SI{6.12}{mm} \\
+Nozzle0 top view & \SI{6.12}{mm} \\
 Nozzle2 & \SI{6.75}{mm} \\
 Nozzle3 & \SI{9.21}{mm} \\
 \bottomrule
@@ -232,7 +232,7 @@ Nozzle3 & \SI{9.21}{mm} \\
 \vspace{0.3em}
 \footnotesize
 \begin{itemize}
-  \item The best run improves DS300, Nozzle5/6/7/8 most clearly.
+  \item The best run improves Nozzle0, Nozzle5/6/7/8 most clearly.
   \item Nozzle1/2/3/4 reveal a cross-nozzle trade-off, likely tied to geometry-dependent early acceleration.
 \end{itemize}
 \end{column}
@@ -293,9 +293,9 @@ Nozzle3 & \SI{9.21}{mm} \\
 \small
 \begin{enumerate}
   \item \goodtext{The tuned Stage-3 run is the current best}: RMSE is \SI{6.60}{mm}, MAE is \SI{4.81}{mm}, and NRMSE is 6.88\%.
-  \item \goodtext{The main systematic issue is reduced}: global bias improves from \SI{-1.29}{mm} to \SI{-0.40}{mm}; DS300 bias improves from \SI{-3.36}{mm} to \SI{-2.35}{mm}.
-  \item \notetext{The ablation supports the KD-dominance hypothesis}: strong KD in deterministic raw-supported bins pushes the student toward teacher bias; lower KD and restored raw supervision improve DS300.
-  \item \warntext{The remaining errors are geometry-dependent}: Nozzle3 and some HZ nozzles show a trade-off with DS300, suggesting early-SOI acceleration and curvature priors should be nozzle-aware.
+  \item \goodtext{The main systematic issue is reduced}: global bias improves from \SI{-1.29}{mm} to \SI{-0.40}{mm}; Nozzle0 bias improves from \SI{-3.36}{mm} to \SI{-2.35}{mm}.
+  \item \notetext{The ablation supports the KD-dominance hypothesis}: strong KD in deterministic raw-supported bins pushes the student toward teacher bias; lower KD and restored raw supervision improve Nozzle0.
+  \item \warntext{The remaining errors are geometry-dependent}: Nozzle3 and some HZ nozzles show a trade-off with Nozzle0, suggesting early-SOI acceleration and curvature priors should be nozzle-aware.
 \end{enumerate}
 
 \vspace{0.5em}
@@ -315,7 +315,7 @@ Compiled PDF & \pathtext{Thesis/neural_network_fit_results_slides_en.pdf} \\
 Copied/generated figures & \pathtext{Thesis/images/neural_network_fit_results/} \\
 Best result folder & \pathtext{rmse_eval_clean_20260418_115700_distill_cdf_onset_v2_loss_tuned_conservative_20260418_114747} \\
 Ablation CSV & \pathtext{ablation_summary_for_slides.csv} \\
-DS300 time-bin CSV & \pathtext{ds300_time_bins_for_slides.csv} \\
+Nozzle0 time-bin CSV & \pathtext{ds300_time_bins_for_slides.csv} \\
 \bottomrule
 \end{tabular}
 \end{frame}
