@@ -35,7 +35,8 @@
       "Bash(pdflatex -interaction=nonstopmode thesis_zh.tex)",
       "Bash(grep -v \"pdftex.def Error: File\\\\|not found: using\\\\|file:line:error\\\\|^$\")",
       "Bash(biber thesis_zh)",
-      "Bash(ls /c/Users/LJI008/Mie_Postprocessing_Py/Thesis/*.md)"
+      "Bash(ls /c/Users/LJI008/Mie_Postprocessing_Py/Thesis/*.md)",
+      "Bash(git commit *)"
     ]
   }
 }
