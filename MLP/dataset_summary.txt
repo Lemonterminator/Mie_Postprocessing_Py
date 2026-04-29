@@ -1,0 +1,34 @@
+========================================================================
+OSCC Mie top-view campaign — dataset summary
+========================================================================
+
+Nozzle families   : 9  (Nozzle1–Nozzle8 + DS300)
+Nozzle diameters  : 0.333, 0.348, 0.355, 0.365, 0.375, 0.384 mm
+Plume counts (N)  : 10, 11, 12
+Frame rate        : 25000, 34000 fps
+Injection pressure: 1400--2200 bar
+Injection duration: 340--1200 µs
+Chamber pressure  : 4.42--35 bar
+
+Results directory statistics (processed files):
+  Condition folders: 266
+  Recording CSVs   : 2992  (one per .cine file)
+  Metadata JSONs   : 2992
+  CSV+meta size    : 540.4 MB
+
+Per-nozzle breakdown:
+  Nozzle       d_mm    N   angle     fps     P_inj(bar)      t_inj(µs)  conditions   csvs
+  ----------------------------------------------------------------------------------
+  Nozzle1     0.384   10    140°   25000           2000       560--779          27    136
+  Nozzle2     0.375   10    140°   25000     1400--2000     500--973.5          65    312
+  Nozzle3     0.365   10    140°   25000           2000       580--764          27    131
+  Nozzle4     0.355   10    140°   25000           2000       558--745          27    135
+  Nozzle5     0.348   11    140°   25000           2000       570--763          27    145
+  Nozzle6     0.333   12    140°   25000           2000     609--880.5          27    138
+  Nozzle7     0.365   12    164°   25000           2000       580--764          27    136
+  Nozzle8     0.365   10    130°   25000           2000       580--764          27    134
+  DS300       0.384   10    140°   34000     1400--2200      340--1200          12   1725
+
+Suggested thesis sentence:
+  The campaign covers 9 nozzle families (Nozzle1--Nozzle8 + DS300) with hole diameters from 0.333 to 0.384 mm and N = 10--12 plumes per nozzle, spanning injection pressures from 1400 to 2200 bar, injection durations from 340 to 1200 µs, and chamber pressures from 4.42 to 35 bar, with 266 test-condition folders and 2992 processed recordings.
+========================================================================

@@ -5,7 +5,8 @@
       "Bash(awk -F'\\\\t' 'NR>1 {print $1\"\\\\t\"$3\"\\\\t\"$4\"\\\\t\"$6}' \"C:/Users/Jiang/Documents/Mie_Postprocessing_Py/Thesis/thesisreferences_audit.tsv\")",
       "Bash(printf 'Hornik1989UAT\\\\tArticle\\\\ttrue\\\\tHornik, Kurt and Stinchcombe, Maxwell and White, Halbert\\\\t1989\\\\tMultilayer Feedforward Networks Are Universal Approximators\\\\tNeural Networks\\\\t\\\\t2\\\\t5\\\\t359--366\\\\t10.1016/0893-6080\\(89\\)90020-8\\\\t\\\\t\\\\t\\\\t\\\\thttps://doi.org/10.1016/0893-6080\\(89\\)90020-8\\\\tdownloaded\\\\t\\\\t\\\\tthesis.tex\\\\t\\\\tThe model is treated as a surrogate function approximator \\\\\\\\cite{Hornik1989UAT}\\\\t\\\\tSupports the use of MLPs as universal function approximators, providing the theoretical basis for the surrogate regression approach.\\\\t支持将多层前馈网络作为通用函数逼近器的理论依据，为代理模型回归方法提供理论基础。\\\\tDOI verified.\\\\n')",
       "Bash(lualatex --interaction=nonstopmode thesis.tex)",
-      "Bash(lualatex --interaction=nonstopmode thesis_zh.tex)"
+      "Bash(lualatex --interaction=nonstopmode thesis_zh.tex)",
+      "Bash(python MLP/curve_fit/summarize_dataset.py)"
     ]
   }
 }

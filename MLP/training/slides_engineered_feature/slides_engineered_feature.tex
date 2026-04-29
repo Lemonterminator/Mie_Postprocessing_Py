@@ -1,0 +1,184 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{graphicx}
+
+\title{Engineered-Feature MLP for Spray Penetration\\ (v2: Hard Physics Prior on Pressure and Diameter)}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Message}
+\textbf{Claim:} the sparse-feature instability shown for the v1 direct-feature MLP can be removed at its source by replacing the pressure/diameter inputs with a single hard physical scaling group taken from the Hiroyasu--Arai / Zhou penetration laws, and by training the network on the resulting non-dimensional target.
+
+\vspace{0.4em}
+\textbf{What this deck does:}
+\begin{itemize}
+  \item recap the v1 sparse-feature failure mode
+  \item state the physical scaling group used in v2
+  \item describe exactly which features are removed, which are added, and how the target is reparameterized
+  \item describe the new training scaffolding (group splits, pretrain collapse check, two variants)
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Recap: What v1 Showed}
+\textbf{v1 used 9 direct features:}
+\[
+[\text{time}, \theta_{\mathrm{tilt}}, n_{\mathrm{plumes}}, d_n, t_i, \log P_{\mathrm{inj}}, \log P_{\mathrm{ch}}, \log\Delta P, P_{\mathrm{cb}}]
+\]
+\textbf{Observed pathology (see \texttt{slides\_sparse\_feature\_instability}):}
+\begin{itemize}
+  \item nozzle diameter has only 6 levels and is not uniformly available across pressures
+  \item dense MLP sweeps over $d_n$ produce $5$--$6$ gradient sign changes and $p95\,|d^2\mu/dd_n^2|\sim10^7$
+  \item injection pressure shows worst-secant-deviation ratio $>1$ on weakly supported slices
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Diagnosis:} the network is allowed to invent continuous interpolation between sparse levels because the data does not constrain $\partial\mu/\partial d_n$ or $\partial\mu/\partial\log P_{\mathrm{inj}}$ almost anywhere.
+\end{frame}
+
+\begin{frame}{Engineering Move: Use the Theory Directly}
+The Hiroyasu--Arai post-breakup branch and the Zhou et al.\ EOI extension share one well-supported scaling group. Reading the post-breakup branch
+\[
+S(t)\;\propto\;K_p\!\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2}\,t^{1/2},
+\]
+the entire dependence on injection pressure, chamber pressure, chamber density and nozzle diameter collapses to one scalar
+\[
+\boxed{\;A\;=\;\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2}\;}
+\]
+which has units of length and acts as a per-condition length scale.
+
+\vspace{0.3em}
+\textbf{Idea:} stop asking the network to learn $d_n$, $\log P_{\mathrm{inj}}$, $\log P_{\mathrm{ch}}$, $\log\Delta P$ as four separate sparse inputs. Use $A$ as a hard divisor on the target and feed the network the non-dimensional trajectory.
+\end{frame}
+
+\begin{frame}{Computing $A$ from the Test Matrix}
+\textbf{Per curve, $A$ is determined entirely from the operating point:}
+\begin{itemize}
+  \item $d_n$ from \texttt{nozzle\_properties.diameter\_mm} in the test matrix JSON
+  \item $\Delta P=P_{\mathrm{inj}}-P_{\mathrm{ch}}$ from the per-row pressures
+  \item $\rho_a$ from the linear law $\rho_a=\SI{5}{kg/m^3}\times P_{\mathrm{ch}}/\SI{4.42}{bar}$, calibrated against the explicit \texttt{chamber\_density\_kg\_per\_m3} entries provided for Nozzle1--8
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Implementation reference:}
+\begin{itemize}
+  \item \texttt{engineered\_feature\_common.build\_canonical\_feature\_table} computes \texttt{ambient\_pressure\_bar\_phys}, \texttt{ambient\_density\_kg\_m3}, \texttt{delta\_pressure\_bar\_phys}, \texttt{A\_scale}, \texttt{log\_A}
+  \item the canonicalization is the same for Nozzle0 (derived) and Nozzle1--8 (looked up), so all datasets share one consistent $A$
+\end{itemize}
+\end{frame}
+
+\begin{frame}{New Feature Set}
+\textbf{Removed (4 sparse direct features):}
+\[
+\{\,d_n,\;\log P_{\mathrm{inj}},\;\log P_{\mathrm{ch}},\;\log\Delta P\,\}
+\]
+
+\textbf{Two variants are exposed in \texttt{FEATURE\_COLUMNS\_BY\_VARIANT}:}
+\begin{itemize}
+  \item \texttt{a\_only} (5 features):
+  \[
+  [\text{time}_{\mathrm{norm}},\;\theta_{\mathrm{tilt},z},\;n_{\mathrm{plumes},z},\;t_{i,z},\;P_{\mathrm{cb},z}]
+  \]
+  $A$ never enters as an input; it only acts as a divisor on the target.
+  \item \texttt{a\_plus\_log\_a} (6 features):
+  \[
+  [\text{time}_{\mathrm{norm}},\;\theta_{\mathrm{tilt},z},\;n_{\mathrm{plumes},z},\;t_{i,z},\;P_{\mathrm{cb},z},\;\log A_z]
+  \]
+  $A$ also appears once as a one-dimensional residual axis.
+\end{itemize}
+
+\textbf{Why two variants:} \texttt{a\_only} is the strongest commitment to the Zhou scaling. \texttt{a\_plus\_log\_a} lets the network express residual dependence on the scaling group as a single normalized axis instead of four sparse axes.
+\end{frame}
+
+\begin{frame}{Target Reparameterization}
+\textbf{v1:} the network predicted $\mu(t)$ and $\log\sigma^2(t)$ on the physical penetration $S(t)$ in mm.
+
+\vspace{0.3em}
+\textbf{v2:} the network predicts the same two heads on the non-dimensional target
+\[
+\hat S(t)\;=\;S(t)/A,\qquad
+\hat\sigma^2(t)\;=\;\sigma^2(t)/A^{2}.
+\]
+At inference, the physical mean and standard deviation are recovered exactly by
+\[
+\mu_S(t)\;=\;A\,\hat\mu(t),\qquad
+\sigma_S(t)\;=\;A\,\hat\sigma(t).
+\]
+
+\vspace{0.3em}
+\textbf{Implementation reference:} \texttt{PenetrationDataset} stores \texttt{target\_scaled = penetration / A\_scale} per row. The Stage-1 MSE and Stage-2 NLL objectives in \texttt{engineered\_feature\_common} consume \texttt{target\_scaled} directly, while \texttt{toy\_inference\_from\_run} multiplies the predicted mean and std by \texttt{A\_scale} when reporting in millimetres.
+\end{frame}
+
+\begin{frame}{Why This Should Help the Sparse-Feature Pathology}
+\textbf{Mechanism:} the four sparse axes that produced spurious curvature in v1 are no longer free inputs. Their entire effect is now expressed through one analytic factor $A$ whose exponents are fixed by theory rather than being learned from a $6$-level grid.
+
+\vspace{0.4em}
+\textbf{Expected consequences:}
+\begin{itemize}
+  \item $\partial\mu_S/\partial d_n$ inherits the closed-form $d_n^{1/2}$ shape; the network has no remaining degrees of freedom to invent oscillations along $d_n$
+  \item $\partial\mu_S/\partial P_{\mathrm{inj}}$, $\partial\mu_S/\partial P_{\mathrm{ch}}$ inherit the closed-form $(\Delta P/\rho_a)^{1/4}$ shape, with positive sensitivity by construction
+  \item all remaining learning capacity is spent on the dense, well-supported axes (time, tilt, plumes, injection duration, control backpressure)
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Honest caveat:} this only helps if the Zhou scaling actually collapses the trajectories on the present data. That is why a pretrain collapse check is now part of the training driver.
+\end{frame}
+
+\begin{frame}{Pretrain Collapse Check}
+Before any optimization, \texttt{run\_pretrain\_collapse\_check} reconstructs the representative trajectories from the four fitted constants, divides each by its own $A$, and tests whether
+\[
+\hat S(t)\;\approx\;\text{function of the remaining (dense) features only}.
+\]
+
+\vspace{0.3em}
+\textbf{What it produces:}
+\begin{itemize}
+  \item per-time-slice variance of $\hat S(t)$ versus the original $S(t)$
+  \item a linear regression $R^{2}$ of $\hat S(t)$ on the kept features
+  \item a binary \texttt{passed} flag, surfaced in the run directory
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Role in the pipeline:} if the precheck fails, training aborts unless \texttt{--allow-failed-precheck} is passed. This makes the physical assumption \emph{falsifiable} on the actual dataset rather than asserted.
+\end{frame}
+
+\begin{frame}{Other Pipeline Changes}
+\textbf{Group-aware splits.} \texttt{assign\_splits\_by\_group} assigns whole \texttt{sample\_group\_id} groups to train/val/test instead of permuting individual rows. This prevents leakage between curves that share an operating point.
+
+\vspace{0.3em}
+\textbf{Stage-1 / Stage-2 driver split.} \texttt{train\_stage1\_mse.py} and \texttt{train\_stage2\_nll.py} replace the v1 monolithic notebooks. Stage 2 warm-starts from a Stage-1 engineered run directory and reuses its scaler state, so the variant choice and the $A$-scaling are guaranteed identical between stages.
+
+\vspace{0.3em}
+\textbf{Loss objectives.} \texttt{compute\_loss\_stage1\_engineered} and \texttt{compute\_loss\_stage2\_engineered\_nll} keep the v1 monotonicity and post-transient concavity priors, but apply them on $\hat\mu(t)$ instead of $\mu(t)$. The shape constraints transfer cleanly because dividing by a positive constant $A$ preserves sign and curvature.
+
+\vspace{0.3em}
+\textbf{Inference path.} \texttt{toy\_inference\_from\_run.py} now branches on \texttt{infer\_feature\_family}: legacy v1 runs follow the 9-feature path, engineered v2 runs canonicalize the raw input through the same $\rho_a$, $\Delta P$, $A$ pipeline used in training and rescale the model outputs by $A$ before plotting.
+\end{frame}
+
+\begin{frame}{Engineering Takeaway}
+\textbf{What v2 commits to:}
+\begin{itemize}
+  \item the Hiroyasu--Arai post-breakup scaling group $A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}$ is treated as a hard prior, not a soft regularizer
+  \item the network is no longer asked to learn a continuous law over a $6$-point diameter grid or a $4$-point pressure grid
+  \item the resulting model is falsifiable: if the collapse check fails, the prior is wrong on this dataset and training stops
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{What still has to be evaluated post-training:}
+\begin{itemize}
+  \item rerun the v1 sparse-feature instability diagnostics (\texttt{compare\_sparse\_feature\_stability}) and confirm that the secant-deviation ratios and curvature norms drop materially
+  \item verify that the held-out NLL on physical $S$ is at least as good as v1 once the Jacobian factor $\log A$ is accounted for
+  \item compare \texttt{a\_only} versus \texttt{a\_plus\_log\_a} on diagnostics, not just on validation loss
+\end{itemize}
+\end{frame}
+
+\end{document}

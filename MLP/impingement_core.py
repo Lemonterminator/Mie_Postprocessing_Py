@@ -20,7 +20,7 @@ import torch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MLP_DIR = Path(__file__).resolve().parent
-V2_DIR = MLP_DIR / "v2_engineered_feature"
+V2_DIR = MLP_DIR / "training"
 for search_path in (PROJECT_ROOT, MLP_DIR, V2_DIR):
     search_path_str = str(search_path)
     if search_path_str not in sys.path:

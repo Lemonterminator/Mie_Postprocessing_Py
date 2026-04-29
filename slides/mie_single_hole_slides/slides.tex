@@ -1,0 +1,545 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+% ── Theme ────────────────────────────────────────────────────────────────────
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+% ── Packages ─────────────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{grffile}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{amsmath}
+
+% Unicode characters used in the notes text; keep pdflatex-friendly.
+\DeclareUnicodeCharacter{2013}{--}
+\DeclareUnicodeCharacter{2014}{---}
+\DeclareUnicodeCharacter{2011}{-}
+\DeclareUnicodeCharacter{2192}{\ensuremath{\to}}
+\DeclareUnicodeCharacter{2190}{\ensuremath{\leftarrow}}
+\DeclareUnicodeCharacter{00B0}{\ensuremath{^\circ}}
+\DeclareUnicodeCharacter{2264}{\ensuremath{\le}}
+\DeclareUnicodeCharacter{00B1}{\ensuremath{\pm}}
+\DeclareUnicodeCharacter{2212}{-}
+
+\graphicspath{{figs/}}
+
+% ── Colours ──────────────────────────────────────────────────────────────────
+\definecolor{myblue}{RGB}{31,73,125}
+\definecolor{mygray}{RGB}{130,130,130}
+\definecolor{mygreen}{RGB}{0,128,64}
+
+% ── Placeholder (used when figs not yet generated) ───────────────────────────
+\newcommand{\ph}[2][0.82\linewidth]{%
+  \begin{center}
+    \fcolorbox{mygray}{white}{%
+      \begin{minipage}[c][3.6cm][c]{#1}
+        \centering\color{mygray}\small\itshape [Figure: #2]
+      \end{minipage}%
+    }
+  \end{center}
+}
+
+% Include generated notebook figures when available; otherwise keep slides buildable.
+\newcommand{\slidefig}[3][\linewidth]{%
+  \IfFileExists{figs/#2}{%
+    \includegraphics[width=#1]{#2}%
+  }{%
+    \ph[#1]{#3}%
+  }%
+}
+
+% ── Listing style ─────────────────────────────────────────────────────────────
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{myblue}\bfseries,
+  commentstyle=\color{mygray},
+  breaklines=true,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  framerule=0.4pt,
+}
+
+% ── TikZ box styles ───────────────────────────────────────────────────────────
+\tikzset{
+  pbox/.style={draw=myblue,  rounded corners=3pt, fill=myblue!8,
+               text width=2.4cm, align=center, font=\scriptsize,
+               minimum height=0.70cm, inner sep=3pt},
+  gbox/.style={draw=mygreen, rounded corners=3pt, fill=mygreen!8,
+               text width=2.4cm, align=center, font=\scriptsize,
+               minimum height=0.70cm, inner sep=3pt},
+  arr/.style={-{Stealth[length=4pt]}, thick, myblue},
+  garr/.style={-{Stealth[length=4pt]}, thick, mygreen},
+}
+
+% ── Meta ─────────────────────────────────────────────────────────────────────
+\title{Single-Hole Mie Scattering Pipeline}
+\subtitle{Complete Workflow: \texttt{mie\_single\_hole.py}}
+\author{}
+\date{}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ── Outline ──────────────────────────────────────────────────────────────────
+\begin{frame}{Pipeline Overview}
+  \begin{columns}
+    \column{0.38\linewidth}
+      \textbf{Steps}
+      \begin{enumerate}\setlength\itemsep{3pt}
+        \item \textbf{Inputs} — \texttt{.cine} + \texttt{config.json}
+        \item \textbf{Rotation \& Crop} — nozzle at $x{=}0$
+        \item \textbf{Bilateral Filter + Background} subtract
+        \item \textbf{Nozzle Timing} — hydraulic delay, closing
+        \item \textbf{TD Map} — gain correction, \texttt{penetration\_TD}
+        \item \textbf{Cone Angle} — angular intensity density
+        \item \textbf{Full Solver} — binarize, blob select, BW metrics
+        \item \textbf{Outputs} — CSV, NPZ/AVI, boundary CSV
+      \end{enumerate}
+
+    \column{0.60\linewidth}
+      \centering
+      \scalebox{0.72}{%
+      \begin{tikzpicture}[node distance=0.30cm and 0.55cm]
+        % Row 1 (left → right)
+        \node[pbox] (in)   {\texttt{.cine}\\+\,\texttt{config.json}};
+        \node[pbox, right=of in]  (nrm)  {Normalize\\12-bit→[0,1]};
+        \node[pbox, right=of nrm] (rot)  {Rotate\\+ Crop};
+        \node[pbox, right=of rot] (bil)  {Bilateral\\Filter};
+        \node[pbox, right=of bil] (bkg)  {Background\\Subtract};
+
+        % Row 2 (right → left, below bkg)
+        \node[pbox, below=0.55cm of bkg] (nn)  {Near-nozzle\\Intensity};
+        \node[pbox, left=of nn]  (td)   {TD Map\\+ Gain};
+        \node[pbox, left=of td]  (pTD)  {\texttt{penetration}\\[-2pt]\texttt{\_TD}};
+        \node[pbox, left=of pTD] (AD)   {Angular\\Density};
+
+        % Row 3 (left → right, below AD)
+        \node[gbox, below=0.55cm of AD]  (bz)   {Triangle\\Binarize};
+        \node[gbox, right=of bz]  (blb)  {3-D Blob\\Select};
+        \node[gbox, right=of blb] (ref)  {2-D Refine\\+ Hole Fill};
+        \node[gbox, right=of ref] (bwm)  {Area, Pen,\\Vol, $\angle$\,BW};
+
+        % Outputs
+        \node[pbox, below=0.50cm of td, xshift=0.5cm] (csv) {Save\\CSV / NPZ};
+
+        % Row-1 arrows
+        \draw[arr] (in) -- (nrm);
+        \draw[arr] (nrm) -- (rot);
+        \draw[arr] (rot) -- (bil);
+        \draw[arr] (bil) -- (bkg);
+        % Turn down
+        \draw[arr] (bkg) -- (nn);
+        % Row-2 arrows
+        \draw[arr] (nn) -- (td);
+        \draw[arr] (td) -- (pTD);
+        \draw[arr] (pTD) -- (AD);
+        % Turn down
+        \draw[garr] (AD) -- (bz);
+        % Row-3 arrows
+        \draw[garr] (bz) -- (blb);
+        \draw[garr] (blb) -- (ref);
+        \draw[garr] (ref) -- (bwm);
+        % To outputs
+        \draw[arr] (AD.south) |- (csv.west);
+        \draw[arr] (bwm.south) |- (csv.east);
+      \end{tikzpicture}}
+  \end{columns}
+\end{frame}
+
+% ── Step 0: Inputs ────────────────────────────────────────────────────────────
+\begin{frame}{Step 0 — Inputs \& Normalisation}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Required files}
+      \begin{itemize}
+        \item \texttt{*.cine} — 12-bit high-speed camera recording
+        \item \texttt{config.json} — calibration from \texttt{GUI.py}
+      \end{itemize}
+
+      \medskip
+      \textbf{config.json fields}
+      \begin{center}\small
+      \begin{tabular}{ll}
+        \toprule
+        Field & Purpose \\
+        \midrule
+        \texttt{centre\_x}, \texttt{centre\_y} & Nozzle orifice (px) \\
+        \texttt{offset}                         & Rotation angle (deg) \\
+        \texttt{inner\_radius}                  & Near-nozzle exclusion (px) \\
+        \texttt{outer\_radius}                  & Strip width = quartz edge (px) \\
+        \texttt{plumes}                         & Number of spray plumes \\
+        \bottomrule
+      \end{tabular}
+      \end{center}
+
+      \medskip
+      \textbf{Normalisation}\\
+      12-bit sensor values divided by $2^{12} = 4096$ to produce float32 in $[0,\,1]$.
+
+    \column{0.47\linewidth}
+      \textbf{Key pipeline parameters}
+      \begin{itemize}\setlength\itemsep{3pt}
+        \item \texttt{blank\_frames = 10} — frames averaged as background reference
+        \item \texttt{umbrella\_angle = 180°} — spray axis perpendicular to camera; values $<180°$ apply a $1/\cos(\theta)$ $x$-scale correction to all penetration measurements
+        \item \texttt{video\_strip\_relative\_height = 1/3} — strip height as fraction of outer radius
+        \item \texttt{solver = "full"} — enables binary video metrics (area, volume, BW penetration, BW cone angles)
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+% ── Step 1: Rotation + Crop ───────────────────────────────────────────────────
+\begin{frame}{Step 1 — Rotation \& Crop}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Goal}\\
+      Bring the nozzle orifice to $x = 0$ in a rectangular strip so the $x$-axis directly maps to spray penetration distance.
+
+      \medskip
+      \textbf{Implementation}
+      \begin{itemize}
+        \item GPU path: \texttt{rotate\_video\_nozzle\_at\_0\_half\_cupy} (CuPy affine warp)
+        \item CPU fallback: \texttt{\_rotate\_align\_video\_cpu} (SciPy \texttt{map\_coordinates})
+        \item Output strip shape per frame:\\
+          $H_\text{strip} = \lfloor \tfrac{1}{3} \cdot r_\text{outer} \rfloor$,\quad $W = r_\text{outer}$
+      \end{itemize}
+
+      \medskip
+      \textbf{Coordinate convention after rotation}
+      \begin{itemize}
+        \item Column $x = 0$: nozzle orifice exit
+        \item Column $x = W{-}1$: quartz window edge
+        \item Row $y = H/2$: spray centreline
+      \end{itemize}
+
+    \column{0.47\linewidth}
+      \slidefig{rotation_strip.png}{rotation strip}
+  \end{columns}
+\end{frame}
+
+% ── Step 2: Filter + Bkg Sub ─────────────────────────────────────────────────
+\begin{frame}{Step 2 — Bilateral Filter \& Background Subtraction}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Bilateral filtering}\quad(\texttt{wsize}=7, $\sigma_d$=3, $\sigma_r$=3)
+      \begin{itemize}
+        \item Edge-preserving denoising: smooths flat regions while keeping the spray boundary sharp.
+        \item GPU: \texttt{bilateral\_filter\_video\_cupy}\\
+              CPU: \texttt{bilateral\_filter\_video\_cpu}
+      \end{itemize}
+
+      \medskip
+      \textbf{Background estimation \& subtraction}
+      \begin{enumerate}
+        \item Temporal mean of the first \texttt{blank\_frames} \emph{filtered} frames $\to$ background.
+        \item Replace zero / NaN pixels in the background with $\varepsilon = 10^{-9}$.
+        \item \textbf{Foreground} $=$ filtered video $-$ background.
+      \end{enumerate}
+
+      \medskip
+      Typical foreground range: $[-0.05,\;{+}0.5]$ (normalised brightness).\\
+      Negative values occur where the spray is dimmer than the background (e.g.\ near-nozzle reflection artefacts).
+
+    \column{0.47\linewidth}
+      \slidefig{bkg_subtraction.png}{background subtraction}
+  \end{columns}
+\end{frame}
+
+% ── Step 3: Nozzle Timing ────────────────────────────────────────────────────
+\begin{frame}{Step 3 — Nozzle Timing: Hydraulic Delay \& Nozzle Closing}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Near-nozzle patch extraction}
+      \begin{itemize}
+        \item Region: $y \in \bigl[\tfrac{H}{2} \pm \tfrac{H}{40}\bigr]$, $x \in \bigl[0,\,\tfrac{W}{20}\bigr]$
+        \item Sum of pixel intensities per frame $\to$ 1-D signal.
+        \item Robust scaling to $[0,1]$ using the 15\textsuperscript{th}–90\textsuperscript{th} percentile clamp.
+      \end{itemize}
+
+      \medskip
+      \textbf{Hysteresis threshold detection}\\
+      \texttt{detect\_single\_high\_interval(y, th\_lo=0.1, th\_hi=0.5)}
+      \begin{itemize}
+        \item Signal must cross $\theta_\text{hi}$ upward to confirm injection start.
+        \item Falls below $\theta_\text{lo}$ to mark injection end.
+        \item Result: \textbf{Hydraulic Delay} (HD) = first active frame; \textbf{Nozzle Closing} (NC) = last active frame.
+        \item Falls back to \texttt{NaN} if no valid interval detected.
+      \end{itemize}
+
+      \medskip
+      Both HD and NC are saved as \emph{constant columns} (same value every row) in the metrics CSV.
+
+    \column{0.47\linewidth}
+      \slidefig{nozzle_timing.png}{nozzle timing signal}
+  \end{columns}
+\end{frame}
+
+% ── Step 4a: TD Map ───────────────────────────────────────────────────────────
+\begin{frame}{Step 4a — Time-Distance Intensity Map}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Construction}
+      \[
+        \mathrm{TD}[x,\,f]
+        = \frac{1}{H} \sum_{y=0}^{H-1} \mathrm{foreground}[f,\,y,\,x]
+      \]
+      Collapsing the height axis gives a $(W \times F)$ map: rows are pixel distances from the nozzle, columns are frames.
+
+      \medskip
+      \textbf{What you see}
+      \begin{itemize}
+        \item Bright diagonal front — growing spray tip moving to larger $x$.
+        \item After nozzle closing — intensity decays as spray evaporates/retracts.
+        \item Vertical bright band near $x=0$ — sustained near-nozzle spray presence.
+      \end{itemize}
+
+      \medskip
+      \textbf{Why not use the raw video directly?}\\
+      The 2-D collapse dramatically reduces data volume and naturally weights penetration by the number of lit pixels across the spray width — more robust to single-pixel noise than a threshold.
+
+    \column{0.47\linewidth}
+      \slidefig{td_map.png}{time-distance map}
+  \end{columns}
+\end{frame}
+
+% ── Step 4b: Gain Compensation ───────────────────────────────────────────────
+\begin{frame}{Step 4b — Gain Compensation}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Problem}\\
+      After the peak brightness frame the spray intensity drops (tip exits the window, or spray evaporates). Triangle binarisation on the TD map then fails to detect the spray tip — penetration appears to stop prematurely.
+
+      \medskip
+      \textbf{Gain compensation (on TD map only)}
+      \begin{enumerate}
+        \item Find \texttt{brightness\_peak} = $\arg\max_f \overline{\mathrm{TD}}[\cdot, f]$.
+        \item Ratio $r_f = \overline{I}_f / \overline{I}_\text{peak}$.
+        \item Gain curve: $g_f = 1 / (r_f + \varepsilon)$; clamped to $1$ for $f < f_\text{peak}$.
+        \item Multiply TD columns $f \geq f_\text{peak}$ by $g_f$.
+      \end{enumerate}
+
+      \medskip
+      The gain is applied to the TD map only — the raw foreground sent to the cone angle and full solver is unchanged.
+
+    \column{0.47\linewidth}
+      \slidefig{gain_compensation.png}{gain compensation}
+  \end{columns}
+\end{frame}
+
+% ── Step 4c: Penetration from TD ─────────────────────────────────────────────
+\begin{frame}{Step 4c — Penetration Extracted from TD Map}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Binarisation pipeline}
+      \begin{enumerate}
+        \item Min-max scale the gain-corrected TD map to $[0,1]$.
+        \item Triangle threshold (\texttt{triangle\_binarize\_gpu}).
+        \item Keep the largest 2-D connected component\\
+              (\texttt{keep\_largest\_component\_cuda}, connectivity 2).
+      \end{enumerate}
+
+      \medskip
+      \textbf{Penetration extraction}
+      \begin{itemize}
+        \item Read the rightmost non-zero row per frame column:\\
+          \texttt{penetration\_TD[f] = W $-$ argmax(bw[::-1, f])}
+        \item Find the longest contiguous valid run $\to$ zero before injection, \texttt{NaN} after spray disappears.
+      \end{itemize}
+
+      \medskip
+      \textbf{Saved as} \texttt{Penetration\_from\_TD} (pixels, frame-indexed).
+
+    \column{0.47\linewidth}
+      \slidefig{penetration_td.png}{penetration from TD map}
+  \end{columns}
+\end{frame}
+
+% ── Step 5: Cone Angle ────────────────────────────────────────────────────────
+\begin{frame}{Step 5 — Cone Angle via Angular Intensity Density}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{Concept}\\
+      Rather than binarising, the foreground intensity is integrated in polar angle bins centred at the nozzle. The angular density signal peaks where the spray boundary is.
+
+      \medskip
+      \textbf{Implementation} (\texttt{angle\_signal\_density\_auto})
+      \begin{enumerate}
+        \item Build a 360° / 0.1° = 3600-bin angular histogram of foreground intensity per frame, with the nozzle at the origin.
+        \item Split into upper ($y < H/2$) and lower ($y \geq H/2$) half-images.
+        \item \texttt{compute\_cone\_angle\_from\_angular\_density}: find peak angles in each half $\to$ $\alpha_\text{up}$, $\alpha_\text{lo}$.
+        \item Total cone angle $= \alpha_\text{up} + \alpha_\text{lo}$.
+      \end{enumerate}
+
+      \medskip
+      Robust when spray boundary is diffuse — no binarisation threshold required.
+
+    \column{0.47\linewidth}
+      \slidefig{cone_angle.png}{cone angle from angular density}
+  \end{columns}
+\end{frame}
+
+% ── Step 6: Full Solver Binarization ─────────────────────────────────────────
+\begin{frame}{Step 6 — Full Solver: Binarisation \& Blob Selection}
+  \begin{columns}
+    \column{0.50\linewidth}
+      \textbf{3-D binarisation}
+      \begin{enumerate}
+        \item Min-max scale foreground; Triangle threshold $\to$ \texttt{bw\_video\_0} (all blobs).
+        \item \texttt{regionprops\_3d}: label all 3-D components (18-neighbourhood); compute volume and centroid.
+        \item Filter: retain blobs whose centroid $y$-distance from centreline is $\leq 50$\,px.
+        \item Select the largest surviving blob by volume $\to$ \texttt{largest\_blob}.
+      \end{enumerate}
+
+      \medskip
+      \textbf{Per-frame 2-D refinement}
+      \begin{itemize}
+        \item OpenCV \texttt{connectedComponentsWithStats} on each frame.
+        \item Keep the component that is both large \emph{and} closest to $y = H/2$.
+        \item Handles cases where the 3-D blob contains off-axis fragments in individual frames.
+      \end{itemize}
+
+      \medskip
+      \textbf{Hole fill:} \texttt{\_binary\_fill\_holes\_gpu} (2-D, per frame) $\to$ final \texttt{bw\_video}.
+
+    \column{0.47\linewidth}
+      \slidefig{bw_stages.png}{binary-video solver stages}
+  \end{columns}
+\end{frame}
+
+% ── Step 7: BW Metrics ────────────────────────────────────────────────────────
+\begin{frame}{Step 7 — Full Solver: Binary Spray Metrics}
+  \begin{columns}
+    \column{0.52\linewidth}
+      \textbf{Area \& penetration}
+      \begin{itemize}
+        \item \textbf{Area} — total white pixels per frame.
+        \item \textbf{Penetration\_from\_BW} — rightmost column with $>5$ white pixels.
+        \item \textbf{Penetration\_from\_BW\_Polar} — max Euclidean distance from nozzle origin to any boundary point.
+      \end{itemize}
+
+      \medskip
+      \textbf{Volume proxy} (solid of revolution)
+      \[
+        V_f = \tfrac{\pi x_\text{scale}}{4}
+              \sum_{x=0}^{W-1} \bigl(w_\text{up}(x) + w_\text{lo}(x)\bigr)^2
+      \]
+      where $w_\text{up/lo}(x)$ = white pixel count in upper/lower half at column $x$.\\
+      Upper and lower bounds (using $\max$ / $\min$ of half-widths) also stored.
+
+      \medskip
+      \textbf{Cone angles from boundary points}
+      \begin{itemize}
+        \item \emph{Average}: mean $\arctan(y/x)$ over boundary points in an $x$-band near the penetration tip.
+        \item \emph{Linear regression}: origin-fixed least-squares slope $\to$ angle; upper and lower half-angles stored separately.
+      \end{itemize}
+
+    \column{0.45\linewidth}
+      \slidefig{penetration_comparison.png}{penetration comparison}
+      \smallskip
+      \centering{\scriptsize Three penetration estimates on the same recording.}
+  \end{columns}
+\end{frame}
+
+% ── Step 8: Outputs ───────────────────────────────────────────────────────────
+\begin{frame}{Step 8 — Outputs}
+  \begin{columns}
+    \column{0.52\linewidth}
+      \textbf{Metrics CSV}\quad\texttt{\{stem\}\_metrics.csv}\\
+      One row per frame:
+      \begin{center}\scriptsize
+      \begin{tabular}{l}
+        \toprule
+        \texttt{Penetration\_from\_TD} \\
+        \texttt{Cone\_Angle\_Angular\_Density} (+Upper/Lower) \\
+        \texttt{Hydraulic Delay},\quad\texttt{Nozzle Closing} \\
+        \texttt{Penetration\_from\_BW} \\
+        \texttt{Penetration\_from\_BW\_Polar} \\
+        \texttt{Area} \\
+        \texttt{Estimated\_Volume} (+Upper/Lower Limit) \\
+        \texttt{Cone\_Angle\_Average} (+Upper/Lower) \\
+        \texttt{Cone\_Angle\_Linear\_Regression} (+Upper/Lower) \\
+        \bottomrule
+      \end{tabular}
+      \end{center}
+
+      \medskip
+      \textbf{Boundary CSV}\quad\texttt{\{stem\}\_boundary\_points.csv}\\
+      Per-point table: frame, side, $y$, $x$ — same format as \texttt{manual\_segment.py}.
+
+    \column{0.45\linewidth}
+      \textbf{Video strip} (\texttt{save\_video\_strip=True})
+      \begin{itemize}
+        \item \texttt{*\_foreground.npz} — float32 array
+        \item \texttt{*\_foreground.avi} — 8-bit AVI
+        \item Saved asynchronously via \texttt{AsyncNPZSaver} + \texttt{AsyncAVISaver} so I/O does not block metrics computation.
+      \end{itemize}
+
+      \medskip
+      \textbf{Metrics plot} (\texttt{save\_path\_plot} provided)\\
+      All numeric columns plotted vs.\ frame index — one subplot per metric. See next slide.
+
+      \medskip
+      \textbf{Asynchronous shutdown}\\
+      \texttt{avi\_saver.wait()}, \texttt{npz\_saver.wait()} called at the end to ensure files are fully flushed before the function returns.
+  \end{columns}
+\end{frame}
+
+% ── All metrics ───────────────────────────────────────────────────────────────
+\begin{frame}{All Per-Frame Metrics}
+  \begin{center}
+    \slidefig[0.92\linewidth]{metrics_overview.png}{all per-frame metrics}
+  \end{center}
+\end{frame}
+
+% ── Summary ───────────────────────────────────────────────────────────────────
+\begin{frame}{Summary}
+  \begin{columns}
+    \column{0.48\linewidth}
+      \textbf{Three independent penetration estimates}
+      \begin{itemize}
+        \item \texttt{Penetration\_from\_TD} — from the height-collapsed intensity map; most robust, works even without perfect binarisation.
+        \item \texttt{Penetration\_from\_BW} — furthest occupied column in the binary video.
+        \item \texttt{Penetration\_from\_BW\_Polar} — max radial distance from the nozzle to any spray boundary point.
+      \end{itemize}
+
+      \medskip
+      \textbf{Two independent cone angle methods}
+      \begin{itemize}
+        \item \texttt{Cone\_Angle\_Angular\_Density} — no threshold, integrates intensity.
+        \item \texttt{Cone\_Angle\_Average} / \texttt{Linear\_Regression} — from the binary boundary; stable in well-lit frames.
+      \end{itemize}
+
+    \column{0.48\linewidth}
+      \textbf{GPU acceleration (CuPy, if available)}
+      \begin{itemize}
+        \item Rotation, bilateral filter, binarisation, blob keep, hole fill
+        \item Automatic fallback to NumPy/SciPy — no code change required
+      \end{itemize}
+
+      \medskip
+      \textbf{Asynchronous I/O}
+      \begin{itemize}
+        \item \texttt{AsyncNPZSaver}, \texttt{AsyncAVISaver} write to disk in background threads
+        \item \texttt{ThreadPoolExecutor} for boundary CSV
+      \end{itemize}
+
+      \medskip
+      \textbf{Compatibility}\\
+      CSV column names are identical to \texttt{manual\_segment.py} — the two pipelines produce directly comparable outputs.
+  \end{columns}
+\end{frame}
+
+\end{document}

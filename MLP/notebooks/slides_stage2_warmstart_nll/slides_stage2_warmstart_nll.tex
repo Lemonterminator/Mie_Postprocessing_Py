@@ -1,0 +1,254 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+
+\title{Stage-2 Warm-Started Median Penetration NLL}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Audience and Goal}
+\textbf{Audience:} Mechanical engineers + IT engineers with basic DL experience.
+
+\vspace{0.5em}
+\textbf{Goal of this talk:}
+\begin{itemize}
+  \item Explain what \texttt{median\_penetration\_NLL.ipynb} adds after Stage-1.
+  \item Show how Stage-1 weights are warm-started for heteroscedastic NLL training.
+  \item Summarize the Stage-2 data pipeline, loss, training loop, and saved artifacts.
+  \item Connect the Stage-2 run outputs to later inference notebooks.
+\end{itemize}
+\end{frame}
+
+\section{Part 1: Notebook Role}
+
+\begin{frame}{1.1 Position in the Curriculum}
+\textbf{Stage-1 already learned:}
+\begin{itemize}
+  \item stable mean penetration trend from fitted penetration curves
+  \item a compatible two-head network output: $\mu$ and $\log \sigma^2$
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Stage-2 objective in this notebook:}
+\begin{itemize}
+  \item keep the same MLP interface
+  \item warm-start from \texttt{runs\_mlp/stage1\_median\_penetration\_20260306\_172838}
+  \item replace Stage-1 MSE-centered training by Gaussian NLL
+  \item learn condition-dependent uncertainty instead of only a mean trajectory
+\end{itemize}
+\end{frame}
+
+\begin{frame}{1.2 Data Source and Filtering Scope}
+\textbf{Input source:}
+\begin{itemize}
+  \item fitted CSV files under \texttt{MLP/synthetic\_data/*/clean}
+  \item each row stores four log-parameters of the fitted spray model
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Curve reconstruction model:}
+\[
+S(t) = (1-w(t))\,k_{\sqrt{}}\,\sqrt{t} + w(t)\,k_{1/4}\,t^{1/4},
+\quad
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right)
+\]
+
+\vspace{0.3em}
+\textbf{Current notebook filtering logic:}
+\begin{itemize}
+  \item compare all candidate curves at \SI{5}{ms}
+  \item reject penetration outliers with robust z-score threshold $|z|>3$
+  \item reject nearly flat curves with $|dS/dt| < 10^{-6}$ at compare time
+  \item keep all remaining rows for Stage-2 learning, not only one median row
+\end{itemize}
+\end{frame}
+
+\begin{frame}{1.3 Resulting Stage-2 Table}
+\textbf{Observed notebook output:}
+\begin{itemize}
+  \item selected penetration time-series: \textbf{\num{21177}}
+  \item row-level feature table shape: \textbf{(\num{21177}, 60)}
+  \item train/val/test split: \textbf{\num{14825} / \num{3176} / \num{3176}}
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Why this matters:}
+\begin{itemize}
+  \item Stage-1 used representative supervision to stabilize the mean.
+  \item Stage-2 now exposes the model to a broader trajectory distribution.
+  \item The uncertainty head can finally see condition-dependent spread.
+\end{itemize}
+\end{frame}
+
+\section{Part 2: Feature and Dataset Design}
+
+\begin{frame}{2.1 Physically Consistent Scaling}
+\textbf{Nine input features are used:}
+\begin{itemize}
+  \item \texttt{time\_norm\_0\_5ms}
+  \item \texttt{tilt\_angle\_radian\_z}, \texttt{plumes\_z}, \texttt{diameter\_mm\_z}, \texttt{injection\_duration\_us\_z}
+  \item \texttt{log\_injection\_pressure\_bar\_z}, \texttt{log\_chamber\_pressure\_bar\_z}
+  \item \texttt{log\_delta\_pressure\_bar\_z}, \texttt{control\_backpressure\_bar\_z}
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Scaling policy:}
+\begin{itemize}
+  \item time: fixed min-max over \SIrange{0}{5}{ms}
+  \item pressures: transformed in log domain before z-score
+  \item geometry and condition terms: z-score fitted on train split only
+  \item missing defaults: $P_{\text{inj}}=\SI{2000}{bar}$, backpressure $=\SI{4}{bar}$
+\end{itemize}
+\end{frame}
+
+\begin{frame}{2.2 Row-to-Point Expansion for MLP Training}
+Each filtered row is decoded to a dense time grid before entering the MLP:
+\[
+\text{one operating condition row}
+\Rightarrow
+\{(x_t, y_t)\}_{t=1}^{1024}
+\]
+
+\vspace{0.3em}
+\textbf{Implementation choices in the notebook:}
+\begin{itemize}
+  \item fixed time grid: \num{1024} points in \SIrange{0}{5}{ms}
+  \item static physical features are repeated across all time points
+  \item DataLoader flattens batch tensor from $[B,T,F]$ to $[B\cdot T,F]$
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Observed first-batch sanity check:}
+\begin{itemize}
+  \item feature batch shape: \textbf{(\num{262144}, 9)}
+  \item target batch shape: \textbf{(\num{262144}, 1)}
+  \item all interface checks passed: no NaN/Inf, time in $[0,1]$, feature dim $=9$
+\end{itemize}
+\end{frame}
+
+\section{Part 3: Warm Start and Loss}
+
+\begin{frame}{3.1 Warm-Started Network}
+\textbf{Loaded Stage-1 model:}
+\begin{itemize}
+  \item input dim = 9,\quad output dim = 2
+  \item hidden dims = [512, 512, 128]
+  \item LayerNorm + GELU + Dropout(0.8)
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Why warm-start instead of retraining from scratch:}
+\begin{itemize}
+  \item Stage-1 already learned a reasonable penetration mean field.
+  \item Stage-2 mainly needs to refine $\mu$ and calibrate $\log \sigma^2$.
+  \item This reduces instability when switching from MSE-style training to NLL.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{3.2 Stage-2 Objective}
+\[
+\mathcal{L}_{\mathrm{stage2}} =
+\underbrace{\frac{1}{2}
+\left(
+\log \sigma^2 + \frac{(y-\mu)^2}{\sigma^2}
+\right)}_{\text{heteroscedastic Gaussian NLL}}
+ + \lambda_{d1}\,\phi(d\mu/dt<0)
+ + \lambda_{d2}\,\phi(d^2\mu/dt^2>0)
+\]
+
+\vspace{0.3em}
+\textbf{Notebook details:}
+\begin{itemize}
+  \item predicted \texttt{log\_var} is clamped to [-10, 6]
+  \item $d1$ penalty enforces non-decreasing penetration
+  \item $d2$ penalty is softly activated after \SI{0.5}{ms}
+  \item current Stage-2 weights: $\lambda_{d1}=5\times 10^{-5}$,\ $\lambda_{d2}=5\times 10^{-5}$
+\end{itemize}
+\end{frame}
+
+\begin{frame}{3.3 Why NLL Is the Right Upgrade}
+\textbf{If the model predicts too little variance:}
+\[
+\frac{(y-\mu)^2}{\sigma^2}
+\]
+becomes very large whenever the trajectory spread is high.
+
+\vspace{0.4em}
+\textbf{If the model predicts too much variance:}
+\[
+\log \sigma^2
+\]
+penalizes that over-cautious choice.
+
+\vspace{0.4em}
+\textbf{Engineering interpretation:}
+\begin{itemize}
+  \item stable operating conditions should lead to low predicted variance
+  \item noisy operating conditions should lead to larger predicted variance
+  \item the uncertainty output becomes a meaningful regression target, not just a placeholder head
+\end{itemize}
+\end{frame}
+
+\section{Part 4: Training Run and Outputs}
+
+\begin{frame}{4.1 Training Loop and Saved Artifacts}
+\textbf{Optimizer and schedule inherited from config:}
+\begin{itemize}
+  \item AdamW,\quad LR $=4\times 10^{-3}$,\quad weight decay $=2\times 10^{-4}$
+  \item gradient clipping = 1.0
+  \item early stopping patience = 50,\quad min-delta = $10^{-5}$
+  \item up to 750 epochs
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Artifacts written by the notebook:}
+\begin{itemize}
+  \item \texttt{iteration\_loss.csv}
+  \item \texttt{epoch\_loss.csv}
+  \item \texttt{loss\_curves.png}
+  \item model checkpoint + \texttt{scaler\_state.json} + \texttt{train\_config\_used.json}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{4.2 Example Run Summary}
+\textbf{Observed run directory:}
+\begin{itemize}
+  \item \texttt{runs\_mlp/stage2\_NLL\_penetration\_20260317\_194155}
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Epoch-loss summary from \texttt{epoch\_loss.csv}:}
+\begin{itemize}
+  \item best validation loss $\approx$ \textbf{2.449} at epoch \textbf{570}
+  \item training continued to epoch \textbf{620}
+  \item final train loss remained above val loss, consistent with strong regularization
+\end{itemize}
+
+\vspace{0.3em}
+\textbf{Practical reasons for train loss $>$ val loss:}
+\begin{itemize}
+  \item Dropout(0.8) only perturbs training forward passes
+  \item derivative penalties are active in training objective
+  \item train split may contain harder conditions than validation
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Takeaway}
+\begin{itemize}
+  \item \texttt{median\_penetration\_NLL.ipynb} upgrades Stage-1 mean learning into Stage-2 uncertainty-aware training.
+  \item The notebook keeps the same 9-feature interface and 2-head MLP, but warm-starts from the Stage-1 checkpoint.
+  \item NLL plus mild shape penalties is the main mechanism for learning heteroscedastic penetration behavior.
+  \item The saved Stage-2 artifacts directly support later notebooks such as \texttt{toy\_inference\_from\_run.ipynb}.
+\end{itemize}
+\end{frame}
+
+\end{document}
