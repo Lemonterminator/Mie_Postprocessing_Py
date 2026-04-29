@@ -14,7 +14,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-for search_path in (PROJECT_ROOT, PROJECT_ROOT / "MLP", PROJECT_ROOT / "MLP" / "v2_engineered_feature"):
+for search_path in (PROJECT_ROOT, PROJECT_ROOT / "MLP", PROJECT_ROOT / "MLP" / "training"):
     search_path_str = str(search_path)
     if search_path_str not in sys.path:
         sys.path.insert(0, search_path_str)

@@ -52,7 +52,7 @@ outputs/
 MLP/synthetic_data/
 MLP/synthetic_data_old/
 MLP/synthetic_data.zip
-MLP/inference_testing/
+MLP/eval/
 MLP/media/
 Results/manual_segment_sam3_video/
 Processed_Results/

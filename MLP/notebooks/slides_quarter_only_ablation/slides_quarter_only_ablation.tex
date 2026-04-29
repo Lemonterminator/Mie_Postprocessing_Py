@@ -1,0 +1,219 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{graphicx}
+
+\title{Quarter-Root-Only Ablation\\of the Two-Regime Penetration Model}
+\subtitle{Why dropping $k_{\sqrt{}}\sqrt{t}$ improves the fit}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Talk Outline}
+\begin{itemize}
+  \item \textbf{Background:} the original two-regime model and what it stores.
+  \item \textbf{Motivation:} the $\sqrt{t}$ branch contributes essentially nothing
+        in successful fits.
+  \item \textbf{Ablation:} replace by a single quarter-root branch with sigmoid onset.
+  \item \textbf{Results:} success rate $+28.6\%$ absolute; flagged-set median RMSE
+        drops from $8.12\,$mm to $1.08\,$mm.
+\end{itemize}
+\end{frame}
+
+\section{Background}
+
+\begin{frame}{Original Two-Regime Model}
+Each plume penetration $S(t)$ is fitted by
+\[
+S(t) = (1-w(t))\,k_{\sqrt{}}\,\sqrt{t} + w(t)\,k_{1/4}\,t^{1/4},
+\quad
+w(t)=\sigma\!\left(\frac{t-t_0}{s}\right)
+\]
+
+\vspace{0.5em}
+Physical interpretation:
+\begin{itemize}
+  \item \textbf{Early phase} ($t<t_0$): momentum-driven free jet $\Rightarrow \sqrt{t}$
+        (Naber--Siebers).
+  \item \textbf{Late phase} ($t>t_0$): impingement / deceleration $\Rightarrow t^{1/4}$.
+  \item Sigmoid $w(t)$ blends the two regimes around transition time $t_0$.
+\end{itemize}
+
+\vspace{0.5em}
+Stored constants per curve (log-space):
+$\log k_{\sqrt{}},\ \log k_{1/4},\ \log t_0,\ \log s$ \quad (4 parameters).
+\end{frame}
+
+\section{Motivation}
+
+\begin{frame}{Empirical Observation: $\sqrt{t}$ branch is negligible}
+\begin{center}
+\includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]%
+{figures/ksqrt_ratio_distribution.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{Reading the Distributions}
+\textbf{Left panel:} amplitude ratio at the transition time $t_0$
+\[
+r \;=\; \frac{k_{\sqrt{}}\,\sqrt{t_0}}{k_{1/4}\,t_0^{1/4}}
+\]
+\begin{itemize}
+  \item Median $r \approx 2.9\times 10^{-9}$.
+  \item \textbf{100\% of accepted fits} have $r<0.5$.
+  \item Bulk of mass sits 8--10 decades \emph{below} the quarter branch.
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Right panel:} actual amplitudes at $t_0$
+\begin{itemize}
+  \item Quarter branch median: $k_{1/4}\,t_0^{1/4} \approx 69\,$mm.
+  \item Sqrt branch median: $\approx 2\times 10^{-7}\,$mm (numerically zero).
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Implication.} The solver consistently drives $k_{\sqrt{}}$ to a degenerate
+small value: the early $\sqrt{t}$ regime is not actually present in the
+truncated, impingement-dominated penetration data we collect.
+\end{frame}
+
+\begin{frame}{Why this Matters for Failed Fits}
+The 4-parameter model has too many degrees of freedom relative to what the
+data constrains:
+\begin{itemize}
+  \item On clean (well-behaved) traces, the solver still converges, but with
+        $k_{\sqrt{}}$ effectively dead.
+  \item On flagged / hard traces, $k_{\sqrt{}}$ becomes a destructive degree of
+        freedom: it inflates during fitting and \textbf{dominates the
+        extrapolation} to $5\,$ms used by the masking pipeline.
+  \item Result: many physically reasonable curves are killed by the
+        \texttt{penetration\_far} check, even when the observed window is
+        well-fitted.
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Hypothesis:} a 3-parameter quarter-only model with sigmoid onset will
+match the same window quality on clean data, while extrapolating safely on
+flagged data.
+\end{frame}
+
+\section{Ablation}
+
+\begin{frame}{Quarter-Only Ablation Model (\texttt{q1})}
+Replace the blend by a single regime gated by a sigmoid onset:
+\[
+S_{q1}(t) \;=\; \sigma\!\left(\frac{t-t_0}{s}\right)\,k_{1/4}\,t^{1/4}
+\]
+Stored constants:
+$\log k_{1/4},\ \log t_0,\ \log s$ \quad (3 parameters).
+
+\vspace{0.5em}
+\textbf{Implementation.} Run alongside the original model in
+\texttt{fit\_raw\_data.py}:
+\begin{itemize}
+  \item \texttt{ABLATION\_QUARTER\_ONLY = True} fits both models per series.
+  \item Same Huber-loss \texttt{least\_squares} solver, fresh initial guess.
+  \item Equivalent masking pipeline applied to q1 (\texttt{flag\_bad\_fit\_q1}):
+        finite-param checks, $t_0,s$ bounds, far-time penetration in
+        $[18,\,300]\,$mm, and grouped robust-$z$ outlier detection.
+  \item Success criterion: $\lnot\,\text{flag\_bad\_fit} \;\wedge\;
+        \text{RMSE} < 3\,$mm \quad (symmetric across both models).
+\end{itemize}
+\end{frame}
+
+\section{Results}
+
+\begin{frame}{Aggregate Success Rate (266 folders, 23{,}495 series)}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+& Main (4-param) & q1 (3-param) \\
+\midrule
+Successful series           & 14{,}406  & 21{,}142 \\
+Success rate                & $61.3\%$  & $\mathbf{90.0\%}$ \\
+Absolute gain               & \multicolumn{2}{c}{$+28.6$ percentage points} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.7em}
+\textbf{Per-nozzle gains} (q1 minus main, percentage points):
+\begin{itemize}
+  \item DS300 (highly impinged):\quad $+37.6$
+  \item Nozzle 7:\quad $+28.7$
+  \item Nozzle 3 (after MIN\_SERIES\_POINTS filter):\quad $+22.4$
+  \item Nozzle 5:\quad $+19.6$
+  \item Nozzles 1, 2, 4, 6, 8:\quad $+10$ to $+14$
+\end{itemize}
+\textbf{No nozzle regressed.} The improvement is largest where impingement
+dominates --- consistent with the physical motivation.
+\end{frame}
+
+\begin{frame}{RMSE: Where the Real Win Lies}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Median RMSE                  & Main          & q1 \\
+\midrule
+Clean subset                 & $1.23\,$mm    & $1.27\,$mm \\
+Flagged subset               & $8.12\,$mm    & $\mathbf{1.08\,\text{mm}}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.7em}
+Two readings:
+\begin{itemize}
+  \item \textbf{On clean traces} the two models are statistically indistinguishable
+        --- removing $k_{\sqrt{}}$ costs nothing.
+  \item \textbf{On flagged traces} q1 reduces median residual by $\approx 7.5\times$.
+        The flagged set becomes \emph{usefully fitted} rather than degenerately
+        extrapolated.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Visual Diagnostic (typical flagged folder)}
+On flagged plots the two models are visually distinguishable:
+\begin{itemize}
+  \item \textbf{Main (dashed)} curves diverge to $100$--$130\,$mm by $2.5\,$ms,
+        driven by an inflated $\sqrt{t}$ tail outside the observation window.
+  \item \textbf{q1 (dotted)} curves track the data within the window and
+        plateau under $100\,$mm at long times --- the bounded $t^{1/4}$
+        behavior the masking pipeline expects.
+\end{itemize}
+This explains the asymmetry quantified above: same data, better extrapolation
+behavior, more series surviving the physical-plausibility gate.
+\end{frame}
+
+\section{Conclusion}
+
+\begin{frame}{Conclusion and Next Steps}
+\textbf{Take-aways}
+\begin{itemize}
+  \item The $k_{\sqrt{}}\sqrt{t}$ branch is empirically dead in our data
+        (median ratio $\sim 10^{-9}$, $100\%$ below 0.5).
+  \item Removing it removes a destructive degree of freedom on hard traces.
+  \item Net effect: $+28.6\,\text{pp}$ success rate, $\approx 7.5\times$ smaller
+        median residual on the flagged subset, and one fewer parameter to
+        store and to learn downstream.
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Open questions}
+\begin{itemize}
+  \item Should q1 become the default model for the MLP target, with the
+        4-param fit retained only as diagnostic baseline?
+  \item Re-derive Stage-1 / Stage-2 features from $(\log k_{1/4},\,\log t_0,\,
+        \log s)$ and check whether feature instability also drops.
+\end{itemize}
+\end{frame}
+
+\end{document}
