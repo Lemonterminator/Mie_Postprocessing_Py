@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import json
+import os
 import queue
 import sys
 import threading
@@ -28,13 +30,81 @@ from MLP.impingement_core import (  # noqa: E402
     serialize_wizard_state,
     validate_wizard_state,
 )
+from engineered_feature_common import infer_feature_family  # noqa: E402
+
+RUNS_ROOT = PROJECT_ROOT / "MLP" / "runs_mlp"
+IMPINGEMENT_RUN_DIR_ENV = "IMPINGEMENT_RUN_DIR"
+SUPPORTED_RUN_FAMILY = "engineered_v2"
+
+
+def _read_run_feature_family(run_dir: Path) -> str | None:
+    config_path = Path(run_dir) / "train_config_used.json"
+    if not config_path.exists():
+        return None
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    feature_columns = payload.get("feature_columns")
+    if not isinstance(feature_columns, list) or not all(isinstance(item, str) for item in feature_columns):
+        return None
+    return infer_feature_family(feature_columns)
+
+
+def _iter_run_dirs() -> list[Path]:
+    if not RUNS_ROOT.exists():
+        return []
+    return sorted(
+        (path for path in RUNS_ROOT.iterdir() if path.is_dir()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+
+def _resolve_default_run_dir() -> Path:
+    override = os.environ.get(IMPINGEMENT_RUN_DIR_ENV)
+    if override:
+        return Path(override).expanduser()
+
+    candidate_dirs = _iter_run_dirs()
+    for candidate in candidate_dirs:
+        if _read_run_feature_family(candidate) == SUPPORTED_RUN_FAMILY:
+            return candidate
+    if candidate_dirs:
+        return candidate_dirs[0]
+    return RUNS_ROOT
+
+
+def _run_dir_status(run_dir: Path) -> tuple[str, str]:
+    resolved = Path(run_dir).expanduser()
+    if not resolved.exists():
+        return (
+            f"RUN_DIR does not exist. Set {IMPINGEMENT_RUN_DIR_ENV} or browse to an engineered_v2 run directory.",
+            "#b91c1c",
+        )
+
+    feature_family = _read_run_feature_family(resolved)
+    if feature_family is None:
+        return (
+            "RUN_DIR is missing a readable train_config_used.json. Select a saved impingement model run directory.",
+            "#b45309",
+        )
+
+    if feature_family != SUPPORTED_RUN_FAMILY:
+        return (
+            f"Detected run family: {feature_family}. The impingement GUI requires an engineered_v2 run.",
+            "#b45309",
+        )
+
+    return ("Detected a compatible engineered_v2 run.", "#166534")
 
 # ── ALL DEFAULT PARAMETERS ───────────────────────────────────────────────────
 # Edit this top section to change the no-input/default GUI run. Values match
 # MLP/impingement_with_piston_prototype.ipynb.
 
 # ─── Model artifacts ─────────────────────────────────────────────────────────
-RUN_DIR = PROJECT_ROOT / "MLP" / "runs_mlp" / "distill_cdf_onset_v2_20260410_103413"
+RUN_DIR = _resolve_default_run_dir()
 
 # ─── Mesh fineness + canvas ──────────────────────────────────────────────────
 DEFAULT_SOLVER = {
@@ -152,6 +222,8 @@ class ImpingementWizardGUI:
         self.result_figure: plt.Figure | None = None
         self.worker_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.is_running = False
+        self.run_dir_status_var = tk.StringVar()
+        self.run_dir_status_label: ttk.Label | None = None
 
         self.style = ttk.Style()
         if "clam" in self.style.theme_names():
@@ -255,6 +327,9 @@ class ImpingementWizardGUI:
         run_entry = ttk.Entry(run_frame, textvariable=self.run_dir_var)
         run_entry.grid(row=0, column=1, sticky="ew")
         ttk.Button(run_frame, text="Browse", command=self._browse_run_dir).grid(row=0, column=2, padx=(8, 0))
+        self.run_dir_status_label = ttk.Label(run_frame, textvariable=self.run_dir_status_var, justify="left", wraplength=760)
+        self.run_dir_status_label.grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        self._refresh_run_dir_status()
 
         button_row = ttk.Frame(frame)
         button_row.grid(row=3, column=0, sticky="w", pady=(8, 0))
@@ -434,6 +509,14 @@ class ImpingementWizardGUI:
         if path:
             self.run_dir_var.set(path)
             self.state.run_dir = Path(path)
+            self._refresh_run_dir_status()
+
+    def _refresh_run_dir_status(self) -> None:
+        run_dir = Path(self.run_dir_var.get().strip()) if hasattr(self, "run_dir_var") else self.state.run_dir
+        status_text, color = _run_dir_status(run_dir)
+        self.run_dir_status_var.set(status_text)
+        if self.run_dir_status_label is not None:
+            self.run_dir_status_label.configure(foreground=color)
 
     def _next(self) -> None:
         if not self._save_current_step():
@@ -449,6 +532,7 @@ class ImpingementWizardGUI:
         try:
             if self.current_step == 0 and hasattr(self, "run_dir_var"):
                 self.state.run_dir = Path(self.run_dir_var.get().strip())
+                self._refresh_run_dir_status()
             elif self.current_step == 1:
                 self.state.selected_design = self.design_var.get()
             elif self.current_step == 2:

@@ -211,8 +211,7 @@ def build_summary_figure(result: ImpingementRunResult) -> plt.Figure:
 
 def validate_wizard_state(state: WizardState) -> None:
     run_dir = Path(state.run_dir).expanduser()
-    if not run_dir.exists():
-        raise FileNotFoundError(f"RUN_DIR does not exist: {run_dir}")
+    validate_impingement_run_dir(run_dir)
 
     grid_size = float(state.solver["grid_size"])
     right_padding = float(state.solver["right_padding"])
@@ -303,6 +302,50 @@ def validate_wizard_state(state: WizardState) -> None:
     if piston_bottom_max > canvas_h_mm:
         raise ValueError(
             "Piston motion exceeds canvas_h_mm. Increase canvas_h_mm or reduce stroke_half/offset_baseline."
+        )
+
+
+def validate_impingement_run_dir(run_dir: Path) -> None:
+    resolved = Path(run_dir).expanduser()
+    if not resolved.exists():
+        raise FileNotFoundError(f"RUN_DIR does not exist: {resolved}")
+    if not resolved.is_dir():
+        raise NotADirectoryError(f"RUN_DIR must point to a directory: {resolved}")
+
+    config_path = resolved / "train_config_used.json"
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"RUN_DIR is missing train_config_used.json: {config_path}. "
+            "Select a saved engineered_v2 run directory."
+        )
+
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Could not parse train_config_used.json under {resolved}: {exc}") from exc
+
+    feature_columns = payload.get("feature_columns")
+    if not isinstance(feature_columns, list) or not all(isinstance(item, str) for item in feature_columns):
+        raise ValueError(
+            f"RUN_DIR {resolved} has an invalid feature_columns payload in train_config_used.json."
+        )
+
+    feature_family = infer_feature_family(feature_columns)
+    if feature_family != "engineered_v2":
+        raise ValueError(
+            f"RUN_DIR {resolved} is a {feature_family!r} run. "
+            "The impingement GUI requires an engineered_v2 run."
+        )
+
+    model_candidates = (
+        "best_model_refinement.pt",
+        "best_model_stage2.pt",
+        "best_model_stage1.pt",
+    )
+    if not any((resolved / name).exists() for name in model_candidates):
+        formatted = ", ".join(model_candidates)
+        raise FileNotFoundError(
+            f"RUN_DIR {resolved} is missing model weights. Expected one of: {formatted}."
         )
 
 
