@@ -6,7 +6,16 @@
       "Bash(printf 'Hornik1989UAT\\\\tArticle\\\\ttrue\\\\tHornik, Kurt and Stinchcombe, Maxwell and White, Halbert\\\\t1989\\\\tMultilayer Feedforward Networks Are Universal Approximators\\\\tNeural Networks\\\\t\\\\t2\\\\t5\\\\t359--366\\\\t10.1016/0893-6080\\(89\\)90020-8\\\\t\\\\t\\\\t\\\\t\\\\thttps://doi.org/10.1016/0893-6080\\(89\\)90020-8\\\\tdownloaded\\\\t\\\\t\\\\tthesis.tex\\\\t\\\\tThe model is treated as a surrogate function approximator \\\\\\\\cite{Hornik1989UAT}\\\\t\\\\tSupports the use of MLPs as universal function approximators, providing the theoretical basis for the surrogate regression approach.\\\\t支持将多层前馈网络作为通用函数逼近器的理论依据，为代理模型回归方法提供理论基础。\\\\tDOI verified.\\\\n')",
       "Bash(lualatex --interaction=nonstopmode thesis.tex)",
       "Bash(lualatex --interaction=nonstopmode thesis_zh.tex)",
-      "Bash(python MLP/curve_fit/summarize_dataset.py)"
+      "Bash(python MLP/curve_fit/summarize_dataset.py)",
+      "Read(//c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data$campaign/cdf/**)",
+      "Read(//c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data$campaign/bw_x/**)",
+      "Read(//c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data$campaign/bw_polar/**)",
+      "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241007_HZ_Nozzle4/cdf/**)",
+      "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20220627 - Heinzman DS300 - Mie Top view/cdf/**)",
+      "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/clean/**)",
+      "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/bw_x/clean/**)",
+      "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/bw_polar/clean/**)",
+      "Read(//c/Users/Jiang/.claude/projects/c--Users-Jiang-Documents-Mie-Postprocessing-Py/ca0704da-262e-42d0-b490-afb6bb48503a/tool-results/**)"
     ]
   }
 }

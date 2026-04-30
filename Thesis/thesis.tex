@@ -239,6 +239,22 @@ about Mie-based geometric observables, short-pulse penetration behaviour,
 multihole plume registration, right-censored targets, uncertainty-aware surrogate modelling, and probabilistic impingement screening. 
 The purpose is to bridge prior knowledge to engineering design choices explicitly before the workflow itself is described.
 
+\subsection{Introduction to Methodological Terminology for Interdisciplinary Readers}\label{sec:methods-terminology}
+
+The implementation of this thesis spans four technical domains: computer vision, numerical optimization, GPU parallel computing, and deep learning. These four tools are sequentially integrated in this work: image processing extracts penetration observables from videos; robust optimization compresses noisy trajectories into stable fitting targets; GPU parallelism allows large-batch processing to be completed within a reasonable timeframe; and neural networks learn conditional predictive distributions from these targets. For readers whose primary background is in fluid mechanics and mechanical design, this section first provides an intuitive explanation of the minimum necessary concepts in each domain, so that the technical choices in subsequent sections can be understood as engineering decisions rather than inscrutable black boxes.
+
+\textbf{Computer Vision and Signal Processing.}
+Computers store images as numerical matrices: each pixel corresponds to an element in the matrix, with its value representing the brightness at that point. Processing an image essentially means applying mathematical operations to this matrix. \emph{Convolution} is the most fundamental operation: a small template (convolution kernel) slides over the image pixel by pixel, performing a weighted sum at each step. Its effect depends on the shape of the kernel, allowing it to smooth the image, extract edges, or enhance textures. The Sobel operator is a convolution kernel that calculates local brightness gradients (rates of change); it responds most strongly to abrupt contrast changes such as liquid phase boundaries, making it a standard tool for locating boundaries in spray images. \emph{Polar coordinate transformation} converts an image from Cartesian coordinates (pixel rows and columns) into a coordinate system with angle and radial distance as axes. Performing this transformation around the nozzle center can fold the directional structure of a multi-hole spray into a 1D angular signal, greatly simplifying subsequent registration. The \emph{Fast Fourier Transform} (FFT) decomposes a signal into sinusoidal components of different frequencies, directly exposing periodic structures as frequency-domain peaks; this thesis uses it to automatically identify the rotational periodicity of multi-hole sprays, thereby estimating the angular offset of each hole.
+
+\textbf{Robust Optimization and Curve Fitting.}
+The geometric meaning of least squares fitting is to find a curve that minimizes the sum of squared distances from all observation points to that curve. When the data contains a small number of outliers (e.g., frames corrupted by optical noise), the squared penalty allows these points to disproportionately affect the result. The Huber loss is a compromise: it retains the smoothness of the squared penalty when the residual is small, but switches to an absolute value penalty when the residual exceeds a threshold, thereby suppressing the leverage of outliers---this is completely analogous to the engineering intuition of discarding anomalous readings in measurement practice. The \emph{gradient descent} algorithm used for neural network training calculates the partial derivative of the loss with respect to each parameter at the current parameter values, and then fine-tunes the parameters along the direction of steepest descent, repeating until the loss no longer decreases significantly---conceptually equivalent to iteratively "walking downhill" in a high-dimensional parameter space.
+
+\textbf{GPU Parallel Computing.}
+CPUs typically have a few highly optimized cores that excel at processing complex, sequential logical tasks. GPUs have thousands of simpler cores, making them ideal for simultaneously applying the same arithmetic operations to a large number of data elements. Image processing perfectly fits this pattern: convolving each pixel, accumulating in each angular bin, thresholding each frame---these operations are completely independent across pixels or frames, and the GPU can distribute them truly in parallel to thousands of cores for simultaneous execution. CUDA is a parallel computing platform provided by NVIDIA; CuPy is a Python library compatible with the NumPy interface, allowing the image processing chain in this thesis to switch to a GPU backend with minimal code changes. The engineering significance of GPU acceleration is transforming the batch processing of a terabyte-scale video archive from "taking several days" to "completing within a few hours and supporting iterative refinement", enabling the entire research workflow to be genuinely cyclical.
+
+\textbf{Neural Networks and Deep Learning.}
+The Multilayer Perceptron (MLP) is the type of neural network used in this thesis: several layers of linear transformations and non-linear activation functions are cascaded to form a non-linear function with tunable parameters, taking operating condition features and time as inputs, and outputting penetration predictions. The parameters are obtained through training---repeatedly calculating the prediction error on a large number of samples and iteratively updating the weights using gradient descent until the overall error converges. Mean Squared Error (MSE) is the simplest training objective, corresponding to predicting conditional mean regression. Heteroscedastic Gaussian Negative Log-Likelihood (NLL) is an extension of it: the network simultaneously outputs a conditional mean and a conditional variance, which is equivalent to providing an error bar width that varies with conditions for each operating point, rather than using the same fixed error band for all conditions. Knowledge distillation is a teacher-student training framework: first, a "teacher" network that performs well on clean data is trained, and then a "student" network is trained, allowing the student to imitate the teacher's outputs in regions where data is sparse or incomplete, rather than forcibly fitting missing labels---analogous to an experienced engineer providing a judgment baseline for a junior engineer when samples are insufficient.
+
 \subsection{Mie diagnostics and penetration-oriented observables}
 
 Mie scattering is the workhorse for visualising dense liquid sprays 
@@ -442,9 +458,7 @@ hence less sensitive to outliers without sacrificing smooth optimisation \cite{H
 \end{equation}
 so the fitted parameters solve
 \(\hat{\theta} = \arg\min_{\theta} \sum_{i} \rho_{\delta}(y_i - S(t_i;\theta))\).
-That is exactly the role of the curve fit step in the workflow, %\texttt{fit\_raw\_data.py},
-which aligns penetration time-series to SOI individually,
-then uses a robust nonlinear fit to convert noisy plume traces into compact parameters for the later learning stages.
+That is exactly the role of \textbf{the data cleaning and fitting routine} in the workflow, which aligns penetration time-series to SOI individually, then uses a robust nonlinear fit to convert noisy plume traces into compact parameters for the later learning stages.
 
 Read together, these theories make the design choice in this thesis defensible rather than arbitrary: 
 before any downstream modelling, raw video should be moved into a coordinate system and signal representation 
@@ -595,7 +609,7 @@ In the baseline configuration, the network feeds on physically scaled inputs and
 
 The uncertainty-aware extension is motivated by something simpler than statistical taste: 
 not all operating points and extracted trajectories deserve the same confidence. 
-Heteroscedastic Gaussian negative log likelihood is the standard way to let a network predict both a mean and an input-dependent variance 
+Heteroscedastic Gaussian negative log likelihood is the standard way to let a network predict both a mean and an input-dependent variance (i.e., providing an error bar width that varies with conditions for each operating point; see Section~\ref{sec:methods-terminology}) 
 \cite{KendallGal2017}. 
 In regression terms, this corresponds to the conditional model
 \[
@@ -615,7 +629,7 @@ its value is realised together with the distillation and simplified screening st
 
 The Gaussian assumption is not chosen only on grounds of physical realism 
 --- it also pays for itself in the distillation stage. 
-When both teacher and student outputs are represented as univariate Gaussians, the Kullback--Leibler divergence between them 
+When both teacher and student outputs are represented as univariate Gaussians, the Kullback--Leibler divergence between them (measuring the information lost when using the student distribution to approximate the teacher distribution; a value of zero indicates the two distributions are identical) 
 collapses to a closed analytical form:
 \[
 D_{\mathrm{KL}}\!\left(\mathcal{N}(\mu_1,\sigma_1^2)\,\|\,\mathcal{N}(\mu_2,\sigma_2^2)\right)
@@ -811,14 +825,14 @@ Each operating-condition subfolder typically contains five repetition recordings
 and each recording is truncated to 80 frames to limit memory use during GPU processing.
 In total, the processed archive spans 266 test-condition subfolders and 2,992 recording files
 (one CSV per \texttt{.cine}), corresponding to a raw video archive of several tens of gigabytes.
-An up-to-date breakdown is regenerated automatically by \texttt{MLP/summarize\_dataset.py}
-at the end of every \texttt{fit\_raw\_data.py} run.
+An up-to-date breakdown is regenerated automatically by \textbf{the dataset summarization script}
+at the end of every the data cleaning and fitting routine run.
 
 \subsection{Manual calibration of nozzle geometry}
 
 The manual calibration workflow, implemented through the project GUI, consists of three user-facing stages. First, the operator opens a representative frame in the main annotation interface, adjusts the display settings, and prepares the nozzle-centered view that will be used for the batch anchor. Second, the dedicated calibration dialog is launched, where the user clicks nozzle-rim points on the selected frame. Third, the fitted center and radius are returned to the main interface, where the recovered geometry can be inspected together with the plume guides and ring overlay before the configuration is saved for later batch processing.
 
-The point-selection dialog enforces at least three clicks and computes the circle through \texttt{calc\_circle} once the required number of points has been entered. The fitted circle provides the nozzle center, calibration radius, and angular offset for the full recording.
+The point-selection dialog enforces at least three clicks and computes the circle through \textbf{the algebraic circle fitting function} once the required number of points has been entered. The fitted circle provides the nozzle center, calibration radius, and angular offset for the full recording.
 
 \begin{figure}[t]
 \centering
@@ -858,7 +872,7 @@ This implementation choice was motivated by the practical limits of the earlier 
 
 \subsubsection{Calibration hand-off and batch anchoring}
 
-The batch stage starts from the calibration produced in Section~3.2. In \texttt{calc\_circle}, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
+The batch stage starts from the calibration produced in Section~3.2. In the algebraic circle fitting function, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
 \[
 x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \]
@@ -866,11 +880,11 @@ solved in least-squares form by \texttt{np.linalg.lstsq}. The recovered paramete
 \[
 c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
 \]
-and the same routine also estimates an average angular offset from the clicked rim points relative to an ideal equally spaced set. The GUI writes these values to \texttt{config.json}, after which the batch pipeline can process a full folder without manual re-centering. This one-time calibration is deliberately user-facing rather than fully automatic: the operator can zoom, choose a representative frame, and anchor the full batch with a physically meaningful nozzle centre \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
+and the same routine also estimates an average angular offset from the clicked rim points relative to an ideal equally spaced set. The GUI writes these values to \textbf{the calibration configuration file}, after which the batch pipeline can process a full folder without manual re-centering. This one-time calibration is deliberately user-facing rather than fully automatic: the operator can zoom, choose a representative frame, and anchor the full batch with a physically meaningful nozzle centre \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
 
 \subsubsection{Bulk and robust preprocessing}
 
-The first algorithmic contribution inside the batch pipeline is a foreground construction stage designed for noisy Mie videos rather than for idealized binary images. In \texttt{refined\_log\_subtraction}, the raw frame \(V_t(x,y)\) is mapped to
+The first algorithmic contribution inside the batch pipeline is a foreground construction stage designed for noisy Mie videos rather than for idealized binary images. In \textbf{the foreground extraction filter}, the raw frame \(V_t(x,y)\) is mapped to
 \[
 L_t(x,y)=\log(V_t(x,y)+\varepsilon),
 \qquad
@@ -900,7 +914,7 @@ The need for this robust preprocessing can already be seen at the visualization 
 \centering
 \includegraphics[width=\linewidth]{../images/GUI_gain_7.png}
 \end{minipage}
-\caption{Same spray frame shown in \texttt{GUI.py} at gain values 1.0 and 7.0, with the remaining display parameters unchanged. The higher-gain view makes the bright halo around the spray much more apparent, illustrating how multiple scattering, glare, and diffuse background contamination can distort raw intensity-based interpretation.}
+\caption{Same spray frame shown in \textbf{the interactive calibration interface} at gain values 1.0 and 7.0, with the remaining display parameters unchanged. The higher-gain view makes the bright halo around the spray much more apparent, illustrating how multiple scattering, glare, and diffuse background contamination can distort raw intensity-based interpretation.}
 \label{fig:gui-gain-halo}
 \end{figure}
 
@@ -913,17 +927,17 @@ The need for this robust preprocessing can already be seen at the visualization 
 
 \subsubsection{Ultra-efficient Sobel high-pass on the CUDA backend}
 
-The second contribution is the explicit edge-enhancing high-pass stage applied directly to the full video cube. In \texttt{arr\_3d\_sobel\_magnitude\_cupy}, Sobel kernels \(K_x\) and \(K_y\) are generated once and applied with \texttt{convolution\_2D\_cupy}:
+The second contribution is the explicit edge-enhancing high-pass stage applied directly to the full video cube. In \textbf{the GPU-accelerated Sobel filter}, Sobel kernels \(K_x\) and \(K_y\) are generated once and applied with \textbf{the 2D convolution routine}:
 \[
 S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2},
 \]
 where \(K_x\) and \(K_y\) are the horizontal and vertical Sobel convolution kernels, \(*\) denotes the 2-D convolution operator, \(F_t\) is the preprocessed foreground image, and \(S_t\) is the resulting gradient magnitude.
 
-A subtler efficiency comes from the rank-1 structure of the Sobel kernel itself. In \texttt{build\_2d\_kernel}, each directional kernel is assembled as an explicit outer product,
+A subtler efficiency comes from the rank-1 structure of the Sobel kernel itself. In \textbf{the kernel construction function}, each directional kernel is assembled as an explicit outer product,
 \[
 K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf{g},
 \]
-where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative. An outer-product matrix has algebraic rank exactly one. The function \texttt{\_separable\_factors\_cupy} tests for this automatically: it computes a truncated SVD of the kernel matrix, \(K \approx \sigma_1 \mathbf{u}_1 \mathbf{v}_1^{\top}\), and if the second singular value is negligible the 2-D convolution is replaced by two sequential 1-D passes along the spatial axes. For a \(k \times k\) kernel this reduces the per-pixel multiply-add cost from \(O(k^2)\) to \(O(2k)\). Because the Sobel kernel is rank-1 by construction, the separable path is taken unconditionally at runtime, and both \(K_x\) and \(K_y\) are applied as a pair of 1-D convolutions across the full video cube.
+where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative. An outer-product matrix has algebraic rank exactly one. The function \textbf{the rank-1 separability test} tests for this automatically: it computes a truncated SVD of the kernel matrix, \(K \approx \sigma_1 \mathbf{u}_1 \mathbf{v}_1^{\top}\), and if the second singular value is negligible the 2-D convolution is replaced by two sequential 1-D passes along the spatial axes. For a \(k \times k\) kernel this reduces the per-pixel multiply-add cost from \(O(k^2)\) to \(O(2k)\). Because the Sobel kernel is rank-1 by construction, the separable path is taken unconditionally at runtime, and both \(K_x\) and \(K_y\) are applied as a pair of 1-D convolutions across the full video cube.
 
 The output is then robust-scaled again and masked by the ring geometry. In implementation terms this matters because it converts a low-contrast grayscale plume into an edge-dominant representation while keeping the whole operation on the CuPy backend. The contribution is not the Sobel operator itself, which is classical, but its integration into a bulk video workflow that avoids repeated host-device copies and prepares every plume for the same downstream geometric treatment \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
 
@@ -936,7 +950,7 @@ The output is then robust-scaled again and masked by the ring geometry. In imple
 
 \subsubsection{Angular density as polar resampling}
 
-After preprocessing, the pipeline does not search for plume directions by contour tracing in Cartesian coordinates. Instead, \texttt{angle\_signal\_density\_auto} performs a polar re-parameterization around the calibrated nozzle center. For every pixel,
+After preprocessing, the pipeline does not search for plume directions by contour tracing in Cartesian coordinates. Instead, \textbf{the polar re-parameterization routine} performs a polar re-parameterization around the calibrated nozzle center. For every pixel,
 \[
 \theta(x,y)=\operatorname{atan2}(y-c_y,\;x-c_x)\bmod 360^\circ,
 \]
@@ -945,7 +959,7 @@ and the per-frame angular signal for bin \(k\) is accumulated as
 A_t(k)=\sum_{(x,y)\in \mathcal{B}_k} I_t(x,y), \qquad
 D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 \]
-where \(\mathcal{B}_k\) is the set of pixels whose angle falls into bin \(k\), \(I_t(x,y)\) is the processed foreground intensity, \(A_t(k)\) is the accumulated angular signal, \(D_t(k)\) is the mean angular density, and \(\#\mathcal{B}_k\) is the number of pixels in the bin. In the CuPy implementation, the binning and weighted sums are performed directly on GPU arrays by \texttt{cp.digitize} and \texttt{cp.bincount}. Conceptually, this is a radial collapse of the 2D image into a 1D angular occupancy signal, which is a much more stable object for multihole alignment than raw edge fragments in the original frame \cite{Szeliski2010Vision}.
+where \(\mathcal{B}_k\) is the set of pixels whose angle falls into bin \(k\), \(I_t(x,y)\) is the processed foreground intensity, \(A_t(k)\) is the accumulated angular signal, \(D_t(k)\) is the mean angular density, and \(\#\mathcal{B}_k\) is the number of pixels in the bin. In the CuPy implementation, the binning and weighted sums are performed directly on GPU arrays by \textbf{the GPU binning operation} and \textbf{the GPU weighted sum operation}. Conceptually, this is a radial collapse of the 2D image into a 1D angular occupancy signal, which is a much more stable object for multihole alignment than raw edge fragments in the original frame \cite{Szeliski2010Vision}.
 
 \subsubsection{FFT-based self-adaptive rotation alignment}
 
@@ -953,13 +967,13 @@ The plume guide angles are then estimated from the periodicity of the angular si
 \[
 \bar{A}(k)=\sum_t A_t(k)
 \]
-be the time-summed angular profile, and let \(P\) be the known number of plumes. The function \texttt{estimate\_offset\_from\_fft} computes the real FFT of \(\bar{A}\), reads the phase of the plume harmonic \(P\), and converts it to an angular offset
+be the time-summed angular profile, and let \(P\) be the known number of plumes. The function \textbf{the FFT-based phase alignment function} computes the real FFT of \(\bar{A}\), reads the phase of the plume harmonic \(P\), and converts it to an angular offset
 \[
 \hat{\phi}_0
 =
 -\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
 \]
-This is what makes the alignment self-adaptive: the code uses the observed harmonic phase of the current dataset instead of assuming a manually typed reference angle for every recording. \codepath{mie_multi_hole.py} then constructs plume directions
+This is what makes the alignment self-adaptive: the code uses the observed harmonic phase of the current dataset instead of assuming a manually typed reference angle for every recording. \textbf{the multi-hole geometric construction script} then constructs plume directions
 \[
 \phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
 \]
@@ -983,7 +997,7 @@ The same occupied-angle mask also suggests a simple cone-angle proxy. Treat the 
 
 \subsubsection{Inverse affine mapping and plume-strip extraction}
 
-Once the target angles are known, each plume is remapped into a common nozzle-left strip coordinate system. The forward affine transform built in \texttt{build\_rotation\_affine} is
+Once the target angles are known, each plume is remapped into a common nozzle-left strip coordinate system. The forward affine transform built in \textbf{the forward affine transform builder} is
 \[
 \begin{bmatrix}
 u\\v
@@ -1018,22 +1032,22 @@ u\\v
 -\mathbf{b}
 \right),
 \]
-implemented in \texttt{build\_affine\_inverse\_maps\_cupy}. For each plume, the map arrays \texttt{mapx} and \texttt{mapy} are precomputed once, and \texttt{remap\_video\_cupy} samples the full video with nearest, bilinear, bicubic, or Lanczos kernels. Importantly, these maps are not spray-intensity images: the pixel value in \texttt{mapx} encodes the source-image \(x\) coordinate sampled for that output pixel, and the pixel value in \texttt{mapy} encodes the corresponding source-image \(y\) coordinate. The multihole pipeline uses a fixed strip size \texttt{OUT\_SHAPE = (outer\_radius/2, outer\_radius)} and applies a triangular plume mask after remapping. This inverse-map formulation is computationally efficient and numerically clean, because every downstream plume metric is measured in the same local coordinate system \cite{Szeliski2010Vision}.
+implemented in \textbf{the inverse affine map generator}. For each plume, the map arrays, \textbf{the X/Y-coordinate inverse spatial maps}, are precomputed once, and \textbf{the GPU video remapping routine} samples the full video with nearest, bilinear, bicubic, or Lanczos kernels. Importantly, these maps are not spray-intensity images: the pixel value in the X-coordinate inverse spatial map encodes the source-image \(x\) coordinate sampled for that output pixel, and the pixel value in the Y-coordinate inverse spatial map encodes the corresponding source-image \(y\) coordinate. The multihole pipeline uses a fixed strip size \textbf{the standardized strip dimensions} and applies a triangular plume mask after remapping. This inverse-map formulation is computationally efficient and numerically clean, because every downstream plume metric is measured in the same local coordinate system \cite{Szeliski2010Vision}.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\linewidth]{../images/fig_efficient_rotation.png}
-\caption{Visualisation of the inverse affine remapping stage. Top-left and top-right: \texttt{mapx} and \texttt{mapy}, whose pixel intensities encode the source-image \(x\) and \(y\) coordinates sampled for each output-strip pixel rather than spray brightness. Bottom-left: one rotated plume strip with the orifice-local origin marker at \((H/2,\mathrm{inner\_radius})\), axial penetration overlays plotted at \(\mathrm{inner\_radius}+\)metric, and the polar binary-penetration metric drawn as a radius-\(r\) arc centred at the orifice. Bottom-right: the triangular plume mask used after remapping.}
+\caption{Visualisation of the inverse affine remapping stage. Top-left and top-right: the X-coordinate inverse spatial map and the Y-coordinate inverse spatial map, whose pixel intensities encode the source-image \(x\) and \(y\) coordinates sampled for each output-strip pixel rather than spray brightness. Bottom-left: one rotated plume strip with the orifice-local origin marker at \((H/2,\mathrm{inner\_radius})\), axial penetration overlays plotted at \(\mathrm{inner\_radius}+\)metric, and the polar binary-penetration metric drawn as a radius-\(r\) arc centred at the orifice. Bottom-right: the triangular plume mask used after remapping.}
 \label{fig:efficient-rotation}
 \end{figure}
 
 \subsubsection{Robust CDF penetration from aligned plume strips}
 
-The penetration estimator is deliberately based on cumulative intensity support instead of on the single brightest pixel or the outermost isolated blob. For each plume strip \(I_p(t,y,x)\), \texttt{penetration\_cdf\_all\_plumes} first collapses the cross-stream direction,
+The penetration estimator is deliberately based on cumulative intensity support instead of on the single brightest pixel or the outermost isolated blob. For each plume strip \(I_p(t,y,x)\), \textbf{the plume-wise CDF penetration estimator} first collapses the cross-stream direction,
 \[
 H_p(t,x)=\sum_y I_p(t,y,x),
 \]
-subtracts a left-edge baseline from each frame, clips negative values, and generates a support mask by automatic thresholding, largest-component cleanup, and binary opening. Within that support, \texttt{penetration\_cdf\_front} forms the axial cumulative distribution
+subtracts a left-edge baseline from each frame, clips negative values, and generates a support mask by automatic thresholding, largest-component cleanup, and binary opening. Within that support, \textbf{the axial CDF front locator} forms the axial cumulative distribution
 \[
 C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi)+\varepsilon},
 \]
@@ -1041,11 +1055,11 @@ where \(\tilde{H}_p(t,\xi)\) is the baseline-subtracted and cleaned cross-stream
 \[
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
-with the quantile threshold \(q\) set close to one. The code then enforces monotonicity through a cumulative-maximum operation, subtracts the inner radius to express distance from the nozzle annulus, and discards traces that show non-physical backward jumps or only very short valid runs. This CDF front is one of the main practical contributions of the workflow: it is much less sensitive to broken leading-edge pixels than a naive max-index definition, while still producing a penetration quantity aligned with standard diesel-spray usage \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
+with the quantile threshold \(q\) set close to one. The code then enforces monotonicity through a cumulative-maximum operation, subtracts the inner radius to express distance from the nozzle annulus, and discards traces that show non-physical backward jumps or only very short valid runs. This CDF front is one of the main practical contributions of the workflow: it is much less sensitive to broken leading-edge pixels than a naive max-index definition, while still producing a penetration quantity aligned with standard diesel-spray usage \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}. The workflow simultaneously calculates and archives two other estimators: axial binary penetration (\textbf{the axial binary penetration metric}, taking the rightmost binary column exceeding the threshold) and polar penetration (\textbf{the polar binary penetration metric}, taking the maximum radial distance from all boundary points to the nozzle origin). All three estimators operate on the same set of rotation-aligned, Sobel-filtered images, quantifying different aspects of the same spray geometry: the CDF quantile frontier has the best tolerance to protruding noise tips, bw\_polar has the best cross-hole consistency under normal injection, and bw\_x is the most intuitive but most sensitive to isolated edge pixels. The final choice of the CDF quantile frontier as the surrogate training target is a pragmatic methodological choice based on its robustness to noise, rather than a claim that it is superior to the other two across all metrics.
 
 \subsubsection{Boundary metrics and geometric proxies}
 
-Binarized plume strips are also passed to \texttt{extract\_single\_plume\_features}, which computes several secondary observables. The projected area is
+Binarized plume strips are also passed to \textbf{the secondary feature extractor}, which computes several secondary observables. The projected area is
 \[
 A_p(t)=\sum_{x,y} B_p(t,y,x).
 \]
@@ -1083,7 +1097,7 @@ This chapter starts from the plume-resolved observables produced by the image-pr
 
 \subsection{Trajectory cleaning and reduced-order fitting}
 
-The learned models do not train directly on the raw exported traces. Instead, \texttt{fit\_raw\_data.py} first cleans and time-aligns them. For each plume, the script finds the earliest valid penetration segment, takes the first few positive samples after onset (currently two, controlled by \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION}), fits a straight line to those early nonzero points, and uses the \(x\)-axis intercept of that line as a subframe opening-delay estimate whenever the fitted slope is positive. If an area-based onset marker is available, that frame anchors the delay scan; otherwise the code falls back to the first positive penetration frame. The resulting raw delay is then clipped to a small median-centered window across plumes so that one anomalous plume does not over-shift the whole group.
+The learned models do not train directly on the raw exported traces. Instead, the data cleaning and fitting routine first cleans and time-aligns them. For each plume, the script finds the earliest valid penetration segment, takes the first few positive samples after onset (currently two, controlled by \textbf{the opening-delay regression point count parameter}), fits a straight line to those early nonzero points, and uses the \(x\)-axis intercept of that line as a subframe opening-delay estimate whenever the fitted slope is positive. If an area-based onset marker is available, that frame anchors the delay scan; otherwise the code falls back to the first positive penetration frame. The resulting raw delay is then clipped to a small median-centered window across plumes so that one anomalous plume does not over-shift the whole group.
 
 That delay estimate is used in two coupled ways. The penetration array itself is shifted left by the nearest integer number of frames, while the aligned time vector retains the fractional residual through the exact offset subtraction. In this way the implementation does not merely discard leading zeros; it performs a plume-onset registration that preserves subframe timing information before the later reduced-order fit. After alignment, the script removes sudden unrealistic jumps, converts pixels to corrected physical length, and flags low-quality fits through a set of rule-based masks.
 
@@ -1122,7 +1136,7 @@ to suppress the quarter-root branch before a learned transition time \(t_0\), an
 
 The engineering approach is therefore considered reasonable for the stated objective of this thesis, with one clear boundary. It is reasonable because the fit is used as a smooth compressor of noisy trajectories, not as a final mechanistic spray law; it keeps the curve differentiable for later learning; and it leaves the operating-condition dependence to the neural network instead of forcing every physical effect into the closed-form fit. The boundary is that this justification should be presented as a reduced-order surrogate motivated by empirical penetration theory, not as proof that the shifted-time physics have disappeared. That comparison is realised directly below as a quarter-root-only ablation.
 
-Local analysis supports this interpretation. The exploratory notebooks in \texttt{MLP/interpretatable\_test} explicitly describe the model as a Hiroyasu--Arai-inspired two-branch blend, while \texttt{fitted\_stats\_analysis.ipynb} and the clean-fit CSV tables show that \(k_{\mathrm{sqrt}}\) behaves more like an optional shape descriptor than a uniformly stable physical coefficient.
+Local analysis supports this interpretation. The exploratory notebooks in \texttt{MLP/interpretatable\_test} explicitly describe the model as a Hiroyasu--Arai-inspired two-branch blend, while \textbf{the fitted statistics analysis notebook} and the clean-fit CSV tables show that \(k_{\mathrm{sqrt}}\) behaves more like an optional shape descriptor than a uniformly stable physical coefficient.
 
 A direct quantitative check across the \(14{,}563\) accepted plume fits in the \texttt{clean/bw\_polar} archive confirms this conclusively. At the fitted transition time \(t_0\), the two branch amplitudes are \(k_{1/4}\cdot t_0^{1/4}\) (quarter-root) and \(k_{\mathrm{sqrt}}\cdot t_0^{1/2}\) (square-root); their ratio is
 \[
@@ -1133,7 +1147,7 @@ Across all accepted fits, the median ratio is \(r_{\mathrm{med}}=2.9\times10^{-9
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.96\linewidth]{images/ksqrt_ratio_distribution.png}
-\caption{Quantitative assessment of the square-root branch weight across \(14{,}563\) accepted plume fits (clean-fit archive, \texttt{bw\_polar} source). (a)~Log-scale distribution of the branch amplitude ratio \(r=k_{\mathrm{sqrt}}\cdot t_0^{1/4}/k_{1/4}\) at the fitted transition time; the red dashed line marks \(r=0.5\) (99.8\% of fits fall below). (b)~Quarter-root branch amplitude distribution; its median of \SI{69.2}{mm} is eight orders of magnitude larger than the corresponding square-root branch, confirming that virtually all accepted fits are quarter-root dominated.}
+\caption{Quantitative assessment of the square-root branch weight across \(14{,}563\) accepted plume fits (clean-fit archive, the polar binary penetration metric source). (a)~Log-scale distribution of the branch amplitude ratio \(r=k_{\mathrm{sqrt}}\cdot t_0^{1/4}/k_{1/4}\) at the fitted transition time; the red dashed line marks \(r=0.5\) (99.8\% of fits fall below). (b)~Quarter-root branch amplitude distribution; its median of \SI{69.2}{mm} is eight orders of magnitude larger than the corresponding square-root branch, confirming that virtually all accepted fits are quarter-root dominated.}
 \label{fig:ksqrt-ratio}
 \end{figure}
 
@@ -1149,7 +1163,7 @@ Across all \(23{,}495\) series in the nine-nozzle CDF campaign (after discarding
 
 The production outputs under \texttt{MLP/synthetic\_data} archive the fit results for all series that pass the minimum-length filter and the masking gates described above. The practical purpose of this fit is therefore not to claim a universal penetration law, but to compress noisy plume trajectories into smooth, differentiable, and trainable targets while still preserving the dataset's heteroscedastic variation for the later learning stages.
 
-The stricter post-fit masking stage is also an important part of the engineering contribution. In \texttt{apply\_filter\_masking}, the script first forms a far-time penetration proxy by evaluating the fitted curve at \(t_{\mathrm{far}}=\SI{5}{ms}\). The row is retained only if that far-time value remains inside a broad physically plausible window and if the fit parameters pass basic sanity checks on \(t_0\), \(s\), point count, and fit cost. The code then computes robust grouped outlier scores using the median absolute deviation,
+The stricter post-fit masking stage is also an important part of the engineering contribution. In \textbf{the robust outlier masking routine}, the script first forms a far-time penetration proxy by evaluating the fitted curve at \(t_{\mathrm{far}}=\SI{5}{ms}\). The row is retained only if that far-time value remains inside a broad physically plausible window and if the fit parameters pass basic sanity checks on \(t_0\), \(s\), point count, and fit cost. The code then computes robust grouped outlier scores using the median absolute deviation,
 \[
 z_{\mathrm{robust}}(x)=0.6745\,\frac{x-\operatorname{median}(x)}{\operatorname{MAD}(x)+\epsilon},
 \qquad
@@ -1161,11 +1175,11 @@ This stringent masking process, particularly the basic checks requiring a minimu
 
 Consequently, the filtering process introduces a strong location bias and a late-stage observation bias: the surviving ``clean'' dataset is heavily imbalanced, overwhelmingly favoring well-illuminated, unobstructed plumes that maintain strong contrast throughout the injection event. This means the Stage-1 deterministic baseline and the Stage-2 heteroscedastic negative log-likelihood models directly inherit this selection bias. They are trained almost exclusively on ``ideal'' plume developments and remain completely blind to genuine geometric asymmetries or late-stage evaporative fading that were aggressively filtered out.
 
-However, this subjective bias is a necessary trade-off. By aggressively killing ambiguous data, the pipeline guarantees that the Stage-2 model learns robust, purely fluid-dynamic penetration trends without having its gradients contaminated by optical vanishing effects, background reflections, or incorrect hydraulic delay alignments. This idealized Stage-2 model then serves as a pristine, censoring-free teacher. In the final Stage-3 distillation, the architecture recombines this clean prior with the raw, unfiltered data: it trusts the raw CDF observations during the early \texttt{raw\_reliable} regime where optical contrast is universally strong, but dynamically falls back to the bias-free Stage-2 teacher in the \texttt{teacher\_only} regime where raw signals vanish. Thus, the \texttt{fit\_raw\_data.py} pipeline acts as the crucial filter that immunizes the teacher model against right-censoring, allowing the final distilled student model to smoothly bridge early-time reality with late-time physical consistency.
+However, this subjective bias is a necessary trade-off. By aggressively killing ambiguous data, the pipeline guarantees that the Stage-2 model learns robust, purely fluid-dynamic penetration trends without having its gradients contaminated by optical vanishing effects, background reflections, or incorrect hydraulic delay alignments. This idealized Stage-2 model then serves as a pristine, censoring-free teacher. In the final Stage-3 distillation, the architecture recombines this clean prior with the raw, unfiltered data: it trusts the raw CDF observations during \textbf{the high-confidence raw regime}, where optical contrast is universally strong, but dynamically falls back to the bias-free Stage-2 teacher in \textbf{the teacher-only extrapolation regime}, where raw signals vanish. Thus, the data-cleaning and fitting pipeline acts as the crucial filter that immunizes the teacher model against right-censoring, allowing the final distilled student model to smoothly bridge early-time reality with late-time physical consistency.
 
 \subsection{Sparse-feature instability in the direct-feature baseline}
 
-Before the revised engineered-feature architecture was finalised, an earlier nine-feature MLP was trained with direct pressure and diameter inputs. A systematic diagnostic documented in \codepath{MLP/v1\_direct\_feature\_training/slides\_sparse\_feature\_instability} revealed a structural pathology. Nozzle diameter has only six levels in the dataset and is not uniformly available across pressure combinations: all six diameter levels appear only on the family $(P_{\mathrm{inj}}=\SI{2000}{bar},\;P_{\mathrm{cb}}=4,\;P_{\mathrm{ch}}\in\{5,10,15\}\,\si{bar})$. Injection pressure has four levels. Because a smooth MLP treats these as continuous inputs, it can produce derivative structure along the diameter and pressure axes that the data simply do not constrain. Dense MLP sweeps over diameter showed five to six gradient sign changes with worst-secant-deviation ratios below one and curvature norms of order~$10^7$; injection pressure showed unsupported extrapolation on thinly supported slices. This pathology is a structural consequence of the sparse-feature geometry and persists across time. Adding regularisation would suppress instability at the cost of useful capacity everywhere; the underlying problem is that a smooth MLP is being asked to learn a physically meaningful continuous law from an effectively discrete sample grid. The revised architecture therefore addresses this at the source.
+Before the revised engineered-feature architecture was finalised, an earlier nine-feature MLP was trained with direct pressure and diameter inputs. A systematic diagnostic documented in \textbf{the early dense-feature diagnostic slide deck} revealed a structural pathology. Nozzle diameter has only six levels in the dataset and is not uniformly available across pressure combinations: all six diameter levels appear only on the family $(P_{\mathrm{inj}}=\SI{2000}{bar},\;P_{\mathrm{cb}}=4,\;P_{\mathrm{ch}}\in\{5,10,15\}\,\si{bar})$. Injection pressure has four levels. Because a smooth MLP treats these as continuous inputs, it can produce derivative structure along the diameter and pressure axes that the data simply do not constrain. Dense MLP sweeps over diameter showed five to six gradient sign changes with worst-secant-deviation ratios below one and curvature norms of order~$10^7$; injection pressure showed unsupported extrapolation on thinly supported slices. This pathology is a structural consequence of the sparse-feature geometry and persists across time. Adding regularisation would suppress instability at the cost of useful capacity everywhere; the underlying problem is that a smooth MLP is being asked to learn a physically meaningful continuous law from an effectively discrete sample grid. The revised architecture therefore addresses this at the source.
 
 \subsection{Engineered-feature design}
 
@@ -1177,17 +1191,17 @@ all dependence on injection pressure, chamber pressure, chamber density, and noz
 \[
 A\;=\;\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2},
 \]
-computed from the canonical feature table derived from the test-matrix JSON files. For Nozzle1--Nozzle8 the chamber density is taken directly from \texttt{chamber\_density\_kg\_per\_m3}; for Nozzle0, where only \texttt{chamber\_pressure\_bar} is recorded, $\rho_a$ is reconstructed from the linear law $\rho_a=\SI{5}{kg/m^3}\times P_{\mathrm{ch}}/\SI{4.42}{bar}$ calibrated against the Nozzle1--8 data.
+computed from the canonical feature table derived from the test-matrix JSON files. For Nozzle1--Nozzle8 the chamber density is taken directly from \textbf{the ambient gas density feature}; for Nozzle0, where only \textbf{the ambient chamber pressure feature} is recorded, $\rho_a$ is reconstructed from the linear law $\rho_a=\SI{5}{kg/m^3}\times P_{\mathrm{ch}}/\SI{4.42}{bar}$ calibrated against the Nozzle1--8 data.
 
-The four sparse columns are removed entirely, leaving two feature-vector variants. The five-feature \texttt{a\_only} variant
+The four sparse columns are removed entirely, leaving two feature-vector variants. The five-feature the scaling-only feature variant variant
 \[
 [\,t_{\mathrm{norm}},\;\theta_{\mathrm{tilt},z},\;n_{\mathrm{plumes},z},\;t_{i,z},\;P_{\mathrm{cb},z}\,]
 \]
-treats $A$ as a target divisor only. The six-feature \texttt{a\_plus\_log\_a} variant additionally contains $\log A_z$ as a one-dimensional residual axis. The training target is reparameterised to the non-dimensional penetration $\hat{S}(t)=S(t)/A$; the network predicts $\hat{\mu}$ and $\log\hat{\sigma}^2$, and physical predictions are recovered at inference as $\mu_S=A\,\hat{\mu}$ and $\sigma_S=A\,\hat{\sigma}$.
+treats $A$ as a target divisor only. The six-feature the scaling-and-residual feature variant variant additionally contains $\log A_z$ as a one-dimensional residual axis. The training target is reparameterised to the non-dimensional penetration $\hat{S}(t)=S(t)/A$; the network predicts $\hat{\mu}$ and $\log\hat{\sigma}^2$, and physical predictions are recovered at inference as $\mu_S=A\,\hat{\mu}$ and $\sigma_S=A\,\hat{\sigma}$.
 
-Before any optimisation, \texttt{run\_pretrain\_collapse\_check} tests the scaling assumption on the actual dataset: it divides each trajectory by its own $A$, reports the per-time-slice variance reduction, and computes a linear-regression $R^2$ of $\hat{S}(t)$ on the kept features. In the final study runs the check passed with a median post-\SI{0.5}{ms} variance reduction of~59.5\% (collapse ratio~0.405) and a sparse-feature $R^2$ dropping from~0.34 on $S$ to~0.14 on $\hat{S}$, confirming that $A$ accounts for the dominant diameter and pressure variation and that the network is learning only the residual structure on the dense, well-supported axes. If the check fails, training aborts by default, making the physical prior falsifiable rather than asserted.
+Before any optimisation, \textbf{the physical scaling validation routine} tests the scaling assumption on the actual dataset: it divides each trajectory by its own $A$, reports the per-time-slice variance reduction, and computes a linear-regression $R^2$ of $\hat{S}(t)$ on the kept features. In the final study runs the check passed with a median post-\SI{0.5}{ms} variance reduction of~59.5\% (collapse ratio~0.405) and a sparse-feature $R^2$ dropping from~0.34 on $S$ to~0.14 on $\hat{S}$, confirming that $A$ accounts for the dominant diameter and pressure variation and that the network is learning only the residual structure on the dense, well-supported axes. If the check fails, training aborts by default, making the physical prior falsifiable rather than asserted.
 
-The driver scripts \texttt{train\_stage1\_mse.py} and \texttt{train\_stage2\_nll.py} also introduce group-aware data splits: \texttt{assign\_splits\_by\_group} assigns whole \texttt{sample\_group\_id} groups to train, validation, and test, preventing leakage between curves that share an operating point. Stage~2 warm-starts strictly from a Stage-1 engineered run directory and reuses its scaler state, guaranteeing consistent variant choice and $A$-scaling across both stages.
+The driver scripts \textbf{the Stage-1 training script} and \textbf{the Stage-2 training script} also introduce group-aware data splits: \textbf{the group-aware dataset splitting routine} assigns whole \textbf{the operating condition group identifier} groups to train, validation, and test, preventing leakage between curves that share an operating point. Stage~2 warm-starts strictly from a Stage-1 engineered run directory and reuses its scaler state, guaranteeing consistent variant choice and $A$-scaling across both stages.
 
 \subsection{Stage-1 MSE baseline on the non-dimensional target}
 
@@ -1229,7 +1243,7 @@ The first term is the heteroscedastic NLL on the scaled target $\hat{S}$. The de
 
 The retained trajectories span the dominant operating range in the archive: control back-pressure from 1 to \SI{4}{bar}, injection pressure from 1,400 to \SI{2,200}{bar}, injection duration from 380 to \SI{1,200}{\micro\second}, and fitted far-time penetration from \SI{58.1}{mm} to \SI{202.6}{mm}. The Stage-2 model therefore does not only learn a single median curve; it sees the remaining within-condition plume and repeat variation after outlier removal. The heteroscedastic output is used to separate two effects that would be conflated by a pure MSE objective: the conditional mean trajectory and the conditional spread around that mean.
 
-Training reuses the Stage-1 feature mapping and scaler state. The input vector remains \([\texttt{time\_norm\_0\_5ms},\theta_z,N_{\mathrm{plume},z},\Delta t_{\mathrm{inj},z},p_{\mathrm{back},z}]\), the architecture remains the three-hidden-layer MLP with dimensions $[512,512,128]$, and the network is warm-started from \codepath{best\_model\_stage1.pt}. The Stage-2 run uses AdamW with learning rate \(8\times10^{-4}\), weight decay \(10^{-4}\), batch size~96, gradient clipping at norm~1.0, log-variance bounds \([-10,6]\), and early stopping with patience~35. Thus the only intentional change in the data-fit term is the replacement of deterministic MSE by the Gaussian NLL and its learned variance output.
+Training reuses the Stage-1 feature mapping and scaler state. The input vector contains \textbf{the normalized time coordinate}, \(\theta_z\), \(N_{\mathrm{plume},z}\), \(\Delta t_{\mathrm{inj},z}\), and \(p_{\mathrm{back},z}\); the architecture remains the three-hidden-layer MLP with dimensions $[512,512,128]$, and the network is warm-started from \textbf{the Stage-1 model checkpoint}. The Stage-2 run uses AdamW with learning rate \(8\times10^{-4}\), weight decay \(10^{-4}\), batch size~96, gradient clipping at norm~1.0, log-variance bounds \([-10,6]\), and early stopping with patience~35. Thus the only intentional change in the data-fit term is the replacement of deterministic MSE by the Gaussian NLL and its learned variance output.
 
 \begin{table}[t]
 \centering
@@ -1237,7 +1251,7 @@ Training reuses the Stage-1 feature mapping and scaler state. The input vector r
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{|L{0.20\linewidth}|L{0.08\linewidth}|L{0.14\linewidth}|L{0.13\linewidth}|L{0.12\linewidth}|L{0.12\linewidth}|}
 \hline
-Record from \codepath{epoch\_loss.csv} & Epoch & Pointwise samples & Loss / scaled NLL & Physical MAE & Mean predicted std. \\
+Record from \textbf{the training log file} & Epoch & Pointwise samples & Loss / scaled NLL & Physical MAE & Mean predicted std. \\
 \hline
 Train at best validation epoch & 66 & 5{,}290{,}496 & 2.156 / 2.148 & \SI{9.83}{mm} & \SI{12.27}{mm} \\
 Validation, best checkpoint & 66 & 1{,}071{,}104 & 2.038 / 2.038 & \SI{8.81}{mm} & \SI{11.71}{mm} \\
@@ -1271,14 +1285,14 @@ The NLL stage produces well-calibrated heteroscedastic predictions on the fitted
 
 To refine the early-time dynamics against raw CDF observations while preventing collapse in the late-time sparse regime, a knowledge-distillation stage is introduced on top of the Stage-2 teacher. The student network inherits the teacher weights and is further trained on raw CDF together with teacher guidance.
 
-\textbf{CDF coverage regimes.}  Because the raw CDF series are right-censored (by $t\approx\SI{3}{ms}$ many operating conditions have lost more than 70\% of their measurements), direct raw supervision cannot be applied uniformly in time. For each operating-condition group, raw observations are binned in $\Delta t=\SI{0.1}{ms}$ intervals over $[0,5]\,\si{ms}$, and the smoothed sample count per bin determines three mutually exclusive regimes: \texttt{raw\_reliable} (smoothed coverage $\geq70\%$ of peak), \texttt{raw\_uncertain} (coverage between 20\% and 70\%), and \texttt{teacher\_only} (coverage below 20\% or fewer than 4 samples per bin). Transitions require at least two consecutive bins in a regime to prevent isolated dips from triggering premature regime changes.
+\textbf{CDF coverage regimes.}  Because the raw CDF series are right-censored (by $t\approx\SI{3}{ms}$ many operating conditions have lost more than 70\% of their measurements), direct raw supervision cannot be applied uniformly in time. For each operating-condition group, raw observations are binned in $\Delta t=\SI{0.1}{ms}$ intervals over $[0,5]\,\si{ms}$, and the smoothed sample count per bin determines three mutually exclusive regimes: the high-confidence raw regime (smoothed coverage $\geq70\%$ of peak), \textbf{the uncertain raw regime} (coverage between 20\% and 70\%), and the teacher-only extrapolation regime (coverage below 20\% or fewer than 4 samples per bin). Transitions require at least two consecutive bins in a regime to prevent isolated dips from triggering premature regime changes.
 
-Figure~\ref{fig:raw-uncertain-teacher-gaussian} shows why this regime split motivates distillation rather than a single-source target. In representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) cases, the remaining \texttt{raw\_uncertain} CDF points still carry useful local information, but they occupy a thinning and biased subset of the teacher's wider predictive distribution. The teacher Gaussian therefore acts as a stabilising continuation of the raw trend rather than as an arbitrary replacement of measured data.
+Figure~\ref{fig:raw-uncertain-teacher-gaussian} shows why this regime split motivates distillation rather than a single-source target. In representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) cases, the remaining the uncertain raw regime CDF points still carry useful local information, but they occupy a thinning and biased subset of the teacher's wider predictive distribution. The teacher Gaussian therefore acts as a stabilising continuation of the raw trend rather than as an arbitrary replacement of measured data.
 
 \begin{figure}[p]
 \centering
 \includegraphics[height=0.88\textheight,keepaspectratio]{images/raw_uncertain_vs_teacher_gaussian_2000bar_5bar.png}
-\caption{Representative \texttt{raw\_uncertain} CDF points compared with the Stage~2 teacher Gaussian reconstruction for \(\SI{2000}{bar}\) injection pressure and \(\SI{5}{bar}\) chamber pressure. Black points are the surviving raw CDF observations in the uncertain regime, orange points are samples from the teacher Gaussian at the same times, and the blue curve and band show the teacher mean and \(\pm1\sigma\). The plot illustrates why the Stage~3 objective blends raw supervision with teacher guidance once coverage begins to collapse.}
+\caption{Representative the uncertain raw regime CDF points compared with the Stage~2 teacher Gaussian reconstruction for \(\SI{2000}{bar}\) injection pressure and \(\SI{5}{bar}\) chamber pressure. Black points are the surviving raw CDF observations in the uncertain regime, orange points are samples from the teacher Gaussian at the same times, and the blue curve and band show the teacher mean and \(\pm1\sigma\). The plot illustrates why the Stage~3 objective blends raw supervision with teacher guidance once coverage begins to collapse.}
 \label{fig:raw-uncertain-teacher-gaussian}
 \end{figure}
 
@@ -1289,14 +1303,14 @@ Figure~\ref{fig:raw-uncertain-teacher-gaussian} shows why this regime split moti
 \toprule
 Regime & Raw weight $w_{\mathrm{raw}}$ & KD weight $w_{\mathrm{kd}}$ \\
 \midrule
-\texttt{raw\_reliable}  & 1.0 & 0.25 \\
-\texttt{raw\_uncertain} & 0.0 & 1.0  \\
-\texttt{teacher\_only}  & 0.0 & 0.75 \\
+the high-confidence raw regime  & 1.0 & 0.25 \\
+the uncertain raw regime & 0.0 & 1.0  \\
+the teacher-only extrapolation regime  & 0.0 & 0.75 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Both channels are further modulated by a global time-bin rebalancing weight (inverse-frequency, clipped to $[0.5,2.0]$). In \texttt{raw\_reliable} bins, raw NLL is the primary signal with mild KD regularisation. In \texttt{raw\_uncertain} bins, raw supervision is dropped and teacher KL dominates. In \texttt{teacher\_only} bins, the KD weight is slightly reduced to acknowledge teacher extrapolation uncertainty.
+Both channels are further modulated by a global time-bin rebalancing weight (inverse-frequency, clipped to $[0.5,2.0]$). In the high-confidence raw regime bins, raw NLL is the primary signal with mild KD regularisation. In the uncertain raw regime bins, raw supervision is dropped and teacher KL dominates. In the teacher-only extrapolation regime bins, the KD weight is slightly reduced to acknowledge teacher extrapolation uncertainty.
 
 \textbf{Composite loss.}  The training objective is
 \[
@@ -1310,7 +1324,7 @@ $\mathcal{L}_{\mathrm{onset}}$ is a BCE loss on a new onset logit output against
 
 \textbf{Student architecture.}  The student is a three-output MLP extending the teacher's two outputs $[\hat\mu,\;\log\hat\sigma^2]$ with an onset logit. All shared layers are copied from the teacher checkpoint; the final linear row for the onset head is initialised to zero (sigmoid $\to0.5$). All losses are computed in physical space by multiplying student and teacher outputs by the per-sample $A$ before evaluating $\mathcal{L}_{\mathrm{KD}}$, $\mathcal{L}_{\mathrm{raw}}$, and the shape priors.
 
-\textbf{Training and results.}  The student is optimised with AdamW at $\mathrm{lr}=3\times10^{-3}$ with gradient clipping at norm~1.0 and early stopping with patience~20. In the selected anchor-off configuration, archived as \codepath{distill\_cdf\_onset\_v2\_ablate\_anchor\_off\_20260429\_130554}, the best validation loss was~2.230 at epoch~27 (val raw NLL~2.185, val KD KL~0.0136, val onset BCE~0.320). On the held-out test set, the composite loss is~2.219, with raw NLL~2.173, KD KL~0.0136, onset BCE~0.320, and small derivative penalties ($P_{d_1}\approx8.9\times10^{-5}$, $P_{d_2}\approx2.5\times10^{-4}$). Figure~\ref{fig:distillation-loss} shows the training curves for this final training stage.
+\textbf{Training and results.}  The student is optimised with AdamW at $\mathrm{lr}=3\times10^{-3}$ with gradient clipping at norm~1.0 and early stopping with patience~20. In the selected anchor-off configuration, archived as \textbf{the final selected Stage-3 distillation archive}, the best validation loss was~2.230 at epoch~27 (val raw NLL~2.185, val KD KL~0.0136, val onset BCE~0.320). On the held-out test set, the composite loss is~2.219, with raw NLL~2.173, KD KL~0.0136, onset BCE~0.320, and small derivative penalties ($P_{d_1}\approx8.9\times10^{-5}$, $P_{d_2}\approx2.5\times10^{-4}$). Figure~\ref{fig:distillation-loss} shows the training curves for this final training stage.
 
 \begin{figure}[t]
 \centering
@@ -1329,7 +1343,7 @@ p(x,y,t)=\mathcal{N}\!\Bigl((x,y);\,\mathbf{c}(t),\,\mathbf{R}(\theta_{\mathrm{t
 \]
 with centre $\mathbf{c}(t)=\mathbf{x}_{\mathrm{nozzle}}+\mathbf{R}(\theta_{\mathrm{tilt}})\,(\mu(t),0)^{\top}$, is evaluated on a regular canvas grid (default \SI{0.25}{mm/px} over a $125\times\SI{200}{mm}$ window); the notebook's sanity pass confirms $\iint p\,\mathrm{d}A=1$ to four decimal places per frame. The student's scaled outputs are denormalised to physical space via the Hiroyasu--Arai amplitude $A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}$ introduced for the engineered-feature architecture above, so that $\mu$ and $\sigma_{\parallel}$ enter the PDF in millimetres.
 
-\textbf{Piston geometry dispatcher.}  The notebook exposes two interchangeable crown profiles in \codepath{MLP/piston/}. Design~A (\codepath{design\_A.py}) assembles a bowl-shaped crown from five circular-arc radii --- outer bowl, inner bowl, topland, lip, and floor --- with hard closure constraints that keep the geometry consistent when any radius is changed. The Hermite variant (\codepath{design\_hermite.py}) replaces the piecewise-arc construction with a \emph{quintic Hermite spline} defined by a small set of control points, each carrying a position, a tangent vector, and a second-derivative vector in the (radial, depth) cross-section plane. Matching position, slope, and curvature at every knot gives $C^{2}$ continuity across segment boundaries, so the crown surface has no curvature jumps --- a property relevant both for CNC machining (where curvature discontinuities translate into tool-acceleration steps) and for the collision-integral mesh (where abrupt curvature changes could alias onto the rasterised mask).
+\textbf{Piston geometry dispatcher.}  The notebook exposes two interchangeable crown profiles in \textbf{the piston module directory}. Design~A (\textbf{the piecewise-arc geometry module}) assembles a bowl-shaped crown from five circular-arc radii --- outer bowl, inner bowl, topland, lip, and floor --- with hard closure constraints that keep the geometry consistent when any radius is changed. The Hermite variant (\textbf{the Hermite spline geometry module}) replaces the piecewise-arc construction with a \emph{quintic Hermite spline} defined by a small set of control points, each carrying a position, a tangent vector, and a second-derivative vector in the (radial, depth) cross-section plane. Matching position, slope, and curvature at every knot gives $C^{2}$ continuity across segment boundaries, so the crown surface has no curvature jumps --- a property relevant both for CNC machining (where curvature discontinuities translate into tool-acceleration steps) and for the collision-integral mesh (where abrupt curvature changes could alias onto the rasterised mask).
 
 The parameterisation also makes systematic parameter sweeps straightforward: varying a single scalar --- the nadir depth, for example --- continuously deforms the entire bowl profile while the rest of the control-point structure adapts through the spline, without requiring any constraint equations to be re-solved. Figure~\ref{fig:hermite-crown} illustrates the baseline four-point crown together with its tangent arrows (panel~a) and a seven-level nadir-depth sweep (panel~b) that demonstrates the continuous, smooth deformation produced by changing one parameter. Both dispatchers return a binary piston mask on the same canvas grid as the spray density.
 
@@ -1352,7 +1366,7 @@ P_{\mathrm{hit}}(t)=\iint p(x,y,t)\,\mathbf{1}_{\Omega_{\mathrm{piston}}(t)}(x,y
 \]
 where \(\mathbf{1}_{\Omega_{\mathrm{piston}}(t)}\) is the binary indicator function for the instantaneous piston and wall mask, computed by trapezoidal quadrature on the canvas mesh and the time grid respectively. The side-channel onset-probability head from the distillation student is retained on the same time grid and plotted alongside $P_{\mathrm{hit}}(t)$, so that the pre-SOI segment --- where the conditional mean has not yet separated from zero --- is explicitly recognisable as a timing artefact rather than a collision event.
 
-\textbf{Empirical-support check.}  The notebook loads the training-support manifest \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} through \codepath{MLP/ood\_sanity.py}; the default toy inputs ($d_n=\SI{0.34}{mm}$, chamber pressure \SI{15}{bar}) fall outside the supported training domain and are flagged on evaluation. The reported outputs are therefore illustrative of the downstream pipeline rather than quantitative evidence for the corresponding injector condition.
+\textbf{Empirical-support check.}  The notebook loads the training-support manifest \textbf{the training support manifest} through \textbf{the out-of-distribution check routine}; the default toy inputs ($d_n=\SI{0.34}{mm}$, chamber pressure \SI{15}{bar}) fall outside the supported training domain and are flagged on evaluation. The reported outputs are therefore illustrative of the downstream pipeline rather than quantitative evidence for the corresponding injector condition.
 
 \textbf{Scope of the claim.}  The rotated-Gaussian envelope, the analytic cone-angle spread, and the slider-crank crown model are engineering simplifications, not resolved droplet-scale physics. This prototype is the probabilistic screening proxy argued for in the literature review; it is not a validated collision predictor against experimental high-speed footage or CFD collision fields.
 
@@ -1365,7 +1379,7 @@ The extraction and fitting workflow produced 295 cleaned fitted trajectory files
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
-\caption{Representative cleaned trajectories and fitted curves after the target-construction stage. The cleaned traces retain the observed temporal structure, while the fitted curves provide smooth, censoring-aware surrogate targets.}
+\caption{Cleaned trajectories and q1 fitted curves (\textbf{the cleaned CDF penetration}) for operating condition T24 of the BC20241003\_HZ\_Nozzle1 campaign. Solid lines represent frame-by-frame raw penetration observations, while dashed lines are the corresponding $t^{1/4}$ single-branch (q1) fitted curves. This condition contains dozens of plume trajectories, with inter-plume variations and fitting continuation behaviors clearly visible; the fitted curves smoothly extrapolate to $\SI{3}{ms}$ after observations end, providing censoring-aware targets for subsequent surrogate training.}
 \label{fig:clean-fit-example}
 \end{figure}
 
@@ -1431,10 +1445,10 @@ Representative cases make this difference visible. Figure~\ref{fig:traj-best-cas
 \subsection{Ablation evidence for the final tuning choice}
 
 The ablation suite compared four Stage~3 configurations:
-(i)~the baseline configuration with $w_{\mathrm{kd}}=0.25$ in \texttt{raw\_reliable} bins and $\lambda_{\mathrm{anchor}}=0.01$;
-(ii)~\texttt{raw\_reliable\_no\_kd}, which removes KD blending in reliable bins;
-(iii)~\texttt{raw\_uncertain\_raw05\_kd025}, which reintroduces partial raw supervision in the uncertain regime; and
-(iv)~\texttt{anchor\_off}, which sets $\lambda_{\mathrm{anchor}}=0$ while leaving the raw/KD regime design unchanged.
+(i)~the baseline configuration with $w_{\mathrm{kd}}=0.25$ in the high-confidence raw regime bins and $\lambda_{\mathrm{anchor}}=0.01$;
+(ii)~\textbf{the raw-only reliable regime variant}, which removes KD blending in reliable bins;
+(iii)~\textbf{the blended uncertain regime variant}, which reintroduces partial raw supervision in the uncertain regime; and
+(iv)~\textbf{the anchor-free distillation variant}, which sets $\lambda_{\mathrm{anchor}}=0$ while leaving the raw/KD regime design unchanged.
 Table~\ref{tab:stage3-ablation-ranking} and Figure~\ref{fig:ablation-best} show the ranking. The anchor-off variant is the best model by overall RMSE and also reduces the residual bias from \SI{-1.37}{mm} in the baseline to \SI{-0.02}{mm}. This indicates that the early zero-penetration anchor, although physically plausible as a prior, was slightly over-constraining the learned mean and creating a global under-prediction.
 
 \begin{table}[t]
@@ -1444,13 +1458,13 @@ Table~\ref{tab:stage3-ablation-ranking} and Figure~\ref{fig:ablation-best} show 
 \toprule
 Configuration & RMSE [mm] & MAE [mm] & Bias [mm] & P95 abs. err. [mm] \\
 \midrule
-\texttt{anchor\_off} & 6.68 & 4.83 & -0.02 & 13.89 \\
-\texttt{raw\_reliable\_no\_kd} & 6.82 & 5.01 & -0.91 & 14.17 \\
-\texttt{raw\_uncertain\_raw05\_kd025} & 6.87 & 5.07 & -1.23 & 14.21 \\
-\texttt{baseline} & 6.91 & 5.08 & -1.37 & 14.32 \\
+the anchor-free distillation variant & 6.68 & 4.83 & -0.02 & 13.89 \\
+the raw-only reliable regime variant & 6.82 & 5.01 & -0.91 & 14.17 \\
+the blended uncertain regime variant & 6.87 & 5.07 & -1.23 & 14.21 \\
+\textbf{the baseline distillation variant} & 6.91 & 5.08 & -1.37 & 14.32 \\
 \bottomrule
 \end{tabular}
-\caption{Stage~3 ablation ranking from the automatic post-training RMSE evaluation. The selected model is \texttt{anchor\_off}.}
+\caption{Stage~3 ablation ranking from the automatic post-training RMSE evaluation. The selected model is the anchor-free distillation variant.}
 \label{tab:stage3-ablation-ranking}
 \end{table}
 
@@ -1465,7 +1479,21 @@ The ablation trend also clarifies why Stage~3 is more credible than Stage~1 or S
 
 \subsection{Prototype screening output and evidence boundary}
 
-The final surrogate can be coupled to a simplified collision-screening geometry. On the default toy input ($d_n=\SI{0.34}{mm}$, injection pressure \SI{2000}{bar}, chamber pressure \SI{15}{bar}, tilt $20^{\circ}$, 10 plumes, injection duration \SI{800}{\micro s}, $\mathrm{RPM}=250$), the prototype produces $\mu(t)\in[-0.07,\,118.89]\,\si{mm}$ and $\sigma_{\parallel}(t)\in[1.81,\,14.75]\,\si{mm}$ over the 0--\SI{5}{ms} window. The instantaneous near-wall interception score peaks at $P_{\mathrm{hit}}\approx0.846$ near $t\approx\SI{3.90}{ms}$, and trapezoidal integration gives a cumulative exposure of $E\approx\SI{2.67}{ms}$. These numbers show that the end-to-end chain can propagate a penetration distribution into a time-resolved screening score.
+The final surrogate can be coupled to a simplified collision-screening geometry. On the default toy input ($d_n=\SI{0.34}{mm}$, injection pressure \SI{2000}{bar}, chamber pressure \SI{15}{bar}, tilt $20^{\circ}$, 10 plumes, injection duration \SI{800}{\micro s}, $\mathrm{RPM}=250$), the prototype produces $\mu(t)\in[-0.07,\,118.89]\,\si{mm}$ and $\sigma_{\parallel}(t)\in[1.81,\,14.75]\,\si{mm}$ over the 0--\SI{5}{ms} window. The instantaneous near-wall interception score peaks at $P_{\mathrm{hit}}\approx0.846$ near $t\approx\SI{3.90}{ms}$, and trapezoidal integration gives a cumulative exposure of $E\approx\SI{2.67}{ms}$. These numbers show that the end-to-end chain can propagate a penetration distribution into a time-resolved screening score; Figure~\ref{fig:impingement-preview} shows a spatial snapshot at the peak frame, and Figure~\ref{fig:impingement-summary} provides a probabilistic temporal summary within the \SI{5}{ms} time window.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{images/impingement_preview.png}
+\caption{Spatial snapshot of the impingement screening prototype (Design A, peak collision frame, $t=\SI{3.90}{ms}$). The solid white line is the piston crown profile, the dashed red line is the cylinder wall, the gold asterisk is the nozzle location, the dashed white ellipse and dotted cyan ellipse are the $1\sigma$ and $2\sigma$ contour lines of the spray's 2D Gaussian density respectively, and the colorbar represents the spray probability density ($\si{mm^{-2}}$). The instantaneous piston interception probability at this frame is $P_{\mathrm{hit}}=0.846$, and the cylinder wall interception probability is $P_{\mathrm{wall}}=0.071$.}
+\label{fig:impingement-preview}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.90\linewidth]{images/impingement_summary.png}
+\caption{Temporal summary of the impingement screening prototype (Design A, RPM~250, crank phase $0^{\circ}$, $0$--$\SI{5}{ms}$). Top: instantaneous interception probabilities---the solid blue line is the piston impingement probability, the dashed red line is the cylinder wall impingement probability, and the dash-dot blue-grey line is the start-of-injection probability secondary output. Bottom: cumulative integral of piston interception $E=\int P_{\mathrm{hit}}\,\mathrm{d}t$, reaching $\SI{2.671}{ms}$ at $\SI{5}{ms}$, serving as a weighted summary of exposure over the entire injection window.}
+\label{fig:impingement-summary}
+\end{figure}
 
 The evidence boundary is equally important. The toy condition is flagged as out of distribution by the support check, so the reported collision probabilities should be read only as a pipeline demonstration. The validated contribution in this thesis is the penetration surrogate within its measured domain and its coupling interface to a probabilistic geometry screen, not a phase-resolved predictor of harmful liquid-wall contact. The numerical claims reported here are traceable to cleaned trajectory tables, stored checkpoints, and exported evaluation figures included in the project archive.
 
@@ -1485,6 +1513,8 @@ Within the declared scope, four claims are supported by the results. First, the 
 
 An additional limit lies in the target definition itself. The reduced-order fit converges toward a quarter-power-dominated continuation, and the neural surrogate is regularised to remain monotone increasing. These choices are deliberate shape priors: they enforce intuitively plausible trajectory growth and help repair short-horizon extrapolation near the end of the observation window. They do not, however, model the signal-formation physics of Mie scattering. When the optical signature weakens before the plume reaches the image boundary, the fitted target can compensate by continuing the penetration trajectory. The resulting penetration should therefore be interpreted as a continuation of a Mie-defined geometric envelope rather than as direct evidence of a strong liquid-phase tip. It does not directly quantify local liquid mass, droplet size, phase state, or wall-film potential \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}.
 
+This extrapolation assumption currently lacks direct control validation. The originally planned validation path was to use wide-field experimental videos of single-plume sprays under identical nozzle types and similar operating conditions (non-evaporating, non-reacting Mie-imaged diesel), provided by the industrial partner. With a field of view approximately twice as wide as the multihole archive in this work, the entire penetration trajectory up to the plateauing phase could be fully observed. On such data, an artificial spatial truncation could be introduced (e.g., taking half the field width), using only the time series before the truncation point to fit the q1 model, and then comparing the extrapolated curve with the complete measured trajectory after the truncation point. This would quantify the reliable range and failure modes of the extrapolation through point-by-time residuals---including systematic directions of overestimation or underestimation, and typical time spans of failure from the truncation point. This experimental design is a direct empirical test of the core assumption of the KD chain in this thesis: that the parametric form $\sigma\!\left((t-t_0)/s\right)\cdot k_{1/4}\,t^{1/4}$ remains a credible continuation beyond the field of view boundary, rather than a bias dominated by shape priors. Because the industrial partner was unable to provide such single-plume data, the above validation could not be executed within the scope of this study; the reliable range of the $q1$ extrapolation thus remains an open empirical question and should be prioritized when subsequent experimental conditions permit.
+
 This distinction matters for downstream wall screening. Spray--wall interaction is not uniformly harmful: if most of the liquid phase has evaporated before the wall is reached, the remaining wall interaction may be less damaging and can in some regimes even assist entrainment and mixture preparation. The regime of primary concern is direct liquid-wall contact and persistent wall-film formation \cite{MorieiraMotaPanao2010,liu2024marine_impingement,peraza2022swi,ahmad2025fueldilution}. The present model should therefore be read as a conservative screening surrogate for possible near-wall reach of a Mie-defined spray envelope, not as a phase-resolved predictor of harmful liquid-wall impingement.
 
 A further limitation lies in the downstream engine-geometry coupling. In the current prototype, piston motion only translates the wall mask through slider-crank kinematics; it does not feed back into the penetration surrogate through time-varying chamber pressure, pressure-wave dynamics, or large-scale gas motion. This simplification is inherited from the OSCC measurements, where each spray event is recorded in a rigid chamber at fixed back-pressure. The surrogate therefore learns penetration under quasi-static chamber conditions rather than under fully coupled in-cylinder transients. Because diesel-spray penetration is sensitive to ambient-gas density, that decoupling should be understood as a pragmatic modelling choice rather than as evidence that pressure and flow effects are negligible \cite{NaberSiebers1996}.
@@ -1499,6 +1529,8 @@ The same results also mark clear limits:
   \item The surrogate is trained on one supported operating domain and should not be trusted equally under genuine out-of-distribution extrapolation.
   \item The downstream geometry model uses a rotated Gaussian envelope, simplified piston kinematics, and a fixed half-cone angle, while leaving piston-driven pressure and gas-motion feedback decoupled from penetration prediction; it is a near-wall screening proxy, not a production impingement solver.
   \item Campaign-level variation and the hard HZ\_Nozzle3 example show that nozzle-family-dependent early transient dynamics are still only partially captured.
+  \item The training target uses the CDF quantile frontier definition rather than the binarized polar penetration (the polar binary penetration metric). For normal injection events, the polar binary penetration metric shows better cross-hole consistency and tracks closer to the actual spray tip, yielding systematically higher penetration estimates than the CDF method. The current surrogate output should be understood as the effective penetration under the CDF definition, not the absolute maximal liquid front; adopting different measurement definitions is a known open direction for applications sensitive to absolute penetration values.
+  \item The heteroscedastic Gaussian assumption treats inter-plume penetration variance as a symmetric distribution, but penetration itself is a strictly positive quantity and is dominated by multiplicative injection pressure perturbations. In the Hiroyasu-Arai framework, the multiplicative uncertainty of $\Delta P^{1/4}$ theoretically drives $S(t)$ towards a log-normal distribution rather than a symmetric Gaussian. Experimentally, the cross-plume distribution of the q1 fitting amplitude $k_{1/4}$ is significantly right-skewed (median approx. \SI{69}{mm}, right tail extending to approx. \SI{140}{mm}), and the full-dataset evaluation residual distribution is also skewed to the negative side. The final surrogate's $1\sigma$ coverage (72.2\%) is slightly higher than the theoretical Gaussian value (68.3\%), indicating that the model compensates for the underestimated right tail by slightly inflating $\sigma$---a typical adaptive behavior of symmetric distribution assumptions when faced with right-skewed true distributions. The engineering implication is that the current impingement probability tends to be systematically underestimated for extreme large-penetration events; for early-stage screening used for relative ranking, this bias direction is on the conservative side.
 \end{itemize}
 
 \section{Conclusions}
@@ -1528,6 +1560,112 @@ The same results also mark clear limits:
 \end{enumerate}
 
 \clearpage
+\clearpage
+\appendix
+\section{Implementation Mapping}
+\label{app:implementation_mapping}
+
+To improve the readability of the methodological descriptions, the codebase-specific variable names, function names, and script names have been replaced with descriptive phrases in the main text. For practitioners intending to reproduce the work or navigate the provided codebase, the following tables map the descriptive phrases used in the text back to their exact implementation identifiers.
+
+\subsection{Documents and Scripts}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\midrule
+the data cleaning and fitting routine & \texttt{fit\_raw\_data.py} \\
+the interactive calibration interface & \texttt{GUI.py} \\
+the multi-hole geometric construction script & \codepath{mie\_multi\_hole.py} \\
+the dataset summarization script & \texttt{MLP/summarize\_dataset.py} \\
+the calibration configuration file & \texttt{config.json} \\
+the training log file & \codepath{epoch\_loss.csv} \\
+the Stage-1 model checkpoint & \codepath{best\_model\_stage1.pt} \\
+the Stage-1 training script & \texttt{train\_stage1\_mse.py} \\
+the Stage-2 training script & \texttt{train\_stage2\_nll.py} \\
+the piecewise-arc geometry module & \codepath{design\_A.py} \\
+the Hermite spline geometry module & \codepath{design\_hermite.py} \\
+the out-of-distribution check routine & \codepath{MLP/ood\_sanity.py} \\
+the training support manifest & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
+the piston module directory & \codepath{MLP/piston/} \\
+the early dense-feature diagnostic slide deck & \codepath{MLP/v1\_direct\_feature\_training/...} \\
+the interpretable surrogate prototype folder & \codepath{MLP/interpretatable\_test} \\
+the fitted statistics analysis notebook & \texttt{fitted\_stats\_analysis.ipynb} \\
+the synthetic data export directory & \codepath{MLP/synthetic\_data} \\
+the final selected Stage-3 distillation archive & \codepath{distill\_cdf\_onset\_v2...} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of document and script names to their codebase identifiers.}
+\end{table}
+
+\subsection{Functions and Methods}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\midrule
+the video processing loop & \texttt{\_process\_cine\_file} \\
+the multi-hole preprocessor & \texttt{mie\_multihole\_preprocessing} \\
+the multi-hole postprocessor & \texttt{mie\_multihole\_postprocessing} \\
+the algebraic circle fitting function & \texttt{calc\_circle} \\
+the foreground extraction filter & \texttt{refined\_log\_subtraction} \\
+the GPU-accelerated Sobel filter & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
+the kernel construction function & \texttt{build\_2d\_kernel} \\
+the rank-1 separability test & \texttt{\_separable\_factors\_cupy} \\
+the 2D convolution routine & \texttt{convolution\_2D\_cupy} \\
+the polar re-parameterization routine & \texttt{angle\_signal\_density\_auto} \\
+the GPU binning operation & \texttt{cp.digitize} \\
+the GPU weighted sum operation & \texttt{cp.bincount} \\
+the FFT-based phase alignment function & \texttt{estimate\_offset\_from\_fft} \\
+the forward affine transform builder & \texttt{build\_rotation\_affine} \\
+the inverse affine map generator & \texttt{build\_affine\_inverse\_maps\_cupy} \\
+the GPU video remapping routine & \texttt{remap\_video\_cupy} \\
+the plume-wise CDF penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
+the axial CDF front locator & \texttt{penetration\_cdf\_front} \\
+the secondary feature extractor & \texttt{extract\_single\_plume\_features} \\
+the robust outlier masking routine & \texttt{apply\_filter\_masking} \\
+the group-aware dataset splitting routine & \texttt{assign\_splits\_by\_group} \\
+the physical scaling validation routine & \texttt{run\_pretrain\_collapse\_check} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of algorithmic functions to their codebase identifiers.}
+\end{table}
+
+\subsection{Variables and Features}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\midrule
+the X/Y-coordinate inverse spatial maps & \texttt{mapx}, \texttt{mapy} \\
+the standardized strip dimensions & \texttt{OUT\_SHAPE} \\
+the axial binary penetration metric & \texttt{penetration\_bw\_x} \\
+the polar binary penetration metric & \texttt{penetration\_bw\_polar} \\
+the cleaned CDF penetration & \texttt{penetration\_cdf clean} \\
+the opening-delay regression point count parameter & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
+the normalized time coordinate & \texttt{time\_norm\_0\_5ms} \\
+the ambient gas density feature & \texttt{chamber\_density\_kg\_per\_m3} \\
+the ambient chamber pressure feature & \texttt{chamber\_pressure\_bar} \\
+the scaling-only / scaling-and-residual variants & \texttt{a\_only}, \texttt{a\_plus\_log\_a} \\
+the operating condition group identifier & \texttt{sample\_group\_id} \\
+the high-confidence raw regime & \texttt{raw\_reliable} \\
+the uncertain raw regime & \texttt{raw\_uncertain} \\
+the teacher-only extrapolation regime & \texttt{teacher\_only} \\
+the anchor-free distillation variant & \texttt{anchor\_off} \\
+the raw-only reliable regime variant & \texttt{raw\_reliable\_no\_kd} \\
+the blended uncertain regime variant & \texttt{raw\_uncertain\_raw05\_kd025} \\
+the baseline distillation variant & \texttt{baseline} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of variables and features to their codebase identifiers.}
+\end{table}
+
+
 \thesisbibliography
 \printbibliography
 
