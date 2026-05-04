@@ -10,10 +10,16 @@ import re
 import gc
 import json
 import pandas as pd
+from scipy import ndimage as ndi
 
 # ---- Library imports ----
 from OSCC_postprocessing.cine.functions_videos import load_cine_video, get_subfolder_names, cine
-from OSCC_postprocessing.binary_ops.functions_bw import spary_features_from_bw_video
+from OSCC_postprocessing.binary_ops.functions_bw import (
+    cndi,
+    keep_largest_component_cuda,
+    keep_largest_component_nd_cuda,
+    spary_features_from_bw_video,
+)
 from OSCC_postprocessing.binary_ops.masking import generate_ring_mask
 from OSCC_postprocessing.playback.video_playback import play_video_cv2
 from OSCC_postprocessing.utils.scaling import robust_scale
@@ -69,7 +75,7 @@ experiment_configs = [
 
 # parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
 
-# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\DS300.json"]
+# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle0.json"]
 
 
 # Optional single-run fallback used by CLI/env overrides.
@@ -84,7 +90,7 @@ DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier = 2  # Nozzle 1-8: 3; DS300: 2
+noise_floor_multiplier = 2  # Nozzle 1-8: 3; Nozzle0: 2
 
 # Pre-processing histogram scaling settings
 sobel_wsize=3
@@ -109,6 +115,7 @@ nozzle_opening_detection_width = 30
 thres_penetration_num_pix = 5  # minimum width of the binarized spray for x-axis penetration detection
 segment_bw_q_min = 5
 segment_bw_q_max = 99.9
+repair_bw = False
 penetration_cleanup_min_len = 5
 
 save_boundary_points_csv = False
@@ -269,6 +276,37 @@ def _empty_spray_metrics(num_frames: int) -> dict:
         "nozzle_opening": np.nan,
         "nozzle_closing": np.nan,
     }
+
+
+def repair_binary_plume_video(bw_video):
+    """
+    Refine a plume-wise BW video with the legacy multihole morphology sequence.
+
+    The input is expected to have shape ``(plume, frame, height, width)``.
+    Each plume is repaired as one 3-D volume, then each frame is cleaned again
+    to keep the dominant connected envelope used by downstream BW metrics.
+    """
+    P, F, _, _ = bw_video.shape
+    is_gpu_array = hasattr(bw_video, "__cuda_array_interface__")
+    xp_backend = xp if is_gpu_array else np
+    ndi_backend = cndi if is_gpu_array else ndi
+    repaired = bw_video.astype(bool, copy=True)
+
+    struct_3d = xp_backend.ones((3, 3, 3), dtype=bool)
+
+    for plume_idx in range(P):
+        blob_3d = keep_largest_component_nd_cuda(
+            ndi_backend.binary_fill_holes(
+                ndi_backend.binary_closing(
+                    repaired[plume_idx],
+                    structure=struct_3d,
+                )
+            )
+        )
+        for frame_idx in range(F):
+            repaired[plume_idx, frame_idx] = keep_largest_component_cuda(blob_3d[frame_idx])
+
+    return repaired.astype(bw_video.dtype, copy=False)
 
 
 def _compute_spray_metrics_for_segment(args):
@@ -594,6 +632,7 @@ def _process_cine_file(
 
         start_time = time.time()
         state["video"] = _load_video_to_backend(file)
+        t_load = time.time()
 
         # The raw loader can legally return an empty array for malformed or
         # unreadable inputs. In that case we skip the rest of the pipeline.
@@ -625,6 +664,7 @@ def _process_cine_file(
             q_min_highpass=q_min_highpass,
             q_max_highpass=q_max_highpass
         )
+        t_preproc = time.time()
 
         state["postprocess"] = mie_multihole_postprocessing(
             state["foreground"],
@@ -638,9 +678,13 @@ def _process_cine_file(
             BORDER_MODE=border_mode
         )
         state["hp_segments"] = state["postprocess"]["segments_fg"]
+        # Need to ignore zeros in the histogram for large number of zeros made by masking.
         state["hp_segments_bw"] = triangle_binarize_gpu(
-            robust_scale(state["hp_segments"], segment_bw_q_min, segment_bw_q_max)
+            robust_scale(state["hp_segments"], segment_bw_q_min, segment_bw_q_max), ignore_zero=True
         )
+        if repair_bw:
+            state["hp_segments_bw"] = repair_binary_plume_video(state["hp_segments_bw"])
+
         umbrella_angle_for_penetration = float(
             nozzle_props.get("umbrella_angle_deg", umbrella_angle_deg_default)
         )
@@ -650,8 +694,7 @@ def _process_cine_file(
             quantile=upper_quantile_cdf,
             umbrella_angle=umbrella_angle_for_penetration,
         )
-
-        print("GPU work completed in {:.2f}s".format(time.time() - start_time))
+        t_gpu = time.time()
 
         # ========================================================================
         # Extracting results
@@ -713,6 +756,7 @@ def _process_cine_file(
         metric_columns, all_boundaries = _collect_metric_columns(
             state["hp_segments_bw"], num_frames, umbrella_angle, ir_
         )
+        t_metrics = time.time()
         if metric_columns:
             state["df"] = pd.concat(
                 [state["df"], pd.DataFrame(metric_columns, index=state["df"].index)],
@@ -750,10 +794,21 @@ def _process_cine_file(
             metadata_payload,
             metadata_path,
         )
+        t_save_csv = time.time()
         _save_boundary_points(save_path_subfolder, video_name, all_boundaries)
+        t_boundary = time.time()
 
-        elapsed = time.time() - start_time
-        done_message = f"Completed: {relative_label} in {elapsed:.2f}s"
+        elapsed = t_boundary - start_time
+        done_message = (
+            f"Completed: {relative_label} in {elapsed:.2f}s  "
+            f"[load={t_load - start_time:.2f}s  "
+            f"preproc={t_preproc - t_load:.2f}s  "
+            f"postproc+cdf={t_gpu - t_preproc:.2f}s  "
+            f"bw_metrics={t_metrics - t_gpu:.2f}s  "
+            f"save_csv={t_save_csv - t_metrics:.2f}s"
+            + (f"  boundary={t_boundary - t_save_csv:.2f}s" if save_boundary_points_csv else "")
+            + "]"
+        )
         print(done_message)
         _append_processing_log(log_path, done_message)
         _write_checkpoint(

@@ -1,0 +1,123 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\title{Luminescence Postprocessing Pipeline}
+\subtitle{Single-plume luminescence postprocessing}
+\author{Data Analysis Pipeline}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Overview}
+    \begin{itemize}
+        \item \textbf{Luminescence imaging} captures visible light emitted by a burning fuel plume without an external laser.
+        \item This module provides an automated pipeline for:
+        \begin{enumerate}
+            \item Preprocessing: Rotation, crop, bilateral filtering, and background subtraction.
+            \item Extraction: Creating Time-Distance (T-D) intensity maps.
+            \item Analysis: Binarizing the T-D map to extract flame penetration and lift-off.
+            \item Global Metrics: Computing frame-wise average intensity.
+        \end{enumerate}
+        \item GPU-accelerated via CuPy with automatic fallback to NumPy.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Calibration \& Preprocessing}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Calibration centers the nozzle and masks out external regions using inner and outer radius parameters.
+                \item The video is rotated so the plume extends horizontally.
+                \item Bilateral filtering smooths the image while preserving edges.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{figs/calibration.png}
+                \caption{Calibrated center of the nozzle}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Time-Distance Intensity Map}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Summing the foreground strip collapses each frame into a 1D intensity profile.
+                \item Stacking these profiles creates a 2D image (Time vs. Distance).
+                \item Brightness indicates integrated luminescence at that distance and time.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{figs/td_map.png}
+                \caption{Time-Distance Intensity Heatmap}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Binarization and Feature Extraction}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item The T-D map is binarized using triangle thresholding.
+                \item Isolated noise is removed by keeping the largest connected component.
+                \item \textbf{Flame Penetration}: Farthest edge of the flame.
+                \item \textbf{Lift-off}: Base of the visible flame.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=0.8\textwidth]{figs/bw_td_map.png}\\
+                \vspace{2mm}
+                \includegraphics[width=0.8\textwidth]{figs/penetration.png}
+                \caption{Binary Map and Extracted Penetration}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Frame-wise Average Intensity}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Summing all pixel values and dividing by pixel count gives a mean intensity per frame.
+                \item Serves as a scalar proxy for overall combustion intensity.
+                \item The filtered curve isolates the true plume signal from the background.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{figs/intensity.png}
+                \caption{Average Pixel Value per Frame}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Summary of Outputs}
+    \begin{itemize}
+        \item \textbf{Video Strip (.avi)}: Rotated and filtered plume.
+        \item \textbf{Numpy Archive (.npz)}: Data arrays for further processing.
+        \item \textbf{Metrics (.csv)}: Per-frame average intensity, flame front, and lift-off.
+        \item \textbf{Heatmap (.csv / .npz)}: Full Time-Distance map.
+        \item All saving operations run asynchronously for performance.
+    \end{itemize}
+\end{frame}
+
+\end{document}

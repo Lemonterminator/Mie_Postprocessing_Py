@@ -1,3 +1,21 @@
+"""
+luminesence.py — Single-plume luminescence postprocessing pipeline.
+
+Luminescence imaging captures visible light *emitted* by a burning fuel plume
+(no external laser required). This module provides two public entry-points:
+
+    luminesence_preprocessing(video, centre, rotation_offset, ...)
+        Rotation → bilateral filter → background subtraction.
+        Returns (segment, foreground, background).
+
+    luminescence_pipeline(video, file_name, centre, ...)
+        Calls preprocessing, then builds a time-distance (T-D) intensity map,
+        binarizes it, extracts flame penetration & lift-off per frame, computes
+        frame-wise average intensity, and saves all results to disk.
+        Returns a per-frame DataFrame.
+
+GPU path uses CuPy when available; falls back to NumPy automatically.
+"""
 from OSCC_postprocessing.cine.functions_videos import *
 from pathlib import Path
 from OSCC_postprocessing.analysis.backend import resolve_backend
@@ -97,16 +115,17 @@ from OSCC_postprocessing.analysis.hysteresis import *
 from OSCC_postprocessing.filters.bilateral_filter_rawKernel import bilateral_filter_video_cupy_fast
 
 def _as_numpy(arr):
+    """Transfer a CuPy array to host memory; pass NumPy arrays through unchanged."""
     if USING_CUPY and hasattr(arr, "__cuda_array_interface__"):
         return cp.asnumpy(arr)
     return np.asarray(arr)
 
 def _is_cupy_array(arr):
+    """Return True only when CuPy is loaded *and* arr lives on the GPU."""
     return USING_CUPY and hasattr(arr, "__cuda_array_interface__")
 
 
 
-# Rotation + Crop + Filtering
 def luminesence_preprocessing(
     video,
     centre,
@@ -121,8 +140,55 @@ def luminesence_preprocessing(
     outer_radius=None,
     preview=True,
 ):
-    
-    # 3D grayscale Numpy array
+    """Rotate, crop, filter, and background-subtract a luminescence video.
+
+    The nozzle exit is placed at the left edge of a narrow horizontal strip so
+    that the plume always points right, regardless of the original camera
+    orientation. Bilateral filtering is applied first (edge-preserving denoise),
+    then the mean of the first ``blank_frames`` filtered frames is subtracted as
+    the static background.
+
+    Parameters
+    ----------
+    video : array (F, H, W), float [0, 1]
+        Raw normalised grayscale video, on CPU or GPU.
+    centre : (cx, cy)
+        Pixel coordinate of the nozzle exit in the original frame.
+    rotation_offset : float
+        Angle in degrees to rotate the frame so the plume axis is horizontal.
+    video_strip_relative_height : float
+        Strip height as a fraction of ``outer_radius``. Default 1/3 captures
+        the plume while discarding most empty space.
+    INTERPOLATION : str
+        Rotation interpolation mode.  ``"nearest"`` avoids edge blurring that
+        would bias the binarization threshold downstream.
+    BORDER_MODE : str
+        Pixel fill mode for regions outside the rotated frame boundary.
+    wsize : int
+        Bilateral filter kernel size (pixels).
+    sigma_d : float
+        Bilateral filter spatial sigma — how far neighbouring pixels contribute.
+    sigma_r : float
+        Bilateral filter range sigma — only neighbours with similar intensity
+        are averaged, which preserves sharp plume edges.
+    blank_frames : int
+        Number of pre-injection frames used to estimate the static background.
+    outer_radius : float or None
+        Quartz window radius in pixels, used to set the strip width. Falls back
+        to the module-level global ``or_`` if not supplied.
+    preview : bool
+        When True, opens a side-by-side playback of raw strip, foreground, and
+        the scaled difference (10× |foreground − segment|) for visual inspection.
+
+    Returns
+    -------
+    segment : array (F, strip_h, or_)
+        Rotated & cropped raw video strip.
+    foreground : array (F, strip_h, or_)
+        Background-subtracted, filtered video strip.
+    bkg : array (1, strip_h, or_)
+        The static background estimate that was subtracted.
+    """
     F0 = video.shape[0]
 
     if outer_radius is None:
@@ -130,6 +196,7 @@ def luminesence_preprocessing(
     if outer_radius is None:
         raise ValueError("outer_radius must be provided or set as global 'or_'.")
 
+    # Strip dimensions: height = fraction of window radius; width = full radius
     out_h = int(round(float(video_strip_relative_height) * float(outer_radius)))
     out_h = max(1, out_h)
     out_w = int(round(float(outer_radius)))
@@ -138,14 +205,11 @@ def luminesence_preprocessing(
 
     blank_frames = max(1, min(int(blank_frames), F0))
 
-    # Arbitrary rotated image strip shape
     OUT_SHAPE = (out_h, out_w)
 
     use_gpu = USING_CUPY
     if use_gpu:
         try:
-            # Upload to GPU 
-            # video_cp = cp.asarray(video)
             segment, _, _ = rotate_video_nozzle_at_0_half_backend(
                 video,
                 centre,
@@ -168,25 +232,30 @@ def luminesence_preprocessing(
             cval=0.0,
         )
 
-    # Bilateral filtering
+    # Edge-preserving bilateral filter before background subtraction so that
+    # the background estimate is smooth and hot-pixel reflections are damped.
     if use_gpu:
         bilateral_filtered = bilateral_filter_video_cupy_fast(segment, wsize, sigma_d, sigma_r)
     else:
         bilateral_filtered = bilateral_filter_video_cpu(np.asarray(segment), wsize, sigma_d, sigma_r)
     xp = cp if use_gpu else np
 
-    # Background subtraction
-    # Take the filtered first frames as background
+    # Average the first blank_frames as the static background.
+    # Replace exact-zero and NaN entries with a tiny epsilon to avoid
+    # division-by-zero if callers later choose to divide rather than subtract.
     bkg = xp.mean(bilateral_filtered[:blank_frames], axis=0, keepdims=True)
-
     eps = xp.asarray(1e-9, dtype=bkg.dtype)
     bkg = xp.where(bkg == 0, eps, bkg)
     bkg = xp.where(xp.isnan(bkg), eps, bkg)
 
-    # Foreground is the filtered video - filtered background
+    # Subtraction isolates pixels that changed from the pre-injection baseline.
+    # Division is avoided here: bright window reflections (near-zero background)
+    # would become large negative artefacts after subtraction of a slightly
+    # larger background value.
     foreground = bilateral_filtered - bkg
 
     if preview:
+        # Third panel amplifies residual (10×) to make over/under-subtraction visible.
         play_videos_side_by_side(
             (
                 _as_numpy(xp.swapaxes(segment, 1, 2)),
@@ -199,20 +268,28 @@ def luminesence_preprocessing(
     return segment, foreground, bkg
 
 
-def luminescence_pipeline(video: xp.ndarray, file_name: str, 
-                             centre, rotation_offset: float, inner_radius: float, outer_radius: float, 
-                             video_out_dir: Path, data_out_dir: Path,
-                             umbrella_angle = 180.0, # Single Plume has 0 deg of tilt angle (spary axis is orthogonal to line of sight)
-                             video_strip_relative_height = 1.0/3, # Relative ratio of the rotated video strip to calibrated outer radius
-                             INTERPOLATION = "nearest" ,BORDER_MODE = "constant", # image rotation settings
-                             save_video_strip=True, save_mode ="filtered", # filtered rotated strip or raw
-                             blank_frames=20,
-                             preview=False,
-                             quantize_npz: bool = False,
-                             quant_float_upper_bound: float = 1.0,
-                             quant_clip_negative: bool = True,
-                             quant_store_metadata: bool = True,
-                            ):
+def luminescence_pipeline(
+    video,  # (F, H, W) float [0,1] — accepts NumPy or CuPy arrays
+    file_name: str,
+    centre,
+    rotation_offset: float,
+    inner_radius: float,
+    outer_radius: float,
+    video_out_dir: Path,
+    data_out_dir: Path,
+    umbrella_angle: float = 180.0,       # 180° = spray axis perpendicular to line of sight (single plume)
+    video_strip_relative_height: float = 1.0 / 3,  # strip height / outer_radius
+    INTERPOLATION: str = "nearest",
+    BORDER_MODE: str = "constant",
+    save_video_strip: bool = True,
+    save_mode: str = "filtered",         # "filtered" or "raw"
+    blank_frames: int = 20,
+    preview: bool = False,
+    quantize_npz: bool = False,          # compress NPZ to uint8 to reduce file size
+    quant_float_upper_bound: float = 1.0,
+    quant_clip_negative: bool = True,
+    quant_store_metadata: bool = True,
+):
 
     if preview:
         # Debug inputs

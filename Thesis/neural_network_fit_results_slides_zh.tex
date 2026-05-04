@@ -191,13 +191,13 @@ d2 back & 6.66 & -0.59 \\
 \begin{itemize}
   \item 降低 reliable raw bins 中的 KD 权重，是修正 bias 的关键方向。
   \item raw/KD reweighting 与更短的 onset anchor 组合后，得到最佳整体结果。
-  \item d2 gate 回退能帮助部分 HZ nozzle，但会损失 DS300 和 overall RMSE。
+  \item d2 gate 回退能帮助部分 HZ nozzle，但会损失 Nozzle0 和 overall RMSE。
 \end{itemize}
 \end{column}
 \end{columns}
 \end{frame}
 
-\begin{frame}{最佳模型如何改变 DS300}
+\begin{frame}{最佳模型如何改变 Nozzle0}
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.62\linewidth}
   \centering
@@ -205,11 +205,11 @@ d2 back & 6.66 & -0.59 \\
 \end{column}
 \begin{column}{0.34\linewidth}
 \footnotesize
-\begin{block}{DS300 变化}
+\begin{block}{Nozzle0 变化}
 \begin{itemize}
-  \item DS300 mean RMSE: \SI{6.77}{mm} \(\rightarrow\) \SI{6.12}{mm}.
-  \item DS300 MAE: \SI{5.99}{mm} \(\rightarrow\) \SI{5.25}{mm}.
-  \item DS300 bias: \SI{-3.36}{mm} \(\rightarrow\) \SI{-2.35}{mm}.
+  \item Nozzle0 mean RMSE: \SI{6.77}{mm} \(\rightarrow\) \SI{6.12}{mm}.
+  \item Nozzle0 MAE: \SI{5.99}{mm} \(\rightarrow\) \SI{5.25}{mm}.
+  \item Nozzle0 bias: \SI{-3.36}{mm} \(\rightarrow\) \SI{-2.35}{mm}.
 \end{itemize}
 \end{block}
 
@@ -239,7 +239,7 @@ Nozzle6 & \SI{4.65}{mm} \\
 Nozzle8 & \SI{4.81}{mm} \\
 Nozzle4 & \SI{5.40}{mm} \\
 Nozzle1 & \SI{5.73}{mm} \\
-DS300 top view & \SI{6.12}{mm} \\
+Nozzle0 top view & \SI{6.12}{mm} \\
 Nozzle2 & \SI{6.75}{mm} \\
 Nozzle3 & \SI{9.21}{mm} \\
 \bottomrule
@@ -248,7 +248,7 @@ Nozzle3 & \SI{9.21}{mm} \\
 \vspace{0.3em}
 \footnotesize
 \begin{itemize}
-  \item 最佳 run 明显改善 DS300、Nozzle5/6/7/8。
+  \item 最佳 run 明显改善 Nozzle0、Nozzle5/6/7/8。
   \item Nozzle1/2/3/4 显示跨喷嘴 trade-off，可能与几何相关的 SOI 初期加速模式有关。
 \end{itemize}
 \end{column}
@@ -309,9 +309,9 @@ Nozzle3 & \SI{9.21}{mm} \\
 \small
 \begin{enumerate}
   \item \goodtext{Tuned Stage-3 run 是目前最佳结果}：RMSE 为 \SI{6.60}{mm}，MAE 为 \SI{4.81}{mm}，NRMSE 为 6.88\%。
-  \item \goodtext{主要系统性问题被削弱}：global bias 从 \SI{-1.29}{mm} 改善到 \SI{-0.40}{mm}；DS300 bias 从 \SI{-3.36}{mm} 改善到 \SI{-2.35}{mm}。
-  \item \notetext{Ablation 支持 KD-dominance 假设}：deterministic raw-supported bins 中过强 KD 会把 teacher bias 传给 student；降低 KD 并恢复 raw supervision 能改善 DS300。
-  \item \warntext{剩余误差具有喷嘴几何依赖性}：Nozzle3 和部分 HZ nozzles 与 DS300 之间存在 trade-off，说明 early-SOI acceleration 和 curvature prior 可能需要 nozzle-aware 设计。
+  \item \goodtext{主要系统性问题被削弱}：global bias 从 \SI{-1.29}{mm} 改善到 \SI{-0.40}{mm}；Nozzle0 bias 从 \SI{-3.36}{mm} 改善到 \SI{-2.35}{mm}。
+  \item \notetext{Ablation 支持 KD-dominance 假设}：deterministic raw-supported bins 中过强 KD 会把 teacher bias 传给 student；降低 KD 并恢复 raw supervision 能改善 Nozzle0。
+  \item \warntext{剩余误差具有喷嘴几何依赖性}：Nozzle3 和部分 HZ nozzles 与 Nozzle0 之间存在 trade-off，说明 early-SOI acceleration 和 curvature prior 可能需要 nozzle-aware 设计。
 \end{enumerate}
 
 \vspace{0.5em}
@@ -331,7 +331,7 @@ Compiled PDF & \pathtext{Thesis/neural_network_fit_results_slides_zh.pdf} \\
 Copied/generated figures & \pathtext{Thesis/images/neural_network_fit_results/} \\
 Best result folder & \pathtext{rmse_eval_clean_20260418_115700_distill_cdf_onset_v2_loss_tuned_conservative_20260418_114747} \\
 Ablation CSV & \pathtext{ablation_summary_for_slides.csv} \\
-DS300 time-bin CSV & \pathtext{ds300_time_bins_for_slides.csv} \\
+Nozzle0 time-bin CSV & \pathtext{ds300_time_bins_for_slides.csv} \\
 \bottomrule
 \end{tabular}
 \end{frame}

@@ -56,14 +56,34 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 \end{frame}
 
 \begin{frame}{Introduction 的总路线}
-\small
+\footnotesize
 \begin{enumerate}
   \item \claim{行业背景}：航运减排和替代燃料推动多燃料船用发动机发展。
-  \item \claim{技术背景}：多燃料发动机仍依赖 pilot fuel 实现可靠点火。
-  \item \gaptext{工程风险}：pilot diesel spray 的空间发展可能带来撞壁、润滑油稀释和燃烧恶化。
-  \item \gaptext{方法缺口}：发动机试验和 CFD 成本高，纯图像测量又不足以形成可快速筛选的预测模型。
+  \item \gaptext{第一层问题}：替代燃料进入发动机后，可靠点火并不会自动解决。
+  \item \claim{技术背景}：pilot diesel injection 仍是点燃低反应性主燃料的关键接口。
+  \item \gaptext{第二层问题}：同一个 pilot spray 若发展过远，会带来撞壁、润滑油稀释和混合恶化风险。
+  \item \claim{已有基础}：试验、CFD、经验穿深模型、Mie 成像和数据驱动 surrogate 都提供了部分入口。
+  \item \gaptext{方法缺口}：这些入口难以同时处理短脉冲、右删失、多孔配准和不确定性筛查。
   \item \solutiontext{新路线}：用 Mie 高速成像数据构造 reduced-order penetration targets，并训练不确定性感知 surrogate。
 \end{enumerate}
+\end{frame}
+
+\begin{frame}{Move 1/2 的交叉 loop}
+\small
+\begin{tabular}{L{0.27\linewidth}L{0.30\linewidth}L{0.34\linewidth}}
+\toprule
+回合 & Move 1：建立背景/已有基础 & Move 2：立刻暴露限制 \\
+\midrule
+能源转型 & 替代燃料船用发动机变得重要。 & 低反应性燃料仍需要可靠点火。 \\
+pilot spray & pilot diesel 是关键点火接口。 & 液相发展过远会造成撞壁和润滑油稀释。 \\
+工程评估 & 试验、CFD、经验模型和 Mie 成像已有基础。 & 成本、速度、瞬态适用性和测量定义各有弱点。 \\
+数据路线 & 神经 surrogate 已能预测喷雾宏观特性。 & 缺少短脉冲+右删失+多孔 plume+不确定性输出的组合。 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.7em}
+\footnotesize
+这样写比单次 ``background $\rightarrow$ gap'' 更有张力：每引入一层已有知识，就说明为什么它还不足以完成本文任务。
 \end{frame}
 
 \section{Move 1}
@@ -77,13 +97,13 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 
 \vspace{0.8em}
 \begin{block}{本文论证}
-国际航运正同时面临温室气体减排、燃料多样化和运行可靠性压力；IMO 2023 战略和行业订单趋势使替代燃料推进系统成为现实工程问题 \src{imo2023ghgstrategy; classnk2025alternativefuels}。
+国际航运正同时面临温室气体减排、燃料多样化和运行可靠性压力；IMO 2023 战略和行业订单趋势使替代燃料推进系统成为现实工程问题 \src{imo2023ghgstrategy}。低压天然气、甲醇和氨等路线使双燃料/多燃料船用发动机成为重要开发方向 \src{classnk2025alternativefuels}。
 \end{block}
 
 \begin{itemize}
   \item 作用：把研究放在船用能源转型的大背景中。
-  \item 关键词：importance, relevance, application.
-  \item 引言位置：Research relevance 第 1 段。
+  \item 写法：先说明 application 为什么重要，再引出它内部尚未解决的小问题。
+  \item 引言位置：引言第 1 段。
 \end{itemize}
 \end{frame}
 
@@ -96,13 +116,13 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 
 \vspace{0.8em}
 \begin{block}{本文论证}
-双燃料和多燃料船用发动机不仅需要替代燃料供应，也需要可靠点火；低压燃气、甲醇和氨方案通常仍需要少量 pilot fuel \src{wingd_xdf_manual_2021; wingd_lng_faq_2025; classnk_methanol_2024; wingd_ammonia_faq_2025}。
+双燃料和多燃料发动机不仅需要替代燃料供应，也需要可靠点火。pilot diesel injection 是点燃低反应性主燃料的关键接口，因此 pilot spray 的时空发展直接影响发动机方案能否稳定工作 \src{wingd_xdf_manual_2021; classnk_methanol_2024}。
 \end{block}
 
 \begin{itemize}
-  \item 作用：解释 pilot fuel 在系统中的一般功能。
-  \item 进一步收窄：pilot diesel spray 不只是 ignition aid，其空间发展也影响工程风险。
-  \item 引言位置：Research relevance 第 2--3 段。
+  \item 作用：把大背景收窄到 pilot spray。
+  \item loop 中的下一句：然而，同一个 pilot spray 也可能成为撞壁风险来源。
+  \item 引言位置：引言第 2--4 段。
 \end{itemize}
 \end{frame}
 
@@ -115,12 +135,13 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 
 \vspace{0.8em}
 \begin{block}{本文论证}
-喷雾与撞壁风险通常通过发动机试验、CFD/喷雾燃烧仿真和光学喷雾实验评估；柴油喷雾研究已经形成了高速成像、经验关联式、现象学模型和 CFD 等方法基础 \src{Linne2013SprayImaging; HiroyasuArai1990; NaberSiebers1996; liu2020sprayreview}。
+喷雾与撞壁风险通常通过发动机试验、CFD/喷雾燃烧仿真、经验穿深模型和光学喷雾实验评估；高速 Mie 成像能提供受控条件下的液相包络证据，数据驱动 surrogate 也已显示出预测喷雾宏观特性的潜力 \src{Linne2013SprayImaging; HiroyasuArai1990; NaberSiebers1996; VazKarathanasis2026; liu2020sprayreview}。
 \end{block}
 
 \begin{itemize}
   \item 作用：承认领域已有成熟基础，避免把问题写成“没人研究过喷雾”。
-  \item 引言位置：Current engineering practice 和 Existing solutions。
+  \item loop 中的下一句：然而，这些入口单独使用都不足以形成快速、可重复、带不确定性的筛查模型。
+  \item 引言位置：引言第 5--9 段。
 \end{itemize}
 \end{frame}
 
@@ -135,11 +156,11 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 
 \vspace{0.8em}
 \begin{itemize}
+  \item 替代燃料并不自动解决点火问题，因此 pilot diesel injection 仍不可忽略。
+  \item pilot spray 能帮助点火，但液相发展过远会带来壁面润湿、润滑油稀释和混合恶化。
   \item 发动机试验接近真实工况，但昂贵、慢，难以隔离单一设计因素。
-  \item 高保真 CFD 信息丰富，但需要复杂模型、大量输入假设和显著计算资源。
-  \item 一个 reacting diesel-spray LES 例子需要约 48,000 CPU core-hours，并且可达 20 天 wall-clock，只覆盖 SOI 后 \(\SI{2}{ms}\) \src{CurtisNiemeyerSung2017}。
-  \item 经验和现象学模型紧凑可解释，但对短脉冲、强瞬态和多次喷射情形不够稳健。
-  \item 光学边界具有方法依赖性，不等于隐藏物理真值 \src{ecn_liquid_penetration; ecn_liquid_penetration_accessory}。
+  \item 高保真 CFD 信息丰富，但一次 reacting diesel-spray LES 可消耗约 48,000 CPU core-hours \src{CurtisNiemeyerSung2017}。
+  \item 经验模型对短脉冲 SOI/EOI 瞬态不够稳健；光学边界又具有方法依赖性 \src{ZhouLiYi2021; ZhouLiLaiWei2019; ecn_liquid_penetration; ecn_liquid_penetration_accessory}。
 \end{itemize}
 \end{frame}
 
@@ -152,13 +173,13 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 
 \vspace{0.8em}
 \begin{block}{本文 gap statement}
-缺少一种快速、可重复的方法，用于预测预喷柴油非反应液相包络随时间的演化，从而为后续撞壁风险分析提供有依据的几何输入。
+缺少一种位于光学实验归档和高成本验证之间的 intermediate-layer predictor：它应能快速、可重复地预测短脉冲预喷柴油液相包络随时间的演化，并同时处理右删失、多孔 plume 配准和不确定性输出。
 \end{block}
 
 \begin{itemize}
   \item 不是缺少喷雾研究本身。
-  \item 缺的是光学实验和高成本验证之间的 intermediate-layer predictor。
-  \item 目标不是替代 CFD 或发动机试验，而是在它们之前缩小候选空间。
+  \item 缺的是把 Mie 视频证据转成可查询、可审计、可用于撞壁排序的模型层。
+  \item 目标不是替代 CFD 或发动机试验，而是在它们之前收窄候选空间。
 \end{itemize}
 \end{frame}
 
@@ -202,39 +223,41 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 
 \section{Move 4}
 
-\begin{frame}{Move 4-1：Research aims}
-\small
+\begin{frame}{Move 4-1：Aim and tasks}
+\footnotesize
 \movetag{4}{Your solution}
 
 \vspace{0.5em}
-\steptag{1}{Research aims}
+\steptag{1}{Announcing aim and tasks}
 
-\vspace{0.8em}
+\vspace{0.5em}
 \begin{block}{本文目标}
-开发一个用于预喷柴油的、数据驱动的非反应液相包络预测模型，从喷射工况与时间信息预测喷雾包络和穿深趋势，并给出适于工程解释的不确定性描述。
+把大规模 Mie 散射喷雾视频归档转化为位于光学实验归档与高成本验证之间的早期工程筛查层。
 \end{block}
 
-\begin{itemize}
-  \item 输出：mean penetration trend + uncertainty.
-  \item 用途：船用双燃料发动机开发中的早期撞壁风险筛查。
-\end{itemize}
+\vspace{0.3em}
+\begin{enumerate}
+  \item 提取逐 plume 几何观测量。
+  \item 构造删失感知 penetration targets。
+  \item 训练不确定性感知 surrogate。
+  \item 连接概率性 wall-impingement screening proxy。
+\end{enumerate}
 \end{frame}
 
-\begin{frame}{Move 4-2：Methods}
-\small
+\begin{frame}{Move 4-2：Methods / testbed}
+\footnotesize
 \movetag{4}{Your solution}
 
 \vspace{0.5em}
 \steptag{2}{Methods}
 
-\vspace{0.8em}
+\vspace{0.5em}
 \begin{enumerate}
-  \item 室温加压空气舱中的柴油喷雾高速 Mie 成像。
-  \item 人工标定喷嘴中心和像素尺度。
-  \item CUDA 加速批处理提取 plume-resolved temporal observables 和边界几何量。
-  \item 降阶拟合构造 penetration targets，并处理右删失与时间对齐。
-  \item 多阶段学习：Stage-1 MSE、Stage-2 heteroscedastic NLL、teacher-guided refinement。
-  \item 将预测均值和不确定性接入简化几何风险筛查。
+  \item OSCC 室温、非反应、顶视高速 Mie 记录。
+  \item 人工喷嘴标定：中心、半径、角向参考和像素尺度。
+  \item CUDA 图像链：鲁棒预处理、Sobel、极坐标/FFT 配准、plume 条带提取。
+  \item 轨迹链：CDF 穿深、边界度量、清洗、降阶拟合和右删失处理。
+  \item 模型链：Stage~1 MSE、Stage~2 heteroscedastic NLL、Stage~3 raw-CDF/KD refinement。
 \end{enumerate}
 \end{frame}
 
@@ -255,52 +278,58 @@ MICE 强调 general-to-specific 和 problem-solution 顺序；本 slide deck 用
 \end{frame}
 
 \begin{frame}{Move 4-4：Main outcome}
-\small
+\footnotesize
 \movetag{4}{Your solution}
 
 \vspace{0.5em}
 \steptag{4}{Describing the main outcome}
 
-\vspace{0.8em}
-\begin{enumerate}
-  \item TB 级 Mie 视频到 plume-resolved observables 的 CUDA 加速工作流。
-  \item 面向轨迹对齐、稳健外推和右删失缓解的 reduced-order fitting。
-  \item 结合 MSE、heteroscedastic NLL 和 teacher-guided refinement 的多阶段 surrogate。
-  \item 将 penetration prediction 与 downstream geometric collision evaluation 解耦的概率化筛查原型。
-\end{enumerate}
+\vspace{0.5em}
+\begin{block}{精简结果}
+最终 Stage~3 surrogate 在 9 个喷嘴 campaign 的约 15{,}000 条轨迹上达到 RMSE~\SI{6.60}{mm}，约为测量穿深范围的 6.88\%，并保持接近高斯预期且略偏保守的覆盖率：73.56\% / 96.93\%。
+\end{block}
+
+\vspace{0.4em}
+\begin{itemize}
+  \item 输出不是二元通过/不通过结论，而是可排序的概率性筛查 proxy。
+  \item 结果讨论留给 Results 和 Discussion；Introduction 只给定位和可信度信号。
+\end{itemize}
 \end{frame}
 
 \begin{frame}{Move 4-5：Thesis structure}
-\small
+\scriptsize
 \movetag{4}{Your solution}
 
 \vspace{0.5em}
 \steptag{5}{Overview of thesis structure}
 
-\vspace{0.8em}
-\begin{tabular}{L{0.25\linewidth}L{0.62\linewidth}}
+\vspace{0.6em}
+\begin{tabular}{L{0.29\linewidth}L{0.58\linewidth}}
 \toprule
-部分 & 作用 \\
+章节 & 作用 \\
 \midrule
 文献综述与技术依据 & 放置于柴油喷雾成像、光学诊断和 surrogate 建模背景下。 \\
-材料与方法 & 实验数据、图像处理、特征提取、轨迹拟合和模型训练。 \\
-结果 & 报告已归档的处理资产和模型证据。 \\
-结论 & 总结结果、限制和后续开发需求。 \\
+实验数据与图像处理工作流 & OSCC 数据、人工标定、CUDA 预处理、配准、条带提取和 CDF/边界度量。 \\
+轨迹目标、Surrogate 建模与概率性筛查 & 轨迹清洗、降阶拟合、特征设计、Stage~1--3 和碰壁筛查 proxy。 \\
+结果 & 报告总体精度、campaign 差异、消融和原型筛查输出。 \\
+讨论 & 解释 Stage~3 可信度、已验证内容和适用边界。 \\
+结论 & 总结已验证结果、原型边界和下一步开发重点。 \\
 \bottomrule
 \end{tabular}
 \end{frame}
 
 \begin{frame}{Move/Step 检查表}
-\small
+\footnotesize
 \begin{tabular}{L{0.19\linewidth}L{0.30\linewidth}L{0.40\linewidth}}
 \toprule
 MICE 位置 & Introduction 小节 & 核心论证 \\
 \midrule
-Move 1-1 & Research relevance & 航运减排和替代燃料使问题重要。 \\
-Move 1-2 & Research relevance & 多燃料发动机依赖 pilot fuel，喷雾空间发展有风险。 \\
-Move 1-3 & Current practice / Existing solutions & 试验、CFD、光学诊断和经验模型已有基础。 \\
-Move 2-1 & Existing solutions & 各类方法在成本、瞬态、可解释性或真值定义上有弱点。 \\
-Move 2-2 & Problem statement & 缺少光学实验和高成本验证之间的快速中间层预测器。 \\
+Move 1-1 & 引言第 1 段 & 航运减排和替代燃料使多燃料发动机问题重要。 \\
+Move 2-1 & 引言第 2 段 & 替代燃料仍需要可靠点火，问题收窄到 pilot injection。 \\
+Move 1-2 & 引言第 3 段 & pilot diesel 是点燃低反应性主燃料的关键接口。 \\
+Move 2-1 & 引言第 4 段 & pilot spray 也可能导致撞壁、润滑油稀释和混合恶化。 \\
+Move 1-3 & 引言第 5/7/9 段 & 试验、CFD、经验模型、Mie 成像和数据 surrogate 已有基础。 \\
+Move 2-1/2-2 & 引言第 6/8/10 段 & 仍缺少处理短脉冲、右删失、多孔配准和不确定性的中间层预测器。 \\
 Move 3-1 & Problem statement 后段 & 从 Mie 数据学习 surrogate。 \\
 Move 3-2 & Why workflow necessary & 降阶目标、审计性、不确定性和高通量处理使路线合理。 \\
 Move 4-1--5 & Aim / Methods / Scope / Contributions / Structure & 本论文具体方案、边界、结果和章节组织。 \\

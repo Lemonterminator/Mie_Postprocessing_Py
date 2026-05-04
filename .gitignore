@@ -48,10 +48,12 @@ Thumbs.db
 
 # Project data/artifacts
 ex.npy
+outputs/
 MLP/synthetic_data/
 MLP/synthetic_data_old/
 MLP/synthetic_data.zip
-MLP/inference_testing/
+MLP/eval/
+MLP/media/
 Results/manual_segment_sam3_video/
 Processed_Results/
 examples/data/
@@ -78,6 +80,14 @@ optical_flow_packages/Optical_Flow_SDK*/**
 *.jpeg
 *.tif
 *.tiff
+
+# Keep thesis images versioned
+!Thesis/**/*.png
+!Thesis/**/*.jpg
+!Thesis/**/*.jpeg
+!Thesis/**/*.tif
+!Thesis/**/*.tiff
+
 OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
 OSCC_postprocessing/dewe/DeweFileLibrary/*.so
 OSCC_postprocessing/dewe/DeweFileLibrary/*.zip

@@ -1,0 +1,66 @@
+{
+  "common": {
+    "teacher_run": "latest_stage2",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_fast": true,
+    "eval_save_points": false,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": true,
+    "save_points": true,
+    "save_plots": true,
+    "batch_points": 262144,
+    "max_traj_plots": null,
+    "tag": "winner_full"
+  },
+  "ablations": [
+    {
+      "name": "baseline",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_baseline",
+      "args": {}
+    },
+    {
+      "name": "raw_reliable_no_kd",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_ablate_raw_reliable_no_kd",
+      "args": {
+        "raw_reliable_kd_weight": 0.0
+      }
+    },
+    {
+      "name": "raw_uncertain_raw05_kd025",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_ablate_raw_uncertain_raw05_kd025",
+      "args": {
+        "raw_uncertain_raw_weight": 0.5,
+        "raw_uncertain_kd_weight": 0.25
+      }
+    },
+    {
+      "name": "anchor_off",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_ablate_anchor_off",
+      "args": {
+        "lambda_anchor": 0.0
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 \usepackage[margin=10mm]{geometry}
 \usepackage{graphicx}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,shapes.geometric}
 \usepackage{array}
 \usepackage{xcolor}
 \pagestyle{empty}
@@ -12,6 +12,15 @@
 \definecolor{branchyellow}{RGB}{255,245,210}
 \definecolor{outputred}{RGB}{255,230,230}
 \definecolor{notegrey}{RGB}{244,244,244}
+\definecolor{titlegreen}{RGB}{0,42,28}
+\definecolor{stageblue}{RGB}{52,177,235}
+\definecolor{flowgreen}{RGB}{183,239,205}
+\definecolor{datagreen}{RGB}{16,190,95}
+\definecolor{metapurple}{RGB}{226,143,238}
+\definecolor{calibyellow}{RGB}{255,225,88}
+\definecolor{framegreen}{RGB}{36,174,95}
+\definecolor{linegreen}{RGB}{19,83,62}
+\definecolor{depred}{RGB}{245,135,135}
 
 \tikzset{
   box/.style={
@@ -38,100 +47,171 @@
   note/.style={box, fill=notegrey},
   arrow/.style={-{Latex[length=2.1mm]}, thick},
   lightarrow/.style={-{Latex[length=1.8mm]}, thin},
+  fcframe/.style={draw=framegreen, rounded corners=2pt, line width=0.55pt},
+  fctitle/.style={fill=titlegreen, text=white, font=\bfseries\large, align=center, inner sep=4pt},
+  fcstage/.style={fill=stageblue, text=black, font=\bfseries\normalsize, align=center, inner sep=3pt},
+  fcop/.style={draw=none, fill=flowgreen, align=center, font=\scriptsize, text width=25mm, minimum height=8mm, inner sep=2pt},
+  fcopwide/.style={fcop, text width=32mm},
+  fcdata/.style={draw=none, fill=datagreen, ellipse, align=center, font=\scriptsize, text width=22mm, minimum height=9mm, inner sep=1.5pt},
+  fcmeta/.style={draw=none, fill=metapurple, align=center, font=\scriptsize, text width=23mm, minimum height=8mm, inner sep=2pt},
+  fcfeature/.style={draw=none, fill=metapurple, diamond, aspect=1.8, align=center, font=\scriptsize, text width=16mm, inner sep=0.8pt},
+  fccalib/.style={draw=none, fill=calibyellow, align=center, font=\scriptsize, text width=22mm, minimum height=29mm, inner sep=2pt},
+  fcsmallnote/.style={align=center, font=\tiny, text width=25mm, inner sep=1pt},
+  fcarrow/.style={-{Latex[length=1.7mm]}, draw=linegreen, line width=0.55pt},
+  fcdep/.style={-{Latex[length=1.5mm]}, draw=depred, line width=0.35pt, dotted},
 }
 
 \begin{document}
 
-\begin{center}
-\Large\bfseries Mie Multi-Hole Pipeline: Video to 1D Per-Frame Metrics
-\end{center}
+\noindent\resizebox{0.985\linewidth}{!}{%
+\begin{tikzpicture}[x=1mm,y=1mm]
 
-\vspace{-1mm}
+% Canvas and title
+\node[fcframe, minimum width=270mm, minimum height=176mm, anchor=south west] at (6,4) {};
+\node[fctitle, minimum width=226mm, minimum height=13mm, anchor=west] at (10,168)
+  {Multi-Hole Top-View Mie Scattering Video Processing Pipeline};
 
-\noindent\resizebox{0.95\linewidth}{!}{%
-\begin{tikzpicture}[node distance=8mm and 9mm]
+% Stage frames
+\node[fcframe, minimum width=68mm, minimum height=70mm, anchor=south west] at (10,94) {};
+\node[fcstage, minimum width=32mm] at (44,157) {Reading};
 
-% Inputs and loading
-\node[input] (cine) {.cine video\\12-bit grayscale\\shape: $(F,H,W)$};
-\node[input, below=of cine] (cfg) {geometry/config\\plumes, centre\\inner/outer radius};
-\node[input, below=of cfg] (meta) {test metadata\\pressure, duration\\FPS, nozzle props};
+\node[fcframe, minimum width=72mm, minimum height=70mm, anchor=south west] at (82,94) {};
+\node[fcstage, minimum width=46mm] at (118,157) {Pre-processing};
 
-\node[process, right=of cine] (load) {load + normalize\\\texttt{load\_cine\_video}\\divide by 4096\\NumPy/CuPy backend};
-\node[process, below=of load] (ring) {annular mask\\\texttt{generate\_ring\_mask}\\reuse per folder};
+\node[fcframe, minimum width=98mm, minimum height=70mm, anchor=south west] at (162,94) {};
+\node[fcstage, minimum width=58mm] at (211,157) {Post-processing};
 
-\draw[arrow] (cine) -- (load);
-\draw[arrow] (cfg) -- (ring);
-\draw[lightarrow] (ring) -- (load);
+\node[fcframe, minimum width=264mm, minimum height=72mm, anchor=south west] at (10,8) {};
+\node[fcframe, minimum width=108mm, minimum height=62mm, anchor=south west] at (160,16) {};
+\node[fcstage, minimum width=64mm] at (77,21) {Feature Extraction};
+\node[fcstage, minimum width=34mm] at (247,75) {Writing};
 
-% Preprocess
-\node[process, right=of load] (pre) {Mie preprocessing\\\texttt{mie\_multihole}\\\texttt{\_preprocessing}};
-\node[smallbox, fill=processgreen, above right=2mm and 5mm of pre] (fg) {foreground\\log subtraction\\noise gate\\robust scale};
-\node[smallbox, fill=processgreen, below right=2mm and 5mm of pre] (hp) {highpass\\Sobel magnitude\\robust scale\\ring/chamber mask};
-\draw[arrow] (load) -- (pre);
-\draw[arrow] (pre) -- (fg);
-\draw[arrow] (pre) -- (hp);
+% Reading
+\node[fcmeta, minimum width=23mm] (inputs) at (29,142) {Inputs};
+\node[fcdata] (cine) at (30,126) {.cine video};
+\node[fcsmallnote, below=1mm of cine] {12-bit grayscale\\shape $(F,H,W)$};
+\node[fcdata] (cfg) at (30,108) {Calibration\\config};
+\node[fcsmallnote, below=1mm of cfg] {plume count\\centre, radii};
+\node[fcdata] (tm) at (30,90) {Test matrix\\metadata};
+\node[fcsmallnote, below=1mm of tm] {nozzle properties\\physics, FPS};
+\node[fcopwide] (load) at (63,124) {Load to RAM/VRAM\\as float dtype};
+\node[fcsmallnote, above=0.4mm of load] {Normalize intensity\\to range $[0,1]$};
+\node[fcop] (ring) at (63,108) {Ring mask};
+\node[fcsmallnote, below=0.6mm of ring] {mask outside annulus\\and centre radius};
+\draw[fcarrow] (cine) -- (load);
+\draw[fcarrow] (cfg) -- (ring);
+\draw[fcarrow] (ring) -- (load);
 
-% Postprocess
-\node[process, right=31mm of pre] (post) {multi-hole postprocessing\\\texttt{mie\_multihole}\\\texttt{\_postprocessing}};
-\node[branch, above=of post] (angle) {angular density\\FFT offset\\plume centre angles\\active-angle mask};
-\node[branch, below=of post] (strip) {rotate/crop highpass\\one strip per plume\\inner-radius mask\\\texttt{segments\_fg}: $(P,F,h,w)$};
-\draw[arrow] (fg) -- (post);
-\draw[arrow] (hp) -- (post);
-\draw[arrow] (post) -- (angle);
-\draw[arrow] (post) -- (strip);
+% Pre-processing
+\node[fcop] (logt) at (104,140) {Log transform};
+\node[fcop] (subbg) at (134,140) {Subtract\\background};
+\node[fcop] (linear) at (134,128) {Transform back\\to linear scale};
+\node[fcop] (gate) at (104,128) {Intensity gating};
+\node[fcop] (pscale1) at (104,116) {Percentile\\scaling};
+\node[fcdata] (fg) at (116,104) {Foreground};
+\node[fcop] (hpfilter) at (104,91) {High-pass\\filtering};
+\node[fcop] (pscale2) at (134,91) {Percentile\\scaling};
+\node[fcdata] (hpfeat) at (151,91) {High-pass\\feature};
+\node[fcdata, text width=23mm] (maskedfg) at (149,104) {Masked spray\\foreground};
+\draw[fcarrow] (load) -- (logt);
+\draw[fcarrow] (logt) -- (subbg);
+\draw[fcarrow] (subbg) -- (linear);
+\draw[fcarrow] (linear) -- (gate);
+\draw[fcarrow] (gate) -- (pscale1);
+\draw[fcarrow] (pscale1) -- (fg);
+\draw[fcarrow] (ring.east) -- ++(12,0) |- (fg.west);
+\draw[fcarrow] (fg) -- (maskedfg);
+\draw[fcarrow] (fg) -- (hpfilter);
+\draw[fcarrow] (hpfilter) -- (pscale2);
+\draw[fcarrow] (pscale2) -- (hpfeat);
 
-% Global angle outputs
-\node[output, above=of angle] (globalmetrics) {global angle metrics\\\texttt{cone\_angle\_proxy\_deg}\\\texttt{occupied\_angle\_*}};
-\draw[arrow] (angle) -- (globalmetrics);
+% Post-processing
+\node[fcop] (angbin) at (181,150) {Angular binning\\per pixel};
+\node[fcsmallnote, above=0.5mm of angbin] {transform to polar\\coordinates};
+\node[fcop] (sumt) at (181,137) {Sum in time axis};
+\node[fcop] (fft) at (181,124) {FFT for best\\phase shift};
+\node[fcop] (rotang) at (181,111) {Rotation angle\\for each plume};
+\node[fcop] (affine) at (181,98) {Inverse affine\\mapping};
+\node[fcdata, text width=22mm] (plumehp) at (181,84) {High-pass feature\\per plume};
+\node[fcop] (binz) at (210,137) {Binarize};
+\node[fcfeature] (occ1) at (242,137) {Occupied\\angular bins};
+\node[fcopwide] (settings) at (211,113) {Plume-wise\\image settings};
+\node[fcsmallnote, right=1mm of settings] {interpolation: nearest\\constant border\\shape $(P,F,H,W)$};
+\node[fcopwide] (triangles) at (211,98) {Apply triangle\\masks};
+\node[fcsmallnote, below=0.6mm of triangles] {remove neighboring\\plumes};
+\node[fcdata, text width=24mm] (maskedhp) at (242,98) {Masked high-pass\\feature per plume};
+\node[fcsmallnote, above=0.2mm of occ1] {fast proxy\\for cone angle};
+\draw[fcarrow] (maskedfg) -- ++(9,0) |- (angbin.west);
+\draw[fcarrow] (angbin) -- (sumt);
+\draw[fcarrow] (sumt) -- (binz);
+\draw[fcarrow] (binz) -- (occ1);
+\draw[fcarrow] (sumt) -- (fft);
+\draw[fcarrow] (fft) -- (rotang);
+\draw[fcarrow] (rotang) -- (affine);
+\draw[fcarrow] (hpfeat.east) -- ++(8,0) |- (affine.west);
+\draw[fcarrow] (affine) -- (plumehp);
+\draw[fcarrow] (settings) -- (triangles);
+\draw[fcarrow] (plumehp) -- (triangles);
+\draw[fcarrow] (triangles) -- (maskedhp);
 
-% Branch A CDF
-\node[branch, right=of strip] (cdfprep) {CDF branch\\sum strip over $y$\\heatmaps $(P,F,W)$};
-\node[branch, right=of cdfprep] (cdfclean) {per plume/frame\\baseline remove\\triangle mask\\largest component\\binary opening};
-\node[branch, right=of cdfclean] (cdfx) {front location\\\texttt{penetration\_cdf\_front}\\quantile $q=0.995$};
-\node[branch, right=of cdfx] (cdfpost) {post-clean\\monotonic accumulate\\subtract inner radius\\umbrella correction\\drop regressions\\remove short runs};
-\node[output, right=of cdfpost] (cdfout) {1D CDF penetration\\\texttt{penetration\_cdf}\\\texttt{\_plume\_p}\\and mm-scaled column};
-\draw[arrow] (strip) -- (cdfprep);
-\draw[arrow] (cdfprep) -- (cdfclean);
-\draw[arrow] (cdfclean) -- (cdfx);
-\draw[arrow] (cdfx) -- (cdfpost);
-\draw[arrow] (cdfpost) -- (cdfout);
+% Feature extraction, CDF branch
+\node[fcdata] (hvid) at (31,66) {Horizontal plume\\feature videos};
+\node[fcsmallnote, below=0.8mm of hvid] {shape $(P,F,H,W)$};
+\node[fcopwide] (sumcols) at (65,66) {Sum all columns\\height dimension};
+\node[fcdata, text width=26mm] (heatmap) at (98,66) {Time-distance\\intensity heatmaps};
+\node[fcopwide] (cdfext) at (132,66) {CDF penetration\\extraction};
+\node[fccalib] (correction) at (163,58) {Pixel-to-mm\\and\\umbrella-angle\\correction\\[1mm]\tiny outer radius = 90 mm};
+\node[fcfeature] (cdfmethod) at (197,66) {Penetration,\\CDF method};
+\node[fcfeature] (penetration) at (224,66) {Penetration\\in $x$ and polar};
+\draw[fcarrow] (maskedhp.south) |- (hvid.north);
+\draw[fcarrow] (hvid) -- (sumcols);
+\draw[fcarrow] (sumcols) -- (heatmap);
+\draw[fcarrow] (heatmap) -- (cdfext);
+\draw[fcarrow] (cdfext) -- (correction);
+\draw[fcarrow] (correction) -- (cdfmethod);
+\draw[fcarrow] (cdfmethod) -- (penetration);
 
-% Branch B BW metrics
-\node[branch, below=20mm of cdfprep] (bw) {BW branch\\robust scale strips\\triangle binarize\\\texttt{hp\_segments\_bw}};
-\node[branch, right=of bw] (features) {per-plume feature extraction\\\texttt{spary\_features}\\\texttt{\_from\_bw\_video}\\alias of\\\texttt{extract\_single}\\\texttt{\_plume\_features}};
-\node[output, right=of features] (bwout) {1D binary-envelope metrics\\area\\\texttt{penetration\_bw\_x}\\boundary points\\volume proxies\\\texttt{penetration\_bw\_polar}\\cone angles\\opening/closing};
-\draw[arrow] (strip) |- (bw);
-\draw[arrow] (bw) -- (features);
-\draw[arrow] (features) -- (bwout);
+% Feature extraction, binary boundary branch
+\node[fcopwide] (tribin) at (65,35) {Triangle binarize\\per video};
+\node[fcdata] (bwvid) at (98,35) {Binary videos};
+\node[fcopwide] (holefill) at (132,35) {Hole filling\\keep largest blob\\BW boundary};
+\node[fcfeature] (boundary) at (197,43) {Binarized\\boundary points};
+\node[fcfeature] (cone) at (224,43) {Cone angle};
+\node[fcfeature] (occ2) at (251,43) {Occupied\\angular bins};
+\node[fcfeature] (area) at (224,22) {Area and\\estimated volume};
+\node[fcfeature] (openclose) at (197,22) {Nozzle opening\\and closing};
+\draw[fcarrow] (hvid.south) |- (tribin.west);
+\draw[fcarrow] (tribin) -- (bwvid);
+\draw[fcarrow] (bwvid) -- (holefill);
+\draw[fcarrow] (holefill) -- (correction);
+\draw[fcarrow] (correction) -- (boundary);
+\draw[fcarrow] (boundary) -- (cone);
+\draw[fcarrow] (cone) -- (occ2);
+\draw[fcarrow] (boundary) |- (area);
+\draw[fcarrow] (boundary.south) -- (openclose.north);
 
-% Export
-\node[output, below=14mm of cdfout] (df) {export table\\one row per frame\\one column per metric/plume\\\texttt{pandas.DataFrame}};
-\node[output, below=of df] (files) {saved outputs\\\texttt{video.csv}\\\texttt{video.meta.json}\\optional boundary CSVs};
-\draw[arrow] (cdfout) -- (df);
-\draw[arrow] (bwout) -- (df);
-\draw[arrow] (globalmetrics.east) -| (df.north);
-\draw[arrow] (meta.east) -| (df.south west);
-\draw[arrow] (df) -- (files);
+% Metadata dependencies and output
+\node[fcmeta, minimum width=20mm] (outmeta) at (253,58) {Test matrix\\metadata};
+\node[fcmeta, minimum width=20mm] (outputs) at (253,22) {Outputs};
+\draw[fcarrow] (penetration) -- (outmeta);
+\draw[fcarrow] (occ2) -- (outmeta);
+\draw[fcarrow] (outmeta.east) -- ++(5,0) |- (outputs.east);
+\draw[fcarrow] (openclose.east) -- (area.west);
+\draw[fcarrow] (area.east) -- (outputs.west);
+\draw[fcdep] (tm.east) -- ++(16,0) |- (correction.north);
+\draw[fcdep] (cfg.south) -- ++(0,-8) -| (triangles.south);
+\draw[fcdep] (tm.south) -- ++(0,-10) -| (outmeta.north);
 
-% Metadata side note
-\node[note, below=of bw] (scale) {physical scaling\\\texttt{mm\_per\_px = 90 / outer\_radius}\\adds mm columns for CDF/BW penetration};
-\draw[lightarrow] (cfg.east) -| (scale.west);
-\draw[lightarrow] (scale.east) -| (df.south);
-
-% Grouping backgrounds
-\begin{scope}[on background layer]
-  \node[draw=blue!45, rounded corners=4pt, fit=(cine)(cfg)(meta)(load)(ring), inner sep=4mm, label={[font=\scriptsize]above:Inputs and loading}] {};
-  \node[draw=green!45!black, rounded corners=4pt, fit=(pre)(fg)(hp)(post)(angle)(strip), inner sep=4mm, label={[font=\scriptsize]above:GPU/array-heavy image processing}] {};
-  \node[draw=orange!70!black, rounded corners=4pt, fit=(cdfprep)(cdfclean)(cdfx)(cdfpost)(cdfout)(bw)(features)(bwout), inner sep=4mm, label={[font=\scriptsize]above:Reduction to 1D plume-wise time series}] {};
-  \node[draw=red!45!black, rounded corners=4pt, fit=(df)(files)(scale), inner sep=4mm, label={[font=\scriptsize]below:Tabular export}] {};
-\end{scope}
+% Compact legend
+\node[fcsmallnote, align=left, text width=54mm] at (42,14)
+  {\textbf{Legend:} green rectangles = operations; green ovals = video/image tensors; purple diamonds = extracted metrics; purple rectangles = metadata; yellow = physical scaling.};
 
 \end{tikzpicture}%
 }
 
 \vfill
 \scriptsize
-Code anchors: \texttt{mie\_multi\_hole.py:\_process\_cine\_file}, \texttt{OSCC\_postprocessing.analysis.mie\_multihole}, and \texttt{OSCC\_postprocessing.binary\_ops.feature\_extraction}. The diagram shows the active pipeline from a normalized cine video to frame-wise 1D metrics; checkpointing and batch-folder traversal are omitted for clarity.
+Code anchors: \texttt{mie\_multi\_hole.py:\_process\_cine\_file}, \texttt{OSCC\_postprocessing.analysis.mie\_multihole}, and \texttt{OSCC\_postprocessing.binary\_ops.feature\_extraction}. The first page follows the detailed visual prototype: it separates reading, preprocessing, polar/plume-wise postprocessing, feature extraction, and final tabular outputs while keeping metadata/config dependencies as dotted red links.
 
 \newpage
 
