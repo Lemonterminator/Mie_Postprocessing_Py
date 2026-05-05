@@ -186,7 +186,9 @@ def mie_multihole_postprocessing(
     outer_radius,
     bins=720,
     INTERPOLATION="nearest",
-    BORDER_MODE="constant"
+    BORDER_MODE="constant",
+    segment_bw_q_min=5,
+    segment_bw_q_max=99.5,
 ):
     """Segment the full-frame video into per-plume rotated strips.
 
@@ -209,6 +211,9 @@ def mie_multihole_postprocessing(
         Outer radius determining strip crop size in pixels.
     bins:
         Number of angular bins for the signal-density analysis.
+    segment_bw_q_min, segment_bw_q_max:
+        Percentile bounds used to normalize each plume's 3-D segment volume
+        before applying the plume spatial mask.
 
     Returns
     -------
@@ -292,7 +297,9 @@ def mie_multihole_postprocessing(
     # 將所有噴霧片段堆疊成單個數組 
     # (Stack all plume strips into a single 4D tensor)
     stacked_plume_strips = xp.stack(plume_strips_list, axis=0)  # Shape: (P, F, H, W)
-    num_plumes, _, strip_height, strip_width = stacked_plume_strips.shape
+    # Normalize each plume's 3-D volume before applying the spatial plume mask.
+    stacked_plume_strips = robust_scale_arr_4d(stacked_plume_strips, q_min=segment_bw_q_min, q_max=segment_bw_q_max)
+    _, _, strip_height, strip_width = stacked_plume_strips.shape
 
     # 7. 應用內部半徑遮罩去除噴嘴本體的干擾 
     # (Apply inner radius mask to remove interference from other plumes and the injector)

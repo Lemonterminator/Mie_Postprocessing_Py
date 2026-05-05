@@ -22,7 +22,6 @@ from OSCC_postprocessing.binary_ops.functions_bw import (
 )
 from OSCC_postprocessing.binary_ops.masking import generate_ring_mask
 from OSCC_postprocessing.playback.video_playback import play_video_cv2
-from OSCC_postprocessing.utils.scaling import robust_scale
 from OSCC_postprocessing.analysis.hysteresis import remove_short_true_runs
 from OSCC_postprocessing.utils.backend import cp, xp, USING_CUPY
 from OSCC_postprocessing.analysis.single_plume import save_boundary_csv
@@ -675,12 +674,15 @@ def _process_cine_file(
             or_,
             bins=angular_bins,
             INTERPOLATION=interpolation_mode,
-            BORDER_MODE=border_mode
+            BORDER_MODE=border_mode,
+            segment_bw_q_min=segment_bw_q_min,
+            segment_bw_q_max=segment_bw_q_max
         )
         state["hp_segments"] = state["postprocess"]["segments_fg"]
         # Need to ignore zeros in the histogram for large number of zeros made by masking.
         state["hp_segments_bw"] = triangle_binarize_gpu(
-            robust_scale(state["hp_segments"], segment_bw_q_min, segment_bw_q_max), ignore_zero=True
+            state["hp_segments"],
+            ignore_zero=True,
         )
         if repair_bw:
             state["hp_segments_bw"] = repair_binary_plume_video(state["hp_segments_bw"])

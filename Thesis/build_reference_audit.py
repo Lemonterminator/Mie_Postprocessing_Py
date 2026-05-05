@@ -87,8 +87,8 @@ LEGAL_OPEN_URL_OVERRIDES: Dict[str, List[Tuple[str, str]]] = {
 
 MEANINGS: Dict[str, Tuple[str, str]] = {
     "HeywoodICE": (
-        "Present in the bibliography as a general internal-combustion-engine reference, but it is not currently cited in the thesis text.",
-        "该文献目前只存在于参考文献库中，作为内燃机基础背景书目；正文尚未实际引用它。",
+        "General internal-combustion-engine reference; specifically cited for the slider-crank piston-kinematics idealisation used in the prototype wall-impingement geometry.",
+        "通用内燃机基础参考；本文具体用于原型撞壁几何中活塞滑块--曲柄运动学近似的依据。",
     ),
     "Linne2013SprayImaging": (
         "Supports the limits and usefulness of optical spray imaging and Mie-scattering diagnostics for extracting liquid-envelope observables.",
@@ -309,6 +309,18 @@ MEANINGS: Dict[str, Tuple[str, str]] = {
     "Park2018WallImpingement": (
         "Supports image-based wall-impingement prediction as a lower-cost alternative to full CFD.",
         "用于支撑基于图像分析进行撞壁预测可以作为低成本工程估计路径。",
+    ),
+    "Karim2015DualFuel": (
+        "Foundational textbook reference linking pilot-spray characteristics in dual-fuel diesel-gas engines to ignition-kernel formation and downstream main-fuel flame propagation.",
+        "用于支撑在双燃料柴油-气体发动机中，pilot 喷雾特性决定点火核形成与主燃料火焰传播的论述基础。",
+    ),
+    "WeiGeng2016DualFuelReview": (
+        "Peer-reviewed review on how pilot diesel injection parameters (timing, quantity, spray characteristics) affect combustion efficiency and unburned-methane emissions in natural-gas/diesel dual-fuel engines.",
+        "用于支撑 pilot 柴油喷射参数（定时、油量、喷雾特性）对天然气/柴油双燃料燃烧效率及未燃甲烷排放的影响。",
+    ),
+    "Sahoo2009DualFuelReview": (
+        "Critical review establishing pilot fuel quantity and spray characteristics as design parameters that influence overall combustion efficiency in dual-fuel gas-diesel engines.",
+        "用于支撑 pilot 燃油量与喷雾特性是双燃料燃烧效率的关键设计变量这一综述性结论。",
     ),
 }
 
@@ -703,11 +715,11 @@ def validate(rows: List[Dict[str, str]]) -> None:
     missing = sorted(cited_keys - bib_keys)
     if missing:
         raise SystemExit(f"citation keys missing from TSV: {missing}")
-    if len(rows) != 56:
-        raise SystemExit(f"expected 56 BibTeX rows, got {len(rows)}")
+    if len(rows) != 63:
+        raise SystemExit(f"expected 63 BibTeX rows, got {len(rows)}")
     heywood = next(row for row in rows if row["bib_key"] == "HeywoodICE")
-    if heywood["used_in_tex"] != "false":
-        raise SystemExit("HeywoodICE should be marked used_in_tex=false")
+    if heywood["used_in_tex"] != "true":
+        raise SystemExit("HeywoodICE should be marked used_in_tex=true (cited in piston-kinematics section)")
     for row in rows:
         path = row["downloaded_file_path"]
         if path and not (ROOT / path).exists():
