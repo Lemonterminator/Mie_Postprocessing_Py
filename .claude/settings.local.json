@@ -36,7 +36,14 @@
       "Bash(grep -v \"pdftex.def Error: File\\\\|not found: using\\\\|file:line:error\\\\|^$\")",
       "Bash(biber thesis_zh)",
       "Bash(ls /c/Users/LJI008/Mie_Postprocessing_Py/Thesis/*.md)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python -c \"import pyarrow; print\\(pyarrow.__version__\\)\")",
+      "Bash(python -c \"import fastparquet; print\\(fastparquet.__version__\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(r'c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\mie_multi_hole.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(r'c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\OSCC_postprocessing\\\\analysis\\\\single_plume.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(r'c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\OSCC_postprocessing\\\\playback\\\\video_playback.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -m pyflakes c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\mie_multi_hole.py)",
+      "Bash(python -c ' *)"
     ]
   }
 }

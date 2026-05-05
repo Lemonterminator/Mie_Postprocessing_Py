@@ -52,7 +52,10 @@ outputs/
 MLP/synthetic_data/
 MLP/synthetic_data_old/
 MLP/synthetic_data.zip
-MLP/eval/
+MLP/eval/*
+!MLP/eval/
+!MLP/eval/inference_rmse_on_series.py
+!MLP/eval/calibration_coverage_audit.py
 MLP/media/
 Results/manual_segment_sam3_video/
 Processed_Results/

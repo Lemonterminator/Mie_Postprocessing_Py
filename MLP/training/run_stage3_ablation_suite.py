@@ -244,6 +244,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--teacher-run", type=Path, default=None, help="Override config common.teacher_run.")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default=None, help="Override config device.")
     parser.add_argument("--only", nargs="+", default=None, help="Run only these ablation names.")
+    parser.add_argument(
+        "--include-sensitivity",
+        action="store_true",
+        help="Also include entries from the optional sensitivity_ablations config block.",
+    )
+    parser.add_argument(
+        "--sensitivity-only",
+        action="store_true",
+        help="Run only entries from the optional sensitivity_ablations config block.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print commands without running them.")
     parser.add_argument("--continue-on-error", action="store_true")
     return parser.parse_args()
@@ -263,9 +273,18 @@ def main() -> None:
     python_exe = DEFAULT_PYTHON if DEFAULT_PYTHON.exists() else Path(sys.executable)
 
     requested = set(args.only or [])
+    standard_items = list(config["ablations"])
+    sensitivity_items = list(config.get("sensitivity_ablations", []))
+    if args.sensitivity_only:
+        candidate_items = sensitivity_items
+    elif args.include_sensitivity:
+        candidate_items = standard_items + sensitivity_items
+    else:
+        candidate_items = standard_items
+
     ablations = [
         item
-        for item in config["ablations"]
+        for item in candidate_items
         if item.get("enabled", True) and (not requested or str(item.get("name")) in requested)
     ]
     if requested:

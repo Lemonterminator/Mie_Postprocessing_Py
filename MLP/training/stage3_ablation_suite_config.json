@@ -62,5 +62,79 @@
         "lambda_anchor": 0.0
       }
     }
+  ],
+  "sensitivity_ablations": [
+    {
+      "name": "uncertain_ratio_060",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_uncertain060",
+      "args": {
+        "uncertain_ratio": 0.6,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "uncertain_ratio_080",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_uncertain080",
+      "args": {
+        "uncertain_ratio": 0.8,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "teacher_ratio_010",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_teacher010",
+      "args": {
+        "teacher_ratio": 0.1,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "teacher_ratio_030",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_teacher030",
+      "args": {
+        "teacher_ratio": 0.3,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_005",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_sigref005",
+      "args": {
+        "sigma_conf_ref_mm": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_020",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_sigref020",
+      "args": {
+        "sigma_conf_ref_mm": 20.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "raw_reliable_kd_000",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_reliablekd000",
+      "args": {
+        "raw_reliable_kd_weight": 0.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "raw_reliable_kd_025",
+      "enabled": true,
+      "run_name_prefix": "distill_cdf_onset_v2_sens_reliablekd025",
+      "args": {
+        "raw_reliable_kd_weight": 0.25,
+        "lambda_anchor": 0.0
+      }
+    }
   ]
 }

@@ -448,3 +448,99 @@ def save_boundary_csv(boundary, out_csv, origin=(0, 0), executor=None):
         return
     return executor.submit(df.to_csv, out_csv, index=False)
 
+
+def _flatten_boundary(boundary, plume_idx, origin_y, origin_x, use_origin):
+    """Flatten one plume's per-frame boundary lists into 1-D numpy arrays."""
+    items = []
+    total = 0
+    for frame_idx, frame_pts in enumerate(boundary):
+        if frame_pts is None:
+            continue
+        if isinstance(frame_pts, (tuple, list)) and len(frame_pts) == 2:
+            lower = np.asarray(frame_pts[0])
+            upper = np.asarray(frame_pts[1])
+            if lower.size == 0:
+                pts = upper
+            elif upper.size == 0:
+                pts = lower
+            else:
+                pts = np.concatenate((lower, upper), axis=0)
+        else:
+            pts = np.asarray(frame_pts)
+        if pts.size == 0:
+            continue
+        n = int(pts.shape[0])
+        items.append((frame_idx, pts, n))
+        total += n
+
+    if total == 0:
+        empty32 = np.empty(0, dtype=np.int32)
+        emptyf = np.empty(0, dtype=np.float32)
+        return empty32, empty32, empty32, emptyf, emptyf
+
+    plumes = np.full(total, plume_idx, dtype=np.int32)
+    frames = np.empty(total, dtype=np.int32)
+    point_idxs = np.empty(total, dtype=np.int32)
+    ys = np.empty(total, dtype=np.float32)
+    xs = np.empty(total, dtype=np.float32)
+    offset = 0
+    for frame_idx, pts, n in items:
+        end = offset + n
+        frames[offset:end] = frame_idx
+        point_idxs[offset:end] = np.arange(n, dtype=np.int32)
+        y = np.asarray(pts[:, 0], dtype=np.float32)
+        x = np.asarray(pts[:, 1], dtype=np.float32)
+        if use_origin:
+            y = y - origin_y
+            x = x - origin_x
+        ys[offset:end] = y
+        xs[offset:end] = x
+        offset = end
+    return plumes, frames, point_idxs, ys, xs
+
+
+def save_boundary_npz(boundaries_per_plume, out_path, origin=(0, 0)):
+    """
+    Persist boundary points for all plumes of one video as a single NPZ.
+
+    ``boundaries_per_plume`` is a list of ``(plume_idx, boundary)`` pairs where
+    ``boundary`` is a per-frame container (lower/upper tuple or array).
+
+    NPZ is used instead of CSV because numeric NPZ writes ~10-30x faster than
+    pandas to_csv and produces files several times smaller, while staying a
+    pure-numpy dependency.
+    """
+    origin_y = np.float32(origin[0])
+    origin_x = np.float32(origin[1])
+    use_origin = bool(origin_y != 0 or origin_x != 0)
+
+    parts = [
+        _flatten_boundary(boundary, plume_idx, origin_y, origin_x, use_origin)
+        for plume_idx, boundary in boundaries_per_plume
+        if boundary is not None
+    ]
+    if not parts:
+        np.savez_compressed(
+            out_path,
+            plume_idx=np.empty(0, dtype=np.int32),
+            frame=np.empty(0, dtype=np.int32),
+            point_idx=np.empty(0, dtype=np.int32),
+            y=np.empty(0, dtype=np.float32),
+            x=np.empty(0, dtype=np.float32),
+        )
+        return
+
+    plumes = np.concatenate([p[0] for p in parts])
+    frames = np.concatenate([p[1] for p in parts])
+    point_idxs = np.concatenate([p[2] for p in parts])
+    ys = np.concatenate([p[3] for p in parts])
+    xs = np.concatenate([p[4] for p in parts])
+    np.savez_compressed(
+        out_path,
+        plume_idx=plumes,
+        frame=frames,
+        point_idx=point_idxs,
+        y=ys,
+        x=xs,
+    )
+

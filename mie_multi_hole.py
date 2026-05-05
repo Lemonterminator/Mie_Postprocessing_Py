@@ -21,10 +21,13 @@ from OSCC_postprocessing.binary_ops.functions_bw import (
     spary_features_from_bw_video,
 )
 from OSCC_postprocessing.binary_ops.masking import generate_ring_mask
-from OSCC_postprocessing.playback.video_playback import play_video_cv2
+from OSCC_postprocessing.playback.video_playback import (
+    save_multiplume_with_boundaries_cv2,
+    play_multiplume_with_boundaries_cv2,
+)
 from OSCC_postprocessing.analysis.hysteresis import remove_short_true_runs
 from OSCC_postprocessing.utils.backend import cp, xp, USING_CUPY
-from OSCC_postprocessing.analysis.single_plume import save_boundary_csv
+from OSCC_postprocessing.analysis.single_plume import save_boundary_npz
 
 # ---- Mie multihole pipeline (library module) ----
 from OSCC_postprocessing.analysis.mie_multihole import (
@@ -119,6 +122,17 @@ penetration_cleanup_min_len = 5
 
 save_boundary_points_csv = False
 
+# Visual preview toggles. Both default off so production batch runs are silent.
+# - save_preview_avi: dump a tiled multi-plume AVI with boundary overlay per video
+#   to the I/O writer pool (truly async, no GUI thread risk).
+# - preview_playback: synchronously open an OpenCV window after each video. Blocks
+#   the pipeline (no GPU/IO overlap) -- intended for interactive QC, not batch runs.
+# Press 'q' during playback to skip the rest of the current video.
+save_preview_avi = False
+preview_playback = False
+preview_fps = 15
+preview_tile = None  # (rows, cols), or None for adaptive layout
+
 # =============================================================================
 # Default nozzle properties, safe fall back if not defined in test matrix or in cine.
 # =============================================================================
@@ -140,17 +154,6 @@ def _to_json_scalar(value):
     if isinstance(value, float) and not np.isfinite(value):
         return None
     return value
-
-
-def _save_metrics_and_metadata_csv(
-    df: pd.DataFrame,
-    csv_path: Path,
-    metadata: dict,
-    metadata_path: Path,
-):
-    df.to_csv(csv_path, index=False)
-    with open(metadata_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, ensure_ascii=False, indent=2)
 
 
 def _get_mm_per_px_scale(outer_radius:float) -> float:
@@ -326,17 +329,6 @@ def _compute_spray_metrics_for_segment(args):
     return idx, metrics
 
 
-# Directory containing mask images and numpy files
-# DATA_DIR = Path(__file__).resolve().parent / "data"
-
-# Define a semaphore with a limit on concurrent tasks
-SEMAPHORE_LIMIT = 8  # Adjust this based on your CPU capacity
-semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
-
-async def play_video_cv2_async(video, gain=1, binarize=False, thresh=0.5, intv=17):
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, play_video_cv2, video, gain, binarize, thresh, intv)
-
 def numeric_then_alpha_key(p: Path):
     """
     Sort numerically by the first integer in the stem if present; otherwise
@@ -363,8 +355,6 @@ def _append_processing_log(log_path: Path, message: str):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {message}\n")
-        f.flush()
-        os.fsync(f.fileno())
 
 
 def _write_checkpoint(
@@ -411,16 +401,21 @@ def _load_subfolder_config(files: list[Path]) -> tuple[int, tuple[float, float],
     raise FileNotFoundError("config.json not found in subfolder")
 
 
-def _load_video_to_backend(file: Path):
+def _load_cine_to_cpu(file: Path):
     """
-    Load one video and normalize it into the active array backend.
+    Disk-only stage of video loading.
 
-    The pipeline uses ``xp`` from the imported processing modules, so this
-    helper mirrors that choice:
-    - GPU path: move to CuPy and normalize in device memory
-    - CPU path: keep a NumPy array and normalize on host
+    Returns a host numpy array. Designed to run in a prefetch worker thread so
+    file-N+1's bytes can be read while file-N is still on the GPU. Keeps the
+    H2D copy out of the worker on purpose -- CuPy contexts are thread-local and
+    issuing GPU work from the same thread that owns the pipeline simplifies
+    stream/synchronization reasoning.
     """
-    video_cpu = load_cine_video(file, frame_limit=frame_limit)
+    return load_cine_video(file, frame_limit=frame_limit)
+
+
+def _cpu_to_backend(video_cpu):
+    """Normalize and move a host video into the active array backend."""
     if xp is cp:
         video = cp.asarray(video_cpu)
         video = video.astype(cp.float16, copy=False)
@@ -431,6 +426,11 @@ def _load_video_to_backend(file: Path):
     video = np.asarray(video_cpu, dtype=np.float16)
     video /= np.float16(4096)
     return video
+
+
+def _load_video_to_backend(file: Path):
+    """Convenience wrapper used by code paths without prefetch."""
+    return _cpu_to_backend(_load_cine_to_cpu(file))
 
 
 def _read_cine_fps(file: Path) -> float | int | None:
@@ -464,9 +464,11 @@ def _cleanup_iteration_state(state: dict):
     """
     Release large per-file objects after each ``.cine`` is processed.
 
-    ``state`` stores temporary arrays and DataFrames created during one file's
-    processing. Clearing it in one place makes success, early-return, and error
-    paths behave the same way.
+    Drops Python references and forces a GC pass so CuPy arrays are returned to
+    the memory pool. We *intentionally* do not call ``free_all_blocks`` here:
+    keeping pooled blocks lets the next file reuse identically-shaped buffers
+    instead of paying CUDA driver allocation cost on every video. Pool free is
+    deferred to subfolder boundaries (see ``_release_gpu_memory_pool``).
     """
     if xp is cp:
         # Make sure queued GPU work is finished before releasing memory blocks.
@@ -475,10 +477,11 @@ def _cleanup_iteration_state(state: dict):
     state.clear()
     gc.collect()
 
+
+def _release_gpu_memory_pool():
+    """Hard-release CuPy memory pools. Call at subfolder/job boundaries only."""
     if xp is cp:
-        # CuPy keeps freed blocks in its memory pools for reuse. We explicitly
-        # return them here because this script runs many files back-to-back and
-        # we want predictable long-run behavior, not maximum reuse.
+        cp.cuda.Stream.null.synchronize()
         cp.get_default_memory_pool().free_all_blocks()
         cp.get_default_pinned_memory_pool().free_all_blocks()
 
@@ -500,18 +503,32 @@ def _collect_metric_columns(
     num_segments = len(hp_segments_bw)
     all_boundaries = [None] * num_segments
 
-    for idx, segment_bw in enumerate(hp_segments_bw):
-        _, metrics = _compute_spray_metrics_for_segment(
-            (
-                idx,
-                _as_numpy(segment_bw),
-                nozzle_opening_detection_height,
-                nozzle_opening_detection_width,
-                umbrella_angle,
-                thres_penetration_num_pix,
-                inner_radius,
-            )
+    # Stage all H2D copies sequentially (CuPy stream is single-context anyway),
+    # then run the CPU-side feature extraction across plumes in parallel threads.
+    # spary_features_from_bw_video is mostly numpy/scipy and releases the GIL.
+    segments_cpu = [_as_numpy(segment_bw) for segment_bw in hp_segments_bw]
+
+    args_list = [
+        (
+            idx,
+            seg,
+            nozzle_opening_detection_height,
+            nozzle_opening_detection_width,
+            umbrella_angle,
+            thres_penetration_num_pix,
+            inner_radius,
         )
+        for idx, seg in enumerate(segments_cpu)
+    ]
+
+    if num_segments <= 1:
+        results = [_compute_spray_metrics_for_segment(args_list[0])] if args_list else []
+    else:
+        max_workers = min(num_segments, max(2, (os.cpu_count() or 4) // 2))
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            results = list(ex.map(_compute_spray_metrics_for_segment, args_list))
+
+    for idx, metrics in results:
         for feature_name, values in metrics.items():
             if feature_name == "boundary":
                 if save_boundary_points_csv:
@@ -527,41 +544,142 @@ def _collect_metric_columns(
     return metric_columns, all_boundaries
 
 
-def _save_boundary_points(save_path_subfolder: Path, video_name: str, all_boundaries: list):
-    """Persist optional boundary-point CSVs for plumes that produced contours."""
-    if not save_boundary_points_csv or not any(boundary is not None for boundary in all_boundaries):
+_IO_WRITER_EXECUTOR: ThreadPoolExecutor | None = None
+_PREFETCH_EXECUTOR: ThreadPoolExecutor | None = None
+
+
+def _get_io_writer_executor() -> ThreadPoolExecutor:
+    """Long-lived pool for all disk-bound writes (metrics CSV, NPZ, AVI)."""
+    global _IO_WRITER_EXECUTOR
+    if _IO_WRITER_EXECUTOR is None:
+        _IO_WRITER_EXECUTOR = ThreadPoolExecutor(
+            max_workers=3, thread_name_prefix="io-writer"
+        )
+    return _IO_WRITER_EXECUTOR
+
+
+def _get_prefetch_executor() -> ThreadPoolExecutor:
+    """Single-worker pool for cine disk reads ahead of GPU work."""
+    global _PREFETCH_EXECUTOR
+    if _PREFETCH_EXECUTOR is None:
+        _PREFETCH_EXECUTOR = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="cine-prefetch"
+        )
+    return _PREFETCH_EXECUTOR
+
+
+def _shutdown_executors():
+    global _IO_WRITER_EXECUTOR, _PREFETCH_EXECUTOR
+    if _IO_WRITER_EXECUTOR is not None:
+        _IO_WRITER_EXECUTOR.shutdown(wait=True)
+        _IO_WRITER_EXECUTOR = None
+    if _PREFETCH_EXECUTOR is not None:
+        _PREFETCH_EXECUTOR.shutdown(wait=True)
+        _PREFETCH_EXECUTOR = None
+
+
+def _write_metrics_csv_and_metadata(df, csv_path, metadata, metadata_path):
+    """Worker-side combined metrics CSV + metadata JSON write."""
+    df.to_csv(csv_path, index=False)
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+
+def _boundary_npz_path(save_path_subfolder: Path, video_name: str) -> Path:
+    return save_path_subfolder / "boundary_points" / f"{video_name}_boundaries.npz"
+
+
+def _submit_boundary_save(
+    save_path_subfolder: Path,
+    video_name: str,
+    all_boundaries: list,
+    pending_futures: list | None,
+):
+    """
+    Submit a single combined NPZ write for one video to the shared writer pool.
+
+    Returning a future (instead of blocking) lets the next file's GPU work
+    overlap with disk I/O. The caller drains the futures list at folder end.
+    """
+    if not save_boundary_points_csv or not any(b is not None for b in all_boundaries):
         return
 
-    boundary_path_subfolder = save_path_subfolder / "boundary_points"
-    boundary_path_subfolder.mkdir(parents=True, exist_ok=True)
-    valid_boundaries = [
+    out_path = _boundary_npz_path(save_path_subfolder, video_name)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    boundaries_per_plume = [
         (plume_idx, boundary)
         for plume_idx, boundary in enumerate(all_boundaries)
         if boundary is not None
     ]
-    max_workers = min(4, len(valid_boundaries))
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(
-                save_boundary_csv,
-                boundary,
-                boundary_path_subfolder / f"{video_name}_plume_{plume_idx}_boundary_points.csv",
-            )
-            for plume_idx, boundary in valid_boundaries
-        ]
-        for future in as_completed(futures):
-            future.result()
+    fut = _get_io_writer_executor().submit(
+        save_boundary_npz, boundaries_per_plume, str(out_path)
+    )
+    if pending_futures is not None:
+        pending_futures.append(fut)
+
+
+def _preview_avi_path(save_path_subfolder: Path, video_name: str) -> Path:
+    return save_path_subfolder / "preview" / f"{video_name}_preview.avi"
+
+
+def _build_preview_host_video(hp_segments):
+    """Move (P, F, H, W) plume video to host as a contiguous, swap-axed array.
+
+    Performs the H<->W swap on the GPU (cheap stride-only op, then a single
+    contiguous copy) before crossing the PCIe boundary.
+    """
+    if hasattr(hp_segments, "__cuda_array_interface__"):
+        swapped = cp.ascontiguousarray(cp.swapaxes(hp_segments, -2, -1))
+        host = cp.asnumpy(swapped)
+    else:
+        host = np.ascontiguousarray(np.swapaxes(np.asarray(hp_segments), -2, -1))
+    return host
+
+
+def _maybe_save_preview_avi(
+    save_path_subfolder: Path,
+    video_name: str,
+    preview_host_video,
+    swapped_boundaries,
+    pending_futures: list | None,
+):
+    """Submit tiled multi-plume AVI write to the writer pool when toggled on."""
+    if not save_preview_avi:
+        return
+    out_path = _preview_avi_path(save_path_subfolder, video_name)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fut = _get_io_writer_executor().submit(
+        save_multiplume_with_boundaries_cv2,
+        preview_host_video,
+        swapped_boundaries,
+        str(out_path),
+        fps=preview_fps,
+        tile=preview_tile,
+        swap_axes=False,  # already swapped on GPU side
+    )
+    if pending_futures is not None:
+        pending_futures.append(fut)
+
+
+def _maybe_play_preview(preview_host_video, swapped_boundaries):
+    """Synchronous tiled multi-plume preview on the main thread (blocking)."""
+    if not preview_playback:
+        return
+    play_multiplume_with_boundaries_cv2(
+        preview_host_video,
+        swapped_boundaries,
+        fps=preview_fps,
+        tile=preview_tile,
+        swap_axes=False,
+    )
 
 
 def _has_saved_boundary_points(
     save_path_subfolder: Path,
     video_name: str,
 ) -> bool:
-    boundary_path_subfolder = save_path_subfolder / "boundary_points"
-    if not boundary_path_subfolder.exists():
-        return False
-    matches = list(boundary_path_subfolder.glob(f"{video_name}_plume_*_boundary_points.csv"))
-    return len(matches) > 0
+    return _boundary_npz_path(save_path_subfolder, video_name).exists()
 
 
 def _process_cine_file(
@@ -579,6 +697,8 @@ def _process_cine_file(
     ring_mask,
     log_path: Path,
     checkpoint_path: Path,
+    pending_io_futures: list | None = None,
+    preloaded_video_cpu=None,
 ):
     """
     Process one ``.cine`` file end-to-end and return the reusable ring mask.
@@ -630,7 +750,13 @@ def _process_cine_file(
         )
 
         start_time = time.time()
-        state["video"] = _load_video_to_backend(file)
+        if preloaded_video_cpu is not None:
+            # Disk read overlapped with the previous file's GPU work; only the
+            # H2D / dtype conversion remains and runs on the main thread so
+            # CuPy's per-thread context stays consistent.
+            state["video"] = _cpu_to_backend(preloaded_video_cpu)
+        else:
+            state["video"] = _load_video_to_backend(file)
         t_load = time.time()
 
         # The raw loader can legally return an empty array for malformed or
@@ -790,25 +916,59 @@ def _process_cine_file(
                 dtype=float,
             ).tolist()
         ]
-        _save_metrics_and_metadata_csv(
+        # df and metadata_payload are not mutated after this point, so handing
+        # them to a writer thread is safe. The future is drained at folder end.
+        csv_fut = _get_io_writer_executor().submit(
+            _write_metrics_csv_and_metadata,
             state["df"],
             metrics_csv_path,
             metadata_payload,
             metadata_path,
         )
+        if pending_io_futures is not None:
+            pending_io_futures.append(csv_fut)
         t_save_csv = time.time()
-        _save_boundary_points(save_path_subfolder, video_name, all_boundaries)
+
+        _submit_boundary_save(
+            save_path_subfolder,
+            video_name,
+            all_boundaries,
+            pending_io_futures,
+        )
         t_boundary = time.time()
 
-        elapsed = t_boundary - start_time
+        # Optional visual preview: build host-side tiled video once, then
+        # dispatch (async AVI) and/or play (sync imshow). Both are gated by
+        # module-level toggles so production batch runs pay no cost.
+        preview_host_video = None
+        swapped_boundaries = None
+        if save_preview_avi or preview_playback:
+            preview_host_video = _build_preview_host_video(state["hp_segments"])
+            from OSCC_postprocessing.playback.video_playback import (
+                _swap_plume_boundary_yx,
+            )
+            swapped_boundaries = [
+                _swap_plume_boundary_yx(b) if b is not None else None
+                for b in all_boundaries
+            ]
+        _maybe_save_preview_avi(
+            save_path_subfolder, video_name,
+            preview_host_video, swapped_boundaries,
+            pending_io_futures,
+        )
+        _maybe_play_preview(preview_host_video, swapped_boundaries)
+        t_preview = time.time()
+
+        elapsed = t_preview - start_time
         done_message = (
             f"Completed: {relative_label} in {elapsed:.2f}s  "
             f"[load={t_load - start_time:.2f}s  "
             f"preproc={t_preproc - t_load:.2f}s  "
             f"postproc+cdf={t_gpu - t_preproc:.2f}s  "
             f"bw_metrics={t_metrics - t_gpu:.2f}s  "
-            f"save_csv={t_save_csv - t_metrics:.2f}s"
-            + (f"  boundary={t_boundary - t_save_csv:.2f}s" if save_boundary_points_csv else "")
+            f"save_csv_submit={t_save_csv - t_metrics:.2f}s"
+            + (f"  boundary_submit={t_boundary - t_save_csv:.2f}s" if save_boundary_points_csv else "")
+            + (f"  preview={t_preview - t_boundary:.2f}s" if (save_preview_avi or preview_playback) else "")
             + "]"
         )
         print(done_message)
@@ -864,6 +1024,26 @@ async def _process_parent_folder(
     checkpoint_path = save_path / "processing_checkpoint.json"
     _append_processing_log(log_path, f"Session started for parent folder: {parent_folder}")
 
+    pending_io_futures: list = []
+    loop = asyncio.get_running_loop()
+    prefetch_pool = _get_prefetch_executor()
+
+    def _is_completed_skip(file: Path, save_path_subfolder: Path) -> bool:
+        """Mirror the early-exit condition inside _process_cine_file.
+
+        Used here to avoid prefetching files that will be skipped anyway.
+        """
+        video_name = file.stem
+        metrics_csv_path = save_path_subfolder / f"{video_name}.csv"
+        metadata_path = save_path_subfolder / f"{video_name}.meta.json"
+        if not (metrics_csv_path.exists() and metadata_path.exists()):
+            return False
+        if save_boundary_points_csv and not _has_saved_boundary_points(
+            save_path_subfolder, video_name
+        ):
+            return False
+        return True
+
     try:
         for subfolder in subfolders:
             print(subfolder)
@@ -875,9 +1055,9 @@ async def _process_parent_folder(
             _ensure_directory(save_path_subfolder)
 
             # Sort once so repeated runs process files in a deterministic order.
-            files = [file for file in directory_path.iterdir() if file.is_file()]
-            files = sorted(files, key=numeric_then_alpha_key)
-            number_of_plumes, centre, ir_, or_ = _load_subfolder_config(files)
+            all_files = [f for f in directory_path.iterdir() if f.is_file()]
+            all_files = sorted(all_files, key=numeric_then_alpha_key)
+            number_of_plumes, centre, ir_, or_ = _load_subfolder_config(all_files)
 
             # Map folder name (T1, T01, Group_01, ...) back to the matching test
             # condition in the experiment matrix.
@@ -885,9 +1065,62 @@ async def _process_parent_folder(
             test_condition = get_test_condition_by_id(exp_config, group_id) or {}
             ring_mask = None  # Lazily initialized by the first valid cine file.
 
-            for file in files:
-                if file.suffix != ".cine":
+            cine_files = [f for f in all_files if f.suffix == ".cine"]
+
+            # Prefetch pipeline (depth=1): while file N is on the GPU, the
+            # prefetch worker reads file N+1 from disk. The H2D copy + GPU
+            # processing still happen on the main thread for CuPy correctness.
+            # Skipped files do not consume a prefetch slot.
+            def _next_load_future(start_idx: int):
+                for j in range(start_idx, len(cine_files)):
+                    nf = cine_files[j]
+                    if _is_completed_skip(nf, save_path_subfolder):
+                        continue
+                    return j, loop.run_in_executor(
+                        prefetch_pool, _load_cine_to_cpu, nf
+                    )
+                return None, None
+
+            next_idx, next_future = _next_load_future(0)
+
+            for i, file in enumerate(cine_files):
+                if _is_completed_skip(file, save_path_subfolder):
+                    # Still call _process_cine_file so it logs/checkpoints the
+                    # skip uniformly. preloaded_video_cpu=None is fine; the
+                    # skip-check inside returns before any load happens.
+                    ring_mask = _process_cine_file(
+                        file=file,
+                        directory_path=directory_path,
+                        save_path_subfolder=save_path_subfolder,
+                        exp_config=exp_config,
+                        nozzle_props=nozzle_props,
+                        test_condition=test_condition,
+                        number_of_plumes=number_of_plumes,
+                        centre=centre,
+                        ir_=ir_,
+                        or_=or_,
+                        ring_mask=ring_mask,
+                        log_path=log_path,
+                        checkpoint_path=checkpoint_path,
+                        pending_io_futures=pending_io_futures,
+                        preloaded_video_cpu=None,
+                    )
                     continue
+
+                # Pull the prefetched buffer for the current file.
+                if next_future is not None and next_idx == i:
+                    video_cpu = await next_future
+                else:
+                    # Fallback: prefetch wasn't aligned (shouldn't happen but
+                    # keeps the code robust).
+                    video_cpu = await loop.run_in_executor(
+                        prefetch_pool, _load_cine_to_cpu, file
+                    )
+
+                # Kick off the next eligible prefetch BEFORE running GPU work
+                # so the disk read overlaps with GPU compute of this file.
+                next_idx, next_future = _next_load_future(i + 1)
+
                 ring_mask = _process_cine_file(
                     file=file,
                     directory_path=directory_path,
@@ -902,11 +1135,32 @@ async def _process_parent_folder(
                     ring_mask=ring_mask,
                     log_path=log_path,
                     checkpoint_path=checkpoint_path,
+                    pending_io_futures=pending_io_futures,
+                    preloaded_video_cpu=video_cpu,
                 )
+
+            # Per-subfolder GPU pool free so long batch runs don't accumulate
+            # cross-testpoint pool fragmentation. Per-file free has been
+            # removed -- we want pool reuse within a subfolder.
+            _release_gpu_memory_pool()
 
     except Exception as e:
         print(f"Error processing: {e}")
         raise
+    finally:
+        # Drain all backgrounded I/O writes (NPZ boundary, metrics CSV,
+        # metadata JSON, preview AVI). Failures are logged but do not mask
+        # the original error.
+        if pending_io_futures:
+            print(f"[I/O] Waiting on {len(pending_io_futures)} pending writes...")
+            for fut in as_completed(pending_io_futures):
+                try:
+                    fut.result()
+                except Exception as exc:
+                    err_msg = f"I/O write failed: {type(exc).__name__}: {exc}"
+                    print(f"[WARN] {err_msg}")
+                    _append_processing_log(log_path, err_msg)
+            pending_io_futures.clear()
 
 
 def _resolve_batch_jobs(

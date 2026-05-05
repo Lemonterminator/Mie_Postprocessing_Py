@@ -241,39 +241,124 @@ The purpose is to bridge prior knowledge to engineering design choices explicitl
 
 \subsection{Introduction to Methodological Terminology for Interdisciplinary Readers}\label{sec:methods-terminology}
 
-The implementation of this thesis spans four technical domains: computer vision, numerical optimization, GPU parallel computing, and deep learning. These four tools are sequentially integrated in this work: image processing extracts penetration observables from videos; robust optimization compresses noisy trajectories into stable fitting targets; GPU parallelism allows large-batch processing to be completed within a reasonable timeframe; and neural networks learn conditional predictive distributions from these targets. For readers whose primary background is in fluid mechanics and mechanical design, this section first provides an intuitive explanation of the minimum necessary concepts in each domain, so that the technical choices in subsequent sections can be understood as engineering decisions rather than inscrutable black boxes.
+The implementation of this thesis spans four technical domains: 
+computer vision, numerical optimization, GPU parallel computing, and deep learning. 
+These four tools are sequentially integrated in this work: 
+image processing extracts penetration observables from videos; 
+robust optimization compresses noisy trajectories into stable fitting targets; 
+GPU parallelism allows large-batch processing to be completed within a reasonable timeframe; 
+and neural networks learn conditional predictive distributions from these targets. 
+For readers whose primary background is in fluid mechanics and mechanical design, 
+this section first provides an intuitive explanation of the minimum necessary concepts 
+in each domain, 
+so that the technical choices in subsequent sections can be understood 
+as engineering decisions rather than inscrutable black boxes.
 
 \textbf{Computer Vision and Signal Processing.}
-Computers store images as numerical matrices: each pixel corresponds to an element in the matrix, with its value representing the brightness at that point. Processing an image essentially means applying mathematical operations to this matrix. \emph{Convolution} is the most fundamental operation: a small template (convolution kernel) slides over the image pixel by pixel, performing a weighted sum at each step. Its effect depends on the shape of the kernel, allowing it to smooth the image, extract edges, or enhance textures. The Sobel operator is a convolution kernel that calculates local brightness gradients (rates of change); it responds most strongly to abrupt contrast changes such as liquid phase boundaries, making it a standard tool for locating boundaries in spray images. \emph{Polar coordinate transformation} converts an image from Cartesian coordinates (pixel rows and columns) into a coordinate system with angle and radial distance as axes. Performing this transformation around the nozzle center can fold the directional structure of a multi-hole spray into a 1D angular signal, greatly simplifying subsequent registration. The \emph{Fast Fourier Transform} (FFT) decomposes a signal into sinusoidal components of different frequencies, directly exposing periodic structures as frequency-domain peaks; this thesis uses it to automatically identify the rotational periodicity of multi-hole sprays, thereby estimating the angular offset of each hole.
+Computers store images as numerical matrices: 
+each pixel corresponds to an element in the matrix, 
+with its value representing the intensity or brightness at that point. 
+Processing an image essentially means applying mathematical operations to this matrix. 
+\emph{Convolution} is the most fundamental operation: 
+a small template window (convolution kernel) slides over the image pixel by pixel, 
+performing a weighted sum at each step. 
+Its effect depends on the shape of the kernel, 
+allowing it to smooth the image, extract edges, or enhance textures. 
+The Sobel operator is a convolution kernel that calculates local brightness gradients 
+(rates of change); 
+it responds most strongly to abrupt contrast changes such as liquid phase boundaries, 
+making it a standard tool for locating boundaries in spray images. 
+\emph{Polar coordinate transformation} converts an image from Cartesian coordinates 
+(pixel rows and columns) into a coordinate system with angle and radial distance as axes. 
+Performing this transformation around the calibrated nozzle center 
+can fold the directional structure of a multi-hole spray into a 1D angular signal, 
+greatly simplifying subsequent registration. 
+The \emph{Fast Fourier Transform} (FFT) decomposes a signal into sinusoidal components 
+of different frequencies, 
+directly exposing periodic structures as frequency-domain peaks; 
+this thesis uses it to automatically identify the rotational periodicity of multi-hole sprays, 
+thereby estimating the angular offset of each hole.
 
 \textbf{Robust Optimization and Curve Fitting.}
-The geometric meaning of least squares fitting is to find a curve that minimizes the sum of squared distances from all observation points to that curve. When the data contains a small number of outliers (e.g., frames corrupted by optical noise), the squared penalty allows these points to disproportionately affect the result. The Huber loss is a compromise: it retains the smoothness of the squared penalty when the residual is small, but switches to an absolute value penalty when the residual exceeds a threshold, thereby suppressing the leverage of outliers---this is completely analogous to the engineering intuition of discarding anomalous readings in measurement practice. The \emph{gradient descent} algorithm used for neural network training calculates the partial derivative of the loss with respect to each parameter at the current parameter values, and then fine-tunes the parameters along the direction of steepest descent, repeating until the loss no longer decreases significantly---conceptually equivalent to iteratively "walking downhill" in a high-dimensional parameter space.
+The geometric meaning of least squares fitting is to find a curve that minimizes 
+the sum of squared distances from all observation points to that curve. 
+When the data contains a small number of outliers 
+(e.g., frames corrupted by optical noise or contains minor quantization error), 
+the squared penalty allows these points to disproportionately affect the result. 
+The Huber loss is a compromise: 
+it retains the smoothness of the squared penalty when the residual is small, 
+but switches to an absolute value penalty when the residual exceeds a threshold, 
+thereby suppressing the leverage of outliers
+---this is completely analogous to the engineering intuition of discarding anomalous readings 
+in measurement practice. 
+The \emph{gradient descent} algorithm used for neural network training calculates 
+the partial derivative of the loss with respect to each parameter at the current parameter values, 
+and then fine-tunes the parameters along the direction of steepest descent, 
+repeating until the loss no longer decreases significantly
+---conceptually equivalent to iteratively "walking downhill" in a high-dimensional parameter space.
 
 \textbf{GPU Parallel Computing.}
-CPUs typically have a few highly optimized cores that excel at processing complex, sequential logical tasks. GPUs have thousands of simpler cores, making them ideal for simultaneously applying the same arithmetic operations to a large number of data elements. Image processing perfectly fits this pattern: convolving each pixel, accumulating in each angular bin, thresholding each frame---these operations are completely independent across pixels or frames, and the GPU can distribute them truly in parallel to thousands of cores for simultaneous execution. CUDA is a parallel computing platform provided by NVIDIA; CuPy is a Python library compatible with the NumPy interface, allowing the image processing chain in this thesis to switch to a GPU backend with minimal code changes. The engineering significance of GPU acceleration is transforming the batch processing of a terabyte-scale video archive from "taking several days" to "completing within a few hours and supporting iterative refinement", enabling the entire research workflow to be genuinely cyclical.
+CPUs typically have a few highly optimized cores that excel at processing complex, 
+sequential logical tasks. 
+GPUs have thousands of simpler cores, 
+making them ideal for simultaneously applying the same arithmetic operations to a large number 
+of well-organised data elements. 
+Image processing perfectly fits this pattern: 
+convolving each pixel, accumulating in each angular bin, thresholding each frame
+---these operations are completely independent across pixels or frames, 
+and the GPU can distribute them truly in parallel to thousands of cores for simultaneous execution. 
+CUDA is a parallel computing platform provided by NVIDIA; 
+CuPy is a Python library compatible with the NumPy interface, 
+allowing the image processing chain in this thesis to switch to a GPU backend 
+with minimal code changes. 
+The engineering significance of GPU acceleration is transforming the batch processing of 
+a terabyte-scale video archive from "taking several days" to "completing within a few hours and supporting iterative refinement", enabling the entire research workflow to be genuinely cyclical.
 
 \textbf{Neural Networks and Deep Learning.}
-The Multilayer Perceptron (MLP) is the type of neural network used in this thesis: several layers of linear transformations and non-linear activation functions are cascaded to form a non-linear function with tunable parameters, taking operating condition features and time as inputs, and outputting penetration predictions. The parameters are obtained through training---repeatedly calculating the prediction error on a large number of samples and iteratively updating the weights using gradient descent until the overall error converges. Mean Squared Error (MSE) is the simplest training objective, corresponding to predicting conditional mean regression. Heteroscedastic Gaussian Negative Log-Likelihood (NLL) is an extension of it: the network simultaneously outputs a conditional mean and a conditional variance, which is equivalent to providing an error bar width that varies with conditions for each operating point, rather than using the same fixed error band for all conditions. Knowledge distillation is a teacher-student training framework: first, a "teacher" network that performs well on clean data is trained, and then a "student" network is trained, allowing the student to imitate the teacher's outputs in regions where data is sparse or incomplete, rather than forcibly fitting missing labels---analogous to an experienced engineer providing a judgment baseline for a junior engineer when samples are insufficient.
+The Multilayer Perceptron (MLP) is the type of neural network used in this thesis: 
+several layers of linear transformations and non-linear activation functions are cascaded 
+to form a non-linear function with tunable parameters, 
+taking operating condition features and time as inputs, 
+and outputting penetration predictions. 
+The parameters are obtained through training
+---repeatedly calculating the prediction error on a large number of samples 
+and iteratively updating the weights using gradient descent until the overall error converges. 
+Mean Squared Error (MSE) is the simplest training objective, 
+corresponding to predicting conditional mean regression. 
+Heteroscedastic Gaussian Negative Log-Likelihood (NLL) is an extension of it: 
+the network simultaneously outputs a conditional mean and a conditional variance, 
+which is equivalent to providing an error bar width that varies with conditions 
+for each operating point, 
+rather than using the same fixed error band for all conditions. 
+Knowledge distillation is a teacher-student training framework: 
+first, a "teacher" network that performs well on clean data is trained, 
+and then a "student" network is trained, allowing the student to imitate the teacher's outputs 
+in regions where data is sparse or incomplete, 
+rather than forcibly fitting missing labels
+---analogous to an experienced engineer providing a judgment baseline 
+for a junior engineer when samples are insufficient.
+
+
 
 \subsection{Mie diagnostics and penetration-oriented observables}
 
-Mie scattering is the workhorse for visualising dense liquid sprays 
-for combining the strengths of high temporal resolution with a comparatively simple experimental setup \cite{Linne2013SprayImaging}. 
-The recorded intensity field, however, is not a direct measurement of fuel mass or liquid volume fraction. 
-Scattering response depends on droplet size, refractive index, wavelength, and viewing geometry; 
+Mie scattering is widely employed as an optical technique for visualising dense liquid sprays 
+for combining the strengths of high temporal resolution and a comparatively simple experimental setup \cite{Linne2013SprayImaging}. 
+The recorded intensity field, however, is not a direct translatable measurement of fuel mass or liquid volume fraction. 
+Scattering response as pixel intensity depends on droplet size, refractive index, wavelength, and viewing geometry in the setup; 
 dense regions add multiple scattering and shadowing on top \cite{BohrenHuffman2004,Linne2013SprayImaging}. 
-Inverting pixel intensity straight back to a full physical spray state is, in short, an ill-posed problem and has been treated as such for decades.
+Inverting pixel intensity straight back to a full physical spray state is, in short, an ill-posed problem and has been treated as inappropriate for decades.
 
-This thesis therefore takes the same practical stance long established in experimental spray analysis: 
-for Mie scattering experiments, since there is no clear numerical surjective mapping between read intensity on camera to any physical indicator of the spray,
-read intensity is treated as a carrier of geometric cues, not as a stand-in for a thermodynamic field. 
-Operational observables --- penetration, cone angle, projected area, boundary location --- 
+This thesis therefore adapts long-established experimental spray analysis: 
+for Mie scattering experiments, since there is no clear numerical surjective mapping between pixel intensity to any physical indicator of the spray,
+intensity read on camera is treated as a carrier of geometric cues, not as a stand-in for a thermodynamic field. 
+Operational observables --- penetration, cone angle, projected area, boundary position --- 
 are defensible in a way that claims about exact liquid distribution are not \cite{Linne2013SprayImaging,LefebvreMcDonell2017}. 
 The reason penetration and cone angle have stayed as standard descriptors in diesel spray research is the same: 
-they are interpretable, and they hold up reasonably well across controlled experimental campaigns 
+they are interpretable, and their measurements stay reasonably stable across controlled experimental campaigns 
 \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
 
-The same emphasis runs through prior optical spray studies. 
+The same emphasis remains consistent in prior optical spray studies. 
 Early two-dimensional Mie-scattering work inside optical diesel engines already reported jet-tip penetration and cone-angle information 
 as the practical outputs of image analysis, rather than chasing a full liquid-state reconstruction \cite{MuenchLeipertz1992}. 
 Even more recent imaging studies, with improved instrumentation and tighter synchronisation, 
@@ -281,7 +366,7 @@ still organise liquid-spray comparison around penetration and spreading-angle me
 The implication is that a thesis built on Mie videos should be judged first by the quality, reproducibility, 
 and stated limits of its extracted observables.
 
-The data choice here is not purely a legacy constraint.
+The data choice here is more than a legacy constraint.
 The dataset comes from top-view Mie-scattering experiments on multihole nozzles;
 the same laboratory also operates Schlieren, diffuse back-illumination (DBI), and chemiluminescence rigs.
 Three considerations together justify the Mie top-view configuration for this thesis.

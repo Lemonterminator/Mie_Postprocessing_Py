@@ -31,7 +31,234 @@ __all__ = [
     "play_video_with_boundaries_cv2",
     "save_video_with_boundaries_cv2",
     "play_segments_with_boundaries",
+    "save_multiplume_with_boundaries_cv2",
+    "play_multiplume_with_boundaries_cv2",
+    "adaptive_tile_grid",
 ]
+
+
+def adaptive_tile_grid(num_plumes: int) -> tuple[int, int]:
+    """Pick a near-square (rows, cols) grid for ``num_plumes`` cells.
+
+    Prefers landscape (cols >= rows) and minimizes empty cells, breaking ties
+    toward squareness. Tested for 4-15 plumes:
+        4->(2,2)  5->(2,3)  6->(2,3)  7->(2,4)  8->(2,4)  9->(3,3)
+        10->(2,5) 11->(3,4) 12->(3,4) 13->(2,7) 14->(2,7) 15->(3,5)
+    """
+    import math
+
+    if num_plumes <= 0:
+        return (1, 1)
+    best = None
+    for rows in range(1, num_plumes + 1):
+        cols = math.ceil(num_plumes / rows)
+        if cols < rows:
+            continue
+        empty = rows * cols - num_plumes
+        score = (empty, abs(cols - rows))
+        if best is None or score < best[0]:
+            best = (score, rows, cols)
+    return (best[1], best[2])
+
+
+def _swap_boundary_yx_for_frame(item):
+    """Swap (y, x) <-> (x, y) for one frame's boundary entry."""
+    if item is None:
+        return None
+    if isinstance(item, (list, tuple)) and len(item) == 2:
+        lower, upper = item
+
+        def _swap(arr):
+            arr = np.asarray(arr)
+            if arr.size == 0:
+                return arr
+            return arr[:, ::-1].copy()
+        return (_swap(lower), _swap(upper))
+    arr = np.asarray(item)
+    if arr.size == 0:
+        return arr
+    return arr[:, ::-1].copy()
+
+
+def _swap_plume_boundary_yx(boundary):
+    """Apply yx<->xy swap to every frame in one plume's boundary container."""
+    if boundary is None:
+        return None
+    return [_swap_boundary_yx_for_frame(item) for item in boundary]
+
+
+def _render_one_plume_frame(
+    frame_2d, boundary_for_plume, frame_idx, *,
+    gain, binarize, thresh, kernel, color_top, color_bottom, alpha,
+):
+    """Build one plume's BGR frame with boundary overlay."""
+    H, W = frame_2d.shape[-2], frame_2d.shape[-1]
+    frame_u8 = _frame_to_uint8(frame_2d, gain=gain, binarize=binarize, thresh=thresh)
+    frame_bgr = cv2.cvtColor(frame_u8, cv2.COLOR_GRAY2BGR)
+    if boundary_for_plume is not None:
+        mask_top, mask_bot = _boundary_masks(boundary_for_plume, frame_idx, H, W, kernel=kernel)
+        frame_bgr = _overlay_boundary_masks(
+            frame_bgr, mask_top, mask_bot,
+            color_top=color_top, color_bottom=color_bottom, alpha=alpha,
+        )
+    return frame_bgr
+
+
+def _tile_plume_frames(plume_bgr_frames, rows: int, cols: int, pad_color=(20, 20, 20)):
+    """Tile P plume frames into one (rows*H, cols*W, 3) image, padding empties."""
+    P = len(plume_bgr_frames)
+    H, W, _ = plume_bgr_frames[0].shape
+    pad = np.full((H, W, 3), pad_color, dtype=np.uint8)
+    grid_rows = []
+    for r in range(rows):
+        cells = []
+        for c in range(cols):
+            i = r * cols + c
+            cells.append(plume_bgr_frames[i] if i < P else pad)
+        grid_rows.append(cv2.hconcat(cells))
+    return cv2.vconcat(grid_rows)
+
+
+def _multiplume_render_iter(
+    plume_video_PFHW, boundaries_per_plume, *,
+    swap_axes, tile, gain, binarize, thresh,
+    color_top, color_bottom, thickness, alpha,
+):
+    """Yield (F) tiled BGR frames for a (P, F, H, W) host array.
+
+    If ``swap_axes`` is True, swaps the last two axes of the video
+    (H<->W, top-down jet display) and applies the matching (y, x)<->(x, y)
+    transform to every plume's boundary container.
+    """
+    if color_bottom is None:
+        color_bottom = color_top
+
+    video = np.asarray(plume_video_PFHW)
+    if video.ndim != 4:
+        raise ValueError(f"plume_video_PFHW must be 4D (P, F, H, W), got shape {video.shape}")
+    P, F = video.shape[0], video.shape[1]
+    if F == 0 or P == 0:
+        return
+
+    if swap_axes:
+        video = np.ascontiguousarray(np.swapaxes(video, -2, -1))
+        boundaries = [_swap_plume_boundary_yx(b) for b in boundaries_per_plume]
+    else:
+        boundaries = list(boundaries_per_plume)
+
+    if tile is None:
+        rows, cols = adaptive_tile_grid(P)
+    else:
+        rows, cols = tile
+
+    kernel = None
+    ksz = max(1, 2 * int(thickness) + 1)
+    if ksz > 1:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksz, ksz))
+
+    for f in range(F):
+        plume_frames = [
+            _render_one_plume_frame(
+                video[p, f], boundaries[p] if p < len(boundaries) else None, f,
+                gain=gain, binarize=binarize, thresh=thresh, kernel=kernel,
+                color_top=color_top, color_bottom=color_bottom, alpha=alpha,
+            )
+            for p in range(P)
+        ]
+        yield _tile_plume_frames(plume_frames, rows, cols)
+
+
+def save_multiplume_with_boundaries_cv2(
+    plume_video_PFHW,
+    boundaries_per_plume,
+    save_path,
+    *,
+    fps=15,
+    tile=None,
+    swap_axes=True,
+    gain=1.0,
+    binarize=False,
+    thresh=0.5,
+    color_top=(0, 0, 255),
+    color_bottom=None,
+    thickness=1,
+    alpha=1.0,
+):
+    """Tile P plumes per frame with boundary overlay and write one AVI.
+
+    Designed to be submitted to a background ThreadPoolExecutor: it only touches
+    host arrays and one VideoWriter instance, so multiple invocations can run
+    concurrently as long as their inputs are independent host buffers.
+    """
+    save_path = os.path.abspath(save_path)
+    parent = os.path.dirname(save_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    frames = _multiplume_render_iter(
+        plume_video_PFHW, boundaries_per_plume,
+        swap_axes=swap_axes, tile=tile,
+        gain=gain, binarize=binarize, thresh=thresh,
+        color_top=color_top, color_bottom=color_bottom,
+        thickness=thickness, alpha=alpha,
+    )
+
+    writer = None
+    try:
+        for tiled in frames:
+            if writer is None:
+                Ht, Wt = tiled.shape[:2]
+                fourcc = cv2.VideoWriter_fourcc(*"XVID")
+                writer = cv2.VideoWriter(save_path, fourcc, float(fps), (int(Wt), int(Ht)))
+                if not writer.isOpened():
+                    raise RuntimeError(f"Failed to open VideoWriter for: {save_path}")
+            writer.write(tiled)
+    finally:
+        if writer is not None:
+            writer.release()
+    return save_path
+
+
+def play_multiplume_with_boundaries_cv2(
+    plume_video_PFHW,
+    boundaries_per_plume,
+    *,
+    fps=15,
+    tile=None,
+    swap_axes=True,
+    gain=1.0,
+    binarize=False,
+    thresh=0.5,
+    window_name="Multi-plume + Boundary",
+    color_top=(0, 0, 255),
+    color_bottom=None,
+    thickness=1,
+    alpha=1.0,
+):
+    """Synchronously preview tiled multi-plume frames on the main thread.
+
+    Blocking by design: cv2 HighGUI requires the main thread on most platforms,
+    so this should not be submitted to a worker pool.
+    """
+    intv = max(1, int(round(1000.0 / float(fps))))
+    frames = _multiplume_render_iter(
+        plume_video_PFHW, boundaries_per_plume,
+        swap_axes=swap_axes, tile=tile,
+        gain=gain, binarize=binarize, thresh=thresh,
+        color_top=color_top, color_bottom=color_bottom,
+        thickness=thickness, alpha=alpha,
+    )
+    try:
+        for tiled in frames:
+            cv2.imshow(window_name, tiled)
+            if cv2.waitKey(intv) & 0xFF == ord("q"):
+                break
+    finally:
+        try:
+            cv2.destroyWindow(window_name)
+            cv2.waitKey(1)
+        except cv2.error:
+            pass
 
 
 def _frame_to_uint8(frame, gain=1.0, binarize=False, thresh=0.5):
