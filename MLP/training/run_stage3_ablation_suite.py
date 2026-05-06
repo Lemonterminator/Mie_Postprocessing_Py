@@ -210,8 +210,6 @@ def build_winner_eval_command(
         path_for_child(run_dir),
         "--split",
         str(winner_eval.get("split", common.get("eval_split", common.get("series_split", "clean")))),
-        "--device",
-        str(winner_eval.get("device", common.get("device", "auto"))),
         "--t-min-ms",
         str(winner_eval.get("t_min_ms", common.get("eval_t_min_ms", 0.0))),
         "--t-max-ms",
@@ -221,6 +219,9 @@ def build_winner_eval_command(
         "--batch-points",
         str(winner_eval.get("batch_points", common.get("eval_batch_points", 65536))),
     ]
+    device = str(winner_eval.get("device", common.get("device", "auto")))
+    if device and device.lower() != "auto":
+        cmd.extend(["--device", device])
     output_root = winner_eval.get("output_root", common.get("eval_output_root"))
     if output_root:
         cmd.extend(["--output-root", path_for_child(output_root)])
@@ -230,8 +231,10 @@ def build_winner_eval_command(
 
     save_points = bool(winner_eval.get("save_points", True))
     save_plots = bool(winner_eval.get("save_plots", True))
-    cmd.append("--save-points" if save_points else "--no-save-points")
-    cmd.append("--save-plots" if save_plots else "--no-save-plots")
+    if not save_points:
+        cmd.append("--no-save-points")
+    if not save_plots:
+        cmd.append("--no-save-plots")
     max_traj_plots = winner_eval.get("max_traj_plots")
     if max_traj_plots is not None:
         cmd.extend(["--max-traj-plots", str(max_traj_plots)])

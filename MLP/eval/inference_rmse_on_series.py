@@ -395,7 +395,7 @@ def main() -> None:
     out_dir, summary = run_rmse_evaluation(
         refinement_run=args.refinement_run,
         split=args.split,
-        device=args.device,
+        device=None if args.device is None or str(args.device).lower() == "auto" else args.device,
         t_min_ms=args.t_min_ms,
         t_max_ms=args.t_max_ms,
         rel_err_floor_mm=args.rel_err_floor_mm,

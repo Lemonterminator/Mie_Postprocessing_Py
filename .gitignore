@@ -59,6 +59,7 @@ MLP/eval/*
 MLP/media/
 Results/manual_segment_sam3_video/
 Processed_Results/
+Mie_scattering_top_view_results/
 examples/data/
 *.npy
 *.npz
@@ -90,6 +91,10 @@ optical_flow_packages/Optical_Flow_SDK*/**
 !Thesis/**/*.jpeg
 !Thesis/**/*.tif
 !Thesis/**/*.tiff
+
+# Generated thesis slide artifacts
+Thesis/mie_multihole_parallel_programming_slides.pdf
+Thesis/mie_multihole_parallel_programming_slides.tex
 
 OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
 OSCC_postprocessing/dewe/DeweFileLibrary/*.so

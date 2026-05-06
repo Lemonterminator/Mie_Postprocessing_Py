@@ -341,11 +341,12 @@ def iter_clean_csv_files(data_root: Path | str) -> list[Path]:
 
 
 def infer_dataset_name_from_csv_path(csv_path: Path) -> str:
-    parts = csv_path.parts
-    if len(parts) >= 4 and parts[-3].lower() == "cdf":
-        return parts[-4]
-    if len(parts) >= 2:
-        return parts[-2]
+    for candidate in reversed(csv_path.parts[:-1]):
+        try:
+            normalize_dataset_key(candidate)
+        except KeyError:
+            continue
+        return candidate
     raise KeyError(f"Could not infer dataset name from path: {csv_path}")
 
 

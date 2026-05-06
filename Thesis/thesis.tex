@@ -17,7 +17,11 @@
 \setlength{\headheight}{36pt}
 \setlength{\emergencystretch}{2em}
 
-\newcommand{\mainabstract}{Pilot diesel injections in multi-fuel marine engines are short, strongly transient events. If the liquid envelope reaches the piston bowl or cylinder wall before useful ignition develops, wall wetting, lubricant dilution, and poor mixture preparation can follow. This thesis develops an evidence-grounded screening workflow that converts high-speed Mie-scattering videos into penetration-oriented observables and a surrogate model for early spray--wall-risk assessment. The data consist of room-temperature, non-reacting top-view recordings from the W\"artsil\"a Optical Spray Combustion Chamber, covering multiple operating conditions and nozzle geometries. The workflow combines manual nozzle calibration, CUDA-accelerated multihole video processing, plume-wise feature extraction, and a reduced-order trajectory fit that both smooths noisy labels and reduces the downward bias caused by right-censored observations near the field-of-view limit. On these fitted targets, a three-stage neural surrogate is trained. Stage~1 learns a deterministic representative-trajectory baseline. Stage~2 extends the model to heteroscedastic mean-and-variance prediction on the full filtered dataset. Stage~3 refines early-time behaviour against raw CDF observations while retaining conservative teacher guidance where late-time coverage becomes sparse. This staging is designed to prevent the model from mistaking disappearance from the image window for physical saturation. Across 21{,}470 trajectories from 9 nozzle campaigns, the selected anchor-off Stage~3 model reaches an overall RMSE of 6.68~mm (6.96\% of the measured range) and retains conservative uncertainty coverage (72.24\% at 1$\sigma$, 97.03\% at 2$\sigma$). A simplified geometric projection then maps the predicted penetration distribution onto a probabilistic collision-screening proxy. The intended use is explicit: the workflow is an early-stage engineering screening tool within its measured operating domain, not a substitute for CFD, engine testing, or validated in-cylinder impingement physics.}
+\newcommand{\setmainabstract}[1]{%
+  \def\mainabstract{#1}%
+  \thesisabstract{#1}%
+}
+\setmainabstract{Pilot diesel injections in multi-fuel marine engines are short, strongly transient events. If the liquid envelope reaches the piston crown or cylinder wall before useful ignition develops, wall wetting, lubricant dilution, and poor mixture preparation can follow. This thesis develops an evidence-grounded screening workflow that converts high-speed Mie-scattering videos into penetration-oriented observables and a surrogate model for early spray-wall-risk assessment. The data consist of room-temperature, non-reacting top-view recordings from the W\"artsil\"a Optical Spray Combustion Chamber, covering multiple operating conditions and nozzle geometries. The workflow combines manual nozzle calibration, CUDA-accelerated multihole video processing, plume-wise feature extraction, and a reduced-order trajectory fit that both smooths noisy labels and reduces the downward bias caused by right-censored observations near the field-of-view limit. On these fitted targets, a three-stage neural surrogate is trained. Stage 1 learns a deterministic representative-trajectory baseline. Stage 2 extends the model to heteroscedastic mean-and-variance prediction on the full filtered dataset. Stage 3 refines early-time behaviour against raw CDF observations while retaining conservative teacher guidance where late-time coverage becomes sparse. This staging is designed to prevent the model from mistaking disappearance from the image window for physical saturation. Across 21,470 trajectories from 9 nozzle campaigns, the selected anchor-off Stage 3 model reaches an overall RMSE of 6.68 mm, equivalent to 6.96 percent of the measured range, and retains conservative uncertainty coverage of 72.24 percent at 1 sigma and 97.03 percent at 2 sigma. A simplified geometric projection then maps the predicted penetration distribution onto a probabilistic collision-screening proxy. The intended use is explicit: the workflow is an early-stage engineering screening tool within its measured operating domain, not a substitute for CFD, engine testing, or validated in-cylinder impingement physics.}
 
 \degreeprogram{Electronics and Nanotechnology}
 \major{Microelectronic Circuit Design}
@@ -37,7 +41,6 @@
     International" (BY-NC-SA 4.0) license.}{\noindent\textcopyright\ \number
     \year\ \doclicenseThis}
 \keywords{Mie scattering\spc spray imaging\spc penetration\spc computer vision\spc surrogate modeling}
-\thesisabstract{Pilot diesel injections in multi-fuel marine engines are short, strongly transient events. If the liquid envelope reaches the piston bowl or cylinder wall before useful ignition develops, wall wetting, lubricant dilution, and poor mixture preparation can follow. This thesis develops an evidence-grounded screening workflow that converts high-speed Mie-scattering videos into penetration-oriented observables and a surrogate model for early spray-wall-risk assessment. The data consist of room-temperature, non-reacting top-view recordings from the W\"artsil\"a Optical Spray Combustion Chamber, covering multiple operating conditions and nozzle geometries. The workflow combines manual nozzle calibration, CUDA-accelerated multihole video processing, plume-wise feature extraction, and a reduced-order trajectory fit that both smooths noisy labels and reduces the downward bias caused by right-censored observations near the field-of-view limit. On these fitted targets, a three-stage neural surrogate is trained. Stage 1 learns a deterministic representative-trajectory baseline. Stage 2 extends the model to heteroscedastic mean-and-variance prediction on the full filtered dataset. Stage 3 refines early-time behaviour against raw CDF observations while retaining conservative teacher guidance where late-time coverage becomes sparse. This staging is designed to prevent the model from mistaking disappearance from the image window for physical saturation. Across 21470 trajectories from 9 nozzle campaigns, the selected anchor-off Stage 3 model reaches an overall RMSE of 6.68 mm and retains conservative uncertainty coverage of 72.24 percent at 1 sigma and 97.03 percent at 2 sigma. A simplified geometric projection then maps the predicted penetration distribution onto a probabilistic collision-screening proxy. The intended use is explicit: the workflow is an early-stage engineering screening tool within its measured operating domain, not a substitute for CFD, engine testing, or validated in-cylinder impingement physics.}
 
 \begin{document}
 
@@ -90,7 +93,7 @@ For injector development, the pilot spray must form a sufficiently stable igniti
 while also accommodating design constraints introduced by fuel properties, ambient pressures, and nozzle geometries.
 
 However, the same pilot injection can also become a source of failure in operation. 
-If its liquid envelope reaches the piston bowl or cylinder wall before a useful ignition kernel forms, 
+If its liquid envelope reaches the piston crown or cylinder wall before a useful ignition kernel forms, 
 wall wetting, lubricant dilution, degraded local mixture preparation, 
 and increased unburned-hydrocarbon emissions may follow \cite{peraza2022swi,ahmad2025fueldilution,MorieiraMotaPanao2010}. 
 This risk is particularly relevant at the scale of large-bore marine engines, 
@@ -217,7 +220,7 @@ and the focus stays on the macroscopic liquid-envelope geometry and its temporal
 --- not on a complete in-cylinder combustion process.
 
 Several adjacent topics fall outside that scope by design: combustion chemistry, evaporation, dual-fuel ignition coupling, 
-the thermal interaction between liquid spray and a real piston bowl or cylinder wall, 
+thermal interaction between liquid spray and real engine surfaces, impingement on the piston-bowl inner wall, 
 and real-engine wall-film truth prediction. The model produced here should be read accordingly 
 --- as an early-stage screening surrogate, not as a finished truth model for engine wall impingement.
 
@@ -339,11 +342,11 @@ for a junior engineer when samples are insufficient.
 
 Mie scattering is widely employed as an optical technique for visualising dense liquid sprays, 
 as it combines the strengths of high temporal resolution and a comparatively simple experimental setup \cite{Linne2013SprayImaging}. 
-The recorded intensity field, however, is not a direct translatable measurement of fuel mass or liquid volume fraction. 
+The recorded intensity field, however, is not a direct measurement of fuel mass or liquid volume fraction. 
 Scattering response as pixel intensity depends on droplet size, refractive index, wavelength, and viewing geometry in the setup; 
 dense regions add multiple scattering and shadowing on top \cite{BohrenHuffman2004,Linne2013SprayImaging}. 
-Directly treating it as an inverse problem: 
-attempting to reconstruct a full physical spray state from pixel intensity is an ill-posed problem and has been treated as impractical for decades.
+Reconstructing a full physical spray state directly from pixel intensity is therefore an ill-posed inverse problem 
+and has been treated as impractical for decades.
 
 Optical diagnostic methods employ distinct response mechanisms to capture the structural information of sprays. 
 Diffused Backlight Imaging (DBI) characterizes path-integrated optical thickness via back-illumination extinction, 
@@ -363,8 +366,8 @@ their sensitivity to the liquid-phase boundary is less pronounced than that of d
 Consequently, DBI and Mie scattering are most closely aligned with the tasks of extracting liquid contours, penetration, and cone angles \cite{Linne2013SprayImaging}.
 
 This thesis therefore adapts long-established experimental spray analysis: 
-for Mie scattering experiments, since there is no clear numerical surjective mapping between pixel intensity to any physical indicator of the spray,
-intensity read on camera is treated as a carrier of geometric cues, not as a stand-in for a thermodynamic field. 
+for Mie scattering experiments, since there is no reliable one-to-one mapping from pixel intensity to a physical spray quantity,
+the camera intensity is treated as a carrier of geometric cues, not as a stand-in for a thermodynamic field. 
 Operational observables --- penetration, cone angle, projected area, boundary position --- 
 are defensible in a way that claims about exact liquid distribution are not \cite{Linne2013SprayImaging,LefebvreMcDonell2017}. 
 The reason penetration and cone angle have stayed as standard descriptors in diesel spray research is the same: 
@@ -380,7 +383,7 @@ The implication is that a thesis built on Mie videos should be judged first by t
 and stated limits of its extracted observables.
 
 The data employed in this work are recorded during existing top-view multi-hole nozzle Mie scattering experiments conducted at the Wärtsilä OSCC. 
-In contrast to common back-illumination, side-view, or timble-based single-hole isolation configuration, 
+In contrast to common back-illumination or side-view single-hole isolation configurations, 
 this experimental setup utilizes lateral window illumination and positions the injector at the rear of the chamber, 
 thereby enabling a whole field of view for capturing all spray plumes simultaneously. 
 This configuration is particularly advantageous for preserving the plume-to-plume and shot-to-shot variations essential for the subsequent modeling in this thesis.
@@ -1429,7 +1432,7 @@ $\mathcal{L}_{\mathrm{onset}}$ is a binary cross-entropy loss on a new onset log
 
 \subsection{Prototype probabilistic collision screening}
 
-The literature-review discussion of spray--wall impingement mechanisms concluded that the appropriate downstream object for an uncertainty-aware penetration surrogate is a probabilistic screening proxy rather than a binary pass/fail rule, and that penetration should be projected onto the engine-geometry plane as a rotated two-dimensional Gaussian before being integrated against wall and piston masks. The implemented prototype operationalises that proxy by coupling the final Stage-3 student checkpoint to a parametric moving piston crown and evaluating the collision integral per frame.
+The literature-review discussion of spray--wall impingement mechanisms concluded that the appropriate downstream object for an uncertainty-aware penetration surrogate is a probabilistic screening proxy rather than a binary pass/fail rule, and that penetration should be projected onto the engine-geometry plane as a rotated two-dimensional Gaussian before being integrated against cylinder-wall and piston-crown masks. The implemented prototype operationalises that proxy by coupling the final Stage-3 student checkpoint to a parametric moving piston crown and evaluating the collision integral per frame.
 
 \textbf{Spray probability density.}  Let the per-plume spray axis be rotated by $\theta_{\mathrm{tilt}}$ from the radial direction and let $\alpha$ denote the half-cone angle. In the plume-aligned frame, the student prediction supplies an axis-parallel standard deviation $\sigma_{\parallel}(t)$, while the lateral spread is represented by a second Gaussian. The current implementation does not set the lateral standard deviation equal to the geometric half-width directly; instead, it interprets the fixed half-cone angle as an approximate three-standard-deviation envelope and adds a grid-size floor:
 \[

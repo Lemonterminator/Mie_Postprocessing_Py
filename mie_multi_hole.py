@@ -53,6 +53,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 # Experiment Config Loading and Results Management
 # =============================================================================
 # Previous 2024 nozzle batch configuration kept here for reference:
+
 parent_folders = [
      r"F:\LubeOil\BC20241003_HZ_Nozzle1\cine",
      r"F:\LubeOil\BC20241017_HZ_Nozzle2\BC20241017_HZ_Nozzle2\single",
@@ -75,9 +76,9 @@ experiment_configs = [
      r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json",
 ]
 
-# parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
+parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
 
-# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle0.json"]
+experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle0.json"]
 
 
 # Optional single-run fallback used by CLI/env overrides.
@@ -92,7 +93,7 @@ DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier = 2  # Nozzle 1-8: 3; Nozzle0: 2
+noise_floor_multiplier = 3  # Nozzle 1-8: 3; Nozzle0: 2
 
 # Pre-processing histogram scaling settings
 sobel_wsize=3
