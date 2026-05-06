@@ -737,6 +737,16 @@ Nozzle0   & 0.384 & 10 & 140 & 34{,}000 & 1400--2200    & 340--1200  \\
 
 这一实现选择来自此前内部处理路线的实际限制。旧流程依赖逐帧 MATLAB 处理，缺少有效并行加速。这里批评的并不是 MATLAB 语言本身：例如 PIVlab 就是一个成熟的 MATLAB 开源 PIV 工具箱 \cite{ThielickeSonntag2021PIVlab}。真正的限制在于本地批处理架构；在这种形式下，即使处理约 50~GB 的视频也可能需要一天左右，并且仍然容易崩溃。因此，将主要图像操作转入批量 CUDA 导向流程，在本文中被视为方法设计的一部分，而不是单纯的软件优化。
 
+\subsubsection{批量调度、内存复用与恢复合约}
+
+这条 CUDA 流程不是逐帧 MATLAB 脚本的简单移植，而是一个端到端的归档处理调度器。视频读取采用 depth-1 producer--consumer 预取：当文件 \(N\) 的主机数组已经进入 GPU 处理时，单 worker 的 \texttt{cine-prefetch} 线程从磁盘读取下一个未完成的 \texttt{.cine} 文件 \(N+1\)。主机到设备的 H2D 拷贝和 CuPy 数组转换故意保留在主线程中完成，因为 CuPy 的 CUDA context 与线程相关；这样可以让 GPU kernel、同步和内存池行为都由同一个执行线程控制。写盘端则使用一个长期存在的 3-worker I/O writer pool；metrics CSV、metadata JSON、边界 NPZ 和可选 preview AVI 都以 future 形式提交，使下一条视频的 GPU 计算可以与上一条视频的磁盘写入重叠，并在批处理作业结束或异常退出前统一 drain。
+
+内存管理也按批量归档的访问模式设计。每处理完一个 \texttt{.cine} 文件，脚本清空保存大数组的状态字典并触发 \texttt{gc.collect()}，让 CuPy 数组回到默认 memory pool；但它故意不在文件边界调用 \texttt{free\_all\_blocks()}。原因是同一子文件夹中的视频通常具有相同尺寸，保留池内 block 可以让下一个文件直接复用相同形状的 GPU buffer，避免反复向 CUDA driver 申请和释放显存。硬释放被推迟到 testpoint/subfolder 边界，以限制长批处理中的跨工况内存碎片。
+
+为了让几十 GB 级视频归档可以安全恢复，每个结果根目录都会维护 \codepath{processing_checkpoint.json}。该 checkpoint 以 \texttt{status}、\texttt{file}、\texttt{outputs}、\texttt{error} 和 \texttt{updated\_at} 记录当前文件状态，并在写入 JSON 后调用 \texttt{os.fsync} 强制落盘。重复运行时，跳过条件不是单一文件存在，而是输出合约满足：metrics CSV 和 metadata JSON 必须同时存在；当边界点导出开关启用时，还必须存在对应的 boundary NPZ。若只有 CSV 和 metadata 而缺少 boundary NPZ，脚本不会把该文件视为完成，而是重新处理以补齐边界输出。
+
+同一合约还负责统一不同年份实验归档的元数据差异。FPS 优先从 Phantom CINE header 中的 \texttt{FrameRate}、\texttt{FrameRate16} 或 \texttt{fPbRate} 读取；喷射时长可由 test-matrix JSON 中基于 cine 编号的 lookup 规则计算，并回退到组内常量；喷射压力、背压、喷孔数和伞角等来自 nozzle/test-matrix JSON，缺失时才使用脚本内的保守默认值。这一点对 Nozzle0（2022）与 Nozzle1--8（2024）这样的混合归档尤其重要。原始载入阶段还将每个 \texttt{.cine} 限制在前 80 帧；这不仅控制显存，在 \(25\,000~fps\) 下对应约 \(\SI{3.2}{ms}\)，在 \(34\,000~fps\) 下对应约 \(\SI{2.35}{ms}\)，覆盖本文关注的 pilot 喷射及其早期松弛尾部。
+
 \subsubsection{标定移交和批量锚定}
 
 批量阶段从第3.2节中产生的校准开始。在代数圆拟合函数中，点击的喷嘴边缘点\((x_i,y_i)\)用代数圆模型
@@ -747,7 +757,11 @@ x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \[
 c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
 \]
-同一程序还从点击的边缘点相对于理想等距集估计平均角度偏移。交互式标定界面将这些值写入\textbf{标定配置文件}，之后多孔几何构建脚本可以处理整个文件夹而无需手动重新中心。这种一次校准是故意面向用户的，而不是完全自动的：操作员可以缩放、选择代表性帧，并用物理上有意义的喷嘴中心锚定整个批量\cite{Pratt1987CircleFit,Taubin1991CircleFit}。
+同一程序还从点击的边缘点相对于理想等距集估计平均角度偏移。交互式标定界面将这些值写入\textbf{标定配置文件}，之后多孔几何构建脚本可以处理整个文件夹而无需手动重新中心。该 \texttt{config.json} 的最小 schema 为 \{\texttt{plumes}, \texttt{centre\_x}, \texttt{centre\_y}, \texttt{inner\_radius}, \texttt{outer\_radius}\}；其中 \texttt{inner\_radius} 和 \texttt{outer\_radius} 同时定义环形处理掩码、喷孔局部原点和后续条带几何。像素到毫米的比例并非由相机内参标定获得，而是由外环已知物理尺度反推：
+\[
+s_{\mathrm{mm/px}}=\frac{90.0}{r_{\mathrm{outer,px}}},
+\]
+其中 \(r_{\mathrm{outer,px}}\) 是配置文件中的 \texttt{outer\_radius}。这种一次校准是故意面向用户的，而不是完全自动的：操作员可以缩放、选择代表性帧，并用物理上有意义的喷嘴中心锚定整个批量\cite{Pratt1987CircleFit,Taubin1991CircleFit}。
 
 \subsubsection{批量和鲁棒预处理}
 
@@ -821,6 +835,10 @@ K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf
 \caption{从高通表示到二值喷雾支持的紧凑示例。（a）全视频环形区域内的高通强度分布及 triangle 阈值；（b）代表帧的单 plume 高通条带；（c）直接阈值化得到的原始二值支持；（d）形态学修补后的二值支持及被添加或移除的像素。}
 \label{fig:threshold-mask-repair-summary}
 \end{figure}
+
+高通条带的二值化使用 triangle threshold，而不是人工固定强度阈值。实现中先忽略由环形掩码产生的大量零值，然后在非零高通强度直方图上寻找阈值：该规则连接直方图主峰与低计数尾端，取到这条直线垂直距离最大的 bin 作为分割点。几何上，它适合单峰、长尾的分布；在本文数据中，主峰对应背景和弱边缘，长尾对应强喷雾边界，因此该规则给出一个随视频对比度自适应变化的支持阈值 \cite{ZackRogersLatt1977}。图~\ref{fig:threshold-mask-repair-summary}(a) 中标出的阈值正是这一几何规则的结果。
+
+在需要进一步修补二值支持时，\textbf{二值 plume 视频修补函数}采用先时间体、后单帧的顺序。对每个 plume 的 \((t,y,x)\) 三维二值体，流程先用 \(3\times3\times3\) 结构元做 closing，再填充孔洞并保留三维最大连通域；随后对每一帧再保留二维最大连通域。前一步利用相邻时间帧的连续性修补短暂断裂，后一步保证单帧中不会保留悬挂碎片。图~\ref{fig:threshold-mask-repair-summary}(d) 展示的是这一修补路径对单帧支持区域的影响；它应被理解为二值几何度量的稳健化步骤，而不是对原始 Mie 强度的物理恢复。
 
 \subsubsection{角度密度作为极坐标重采样}
 
@@ -922,7 +940,15 @@ C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi
 \[
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
-其中分位数阈值在本文的批处理归档中固定为 \(q=0.995\)，即 \codepath{mie\_multi\_hole.py} 中的 \texttt{upper\_quantile\_cdf = 1 - 5e-3}。需要区分的是，可复用库函数保留了较低的默认值以便交互式测试；本文所有定量结果均以批处理脚本写入归档的 \(q=0.995\) 为准。然后通过\texttt{np.maximum.accumulate}强制单调性，从喷嘴环形减去内半径以表示距离，多孔几何构建脚本中丢弃显示非物理后退跳跃或只有很短有效运行的轨迹。这个CDF前沿是工作流的主要实用贡献：它比朴素的最大索引定义对断裂的边缘像素不那么敏感，同时仍然产生与标准柴油喷雾使用对齐的穿深量\cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}。
+其中分位数阈值在本文的批处理归档中固定为 \(q=0.995\)，即 \codepath{mie\_multi\_hole.py} 中的 \texttt{upper\_quantile\_cdf = 1 - 5e-3}。需要区分的是，可复用库函数保留了较低的默认值以便交互式测试；本文所有定量结果均以批处理脚本写入归档的 \(q=0.995\) 为准。随后从喷嘴环形减去内半径以表示距离，并执行显式的轨迹清洗。这里的清洗不是用 cumulative maximum 把所有回退值抬高，而是在检测到第一个非物理后退跳跃后截断尾部：
+\[
+\Delta \hat{x}_p(j)=\hat{x}_p(j+1)-\hat{x}_p(j),\qquad
+j_p^\star=\min\{j:\Delta \hat{x}_p(j)<0\},
+\]
+\[
+\hat{x}_p(t)\leftarrow \mathrm{NaN}\quad \text{for}\quad t\ge j_p^\star .
+\]
+在实现中，截断从第一次负差分附近的帧开始，因而会牺牲后续可能重新出现的弱信号；这是一个保守选择，用于避免把离散噪声尖峰或边界反光解释为真实的穿深回缩。尾部截断之后，脚本构造有效帧掩码，并通过 \texttt{remove\_short\_true\_runs(..., min\_len=5)} 去除少于 5 帧的孤立短段。这个 CDF 前沿是工作流的主要实用贡献：它比朴素的最大索引定义对断裂的边缘像素不那么敏感，同时仍然产生与标准柴油喷雾使用对齐的穿深量\cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}。
 
 \subsubsection{边界度量和几何代理}
 
@@ -941,7 +967,12 @@ R_p(t)=\max\!\left(
 \[
 V_p(t)=x_{\mathrm{scale}} \frac{\pi}{4}\sum_x \left(w_u(t,x)+w_l(t,x)\right)^2,
 \]
-其中\(w_u\)和\(w_l\)是上半宽和下半宽，\(x_{\mathrm{scale}}=1/\cos((180^\circ-\theta_{\mathrm{umb}})/2)\)在需要时补偿伞角倾斜。锥角代理通过两种方式计算：通过平均局部边界角度
+其中\(w_u\)和\(w_l\)是上半宽和下半宽，\(x_{\mathrm{scale}}=1/\cos((180^\circ-\theta_{\mathrm{umb}})/2)\)在需要时补偿伞角倾斜。该体积量不是三维重建，而是把二值投影截面解释为轴对称包络后的几何代理。脚本同时输出两个上下界变体：
+\[
+V_{p,\max}(t)=\pi x_{\mathrm{scale}}\sum_x \max(w_u,w_l)^2,\qquad
+V_{p,\min}(t)=\pi x_{\mathrm{scale}}\sum_x \min(w_u,w_l)^2.
+\]
+它们分别使用上下半宽中的较大值和较小值作为局部有效半径，用于记录上下边界不对称时体积代理的可能范围。锥角代理通过两种方式计算：通过平均局部边界角度
 \[
 \alpha_{\mathrm{avg}}(t)=\overline{\arctan(y_u/x_u)}-\overline{\arctan(y_l/x_l)},
 \]

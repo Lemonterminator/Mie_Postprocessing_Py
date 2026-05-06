@@ -43,7 +43,15 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\(r'c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\OSCC_postprocessing\\\\analysis\\\\single_plume.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(r'c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\OSCC_postprocessing\\\\playback\\\\video_playback.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(python -m pyflakes c:\\\\Users\\\\LJI008\\\\Mie_Postprocessing_Py\\\\mie_multi_hole.py)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(grep -n \"newcommand.*codepath\\\\|\\\\\\\\\\\\\\\\codepath\" thesis.tex thesis_zh.tex)",
+      "Bash(pdflatex -interaction=nonstopmode -draftmode thesis.tex)",
+      "Bash(\" | head -30)",
+      "Bash(grep -iE \"^!|Emergency|Fatal|Runaway|file not found|file `\" | head -30)",
+      "Bash(pdflatex -interaction=nonstopmode -draftmode thesis.tex 2>&1 > /tmp/tex_out.log; grep -iE \"^!|Emergency|Fatal|Runaway|file not found\" /tmp/tex_out.log | head -30; echo \"---missing graphics---\"; grep -iE \"graphic|cannot find|unable to find\" /tmp/tex_out.log | head -20)",
+      "Read(//tmp/**)",
+      "Bash(find .. -maxdepth 4 -iname \"*mie_multi_hole*\" 2>&1 | head -10)",
+      "Read(//c/Users/LJI008/**)"
     ]
   }
 }
