@@ -93,7 +93,7 @@ optical_flow_packages/Optical_Flow_SDK*/**
 !Thesis/**/*.tiff
 
 # Generated thesis slide artifacts
-Thesis/mie_multihole_parallel_programming_slides.pdf
+# Thesis/mie_multihole_parallel_programming_slides.pdf
 Thesis/mie_multihole_parallel_programming_slides.tex
 
 OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
