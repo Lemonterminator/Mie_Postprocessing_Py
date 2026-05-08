@@ -487,6 +487,34 @@ def spray_penetration_model_quarter_only(params, t):
     return w * k_quarter * np.power(t, 0.25)
 
 
+def _param_uncertainty_from_jac(res, n_valid, n_params):
+    """Estimate parameter standard errors and correlations from a SciPy
+    least_squares result. Returns (std, corr) or None if the Jacobian is
+    degenerate. ``cov ~= (J^T J)^-1 * sigma^2`` with sigma^2 from the
+    unweighted residual variance (``res.fun`` is the raw residual vector,
+    independent of the Huber transformation)."""
+    try:
+        if res.jac is None or n_valid <= n_params:
+            return None
+        jac = np.asarray(res.jac, dtype=float)
+        if jac.size == 0 or not np.all(np.isfinite(jac)):
+            return None
+        residuals = np.asarray(res.fun, dtype=float)
+        sigma2 = float(np.sum(residuals * residuals) / max(n_valid - n_params, 1))
+        jtj = jac.T @ jac
+        cov = np.linalg.inv(jtj) * sigma2
+        diag = np.diag(cov)
+        if not np.all(np.isfinite(diag)) or np.any(diag < 0):
+            return None
+        std = np.sqrt(diag)
+        denom = np.outer(std, std)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            corr = np.where(denom > 0, cov / denom, np.nan)
+        return std, corr
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+
+
 def fit_quarter_only(t, y, x0_3):
     """Fit the 3-param quarter-only ablation model."""
     valid = np.isfinite(t) & np.isfinite(y)
@@ -498,6 +526,15 @@ def fit_quarter_only(t, y, x0_3):
         "cost_q1": np.inf,
         "success_q1": False,
         "n_q1": int(valid.sum()),
+        "nfev_q1": 0,
+        "optimality_q1": np.nan,
+        "status_q1": -10,
+        "std_log_k_quarter_q1": np.nan,
+        "std_log_t0_q1": np.nan,
+        "std_log_s_q1": np.nan,
+        "corr_logk_logt0_q1": np.nan,
+        "corr_logk_logs_q1": np.nan,
+        "corr_logt0_logs_q1": np.nan,
     }
     if valid.sum() < 3:
         return nan_result
@@ -514,6 +551,20 @@ def fit_quarter_only(t, y, x0_3):
 
     res = least_squares(residuals, x0_3, method="trf", loss="huber", f_scale=1.0)
     log_k_quarter, log_t0, log_s = res.x
+
+    unc = _param_uncertainty_from_jac(res, int(valid.sum()), 3)
+    if unc is not None:
+        std, corr = unc
+        std_log_k_quarter = float(std[0])
+        std_log_t0 = float(std[1])
+        std_log_s = float(std[2])
+        corr_logk_logt0 = float(corr[0, 1])
+        corr_logk_logs = float(corr[0, 2])
+        corr_logt0_logs = float(corr[1, 2])
+    else:
+        std_log_k_quarter = std_log_t0 = std_log_s = np.nan
+        corr_logk_logt0 = corr_logk_logs = corr_logt0_logs = np.nan
+
     return {
         "log_params_q1": res.x,
         "k_quarter_q1": float(np.exp(log_k_quarter)),
@@ -522,6 +573,15 @@ def fit_quarter_only(t, y, x0_3):
         "cost_q1": float(res.cost),
         "success_q1": bool(res.success),
         "n_q1": int(valid.sum()),
+        "nfev_q1": int(getattr(res, "nfev", 0) or 0),
+        "optimality_q1": float(getattr(res, "optimality", np.nan)),
+        "status_q1": int(getattr(res, "status", -10)),
+        "std_log_k_quarter_q1": std_log_k_quarter,
+        "std_log_t0_q1": std_log_t0,
+        "std_log_s_q1": std_log_s,
+        "corr_logk_logt0_q1": corr_logk_logt0,
+        "corr_logk_logs_q1": corr_logk_logs,
+        "corr_logt0_logs_q1": corr_logt0_logs,
     }
 
 
@@ -1158,6 +1218,15 @@ def process_folder(
                 "log_t0": log_t0,
                 "log_s": log_s,
                 "t_max_s": t_max_s,
+                "nfev": fit["nfev_q1"],
+                "optimality": fit["optimality_q1"],
+                "status": fit["status_q1"],
+                "std_log_k_quarter": fit["std_log_k_quarter_q1"],
+                "std_log_t0": fit["std_log_t0_q1"],
+                "std_log_s": fit["std_log_s_q1"],
+                "corr_logk_logt0": fit["corr_logk_logt0_q1"],
+                "corr_logk_logs": fit["corr_logk_logs_q1"],
+                "corr_logt0_logs": fit["corr_logt0_logs_q1"],
                 **meta,
             }
             rows.append(row_dict)
@@ -1394,3 +1463,13 @@ if __name__ == "__main__":
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
     from summarize_dataset import main as _summarize_main
     _summarize_main()
+    try:
+        from summarize_filter_survival import main as _survival_main
+        _survival_main()
+    except Exception as _e:
+        print(f"[summarize_filter_survival] skipped: {_e}")
+    try:
+        from fit_diagnostics import main as _diagnostics_main
+        _diagnostics_main()
+    except Exception as _e:
+        print(f"[fit_diagnostics] skipped: {_e}")

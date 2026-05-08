@@ -93,7 +93,7 @@ DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier = 3  # Nozzle 1-8: 3; Nozzle0: 2
+noise_floor_multiplier = 4  # Nozzle 1-8: 3; Nozzle0: 2
 
 # Pre-processing histogram scaling settings
 sobel_wsize=3

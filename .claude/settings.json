@@ -15,7 +15,12 @@
       "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/clean/**)",
       "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/bw_x/clean/**)",
       "Read(//c/c/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/bw_polar/clean/**)",
-      "Read(//c/Users/Jiang/.claude/projects/c--Users-Jiang-Documents-Mie-Postprocessing-Py/ca0704da-262e-42d0-b490-afb6bb48503a/tool-results/**)"
+      "Read(//c/Users/Jiang/.claude/projects/c--Users-Jiang-Documents-Mie-Postprocessing-Py/ca0704da-262e-42d0-b490-afb6bb48503a/tool-results/**)",
+      "Bash(python repair_scripts_temp/cone_angle_sanity_check.py)",
+      "Bash(awk 'NR>=670 && NR<=720 {print NR\": \"$0}' \"C:\\\\Users\\\\Jiang\\\\Documents\\\\Mie_Postprocessing_Py\\\\examples\\\\mie\\\\thesis_publication_figures.ipynb\")",
+      "Bash(python repair_scripts_temp/occupied_angle_stratified.py)",
+      "Bash(python repair_scripts_temp/occupied_angle_io_audit.py)",
+      "Bash(python repair_scripts_temp/test_periodic_segment_lengths.py)"
     ]
   }
 }

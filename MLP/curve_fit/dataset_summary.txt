@@ -11,10 +11,10 @@ Injection duration: 340--1200 µs
 Chamber pressure  : 4.42--35 bar
 
 Results directory statistics (processed files):
-  Condition folders: 254
-  Recording CSVs   : 1267  (one per .cine file)
-  Metadata JSONs   : 1267
-  CSV+meta size    : 172.5 MB
+  Condition folders: 266
+  Recording CSVs   : 2992  (one per .cine file)
+  Metadata JSONs   : 2992
+  CSV+meta size    : 384.4 MB
 
 Per-nozzle breakdown:
   Nozzle       d_mm    N   angle     fps     P_inj(bar)      t_inj(µs)  conditions   csvs
@@ -27,8 +27,8 @@ Per-nozzle breakdown:
   Nozzle6     0.333   12    140°   25000           2000     609--880.5          27    138
   Nozzle7     0.365   12    164°   25000           2000       580--764          27    136
   Nozzle8     0.365   10    130°   25000           2000       580--764          27    134
-  Nozzle0     0.384   10    140°   34000     1400--2200      340--1200          12      0
+  Nozzle0     0.384   10    140°   34000     1400--2200      340--1200          12   1725
 
 Suggested thesis sentence:
-  The campaign covers 9 nozzle families (Nozzle0--Nozzle8) with hole diameters from 0.333 to 0.384 mm and N = 10--12 plumes per nozzle, spanning injection pressures from 1400 to 2200 bar, injection durations from 340 to 1200 µs, and chamber pressures from 4.42 to 35 bar, with 254 test-condition folders and 1267 processed recordings.
+  The campaign covers 9 nozzle families (Nozzle0--Nozzle8) with hole diameters from 0.333 to 0.384 mm and N = 10--12 plumes per nozzle, spanning injection pressures from 1400 to 2200 bar, injection durations from 340 to 1200 µs, and chamber pressures from 4.42 to 35 bar, with 266 test-condition folders and 2992 processed recordings.
 ========================================================================

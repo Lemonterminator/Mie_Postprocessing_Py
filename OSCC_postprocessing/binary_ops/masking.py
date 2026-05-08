@@ -74,11 +74,20 @@ def periodic_true_segment_lengths(mask: xp.ndarray) -> xp.ndarray:
     if not mask_bool.any():
         return xp.empty(0, dtype=xp.int64)
 
+    # When mask[0] is True the first segment is opened *before* index 0, so the
+    # diff-derived `starts` array misses an implicit start at 0 and ends up
+    # paired one-off with `ends`. Roll the mask so the traversal starts on a
+    # False bin -- after the roll every segment is fully bracketed by an
+    # explicit (start, end) pair in array order.
+    first_false = int(xp.argmin(mask_bool.astype(xp.int8)))
+    if first_false != 0:
+        mask_bool = xp.roll(mask_bool, -first_false)
+
     mask_ext = xp.concatenate((mask_bool, mask_bool[:1]))
     diffs = mask_ext[1:].astype(xp.int8) - mask_ext[:-1].astype(xp.int8)
     starts = xp.nonzero(diffs == 1)[0] + 1
     ends = xp.nonzero(diffs == -1)[0] + 1
-    lengths = (ends - starts) % n_bins
+    lengths = ends - starts
     return lengths.astype(xp.int64)
 
 
