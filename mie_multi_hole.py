@@ -76,9 +76,9 @@ experiment_configs = [
      r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle8.json",
 ]
 
-parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
+# parent_folders = [r"F:\LubeOil\BC20220627 - Heinzman DS300 - Mie Top view\Cine"]
 
-experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle0.json"]
+# experiment_configs = [r"C:\Users\Jiang\Documents\Mie_Postprocessing_Py\test_matrix_json\Nozzle0.json"]
 
 
 # Optional single-run fallback used by CLI/env overrides.
@@ -93,7 +93,7 @@ DEFAULT_RESULTS_BASE_DIR = Path(__file__).resolve().parent / "Mie_scattering_top
 # =============================================================================
 
 frame_limit = 80
-noise_floor_multiplier = 4  # Nozzle 1-8: 3; Nozzle0: 2
+noise_floor_multiplier = 3  # Nozzle 1-8: 3; Nozzle0: 4
 
 # Pre-processing histogram scaling settings
 sobel_wsize=3
@@ -118,10 +118,11 @@ nozzle_opening_detection_width = 30
 thres_penetration_num_pix = 5  # minimum width of the binarized spray for x-axis penetration detection
 segment_bw_q_min = 5
 segment_bw_q_max = 99.9
-repair_bw = False
+global_bw_threshold = 0.01
+repair_bw = True
 penetration_cleanup_min_len = 5
 
-save_boundary_points_csv = False
+save_boundary_points_csv = True
 
 # Visual preview toggles. Both default off so production batch runs are silent.
 # - save_preview_avi: dump a tiled multi-plume AVI with boundary overlay per video
@@ -129,7 +130,7 @@ save_boundary_points_csv = False
 # - preview_playback: synchronously open an OpenCV window after each video. Blocks
 #   the pipeline (no GPU/IO overlap) -- intended for interactive QC, not batch runs.
 # Press 'q' during playback to skip the rest of the current video.
-save_preview_avi = False
+save_preview_avi = True
 preview_playback = False
 preview_fps = 15
 preview_tile = None  # (rows, cols), or None for adaptive layout
@@ -807,10 +808,15 @@ def _process_cine_file(
         )
         state["hp_segments"] = state["postprocess"]["segments_fg"]
         # Need to ignore zeros in the histogram for large number of zeros made by masking.
+        
+        '''
         state["hp_segments_bw"] = triangle_binarize_gpu(
             state["hp_segments"],
             ignore_zero=True,
         )
+        '''
+        # use a hard coded threshold after plume-wise percentile scaling, which should be stable
+        state["hp_segments_bw"] = state["hp_segments"] > global_bw_threshold
         if repair_bw:
             state["hp_segments_bw"] = repair_binary_plume_video(state["hp_segments_bw"])
 
@@ -946,11 +952,22 @@ def _process_cine_file(
         if save_preview_avi or preview_playback:
             preview_host_video = _build_preview_host_video(state["hp_segments"])
             from OSCC_postprocessing.playback.video_playback import (
+                _shift_plume_boundary_centered_y_to_image,
                 _swap_plume_boundary_yx,
             )
+            # Boundary helpers store ``y`` relative to the strip midline.
+            # Convert to image coordinates BEFORE swapping yx<->xy so the
+            # post-swap x column lands in [0, W_display) instead of being
+            # clipped at zero (which would collapse one half of every plume's
+            # outline onto the left edge of the displayed strip).
+            H_orig = int(state["hp_segments"].shape[-2])
+            shifted_boundaries = [
+                _shift_plume_boundary_centered_y_to_image(b, H_orig) if b is not None else None
+                for b in all_boundaries
+            ]
             swapped_boundaries = [
                 _swap_plume_boundary_yx(b) if b is not None else None
-                for b in all_boundaries
+                for b in shifted_boundaries
             ]
         _maybe_save_preview_avi(
             save_path_subfolder, video_name,

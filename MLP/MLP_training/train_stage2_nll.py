@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
 
@@ -58,6 +59,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--weight-decay", type=float, default=None)
     parser.add_argument("--max-curves", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Override config seed (controls split assignment and torch RNG).")
     parser.add_argument("--allow-failed-precheck", action="store_true")
     parser.add_argument("--no-shuffle", action="store_true")
     return parser.parse_args()
@@ -113,12 +116,19 @@ def main() -> None:
         overrides["learning_rate"] = float(args.learning_rate)
     if args.weight_decay is not None:
         overrides["weight_decay"] = float(args.weight_decay)
+    if args.seed is not None:
+        overrides["seed"] = int(args.seed)
     if args.allow_failed_precheck:
         overrides["allow_failed_precheck"] = True
     if args.no_shuffle:
         overrides["shuffle_train"] = False
 
     config = merge_config(DEFAULT_STAGE2_CONFIG, overrides)
+    seed = int(config["seed"])
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     device = torch.device(config["device"])
     registry = build_dataset_registry(Path(args.test_matrix_root).expanduser().resolve() if args.test_matrix_root else None)
     run_dir = create_run_dir(config["runs_root"], "stage2_engineered_nll", config["variant"])

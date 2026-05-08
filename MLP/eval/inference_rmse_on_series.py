@@ -27,7 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from MLP.training.engineered_feature_common import (
+from MLP.MLP_training.engineered_feature_common import (
     build_dataset_registry,
     build_feature_matrix_np,
     infer_feature_family,
@@ -35,7 +35,7 @@ from MLP.training.engineered_feature_common import (
     normalize_dataset_key,
     split_mu_logvar,
 )
-from MLP.training.train_stage3_distillation_plus_raw_series import (
+from MLP.MLP_training.train_stage3_distillation_plus_raw_series import (
     build_teacher_raw_dict,
     extract_prefixed_matrix,
     load_source_table,

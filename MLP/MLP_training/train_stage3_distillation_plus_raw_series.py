@@ -1005,6 +1005,8 @@ def parse_args() -> argparse.Namespace:
                              help="Build sample tensors inside DataLoader __getitem__ each epoch.")
     p.add_argument("--no-train", action="store_true", help="Only run diagnostics, skip training.")
     p.add_argument("--save-figures", action="store_true")
+    p.add_argument("--seed", type=int, default=None,
+                   help="Override seed inherited from Stage-2 train_config (controls split, init, dropout).")
     p.add_argument("--run-name-prefix", default="distill_cdf_onset_v2",
                    help="Prefix for the refinement run directory under MLP/runs_mlp.")
     p.add_argument("--ablation-name", default=None,
@@ -1398,6 +1400,8 @@ def main() -> None:
         **regime_config,
     }
     apply_refine_config_overrides(refine_config, args)
+    if getattr(args, "seed", None) is not None:
+        refine_config["seed"] = int(args.seed)
     set_global_seed(refine_config["seed"])
 
     raw_time_bin_counts = cdf_labeled_df.groupby("time_bin", dropna=False).size().reindex(

@@ -20,8 +20,8 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MLP_ROOT = PROJECT_ROOT / "MLP"
-TRAIN_SCRIPT = Path("MLP") / "training" / "train_stage3_distillation_plus_raw_series.py"
-DEFAULT_CONFIG = Path("MLP") / "training" / "stage3_ablation_suite_config.json"
+TRAIN_SCRIPT = Path("MLP") / "MLP_training" / "train_stage3_distillation_plus_raw_series.py"
+DEFAULT_CONFIG = Path("MLP") / "MLP_training" / "stage3_ablation_suite_config.json"
 DEFAULT_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 
 COMMON_OPTION_KEYS = {
@@ -37,6 +37,7 @@ COMMON_OPTION_KEYS = {
     "precompute_dataset",
     "no_train",
     "save_figures",
+    "seed",
     "skip_post_train_eval",
     "eval_split",
     "eval_t_min_ms",
@@ -246,6 +247,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--teacher-run", type=Path, default=None, help="Override config common.teacher_run.")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default=None, help="Override config device.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Override config common.seed (passed to every ablation training run).")
     parser.add_argument("--only", nargs="+", default=None, help="Run only these ablation names.")
     parser.add_argument(
         "--include-sensitivity",
@@ -271,6 +274,8 @@ def main() -> None:
         common["teacher_run"] = str(args.teacher_run)
     if args.device is not None:
         common["device"] = args.device
+    if args.seed is not None:
+        common["seed"] = int(args.seed)
 
     teacher_run = resolve_teacher_run(common.pop("teacher_run", None))
     python_exe = DEFAULT_PYTHON if DEFAULT_PYTHON.exists() else Path(sys.executable)

@@ -87,6 +87,52 @@ def _swap_plume_boundary_yx(boundary):
     return [_swap_boundary_yx_for_frame(item) for item in boundary]
 
 
+def _shift_centered_y_to_image_for_frame(item, H_orig):
+    """Convert one frame's boundary y from centered to image coordinates.
+
+    Boundary helpers in :mod:`OSCC_postprocessing.binary_ops.boundaries` store
+    ``y`` relative to the strip midline (negative for one half of the cone,
+    positive for the other) so downstream cone-angle math can use the
+    horizontal axis as the symmetry line. Anything that displays the boundary
+    as pixels (``cv2.imshow``, AVI writers, raster overlays) needs ``y`` in
+    image coordinates ``[0, H)``. This shifts column 0 by ``H_orig // 2`` per
+    frame and is a no-op once the data is already in image coordinates.
+    """
+    if item is None:
+        return None
+    offset = H_orig // 2
+    if isinstance(item, (list, tuple)) and len(item) == 2:
+        lower, upper = item
+
+        def _shift(arr):
+            arr = np.asarray(arr)
+            if arr.size == 0:
+                return arr
+            shifted = arr.astype(np.float32, copy=True)
+            shifted[:, 0] = shifted[:, 0] + offset
+            return shifted
+        return (_shift(lower), _shift(upper))
+    arr = np.asarray(item)
+    if arr.size == 0:
+        return arr
+    shifted = arr.astype(np.float32, copy=True)
+    shifted[:, 0] = shifted[:, 0] + offset
+    return shifted
+
+
+def _shift_plume_boundary_centered_y_to_image(boundary, H_orig):
+    """Apply :func:`_shift_centered_y_to_image_for_frame` over a plume's frames.
+
+    Apply this BEFORE :func:`_swap_plume_boundary_yx` when feeding the playback
+    pipeline pre-swapped frames. After the shift the boundary is in image
+    coordinates, so the (y, x) <-> (x, y) swap then produces image-coordinate
+    columns in both axes -- which is what the OpenCV rasterizer expects.
+    """
+    if boundary is None:
+        return None
+    return [_shift_centered_y_to_image_for_frame(item, H_orig) for item in boundary]
+
+
 def _render_one_plume_frame(
     frame_2d, boundary_for_plume, frame_idx, *,
     gain, binarize, thresh, kernel, color_top, color_bottom, alpha,

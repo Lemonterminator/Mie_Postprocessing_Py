@@ -128,3 +128,8 @@ Thesis/build_artifacts/
 .vscode/
 .idea/
 *.code-workspace
+.claude/
+.github/
+.venv/
+.vscode/
+__pycache__/

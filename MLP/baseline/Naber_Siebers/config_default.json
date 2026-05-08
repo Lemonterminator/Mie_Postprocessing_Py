@@ -1,0 +1,37 @@
+{
+  "source": "cdf",
+  "series_split": "clean",
+  "split_mode": "grouped_condition",
+  "seed": 42,
+  "val_frac": 0.15,
+  "test_frac": 0.15,
+  "time_min_ms": 0.0,
+  "time_max_ms": 5.0,
+  "rel_err_floor_mm": 5.0,
+  "fit_loss": "huber",
+  "huber_f_scale_mm": 1.0,
+  "variant": "ns_delay",
+  "delay_bounds_ms": [-0.1, 0.8],
+  "fit_delay": true,
+  "use_train_angle": false,
+  "use_oracle_angle": false,
+  "angle_default_deg": 14.0,
+  "angle_factor_floor": 0.25,
+  "angle_factor_ceiling": 4.0,
+  "uncertainty": {
+    "calibration_split": "val",
+    "residual_mode": "time_binned",
+    "time_bin_ms": 0.1,
+    "min_bin_count": 30,
+    "sigma_floor_mm": 0.5,
+    "bootstrap_n": 64,
+    "bootstrap_group": "condition",
+    "bootstrap_seed": 20260429
+  },
+  "outputs": {
+    "root": "MLP/baseline/Naber_Siebers/outputs",
+    "save_points": true,
+    "save_plots": true,
+    "max_trajectory_plots": 24
+  }
+}

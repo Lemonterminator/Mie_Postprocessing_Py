@@ -20,7 +20,23 @@
       "Bash(awk 'NR>=670 && NR<=720 {print NR\": \"$0}' \"C:\\\\Users\\\\Jiang\\\\Documents\\\\Mie_Postprocessing_Py\\\\examples\\\\mie\\\\thesis_publication_figures.ipynb\")",
       "Bash(python repair_scripts_temp/occupied_angle_stratified.py)",
       "Bash(python repair_scripts_temp/occupied_angle_io_audit.py)",
-      "Bash(python repair_scripts_temp/test_periodic_segment_lengths.py)"
+      "Bash(python repair_scripts_temp/test_periodic_segment_lengths.py)",
+      "Bash(ls \"c:/Users/Jiang/Documents/Mie_Postprocessing_Py/MLP/synthetic_data/BC20241003_HZ_Nozzle1/cdf/series_wide_clean\" 2>nul | head -5)",
+      "Bash(ls \"C:/Users/Jiang/.claude/plans\" 2>nul)",
+      "PowerShell(Write-Host \"ANTHROPIC_BASE_URL: $env:ANTHROPIC_BASE_URL\"; Write-Host \"ANTHROPIC_API_KEY: $env:ANTHROPIC_API_KEY\"; Invoke-WebRequest -Uri \"http://localhost:4000/health\" -UseBasicParsing -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Content; Invoke-WebRequest -Uri \"http://localhost:11434/api/tags\" -UseBasicParsing -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Content)",
+      "PowerShell(Start-Process -FilePath \"litellm\" -ArgumentList \"--config C:\\\\Users\\\\Jiang\\\\litellm_config.yaml --port 4000\" -WindowStyle Hidden)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:4000/health\" -UseBasicParsing)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Jiang\\\\Documents\\\\Mie_Postprocessing_Py\\\\MLP\\\\baseline\\\\Naber_Siebers\\\\\" -Recurse | Select-Object FullName, PSIsContainer | Sort-Object FullName)",
+      "Bash(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\Jiang\\\\Documents\\\\Mie_Postprocessing_Py\\\\MLP\\\\baseline\\\\Hiroyasu_Arai\" -Force)",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"dir created\")",
+      "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant ha_hiroyasu --max-trajectories 20 --no-plots --tag smoke_test)",
+      "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant ha_calibrated --no-plots --tag cal_test)",
+      "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant zhou_calibrated --no-plots --tag zhou_cal)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py",
+      "C:\\Users\\Jiang"
     ]
   }
 }

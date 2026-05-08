@@ -47,7 +47,7 @@ names = [
     "BC20241011_HZ_Nozzle6",
     "BC20241015_HZ_Nozzle7",
     "BC20241016_HZ_Nozzle8",
-    "Nozzle0",
+    "BC20220627_HZ_Nozzle0",
 ]
 
 

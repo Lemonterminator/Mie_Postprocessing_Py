@@ -1,0 +1,37 @@
+{
+  "variant": "ha_hiroyasu",
+  "rho_l_kg_m3": 832.0,
+  "fit_loss": "huber",
+  "huber_f_scale_mm": 1.0,
+
+  "source": "cdf",
+  "series_split": "clean",
+  "time_min_ms": 0.0,
+  "time_max_ms": 5.0,
+  "rel_err_floor_mm": 5.0,
+
+  "split_mode": "grouped_condition",
+  "seed": 42,
+  "val_frac": 0.15,
+  "test_frac": 0.15,
+
+  "primary_eval_split": "test",
+
+  "uncertainty": {
+    "calibration_split": "val",
+    "residual_mode": "time_binned",
+    "time_bin_ms": 0.1,
+    "min_bin_count": 30,
+    "sigma_floor_mm": 0.5,
+    "bootstrap_n": 64,
+    "bootstrap_group": "condition",
+    "bootstrap_seed": 20260508
+  },
+
+  "outputs": {
+    "root": "MLP/baseline/Hiroyasu_Arai/outputs",
+    "save_points": true,
+    "save_plots": true,
+    "max_trajectory_plots": 24
+  }
+}
