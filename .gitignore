@@ -49,7 +49,11 @@ Thumbs.db
 # Project data/artifacts
 ex.npy
 outputs/
-MLP/synthetic_data/
+MLP/synthetic_data/*
+!MLP/synthetic_data/fit_diagnostics/
+MLP/synthetic_data/fit_diagnostics/*
+!MLP/synthetic_data/fit_diagnostics/slides_mechanical_engineers/
+!MLP/synthetic_data/fit_diagnostics/slides_mechanical_engineers/fit_diagnostics_mechanical_engineers.pptx
 MLP/synthetic_data_old/
 MLP/synthetic_data.zip
 MLP/eval/*
