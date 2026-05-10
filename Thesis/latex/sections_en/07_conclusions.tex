@@ -1,0 +1,30 @@
+\section{Conclusions}
+
+\subsection{Validated outcomes}
+
+\begin{itemize}
+  \item The thesis delivers a complete workflow from manual nozzle calibration and GPU-based plume extraction to fitted penetration targets and a staged surrogate model.
+  \item Under the external-cleaning evaluation protocol, covering 795{,}561 prediction points and 33{,}845 trajectories, the transition-region-scaled three-stage MLP (anchor-off) reaches a four-run mean RMSE of~\SI{6.094}{mm}, MAE of~\SI{4.465}{mm}, P95 absolute error of~\SI{12.888}{mm}, and conservative 1$\sigma$/2$\sigma$ coverage of 0.783/0.982.
+  \item On the earlier original archived held-out split, the same anchor-off Stage~3 surrogate reaches RMSE~\SI{6.68}{mm}, MAE~\SI{4.83}{mm}, bias~\SI{-0.02}{mm}, and conservative 1$\sigma$/2$\sigma$ coverage of 72.24\% / 97.03\% on 21{,}470 trajectories.
+  \item Relative to calibrated Hiroyasu--Arai, delayed Naber--Siebers, and a sparse heteroscedastic Gaussian process, the three-stage model reduces RMSE by 38.9\%, 31.1\%, and 11.7\%, respectively.
+  \item The leave-one-nozzle-family evaluation shows that the method remains below the physical baselines on unseen nozzle families, while under-coverage in difficult families indicates that extrapolation risk must still be reported explicitly.
+  \item The staged design is justified: Stage~1 provides a stable mean anchor, Stage~2 provides a heteroscedastic teacher on the full filtered dataset, and Stage~3 produces the most credible screening model by blending trustworthy raw supervision with censoring-robust teacher guidance.
+\end{itemize}
+
+\subsection{Current prototype boundary}
+
+\begin{itemize}
+  \item The probabilistic wall-interaction screen demonstrates that the penetration surrogate can be projected into a time-resolved geometric risk score, but the current rotated-Gaussian geometry and toy piston case are only a pipeline demonstration and remain unvalidated against matching experiments or CFD.
+  \item The model should be interpreted as an early-stage screening surrogate within a non-reacting, room-temperature, Mie-defined operating domain, not as a phase-resolved predictor of real-engine liquid-wall impingement.
+\end{itemize}
+
+\subsection{Next development priorities}
+
+\begin{enumerate}
+  \item Validate $P_{\mathrm{hit}}(t)$ and cumulative exposure $E$ against matching optical or CFD collision data.
+  \item Replace the analytic constant-angle envelope with a learned two-dimensional envelope model.
+  \item Quantify seed-to-seed reproducibility and calibration stability across repeated training runs.
+  \item Extend the surrogate with nozzle-family-conditioned transient priors so that hard cases such as HZ\_Nozzle3 and Nozzle0 are treated more explicitly.
+\end{enumerate}
+
+\clearpage

@@ -1,0 +1,281 @@
+\section{结果}
+
+
+
+\subsection{提取与拟合后的轨迹目标}
+
+提取与拟合工作流在已处理的 campaign 归档中生成了 295 个清洗后的拟合轨迹文件。这一步之所以重要，是因为 surrogate 并不是直接训练在原始且间歇性断裂的 plume 轨迹上，而是训练在保留主要时间结构、同时削弱分割噪声并降低晚期删失偏差的目标上。图~\ref{fig:clean-fit-example} 给出一个代表性例子：清洗后的曲线保留了 plume-to-plume 的差异，而拟合轨迹则提供了平滑且仍忠于观测液相包络的目标。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
+\caption{目标构造阶段后的代表性清洗轨迹与拟合曲线。清洗轨迹保留了观测到的时间结构，而拟合曲线则提供了平滑的、删失感知的 surrogate 目标。}
+\label{fig:clean-fit-example}
+\end{figure}
+
+\subsection{整体 surrogate 精度与不确定度行为}
+
+表~\ref{tab:model-summary} 总结了三个学习阶段的作用和留出集表现。Stage~1 在每个工况只使用一条代表性曲线，因此其角色更像是稳定的均值锚点，而不是最终筛查模型。Stage~2 解决的是更困难的问题：面对完整过滤数据集、组内 plume 差异以及需要同时学习均值与方差的监督任务。因此，它的测试 MAE 从 \SI{8.05}{mm} 上升到 \SI{9.28}{mm}，但这并不是整个建模方案的倒退，而是问题从中位轨迹回归转向条件分布建模后的自然结果，也正是它成为不确定性感知教师模型的原因。
+
+在原始归档训练和评估切分下，anchor-off Stage~3 模型同时改善了精度与偏差，在 21{,}470 条轨迹、519{,}570 个留出时间点上达到总体 RMSE~\SI{6.68}{mm}、MAE~\SI{4.83}{mm} 和残余 bias~\SI{-0.02}{mm}。图~\ref{fig:pred-vs-actual-best} 表明，在整个测量范围内，留出集预测基本贴近恒等线，且随着穿深增大，散点逐步变宽。这种变宽与异方差设计是一致的：模型并没有强行对所有时刻和工况使用同一个固定误差条。
+
+不确定度校准在工程上同样有意义。最终 1$\sigma$ 与 2$\sigma$ 覆盖率分别为 72.24\% 和 97.03\%，略高于名义高斯值 68.3\% 和 95.4\%。图~\ref{fig:stage3-calibration-coverage} 进一步把这一点展开为按预测标准差分箱的可靠性图和覆盖率曲线，而不只比较平均标准差与平均误差。对于早期设计筛查而言，这种略偏保守的行为是可取的，因为模型不太容易低估晚期时间或弱观测区间下的穿深不确定度。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.94\linewidth]{images/stage3_calibration_coverage.png}
+\caption{最终 anchor-off Stage~3 模型的不确定度校准检查，由 \codepath{MLP/eval/calibration\_coverage\_audit.py} 从留出集 \codepath{points.csv} 重建。图中同时报告按预测 \(\sigma\) 分箱的误差尺度、名义覆盖率曲线，以及平均预测标准差与平均绝对误差的对比。}
+\label{fig:stage3-calibration-coverage}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{0.12\linewidth}L{0.25\linewidth}L{0.24\linewidth}L{0.30\linewidth}@{}}
+\toprule
+阶段 & 监督目标 & 核心留出集指标 & 解释 \\
+\midrule
+Stage~1 & 代表性 q1 拟合轨迹（599 行） &
+\begin{tabular}[t]{@{}l@{}}
+验证 \textnormal{MSE}: 17.06\\
+测试 \textnormal{MAE}: \SI{8.05}{mm}
+\end{tabular}
+& 在 $A$ 缩放后提供稳定的均值锚点，但每个工况仍只有一条代表性曲线。 \\
+\addlinespace
+Stage~2 & 完整过滤 q1 拟合集（20{,}940 条轨迹） &
+\begin{tabular}[t]{@{}l@{}}
+验证 \textnormal{NLL}: 2.099\\
+测试 \textnormal{MAE}: \SI{9.28}{mm}\\
+平均标准差: \SI{12.51}{mm}
+\end{tabular}
+& 在完整过滤归档上把条件均值与条件离散度分开学习，是更困难但也更有价值的教师任务。 \\
+\addlinespace
+Stage~3 & 带区制相关 \textnormal{KD} 引导的原始 \textnormal{CDF} &
+\begin{tabular}[t]{@{}l@{}}
+原始切分 \textnormal{RMSE}: \SI{6.68}{mm}\\
+\textnormal{MAE}: \SI{4.83}{mm}\\
+\textnormal{bias}: \SI{-0.02}{mm}\\
+覆盖率:\\
+72.24\% / 97.03\%
+\end{tabular}
+& 无锚点筛查模型，兼顾更好的早期时间保真度、近零残余偏差和更保守的晚期行为；最终 headline 指标以下方外部清洗协议为准。 \\
+\bottomrule
+\end{tabular}
+\caption{三阶段 surrogate 训练及其在最终筛查工作流中的作用。}
+\label{tab:model-summary}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.88\linewidth]{images/neural_network_fit_results/pred_vs_actual_best.png}
+\caption{最终 Stage~3 模型在全部留出集点上的预测穿深与测量穿深对比。虚线表示理想一致线。}
+\label{fig:pred-vs-actual-best}
+\end{figure}
+
+\subsection{外部清洗协议下的扩展评估}
+
+上述留出集结果反映了最初归档训练与评估流程下的 Stage~3 表现。为了检验结论是否依赖
+该单一切分，本文进一步引入一个外部清洗评估协议。该协议包含 795{,}561 个预测点和
+33{,}845 条轨迹，所有模型在同一目标集合上计算误差。表~\ref{tab:external-clean-headline}
+汇总了本文主模型与三个基线：校准后的 Hiroyasu--Arai 经验关联式、带延迟项的
+Naber--Siebers 关联式，以及稀疏异方差 Gaussian process；这些基线的函数形式、图像特征来源和拟合协议见第~\ref{sec:baseline-fitting-protocol-zh} 节。过渡区缩放三阶段 MLP 四次同配置
+（anchor-off）重复训练的平均 RMSE 为 \SI{6.094}{mm}、MAE 为 \SI{4.465}{mm}、P95 绝对误差为 \SI{12.888}{mm}，并给出 0.783/0.982 的保守 1$\sigma$/2$\sigma$ 覆盖率；相对 Hiroyasu--Arai、
+Naber--Siebers 和 Gaussian process，RMSE 分别降低 38.9\%、31.1\% 和 11.7\%。这说明改进
+并非只来自与传统经验式的比较；即使面对一个具有不确定度输出的非参数机器学习基线，
+三阶段 MLP 仍在点预测和尾部误差上占优。随后，预测分布被投影到图~\ref{fig:impingement-preview}--\ref{fig:impingement-summary} 所示的简化二维发动机几何模型上，形成概率性撞壁筛查代理指标，而非确定性的通过/不通过阈值。
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}L{0.28\linewidth}rrrrrr@{}}
+\toprule
+模型 & RMSE & MAE & Bias & P95 & 1$\sigma$ & 2$\sigma$ \\
+\midrule
+Hiroyasu--Arai 校准式 & 9.974 & 7.686 & 0.625 & 20.493 & 0.536 & 0.886 \\
+Naber--Siebers 延迟式 & 8.840 & 6.780 & -0.344 & 17.922 & 0.620 & 0.893 \\
+上一版四分之一次方缩放参考模型 & 6.696 & 4.875 & -1.149 & 14.118 & 0.745 & 0.979 \\
+三阶段 MLP，过渡区缩放，anchor-off，四次重复均值 & \textbf{6.094} & \textbf{4.465} & -0.554 & \textbf{12.888} & 0.783 & 0.982 \\
+三阶段 MLP，raw-reliable-no-kd（消融对照，seed 2024） & 6.682 & 5.077 & -1.976 & 13.594 & 0.737 & 0.976 \\
+稀疏异方差 Gaussian process，五次重复均值 & 6.898 & 5.206 & -1.184 & 14.365 & 0.670 & 0.950 \\
+\bottomrule
+\end{tabular}
+\caption{同一外部清洗评估协议下的扩展结果。误差单位为 mm；P95 为 95\% 绝对误差。MLP 主模型（anchor-off）均值基于四次同配置重复训练（seeds 7/17/42/99）；raw-reliable-no-kd 为消融对照，仅报告 seed 2024 单次结果。Gaussian 名义覆盖率约为 0.683 / 0.954。}
+\label{tab:external-clean-headline}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\linewidth]{images/baseline_comparison_20260509/metric_bars_rmse_mae_p95.png}
+\caption{主模型与物理、非参数机器学习基线在 RMSE、MAE 和尾部误差上的对比。}
+\label{fig:metric-bars-current}
+\end{figure}
+
+四次同配置（anchor-off，seeds 7/17/42/99）重复训练的 RMSE 标准差为 \SI{0.120}{mm}，
+范围为 \SIrange{5.948}{6.231}{mm}。该范围整体低于上一版四分之一次方缩放参考模型的
+\(\SI{6.696}{mm}\)，说明过渡区缩放带来的改善不是单次训练偶然结果。表中另一行
+raw-reliable-no-kd（seed 2024，RMSE \SI{6.682}{mm}）属于消融对照变体，表征去除可靠区间
+蒸馏正则化后性能的下降幅度，不计入 anchor-off 稳定性统计。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.80\linewidth]{images/baseline_comparison_20260509/per_seed_rmse.png}
+\caption{anchor-off 配置四次重复训练的逐 seed RMSE（seeds 7/17/42/99）。虚线表示四次均值~\SI{6.094}{mm}；raw-reliable-no-kd（seed 2024）作为消融对照单独列于主表。}
+\label{fig:five-seed-rmse-current}
+\end{figure}
+
+为了展示误差结构，图~\ref{fig:latest-pred-residual} 使用最佳单次重复训练作为代表性诊断。
+散点整体沿恒等线分布，残差均值接近零，但高穿深区和困难喷嘴族仍存在更宽误差尾。
+这支持一个谨慎结论：模型已经具备稳定的毫米级预测能力，但并不是无条件外推器。
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/latest_pred_vs_actual_seed99.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/latest_residual_histogram_seed99.png}
+\end{minipage}
+\caption{代表性单次重复训练的预测--测量散点和残差分布。该图用于诊断误差结构；论文主结论以四次 anchor-off 重复训练均值（RMSE \SI{6.094}{mm}）为准。}
+\label{fig:latest-pred-residual}
+\end{figure}
+
+\subsection{扩展概率校准、CRPS 与留一喷嘴族评估}
+
+覆盖率本身只能检查少数置信区间，因此本文进一步使用可靠性图、连续排序概率分数和
+概率积分变换直方图。anchor-off 四次重复训练平均连续排序概率分数为 \SI{3.174}{mm}，
+低于物理基线和上一版参考模型；这说明改进不仅来自扩大不确定度区间，而是来自均值精度
+与不确定度宽度之间更好的综合权衡。
+
+图~\ref{fig:calibration-current} 展示了可靠性图与连续排序概率分数--sharpness 平面。
+三阶段 MLP（anchor-off）的 1$\sigma$/2$\sigma$ 覆盖率为 0.783/0.982，高于 Gaussian
+名义值，属于外部清洗集合上的轻度保守。Gaussian process 的 0.670/0.950 更接近名义覆盖率，
+但其 RMSE、MAE 和尾部误差均高于三阶段 MLP。因此，Gaussian process 是强不确定度基线，
+但在当前协议下没有取代三阶段模型的精度优势。
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/calibration_20260509/reliability_overlay.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/calibration_20260509/crps_sharpness_scatter.png}
+\end{minipage}
+\caption{概率预测诊断。左：可靠性图；右：连续排序概率分数与平均预测标准差。三阶段 MLP 在精度和概率评分上占优，Gaussian process 在名义覆盖率接近度上更强。}
+\label{fig:calibration-current}
+\end{figure}
+
+留一喷嘴族评估用于检查模型是否只是在已见喷嘴族内插值。五个留出折中，三阶段 MLP 的
+平均 RMSE 为 \(\SI{7.435}{mm}\pm\SI{0.692}{mm}\)，仍低于 Hiroyasu--Arai 的
+\(\SI{10.713}{mm}\pm\SI{1.542}{mm}\) 和 Naber--Siebers 的
+\(\SI{9.784}{mm}\pm\SI{2.102}{mm}\)。平均覆盖率为 0.701/0.957，接近 Gaussian 名义值，
+但最困难的 held-out 喷嘴族出现明显低覆盖。这说明过渡区缩放和三阶段训练提高了
+跨喷嘴族稳健性，但喷嘴族依赖的瞬态动力学仍是主要剩余风险。
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/lono_20260509/lono_rmse_by_fold.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/lono_20260509/lono_coverage_by_fold.png}
+\end{minipage}
+\caption{留一喷嘴族评估。三阶段 MLP 在各留出折上均低于两个物理基线的 RMSE，但部分喷嘴族仍显示低覆盖风险。}
+\label{fig:lono-current}
+\end{figure}
+
+\subsection{campaign 间差异与代表性轨迹案例}
+
+误差在不同 campaign 文件夹之间并不均匀。图~\ref{fig:per-folder-rmse-best} 展示了最终模型在各评估子文件夹上的单条轨迹 RMSE 均值与中位数。最容易的文件夹仍处于低 \SI{3}{mm} 区间，而最困难的接近 \SI{9}{mm}。Nozzle0 文件夹处于这个排序的中间而不是两端，因此最终消融带来的全局改善并不是由某一个匿名化参考 campaign 单独驱动的。
+
+代表性案例使这种差异更直观。图~\ref{fig:traj-best-case} 给出一个最佳表现案例，其中预测均值紧密跟随测量 plume 轨迹，不确定度带也相对较窄。图~\ref{fig:traj-worst-case} 给出一个更困难的案例，模型依然保持单调且不确定度带适当变宽，但若干 plume 仍表现出系统性的曲率失配或起始滞后。需要强调的是，这个困难案例并不包含删失轨迹，因此残余误差不能完全归因于视场丢失；喷嘴族依赖的早期瞬态依然是真正的建模难点。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.88\linewidth]{images/neural_network_fit_results/per_folder_rmse_best.png}
+\caption{最终 Stage~3 模型在各评估 campaign 文件夹上的单条轨迹 RMSE 均值与中位数。}
+\label{fig:per-folder-rmse-best}
+\end{figure}
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/traj_best_nozzle7_T19.png}
+\caption{最终 Stage~3 模型的代表性最佳案例。预测均值紧密跟随测量 plume 轨迹，且不确定度带在展示的 plume 上保持较窄。}
+\label{fig:traj-best-case}
+\end{figure}
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/traj_worst_nozzle3_T3.png}
+\caption{最终 Stage~3 模型的代表性困难案例。模型依然保持单调且偏保守，但若干 plume 呈现系统性的形状失配，从而拉大误差。}
+\label{fig:traj-worst-case}
+\end{figure}
+
+\subsection{最终调参选择的消融证据}
+
+本次消融实验比较了四个 Stage~3 配置：
+(i)~baseline 配置，在 高信赖度原始区间 时间箱中 $w_{\mathrm{kd}}=0.25$，且 $\lambda_{\mathrm{anchor}}=0.01$；
+(ii)~\textbf{无蒸馏可靠区间变体}，去掉可靠时间箱中的 KD 混合；
+(iii)~\textbf{混合不确定区间变体}，在不确定时间箱中重新加入部分原始监督；以及
+(iv)~\textbf{无锚点蒸馏变体}，在保持 raw/KD 区制设计不变的同时令 $\lambda_{\mathrm{anchor}}=0$。
+表~\ref{tab:stage3-ablation-ranking} 与图~\ref{fig:ablation-best} 给出了排序。anchor-off 变体在总体 RMSE 上胜出，同时把 residual bias 从 baseline 的 \SI{-1.37}{mm} 降至 \SI{-0.02}{mm}。这说明早期零穿深锚点虽然具有物理直觉，但在当前数据和 onset loss 已存在的情况下略微过约束了均值函数，造成全局低估。
+
+需要明确的是，表~\ref{tab:stage3-ablation-ranking} 只支持 anchor-off 与 raw/KD 混合策略的选择，并不构成对 70\%/20\% 覆盖率边界、\(\sigma_{\mathrm{ref}}=\SI{10}{mm}\) 或全部权重组合的完整超参数搜索。本文把这些值报告为可复现的保守设计配置；新增的局部敏感性配置将在完整数据和训练环境恢复后用于检查这些选择是否稳定。
+
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{tabular}{lrrrr}
+\toprule
+配置 & RMSE [mm] & MAE [mm] & Bias [mm] & P95 绝对误差 [mm] \\
+\midrule
+无锚点蒸馏变体 & 6.68 & 4.83 & -0.02 & 13.89 \\
+无蒸馏可靠区间变体 & 6.82 & 5.01 & -0.91 & 14.17 \\
+混合不确定区间变体 & 6.87 & 5.07 & -1.23 & 14.21 \\
+\textbf{基准蒸馏变体} & 6.91 & 5.08 & -1.37 & 14.32 \\
+\bottomrule
+\end{tabular}
+\caption{自动 post-training RMSE 评估得到的 Stage~3 消融排序。最终选定模型为 无锚点蒸馏变体。}
+\label{tab:stage3-ablation-ranking}
+\end{table}
+
+消融趋势也解释了为什么对筛查用途而言，Stage~3 比 Stage~1 和 Stage~2 更可信。获胜配置并没有移除教师引导，而只是去掉了一个与 onset loss 和原始观测部分重叠的早期锚点。因此，最终调参仍保留有物理动机的 raw/KD 平衡，同时避免了原点附近约束带来的偏差。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/ablation_comparison_best.png}
+\caption{Stage~3 调参的消融汇总。关闭早期 anchor 后，总体 RMSE、MAE 最低，且 residual bias 近乎为零。}
+\label{fig:ablation-best}
+\end{figure}
+
+\subsection{原型筛查输出与证据边界}
+
+最终 surrogate 可以与一个简化的碰壁筛查几何耦合。在默认玩具输入下（$d_n=\SI{0.34}{mm}$、喷油压力 \SI{2000}{bar}、腔压 \SI{15}{bar}、倾角 $20^{\circ}$、10 个 plume、喷射时长 \SI{800}{\micro s}、$\mathrm{RPM}=250$），该原型在 0--\SI{5}{ms} 窗口内给出 $\mu(t)\in[-0.07,\,118.89]\,\si{mm}$ 和 $\sigma_{\parallel}(t)\in[1.81,\,14.75]\,\si{mm}$。瞬时近壁截获分数在 $t\approx\SI{3.90}{ms}$ 附近达到峰值 $P_{\mathrm{hit}}\approx0.846$，梯形积分得到的累积暴露量为 $E\approx\SI{2.67}{ms}$。这些数值说明，端到端链路已经能够把穿深分布传播为时间分辨的筛查分数；图~\ref{fig:impingement-preview-zh} 给出峰值时刻的空间快照，图~\ref{fig:impingement-summary-zh} 则总结了 \SI{5}{ms} 窗口内的概率时间历程。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{images/impingement_preview.png}
+\caption{碰壁筛查原型的空间快照（Design A，峰值碰撞帧，$t=\SI{3.90}{ms}$）。白色实线为活塞顶轮廓，红色虚线为缸壁，金色星号为喷嘴位置，白色虚线椭圆和青色点线椭圆分别为喷雾二维 Gaussian 密度的 $1\sigma$ 与 $2\sigma$ 等值线，色条表示喷雾概率密度（$\si{mm^{-2}}$）。该帧的瞬时活塞截获概率为 $P_{\mathrm{hit}}=0.846$，缸壁截获概率为 $P_{\mathrm{wall}}=0.071$。}
+\label{fig:impingement-preview-zh}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.90\linewidth]{images/impingement_summary.png}
+\caption{碰壁筛查原型的时间总结（Design A，RPM~250，曲轴相位 $0^{\circ}$，$0$--$\SI{5}{ms}$）。上图为瞬时截获概率：蓝色实线为活塞碰撞概率，红色虚线为缸壁碰撞概率，蓝灰色点划线为喷射起始概率辅助输出。下图为活塞截获的累积积分 $E=\int P_{\mathrm{hit}}\,\mathrm{d}t$，在 $\SI{5}{ms}$ 时达到 $\SI{2.671}{ms}$，作为整个喷射窗口内暴露程度的加权摘要。}
+\label{fig:impingement-summary-zh}
+\end{figure}
+
+证据边界同样重要。该玩具工况在支持检查中被标记为分布外，因此上述碰撞概率只能被解读为流水线演示。本文被验证的贡献，是测量域内的穿深 surrogate 及其与概率几何筛查接口的耦合，而不是对有害液态撞壁的相态分辨预测。文中报告的数值主张都可以追溯到清洗轨迹表、保存的 checkpoint 以及项目归档中的评估图。
+

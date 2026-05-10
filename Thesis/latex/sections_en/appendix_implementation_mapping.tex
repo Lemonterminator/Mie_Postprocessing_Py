@@ -1,0 +1,126 @@
+\appendix
+\section{Implementation Mapping}
+\label{app:implementation_mapping}
+
+To improve the readability of the methodological descriptions, the codebase-specific variable names, function names, and script names have been replaced with descriptive phrases in the main text. For practitioners intending to reproduce the work or navigate the provided codebase, the following tables map the descriptive phrases used in the text back to their exact implementation identifiers.
+
+\subsection{Documents and Scripts}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\midrule
+the data cleaning and fitting routine & \texttt{fit\_raw\_data.py} \\
+the interactive calibration interface & \texttt{GUI.py} \\
+the multi-hole geometric construction script & \codepath{mie\_multi\_hole.py} \\
+the dataset summarization script & \texttt{MLP/summarize\_dataset.py} \\
+the calibration configuration file & \texttt{config.json} \\
+the training log file & \codepath{epoch\_loss.csv} \\
+the Stage-1 model checkpoint & \codepath{best\_model\_stage1.pt} \\
+the Stage-1 training script & \texttt{train\_stage1\_mse.py} \\
+the Stage-2 training script & \texttt{train\_stage2\_nll.py} \\
+the piecewise-arc geometry module & \codepath{design\_A.py} \\
+the Hermite spline geometry module & \codepath{design\_hermite.py} \\
+the out-of-distribution check routine & \codepath{MLP/ood\_sanity.py} \\
+the training support manifest & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
+the piston module directory & \codepath{MLP/piston/} \\
+the early dense-feature diagnostic slide deck & \codepath{MLP/v1\_direct\_feature\_training/...} \\
+the interpretable surrogate prototype folder & \codepath{MLP/interpretatable\_test} \\
+the fitted statistics analysis notebook & \texttt{fitted\_stats\_analysis.ipynb} \\
+the synthetic data export directory & \codepath{MLP/synthetic\_data} \\
+the final selected Stage-3 distillation archive & \codepath{distill\_cdf\_onset\_v2...} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of document and script names to their codebase identifiers.}
+\end{table}
+
+\subsection{Functions and Methods}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\midrule
+the video processing loop & \texttt{\_process\_cine\_file} \\
+the multi-hole preprocessor & \texttt{mie\_multihole\_preprocessing} \\
+the multi-hole postprocessor & \texttt{mie\_multihole\_postprocessing} \\
+the algebraic circle fitting function & \texttt{calc\_circle} \\
+the foreground extraction filter & \texttt{refined\_log\_subtraction} \\
+the GPU-accelerated Sobel filter & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
+the kernel construction function & \texttt{build\_2d\_kernel} \\
+the rank-1 separability test & \texttt{\_separable\_factors\_cupy} \\
+the 2D convolution routine & \texttt{convolution\_2D\_cupy} \\
+the polar re-parameterization routine & \texttt{angle\_signal\_density\_auto} \\
+the GPU binning operation & \texttt{cp.digitize} \\
+the GPU weighted sum operation & \texttt{cp.bincount} \\
+the FFT-based phase alignment function & \texttt{estimate\_offset\_from\_fft} \\
+the forward affine transform builder & \texttt{build\_rotation\_affine} \\
+the inverse affine map generator & \texttt{build\_affine\_inverse\_maps\_cupy} \\
+the GPU video remapping routine & \texttt{remap\_video\_cupy} \\
+the plume-wise CDF penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
+the axial CDF front locator & \texttt{penetration\_cdf\_front} \\
+the secondary feature extractor & \texttt{extract\_single\_plume\_features} \\
+the robust outlier masking routine & \texttt{apply\_filter\_masking} \\
+the group-aware dataset splitting routine & \texttt{assign\_splits\_by\_group} \\
+the physical scaling validation routine & \texttt{run\_pretrain\_collapse\_check} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of algorithmic functions to their codebase identifiers.}
+\end{table}
+
+\subsection{Variables and Features}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\midrule
+the X/Y-coordinate inverse spatial maps & \texttt{mapx}, \texttt{mapy} \\
+the standardized strip dimensions & \texttt{OUT\_SHAPE} \\
+the axial binary penetration metric & \texttt{penetration\_bw\_x} \\
+the polar binary penetration metric & \texttt{penetration\_bw\_polar} \\
+the cleaned CDF penetration & \texttt{penetration\_cdf clean} \\
+the opening-delay regression point count parameter & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
+the normalized time coordinate & \texttt{time\_norm\_0\_5ms} \\
+the ambient gas density feature & \texttt{chamber\_density\_kg\_per\_m3} \\
+the ambient chamber pressure feature & \texttt{chamber\_pressure\_bar} \\
+the scaling-only / scaling-and-residual variants & \texttt{a\_only}, \texttt{a\_plus\_log\_a} \\
+the operating condition group identifier & \texttt{sample\_group\_id} \\
+the high-confidence raw regime & \texttt{raw\_reliable} \\
+the uncertain raw regime & \texttt{raw\_uncertain} \\
+the teacher-only extrapolation regime & \texttt{teacher\_only} \\
+the anchor-free distillation variant & \texttt{anchor\_off} \\
+the raw-only reliable regime variant & \texttt{raw\_reliable\_no\_kd} \\
+the blended uncertain regime variant & \texttt{raw\_uncertain\_raw05\_kd025} \\
+the baseline distillation variant & \texttt{baseline} \\
+\bottomrule
+\end{tabular}
+\caption{Mapping of variables and features to their codebase identifiers.}
+\end{table}
+
+\subsection{Neural-Network Implementation Choices}
+\label{app:nn-implementation-mapping}
+
+To keep the modelling chapter readable for non-machine-learning audiences, several specific implementation choices in the neural-network sections are referred to by descriptive concept phrases rather than by the named-algorithm identifiers familiar from the deep-learning literature. The following table maps those concept phrases back to their conventional names. The mathematical content is unchanged; only the naming convention differs from a typical machine-learning paper.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{Concept phrase used in the text} & \textbf{Conventional name} \\
+\midrule
+the decoupled-weight-decay adaptive-moment optimiser & AdamW (Adam with decoupled weight decay) \\
+smooth-gating activation & GELU (Gaussian-Error Linear Unit) \\
+stochastic unit-masking (at rate $p$) & dropout (with drop probability $p$) \\
+binary cross-entropy loss & BCE loss \\
+the rectified-linear-unit operator $\operatorname{ReLU}(\cdot)$ & ReLU, equivalent to the positive-part operator $\max(0,\cdot)$ \\
+\bottomrule
+\end{tabular}
+\caption{Mapping between the concept phrases used in the neural-network sections and the conventional named-algorithm identifiers.}
+\end{table}
+
+

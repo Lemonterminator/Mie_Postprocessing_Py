@@ -1,0 +1,126 @@
+\appendix
+\section{实现映射表}
+\label{app:implementation_mapping}
+
+为了提高方法论描述的可读性，正文中的代码特定变量名、函数名和脚本名已被替换为具有描述性的语义短语。对于意图复现本研究或查阅项目代码库的实践者，以下表格将正文中使用的描述性短语映射回其在代码库中的确切标识符。
+
+\subsection{文档与脚本}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
+\toprule
+\textbf{语义短语} & \textbf{代码库标识符} \\
+\midrule
+数据清洗与拟合程序 & \texttt{fit\_raw\_data.py} \\
+交互式标定界面 & \texttt{GUI.py} \\
+多孔几何构建脚本 & \codepath{mie\_multi\_hole.py} \\
+数据集统计脚本 & \texttt{MLP/summarize\_dataset.py} \\
+标定配置文件 & \texttt{config.json} \\
+训练日志文件 & \codepath{epoch\_loss.csv} \\
+第一阶段模型检查点 & \codepath{best\_model\_stage1.pt} \\
+第一阶段训练脚本 & \texttt{train\_stage1\_mse.py} \\
+第二阶段训练脚本 & \texttt{train\_stage2\_nll.py} \\
+分段圆弧几何模块 & \codepath{design\_A.py} \\
+Hermite样条几何模块 & \codepath{design\_hermite.py} \\
+分布外检查程序 & \codepath{MLP/ood\_sanity.py} \\
+训练支撑清单 & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
+活塞模块目录 & \codepath{MLP/piston/} \\
+早期的密集特征诊断幻灯片 & \codepath{MLP/v1\_direct\_feature\_training/...} \\
+可解释性替代模型原型文件夹 & \codepath{MLP/interpretatable\_test} \\
+拟合统计分析笔记本 & \texttt{fitted\_stats\_analysis.ipynb} \\
+合成数据导出目录 & \codepath{MLP/synthetic\_data} \\
+最终选择的第三阶段蒸馏存档 & \codepath{distill\_cdf\_onset\_v2...} \\
+\bottomrule
+\end{tabular}
+\caption{文档与脚本名称映射表}
+\end{table}
+
+\subsection{核心函数与方法}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
+\toprule
+\textbf{语义短语} & \textbf{代码库标识符} \\
+\midrule
+视频处理循环 & \texttt{\_process\_cine\_file} \\
+多孔预处理程序 & \texttt{mie\_multihole\_preprocessing} \\
+多孔后处理程序 & \texttt{mie\_multihole\_postprocessing} \\
+代数圆拟合函数 & \texttt{calc\_circle} \\
+前景提取滤波器 & \texttt{refined\_log\_subtraction} \\
+GPU加速的Sobel滤波器 & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
+卷积核构建函数 & \texttt{build\_2d\_kernel} \\
+秩-1可分离性测试 & \texttt{\_separable\_factors\_cupy} \\
+2D卷积程序 & \texttt{convolution\_2D\_cupy} \\
+极坐标重参数化程序 & \texttt{angle\_signal\_density\_auto} \\
+GPU直方图装箱操作 & \texttt{cp.digitize} \\
+GPU加权求和操作 & \texttt{cp.bincount} \\
+基于FFT的相位对齐函数 & \texttt{estimate\_offset\_from\_fft} \\
+正向仿射变换构建器 & \texttt{build\_rotation\_affine} \\
+逆向仿射映射生成器 & \texttt{build\_affine\_inverse\_maps\_cupy} \\
+GPU视频重采样程序 & \texttt{remap\_video\_cupy} \\
+基于喷束的CDF穿深估计器 & \texttt{penetration\_cdf\_all\_plumes} \\
+轴向CDF前沿定位器 & \texttt{penetration\_cdf\_front} \\
+次级特征提取器 & \texttt{extract\_single\_plume\_features} \\
+鲁棒异常值过滤程序 & \texttt{apply\_filter\_masking} \\
+分组数据集划分程序 & \texttt{assign\_splits\_by\_group} \\
+物理标度验证程序 & \texttt{run\_pretrain\_collapse\_check} \\
+\bottomrule
+\end{tabular}
+\caption{算法与核心函数名称映射表}
+\end{table}
+
+\subsection{程序变量与数据特征}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
+\toprule
+\textbf{语义短语} & \textbf{代码库标识符} \\
+\midrule
+水平坐标逆映射图 / 垂直坐标逆映射图 & \texttt{mapx}, \texttt{mapy} \\
+标准化条带尺寸 & \texttt{OUT\_SHAPE} \\
+轴向二值穿深度量 & \texttt{penetration\_bw\_x} \\
+极坐标二值穿深度量 & \texttt{penetration\_bw\_polar} \\
+清洗后的CDF穿深 & \texttt{penetration\_cdf clean} \\
+开启延迟回归点数参数 & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
+归一化时间坐标 & \texttt{time\_norm\_0\_5ms} \\
+腔内气体密度特征 & \texttt{chamber\_density\_kg\_per\_m3} \\
+腔内环境压力特征 & \texttt{chamber\_pressure\_bar} \\
+仅缩放/缩放与残差特征变体 & \texttt{a\_only}, \texttt{a\_plus\_log\_a} \\
+工况分组标识符 & \texttt{sample\_group\_id} \\
+高信赖度原始区间 & \texttt{raw\_reliable} \\
+不确定原始区间 & \texttt{raw\_uncertain} \\
+纯教师外推区间 & \texttt{teacher\_only} \\
+无锚点蒸馏变体 & \texttt{anchor\_off} \\
+无蒸馏可靠区间变体 & \texttt{raw\_reliable\_no\_kd} \\
+混合不确定区间变体 & \texttt{raw\_uncertain\_raw05\_kd025} \\
+基准蒸馏变体 & \texttt{baseline} \\
+\bottomrule
+\end{tabular}
+\caption{程序变量与数据特征映射表}
+\end{table}
+
+\subsection{神经网络实现选择}
+\label{app:nn-implementation-mapping}
+
+为保持建模章节对非机器学习背景读者的可读性，神经网络部分对若干具体实现选择采用了概念性短语，而非深度学习文献中常见的算法专名。下表给出概念短语到常规名称的对应关系。数学内容不变，仅命名约定不同于典型机器学习论文。
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\toprule
+\textbf{正文中使用的概念短语} & \textbf{常规算法名称} \\
+\midrule
+解耦权重衰减自适应矩优化器 & AdamW（带解耦权重衰减的 Adam） \\
+平滑门控激活 & GELU（高斯误差线性单元） \\
+随机单元屏蔽（率 $p$） & dropout（丢弃概率 $p$） \\
+二元交叉熵损失 & BCE 损失 \\
+修正线性单元算子 $\operatorname{ReLU}(\cdot)$ & ReLU，等价于正部算子 $\max(0,\cdot)$ \\
+\bottomrule
+\end{tabular}
+\caption{神经网络章节中概念短语与常规算法名称的对应关系。}
+\end{table}
+
+

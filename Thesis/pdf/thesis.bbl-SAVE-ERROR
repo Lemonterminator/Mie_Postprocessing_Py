@@ -1,0 +1,2081 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{imo2023ghgstrategy}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=ff97d06cedbf89b55b2034f8f425367b}{%
+           family={{International Maritime Organization}},
+           familyi={I\bibinitperiod}}}%
+      }
+      \strng{namehash}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{fullhash}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{fullhashraw}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{bibnamehash}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{authorbibnamehash}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{authornamehash}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{authorfullhash}{ff97d06cedbf89b55b2034f8f425367b}
+      \strng{authorfullhashraw}{ff97d06cedbf89b55b2034f8f425367b}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{2023 IMO Strategy on Reduction of GHG Emissions from Ships}
+      \field{year}{2023}
+      \verb{urlraw}
+      \verb https://www.imo.org/en/ourwork/environment/pages/2023-imo-strategy-on-reduction-of-ghg-emissions-from-ships.aspx
+      \endverb
+      \verb{url}
+      \verb https://www.imo.org/en/ourwork/environment/pages/2023-imo-strategy-on-reduction-of-ghg-emissions-from-ships.aspx
+      \endverb
+    \endentry
+    \entry{classnk2025alternativefuels}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=c7fd5bfa4577d71aadec7f2923835693}{%
+           family={{ClassNK}},
+           familyi={C\bibinitperiod}}}%
+      }
+      \strng{namehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{fullhash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{fullhashraw}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{bibnamehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authorbibnamehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authornamehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authorfullhash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authorfullhashraw}{c7fd5bfa4577d71aadec7f2923835693}
+      \field{extraname}{1}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Alternative Fuels Insight}
+      \field{year}{2025}
+      \verb{urlraw}
+      \verb https://futurefuels.imo.org/wp-content/uploads/2025/02/ClassNKAlternativeFuelsInsight_e.pdf
+      \endverb
+      \verb{url}
+      \verb https://futurefuels.imo.org/wp-content/uploads/2025/02/ClassNKAlternativeFuelsInsight_e.pdf
+      \endverb
+    \endentry
+    \entry{wingd_lng_faq_2025}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=afbb06a4eaf6902b151907903cbf087a}{%
+           family={{WinGD}},
+           familyi={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{fullhash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{fullhashraw}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{bibnamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorbibnamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authornamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorfullhash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorfullhashraw}{afbb06a4eaf6902b151907903cbf087a}
+      \field{extraname}{1}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{LNG Dual-Fuel Engines FAQ Booklet}
+      \field{year}{2025}
+      \verb{urlraw}
+      \verb https://wingd.com/media/txynsqmf/wingd-lng-faq-booklet.pdf
+      \endverb
+      \verb{url}
+      \verb https://wingd.com/media/txynsqmf/wingd-lng-faq-booklet.pdf
+      \endverb
+    \endentry
+    \entry{wingd_ammonia_faq_2025}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=afbb06a4eaf6902b151907903cbf087a}{%
+           family={{WinGD}},
+           familyi={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{fullhash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{fullhashraw}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{bibnamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorbibnamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authornamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorfullhash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorfullhashraw}{afbb06a4eaf6902b151907903cbf087a}
+      \field{extraname}{2}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Ammonia Dual-Fuel Engines FAQ Booklet}
+      \field{year}{2025}
+      \verb{urlraw}
+      \verb https://wingd.com/media/2gyl3j0v/wingd-ammonia-faq-booklet.pdf
+      \endverb
+      \verb{url}
+      \verb https://wingd.com/media/2gyl3j0v/wingd-ammonia-faq-booklet.pdf
+      \endverb
+    \endentry
+    \entry{classnk_methanol_2024}{report}{}{}
+      \name{author}{1}{}{%
+        {{hash=c7fd5bfa4577d71aadec7f2923835693}{%
+           family={{ClassNK}},
+           familyi={C\bibinitperiod}}}%
+      }
+      \strng{namehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{fullhash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{fullhashraw}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{bibnamehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authorbibnamehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authornamehash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authorfullhash}{c7fd5bfa4577d71aadec7f2923835693}
+      \strng{authorfullhashraw}{c7fd5bfa4577d71aadec7f2923835693}
+      \field{extraname}{2}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Studies on In-Engine Combustion of Low and Zero-Carbon Fuels}
+      \field{type}{techreport}
+      \field{year}{2024}
+      \verb{urlraw}
+      \verb https://www.classnk.or.jp/hp/pdf/research/rd/2023/07_e09.pdf
+      \endverb
+      \verb{url}
+      \verb https://www.classnk.or.jp/hp/pdf/research/rd/2023/07_e09.pdf
+      \endverb
+    \endentry
+    \entry{wingd_xdf_manual_2021}{manual}{}{}
+      \name{author}{1}{}{%
+        {{hash=afbb06a4eaf6902b151907903cbf087a}{%
+           family={{WinGD}},
+           familyi={W\bibinitperiod}}}%
+      }
+      \strng{namehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{fullhash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{fullhashraw}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{bibnamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorbibnamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authornamehash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorfullhash}{afbb06a4eaf6902b151907903cbf087a}
+      \strng{authorfullhashraw}{afbb06a4eaf6902b151907903cbf087a}
+      \field{extraname}{3}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Marine Installation Manual: WinGD X52DF}
+      \field{year}{2021}
+      \verb{urlraw}
+      \verb https://wingd.com/media/3vpbi3s2/mim_wingd_x52df_20210709.pdf
+      \endverb
+      \verb{url}
+      \verb https://wingd.com/media/3vpbi3s2/mim_wingd_x52df_20210709.pdf
+      \endverb
+    \endentry
+    \entry{peraza2022swi}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=cff6e40a74e6bc5c7afef75a9da5c7bb}{%
+           family={Peraza},
+           familyi={P\bibinitperiod},
+           given={José\bibnamedelima E.},
+           giveni={J\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=b096a7acccf63f0f07efd3a79fa247d0}{%
+           family={Payri},
+           familyi={P\bibinitperiod},
+           given={Raúl},
+           giveni={R\bibinitperiod}}}%
+        {{hash=e4e586cb72f7d354cddf128b8f6a993d}{%
+           family={Gimeno},
+           familyi={G\bibinitperiod},
+           given={Jaime},
+           giveni={J\bibinitperiod}}}%
+        {{hash=2625accb9e7f633957b6bc09d432bc2b}{%
+           family={Carvallo},
+           familyi={C\bibinitperiod},
+           given={Cesar},
+           giveni={C\bibinitperiod}}}%
+      }
+      \strng{namehash}{0d7a5bb24dbe758dd5566f84f113fae3}
+      \strng{fullhash}{4246a00d5bd14e8357b2a8160058d79f}
+      \strng{fullhashraw}{4246a00d5bd14e8357b2a8160058d79f}
+      \strng{bibnamehash}{4246a00d5bd14e8357b2a8160058d79f}
+      \strng{authorbibnamehash}{4246a00d5bd14e8357b2a8160058d79f}
+      \strng{authornamehash}{0d7a5bb24dbe758dd5566f84f113fae3}
+      \strng{authorfullhash}{4246a00d5bd14e8357b2a8160058d79f}
+      \strng{authorfullhashraw}{4246a00d5bd14e8357b2a8160058d79f}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Applied Thermal Engineering}
+      \field{title}{Analysis of Spray/Wall Impingement Using an ECN Single-Hole Injector and a Controlled-Temperature Wall Under Realistic Engine Conditions}
+      \field{volume}{208}
+      \field{year}{2022}
+      \field{pages}{118167}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.applthermaleng.2022.118167
+      \endverb
+    \endentry
+    \entry{ahmad2025fueldilution}{thesis}{}{}
+      \name{author}{1}{}{%
+        {{hash=377149237d119cc43225327f1e1aca5c}{%
+           family={Syed},
+           familyi={S\bibinitperiod},
+           given={Muhammad\bibnamedelima Ali},
+           giveni={M\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {Aalto University}%
+      }
+      \strng{namehash}{377149237d119cc43225327f1e1aca5c}
+      \strng{fullhash}{377149237d119cc43225327f1e1aca5c}
+      \strng{fullhashraw}{377149237d119cc43225327f1e1aca5c}
+      \strng{bibnamehash}{377149237d119cc43225327f1e1aca5c}
+      \strng{authorbibnamehash}{377149237d119cc43225327f1e1aca5c}
+      \strng{authornamehash}{377149237d119cc43225327f1e1aca5c}
+      \strng{authorfullhash}{377149237d119cc43225327f1e1aca5c}
+      \strng{authorfullhashraw}{377149237d119cc43225327f1e1aca5c}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Numerical Investigation of Diesel Spray Formation in a Marine Engine and Prediction of Liquid Fuel Approaching Cylinder Walls}
+      \field{type}{mathesis}
+      \field{year}{2025}
+      \verb{urlraw}
+      \verb https://aaltodoc.aalto.fi/items/f167f920-f61e-40a7-b089-49ab625fee15
+      \endverb
+      \verb{url}
+      \verb https://aaltodoc.aalto.fi/items/f167f920-f61e-40a7-b089-49ab625fee15
+      \endverb
+    \endentry
+    \entry{MorieiraMotaPanao2010}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=edf2ebe3c52165fa144c93be0f0e898a}{%
+           family={Moreira},
+           familyi={M\bibinitperiod},
+           given={A.\bibnamedelimi L.\bibnamedelimi N.},
+           giveni={A\bibinitperiod\bibinitdelim L\bibinitperiod\bibinitdelim N\bibinitperiod}}}%
+        {{hash=22b3599ec12ca7c3574a52958e08864a}{%
+           family={Moita},
+           familyi={M\bibinitperiod},
+           given={A.\bibnamedelimi S.},
+           giveni={A\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=1db368dbe4d2f73bb7b7b03511133b81}{%
+           family={Panaõ},
+           familyi={P\bibinitperiod},
+           given={M.\bibnamedelimi R.},
+           giveni={M\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+      }
+      \strng{namehash}{858e96edf13f7ee3257ea5168b5e746e}
+      \strng{fullhash}{118ccb5e3fec17c9340628efcc61356a}
+      \strng{fullhashraw}{118ccb5e3fec17c9340628efcc61356a}
+      \strng{bibnamehash}{118ccb5e3fec17c9340628efcc61356a}
+      \strng{authorbibnamehash}{118ccb5e3fec17c9340628efcc61356a}
+      \strng{authornamehash}{858e96edf13f7ee3257ea5168b5e746e}
+      \strng{authorfullhash}{118ccb5e3fec17c9340628efcc61356a}
+      \strng{authorfullhashraw}{118ccb5e3fec17c9340628efcc61356a}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Progress in Energy and Combustion Science}
+      \field{number}{5}
+      \field{title}{Advances and Challenges in Explaining Fuel Spray Impingement: How Much of Single Droplet Impact Research Is Useful?}
+      \field{volume}{36}
+      \field{year}{2010}
+      \field{pages}{554\bibrangedash 580}
+      \range{pages}{27}
+      \verb{doi}
+      \verb 10.1016/j.pecs.2010.01.002
+      \endverb
+    \endentry
+    \entry{HiroyasuArai1990}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=5605238e44ef045b32a7c396aef7e9b7}{%
+           family={Hiroyasu},
+           familyi={H\bibinitperiod},
+           given={Hiro},
+           giveni={H\bibinitperiod}}}%
+        {{hash=bec85a51259222cecc899b51261c1128}{%
+           family={Arai},
+           familyi={A\bibinitperiod},
+           given={Masataka},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{fullhash}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{fullhashraw}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{bibnamehash}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{authorbibnamehash}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{authornamehash}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{authorfullhash}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \strng{authorfullhashraw}{a89ec9e58b40ba881ba55f90755ef6fd}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{SAE Technical Paper}
+      \field{number}{900475}
+      \field{title}{Structures of Fuel Sprays in Diesel Engines}
+      \field{year}{1990}
+      \verb{doi}
+      \verb 10.4271/900475
+      \endverb
+    \endentry
+    \entry{NaberSiebers1996}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=7f42fb7ea998196af80d20f0b93ba66f}{%
+           family={Naber},
+           familyi={N\bibinitperiod},
+           given={Jeffrey\bibnamedelima D.},
+           giveni={J\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=73da5ce93820c1ccc13d1b8363cdcd4f}{%
+           family={Siebers},
+           familyi={S\bibinitperiod},
+           given={Dennis\bibnamedelima L.},
+           giveni={D\bibinitperiod\bibinitdelim L\bibinitperiod}}}%
+      }
+      \strng{namehash}{0782f526ff0f61566a4231943ffa0238}
+      \strng{fullhash}{0782f526ff0f61566a4231943ffa0238}
+      \strng{fullhashraw}{0782f526ff0f61566a4231943ffa0238}
+      \strng{bibnamehash}{0782f526ff0f61566a4231943ffa0238}
+      \strng{authorbibnamehash}{0782f526ff0f61566a4231943ffa0238}
+      \strng{authornamehash}{0782f526ff0f61566a4231943ffa0238}
+      \strng{authorfullhash}{0782f526ff0f61566a4231943ffa0238}
+      \strng{authorfullhashraw}{0782f526ff0f61566a4231943ffa0238}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{SAE Technical Paper}
+      \field{number}{960034}
+      \field{title}{Effects of Gas Density and Vaporization on Penetration and Dispersion of Diesel Sprays}
+      \field{year}{1996}
+      \verb{doi}
+      \verb 10.4271/960034
+      \endverb
+    \endentry
+    \entry{Baumgarten2006MixFormation}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=77a652922a9a9ab3007babb1c71fbb8d}{%
+           family={Baumgarten},
+           familyi={B\bibinitperiod},
+           given={Carsten},
+           giveni={C\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Berlin, Heidelberg}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{fullhash}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{fullhashraw}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{bibnamehash}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{authorbibnamehash}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{authornamehash}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{authorfullhash}{77a652922a9a9ab3007babb1c71fbb8d}
+      \strng{authorfullhashraw}{77a652922a9a9ab3007babb1c71fbb8d}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Mixture Formation in Internal Combustion Engines}
+      \field{year}{2006}
+      \verb{doi}
+      \verb 10.1007/3-540-30836-9
+      \endverb
+    \endentry
+    \entry{Linne2013SprayImaging}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=76d9e4a0eaba710799ba4e6158f258fa}{%
+           family={Linne},
+           familyi={L\bibinitperiod},
+           given={M.},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{fullhash}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{fullhashraw}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{bibnamehash}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{authorbibnamehash}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{authornamehash}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{authorfullhash}{76d9e4a0eaba710799ba4e6158f258fa}
+      \strng{authorfullhashraw}{76d9e4a0eaba710799ba4e6158f258fa}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Progress in Energy and Combustion Science}
+      \field{number}{5}
+      \field{title}{Imaging in the optically dense regions of a spray: A review of developing techniques}
+      \field{volume}{39}
+      \field{year}{2013}
+      \field{pages}{403\bibrangedash 440}
+      \range{pages}{38}
+      \verb{doi}
+      \verb 10.1016/j.pecs.2013.06.001
+      \endverb
+    \endentry
+    \entry{CurtisNiemeyerSung2017}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=29592368114fa5f0dc719b862d574608}{%
+           family={Curtis},
+           familyi={C\bibinitperiod},
+           given={Nicholas\bibnamedelima J.},
+           giveni={N\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=45c182192e46cdea253dc2b8de317251}{%
+           family={Niemeyer},
+           familyi={N\bibinitperiod},
+           given={Kyle\bibnamedelima E.},
+           giveni={K\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=dd9ceb45d1889530275952aabd9d3d9b}{%
+           family={Sung},
+           familyi={S\bibinitperiod},
+           given={Chih-Jen},
+           giveni={C\bibinithyphendelim J\bibinitperiod}}}%
+      }
+      \strng{namehash}{e6334bd5a81d26c42c24858e21f6b435}
+      \strng{fullhash}{35c13aa86622b586146f21db9d83bd85}
+      \strng{fullhashraw}{35c13aa86622b586146f21db9d83bd85}
+      \strng{bibnamehash}{35c13aa86622b586146f21db9d83bd85}
+      \strng{authorbibnamehash}{35c13aa86622b586146f21db9d83bd85}
+      \strng{authornamehash}{e6334bd5a81d26c42c24858e21f6b435}
+      \strng{authorfullhash}{35c13aa86622b586146f21db9d83bd85}
+      \strng{authorfullhashraw}{35c13aa86622b586146f21db9d83bd85}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Combustion and Flame}
+      \field{title}{An Investigation of {GPU}-Based Stiff Chemical Kinetics Integration Methods}
+      \field{volume}{179}
+      \field{year}{2017}
+      \field{pages}{312\bibrangedash 324}
+      \range{pages}{13}
+      \verb{doi}
+      \verb 10.1016/j.combustflame.2017.02.005
+      \endverb
+    \endentry
+    \entry{liu2020sprayreview}{article}{}{}
+      \name{author}{6}{}{%
+        {{hash=78373be3c1977180fa0ce53b611dd0f9}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Long},
+           giveni={L\bibinitperiod}}}%
+        {{hash=3dc47c28d0169174cf322e86bfd6d040}{%
+           family={Peng},
+           familyi={P\bibinitperiod},
+           given={Yan},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=8cb7de2b94f69751ca2819b64e0b1308}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Dai},
+           giveni={D\bibinitperiod}}}%
+        {{hash=9f7270887d0a7682f94153e02587431d}{%
+           family={Han},
+           familyi={H\bibinitperiod},
+           given={Changfu},
+           giveni={C\bibinitperiod}}}%
+        {{hash=5e04fd8709e1f1d10ca7a6d24b691838}{%
+           family={Zhao},
+           familyi={Z\bibinitperiod},
+           given={Ningbo},
+           giveni={N\bibinitperiod}}}%
+        {{hash=8fe211e6958089a3c1a51f04b9c00f6e}{%
+           family={Ma},
+           familyi={M\bibinitperiod},
+           given={Xiuzhen},
+           giveni={X\bibinitperiod}}}%
+      }
+      \strng{namehash}{50cc5c12a76f4786b90aa4532cc0eb50}
+      \strng{fullhash}{2fd66c3bb49bfe03ae5197baf607b367}
+      \strng{fullhashraw}{2fd66c3bb49bfe03ae5197baf607b367}
+      \strng{bibnamehash}{2fd66c3bb49bfe03ae5197baf607b367}
+      \strng{authorbibnamehash}{2fd66c3bb49bfe03ae5197baf607b367}
+      \strng{authornamehash}{50cc5c12a76f4786b90aa4532cc0eb50}
+      \strng{authorfullhash}{2fd66c3bb49bfe03ae5197baf607b367}
+      \strng{authorfullhashraw}{2fd66c3bb49bfe03ae5197baf607b367}
+      \field{extraname}{1}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{International Journal of Spray and Combustion Dynamics}
+      \field{title}{A Review of Phenomenological Spray Penetration Modeling for Diesel Engines with Advanced Injection Strategy}
+      \field{volume}{12}
+      \field{year}{2020}
+      \verb{doi}
+      \verb 10.1177/1756827720934067
+      \endverb
+    \endentry
+    \entry{ZhouLiYi2021}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=ddd6ceff96e70d0c817fc28c95d6b2c4}{%
+           family={Zhou},
+           familyi={Z\bibinitperiod},
+           given={Xinyi},
+           giveni={X\bibinitperiod}}}%
+        {{hash=6c0f86b51c8f03c36a42b878ce652b65}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Tie},
+           giveni={T\bibinitperiod}}}%
+        {{hash=276ab7eeb0b30c5bcf202231feab4a41}{%
+           family={Yi},
+           familyi={Y\bibinitperiod},
+           given={Ping},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{84ce5cce537ed22c490af3ee9291a70b}
+      \strng{fullhash}{5af2fdb9bd479bdf1dffb193b2570996}
+      \strng{fullhashraw}{5af2fdb9bd479bdf1dffb193b2570996}
+      \strng{bibnamehash}{5af2fdb9bd479bdf1dffb193b2570996}
+      \strng{authorbibnamehash}{5af2fdb9bd479bdf1dffb193b2570996}
+      \strng{authornamehash}{84ce5cce537ed22c490af3ee9291a70b}
+      \strng{authorfullhash}{5af2fdb9bd479bdf1dffb193b2570996}
+      \strng{authorfullhashraw}{5af2fdb9bd479bdf1dffb193b2570996}
+      \field{extraname}{1}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{International Journal of Engine Research}
+      \field{number}{9}
+      \field{title}{Modeling of Diesel Spray Tip Penetration During Start-of-Injection Transients}
+      \field{volume}{22}
+      \field{year}{2021}
+      \field{pages}{3013\bibrangedash 3029}
+      \range{pages}{17}
+      \verb{doi}
+      \verb 10.1177/1468087420957852
+      \endverb
+    \endentry
+    \entry{ZhouLiLaiWei2019}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=ddd6ceff96e70d0c817fc28c95d6b2c4}{%
+           family={Zhou},
+           familyi={Z\bibinitperiod},
+           given={Xinyi},
+           giveni={X\bibinitperiod}}}%
+        {{hash=6c0f86b51c8f03c36a42b878ce652b65}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Tie},
+           giveni={T\bibinitperiod}}}%
+        {{hash=c3d5a2f2ab1442807cdbcc5a79987690}{%
+           family={Lai},
+           familyi={L\bibinitperiod},
+           given={Zheyuan},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=bc8d2f393a5b755fedfc2522d6b76a36}{%
+           family={Wei},
+           familyi={W\bibinitperiod},
+           given={Yijie},
+           giveni={Y\bibinitperiod}}}%
+      }
+      \strng{namehash}{84ce5cce537ed22c490af3ee9291a70b}
+      \strng{fullhash}{73c8bded16537ff0127360b858891dd1}
+      \strng{fullhashraw}{73c8bded16537ff0127360b858891dd1}
+      \strng{bibnamehash}{73c8bded16537ff0127360b858891dd1}
+      \strng{authorbibnamehash}{73c8bded16537ff0127360b858891dd1}
+      \strng{authornamehash}{84ce5cce537ed22c490af3ee9291a70b}
+      \strng{authorfullhash}{73c8bded16537ff0127360b858891dd1}
+      \strng{authorfullhashraw}{73c8bded16537ff0127360b858891dd1}
+      \field{extraname}{2}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Fuel}
+      \field{title}{Modeling Diesel Spray Tip and Tail Penetrations After End-of-Injection}
+      \field{volume}{237}
+      \field{year}{2019}
+      \field{pages}{442\bibrangedash 456}
+      \range{pages}{15}
+      \verb{doi}
+      \verb 10.1016/j.fuel.2018.10.029
+      \endverb
+    \endentry
+    \entry{MagnottiGenzale2013}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=65430456532da0046868bb586de51a84}{%
+           family={Magnotti},
+           familyi={M\bibinitperiod},
+           given={Gina\bibnamedelima M.},
+           giveni={G\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+        {{hash=60a154af25f27a5490e8cf53ce513312}{%
+           family={Genzale},
+           familyi={G\bibinitperiod},
+           given={Caroline\bibnamedelima L.},
+           giveni={C\bibinitperiod\bibinitdelim L\bibinitperiod}}}%
+      }
+      \strng{namehash}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{fullhash}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{fullhashraw}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{bibnamehash}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{authorbibnamehash}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{authornamehash}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{authorfullhash}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \strng{authorfullhashraw}{05ca5edcd326d19217c0450d1cd4b1fe}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{SAE Technical Paper}
+      \field{number}{2013-01-1102}
+      \field{title}{Influence of Liquid Penetration Metrics on Diesel Spray Model Validation}
+      \field{year}{2013}
+      \verb{doi}
+      \verb 10.4271/2013-01-1102
+      \endverb
+    \endentry
+    \entry{JohnsonNaberLee2012}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=a99c7794acd9edf007a742409d8a0537}{%
+           family={Johnson},
+           familyi={J\bibinitperiod},
+           given={Jaclyn\bibnamedelima E.},
+           giveni={J\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=7f42fb7ea998196af80d20f0b93ba66f}{%
+           family={Naber},
+           familyi={N\bibinitperiod},
+           given={Jeffrey\bibnamedelima D.},
+           giveni={J\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=2f30cd309cb984b569eef4e13f2fd43a}{%
+           family={Lee},
+           familyi={L\bibinitperiod},
+           given={Seong-Young},
+           giveni={S\bibinithyphendelim Y\bibinitperiod}}}%
+      }
+      \strng{namehash}{54f9cc5a8528f4d3a2fd575cc38b2b57}
+      \strng{fullhash}{556ac629b2f9454a01fcba4734db1766}
+      \strng{fullhashraw}{556ac629b2f9454a01fcba4734db1766}
+      \strng{bibnamehash}{556ac629b2f9454a01fcba4734db1766}
+      \strng{authorbibnamehash}{556ac629b2f9454a01fcba4734db1766}
+      \strng{authornamehash}{54f9cc5a8528f4d3a2fd575cc38b2b57}
+      \strng{authorfullhash}{556ac629b2f9454a01fcba4734db1766}
+      \strng{authorfullhashraw}{556ac629b2f9454a01fcba4734db1766}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Engineering for Gas Turbines and Power}
+      \field{number}{6}
+      \field{title}{Characterizing Diesel Fuel Spray Cone Angle From Back-Scattered Imaging by Fitting Gaussian Profiles to Radial Spray Intensity Distributions}
+      \field{volume}{134}
+      \field{year}{2012}
+      \field{pages}{062802}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1115/1.4005994
+      \endverb
+    \endentry
+    \entry{ecn_liquid_penetration}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=77c67c1dd613fecb3378f31b9d6c01eb}{%
+           family={{Engine Combustion Network}},
+           familyi={E\bibinitperiod}}}%
+      }
+      \strng{namehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{fullhash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{fullhashraw}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{bibnamehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authorbibnamehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authornamehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authorfullhash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authorfullhashraw}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \field{extraname}{1}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Liquid Penetration Length}
+      \verb{urlraw}
+      \verb https://ecn.sandia.gov/diesel-spray-combustion/experimental-diagnostics/liquid-penetration-length/
+      \endverb
+      \verb{url}
+      \verb https://ecn.sandia.gov/diesel-spray-combustion/experimental-diagnostics/liquid-penetration-length/
+      \endverb
+    \endentry
+    \entry{ecn_liquid_penetration_accessory}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=77c67c1dd613fecb3378f31b9d6c01eb}{%
+           family={{Engine Combustion Network}},
+           familyi={E\bibinitperiod}}}%
+      }
+      \strng{namehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{fullhash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{fullhashraw}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{bibnamehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authorbibnamehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authornamehash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authorfullhash}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \strng{authorfullhashraw}{77c67c1dd613fecb3378f31b9d6c01eb}
+      \field{extraname}{2}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Accessed 30 March 2026}
+      \field{title}{Accessory Data Regarding Liquid Penetration and Extinction at Spray A Conditions}
+      \verb{urlraw}
+      \verb https://ecn.sandia.gov/accessory-data-reguarding-liquid-penetration-and-extinction-at-spray-a-conditions/
+      \endverb
+      \verb{url}
+      \verb https://ecn.sandia.gov/accessory-data-reguarding-liquid-penetration-and-extinction-at-spray-a-conditions/
+      \endverb
+    \endentry
+    \entry{VazKarathanasis2026}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=464d118b8231d5b8618b2ce9832328bf}{%
+           family={Justino\bibnamedelima Vaz},
+           familyi={J\bibinitperiod\bibinitdelim V\bibinitperiod},
+           given={Marilia\bibnamedelima Gabriela},
+           giveni={M\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+        {{hash=9cdd583d7c538b30b62e49af7bb6f9a1}{%
+           family={Karathanassis},
+           familyi={K\bibinitperiod},
+           given={Ioannis\bibnamedelima K.},
+           giveni={I\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
+        {{hash=9f9d31d135285bc5d1f85c32600a5476}{%
+           family={Gavaises},
+           familyi={G\bibinitperiod},
+           given={Manolis},
+           giveni={M\bibinitperiod}}}%
+        {{hash=647f054f453c10ff4e022d9d10b8127d}{%
+           family={Mouokue},
+           familyi={M\bibinitperiod},
+           given={Gerard},
+           giveni={G\bibinitperiod}}}%
+      }
+      \strng{namehash}{9fe0f7322d33e4a43203c49df7c4fd95}
+      \strng{fullhash}{79bd6d3bac9bbcb543b5cfde850f2393}
+      \strng{fullhashraw}{79bd6d3bac9bbcb543b5cfde850f2393}
+      \strng{bibnamehash}{79bd6d3bac9bbcb543b5cfde850f2393}
+      \strng{authorbibnamehash}{79bd6d3bac9bbcb543b5cfde850f2393}
+      \strng{authornamehash}{9fe0f7322d33e4a43203c49df7c4fd95}
+      \strng{authorfullhash}{79bd6d3bac9bbcb543b5cfde850f2393}
+      \strng{authorfullhashraw}{79bd6d3bac9bbcb543b5cfde850f2393}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Fuel}
+      \field{title}{Data-Driven Prediction of Spray Macroscopic Characteristics for Marine Injectors Using Neural Networks}
+      \field{volume}{405}
+      \field{year}{2026}
+      \field{pages}{136736}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.fuel.2025.136736
+      \endverb
+    \endentry
+    \entry{KendallGal2017}{inproceedings}{}{}
+      \name{author}{2}{}{%
+        {{hash=4b1053f4ffb69cd61c1f122cc435c884}{%
+           family={Kendall},
+           familyi={K\bibinitperiod},
+           given={Alex},
+           giveni={A\bibinitperiod}}}%
+        {{hash=d4f394bd4030e20e7b1399e0abe7dc6a}{%
+           family={Gal},
+           familyi={G\bibinitperiod},
+           given={Yarin},
+           giveni={Y\bibinitperiod}}}%
+      }
+      \strng{namehash}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{fullhash}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{fullhashraw}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{bibnamehash}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{authorbibnamehash}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{authornamehash}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{authorfullhash}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \strng{authorfullhashraw}{e213bf93074fd2dbfa9d1e82b9118fb3}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Advances in Neural Information Processing Systems 30}
+      \field{title}{What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?}
+      \field{year}{2017}
+      \field{pages}{5574\bibrangedash 5584}
+      \range{pages}{11}
+      \verb{urlraw}
+      \verb https://papers.nips.cc/paper/7141-what-uncertainties-do-we-need
+      \endverb
+      \verb{url}
+      \verb https://papers.nips.cc/paper/7141-what-uncertainties-do-we-need
+      \endverb
+    \endentry
+    \entry{BohrenHuffman2004}{book}{}{}
+      \name{author}{2}{}{%
+        {{hash=33233e3e3b3a1b37257c460202afa1e4}{%
+           family={Bohren},
+           familyi={B\bibinitperiod},
+           given={Craig\bibnamedelima F.},
+           giveni={C\bibinitperiod\bibinitdelim F\bibinitperiod}}}%
+        {{hash=1d5725310698290bae735a820f713316}{%
+           family={Huffman},
+           familyi={H\bibinitperiod},
+           given={Donald\bibnamedelima R.},
+           giveni={D\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Weinheim}%
+      }
+      \list{publisher}{1}{%
+        {Wiley-VCH}%
+      }
+      \strng{namehash}{bc195ae617c294f75772b703d297e316}
+      \strng{fullhash}{bc195ae617c294f75772b703d297e316}
+      \strng{fullhashraw}{bc195ae617c294f75772b703d297e316}
+      \strng{bibnamehash}{bc195ae617c294f75772b703d297e316}
+      \strng{authorbibnamehash}{bc195ae617c294f75772b703d297e316}
+      \strng{authornamehash}{bc195ae617c294f75772b703d297e316}
+      \strng{authorfullhash}{bc195ae617c294f75772b703d297e316}
+      \strng{authorfullhashraw}{bc195ae617c294f75772b703d297e316}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9783527409969}
+      \field{title}{Absorption and Scattering of Light by Small Particles}
+      \field{year}{2004}
+    \endentry
+    \entry{LefebvreMcDonell2017}{book}{}{}
+      \name{author}{2}{}{%
+        {{hash=f78c205afb83a441813848ba4fac1079}{%
+           family={Lefebvre},
+           familyi={L\bibinitperiod},
+           given={Arthur\bibnamedelima H.},
+           giveni={A\bibinitperiod\bibinitdelim H\bibinitperiod}}}%
+        {{hash=7a2f94acf7f2d1a35f091b8a26d15a7c}{%
+           family={McDonell},
+           familyi={M\bibinitperiod},
+           given={Vincent\bibnamedelima G.},
+           giveni={V\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Boca Raton}%
+      }
+      \list{publisher}{1}{%
+        {CRC Press}%
+      }
+      \strng{namehash}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{fullhash}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{fullhashraw}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{bibnamehash}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{authorbibnamehash}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{authornamehash}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{authorfullhash}{0d5963cb9496ddf49674c2efaf709dde}
+      \strng{authorfullhashraw}{0d5963cb9496ddf49674c2efaf709dde}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{edition}{2}
+      \field{isbn}{9781498736251}
+      \field{title}{Atomization and Sprays}
+      \field{year}{2017}
+    \endentry
+    \entry{Dent1971Penetration}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=b91722b2dc9b854f9bc88cd3e0e63666}{%
+           family={Dent},
+           familyi={D\bibinitperiod},
+           given={J.\bibnamedelimi C.},
+           giveni={J\bibinitperiod\bibinitdelim C\bibinitperiod}}}%
+      }
+      \strng{namehash}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{fullhash}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{fullhashraw}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{bibnamehash}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{authorbibnamehash}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{authornamehash}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{authorfullhash}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \strng{authorfullhashraw}{b91722b2dc9b854f9bc88cd3e0e63666}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{SAE Technical Paper}
+      \field{number}{710571}
+      \field{title}{A Basis for the Comparison of Various Experimental Methods for Studying Spray Penetration}
+      \field{year}{1971}
+      \verb{doi}
+      \verb 10.4271/710571
+      \endverb
+    \endentry
+    \entry{MuenchLeipertz1992}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=5a9ba5e812fd473dd052e5dd9a3e1542}{%
+           family={Münch},
+           familyi={M\bibinitperiod},
+           given={K.},
+           giveni={K\bibinitperiod}}}%
+        {{hash=ec20f2bc6425fd471381417fcb256386}{%
+           family={Leipertz},
+           familyi={L\bibinitperiod},
+           given={A.},
+           giveni={A\bibinitperiod}}}%
+      }
+      \strng{namehash}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{fullhash}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{fullhashraw}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{bibnamehash}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{authorbibnamehash}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{authornamehash}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{authorfullhash}{8418ac41b54f0213f7b6df3704fb132c}
+      \strng{authorfullhashraw}{8418ac41b54f0213f7b6df3704fb132c}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{SAE Technical Paper}
+      \field{number}{922204}
+      \field{title}{Investigation of Spray Penetration and Fuel Distribution Inside the Piston Bowl of a 1.9 l DI Diesel Engine Using Two-Dimensional Mie Scattering}
+      \field{year}{1992}
+      \verb{doi}
+      \verb 10.4271/922204
+      \endverb
+    \endentry
+    \entry{JungManinSkeenPickett2015}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=31d62195069738eb07fe0df911a5fae8}{%
+           family={Jung},
+           familyi={J\bibinitperiod},
+           given={Yongjin},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=942e68956b72108abdf3bededcf7b439}{%
+           family={Manin},
+           familyi={M\bibinitperiod},
+           given={Julien},
+           giveni={J\bibinitperiod}}}%
+        {{hash=471fec91c88b469ae03d2b302e38141e}{%
+           family={Skeen},
+           familyi={S\bibinitperiod},
+           given={Scott\bibnamedelima A.},
+           giveni={S\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+        {{hash=a54431c49359e6ab39e1ceecf3cbabf5}{%
+           family={Pickett},
+           familyi={P\bibinitperiod},
+           given={Lyle\bibnamedelima M.},
+           giveni={L\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+      }
+      \strng{namehash}{558fba268e8fc2daf2d8526ddab71e06}
+      \strng{fullhash}{b3f9b9425b57dc14bbe3f5adf7c780b2}
+      \strng{fullhashraw}{b3f9b9425b57dc14bbe3f5adf7c780b2}
+      \strng{bibnamehash}{b3f9b9425b57dc14bbe3f5adf7c780b2}
+      \strng{authorbibnamehash}{b3f9b9425b57dc14bbe3f5adf7c780b2}
+      \strng{authornamehash}{558fba268e8fc2daf2d8526ddab71e06}
+      \strng{authorfullhash}{b3f9b9425b57dc14bbe3f5adf7c780b2}
+      \strng{authorfullhashraw}{b3f9b9425b57dc14bbe3f5adf7c780b2}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{SAE Technical Paper}
+      \field{number}{2015-01-0946}
+      \field{title}{Measurement of Liquid and Vapor Penetration of Diesel Sprays With a Variation in Spreading Angle}
+      \field{year}{2015}
+      \verb{doi}
+      \verb 10.4271/2015-01-0946
+      \endverb
+    \endentry
+    \entry{MeijerECN2012}{article}{}{}
+      \name{author}{11}{}{%
+        {{hash=19ac4a7e8466e0c7257e40ffcd6bee53}{%
+           family={Meijer},
+           familyi={M\bibinitperiod},
+           given={M.},
+           giveni={M\bibinitperiod}}}%
+        {{hash=67ad7c1aa492f0e23104d2c887cc143a}{%
+           family={Somers},
+           familyi={S\bibinitperiod},
+           given={L.\bibnamedelimi M.\bibnamedelimi T.},
+           giveni={L\bibinitperiod\bibinitdelim M\bibinitperiod\bibinitdelim T\bibinitperiod}}}%
+        {{hash=879f6babb07d569a131799f5d6952aeb}{%
+           family={Johnson},
+           familyi={J\bibinitperiod},
+           given={J.},
+           giveni={J\bibinitperiod}}}%
+        {{hash=08cc0b79b3aad796bd5d3635ab5b80b2}{%
+           family={Naber},
+           familyi={N\bibinitperiod},
+           given={J.},
+           giveni={J\bibinitperiod}}}%
+        {{hash=37a2d6dab0e1c8aebffc3983136ba433}{%
+           family={Lee},
+           familyi={L\bibinitperiod},
+           given={S.-Y.},
+           giveni={S\bibinithyphendelim Y\bibinitperiod}}}%
+        {{hash=a9a9b1c8805b7cf99010c28462414ab5}{%
+           family={Malbec},
+           familyi={M\bibinitperiod},
+           given={L.-M.},
+           giveni={L\bibinithyphendelim M\bibinitperiod}}}%
+        {{hash=68778b000b20f0b2a067c8c0ac02a30b}{%
+           family={Bruneaux},
+           familyi={B\bibinitperiod},
+           given={G.},
+           giveni={G\bibinitperiod}}}%
+        {{hash=90e69098cfb24b02c70d98d9c3ef82b8}{%
+           family={Pickett},
+           familyi={P\bibinitperiod},
+           given={L.\bibnamedelimi M.},
+           giveni={L\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+        {{hash=fadc2057c6d74557e025d8efaba9497c}{%
+           family={Bardi},
+           familyi={B\bibinitperiod},
+           given={M.},
+           giveni={M\bibinitperiod}}}%
+        {{hash=231f4bd2f2bee852d5bd4cab069b4203}{%
+           family={Payri},
+           familyi={P\bibinitperiod},
+           given={R.},
+           giveni={R\bibinitperiod}}}%
+        {{hash=f62cea0fe77d5ef8c3abec28efad9e69}{%
+           family={Bazyn},
+           familyi={B\bibinitperiod},
+           given={T.},
+           giveni={T\bibinitperiod}}}%
+      }
+      \strng{namehash}{2c14bd152e4fd228d0c5e164f3db260c}
+      \strng{fullhash}{e629428a11bd4e1163f32bab0bd1eb6c}
+      \strng{fullhashraw}{e629428a11bd4e1163f32bab0bd1eb6c}
+      \strng{bibnamehash}{2c14bd152e4fd228d0c5e164f3db260c}
+      \strng{authorbibnamehash}{2c14bd152e4fd228d0c5e164f3db260c}
+      \strng{authornamehash}{2c14bd152e4fd228d0c5e164f3db260c}
+      \strng{authorfullhash}{e629428a11bd4e1163f32bab0bd1eb6c}
+      \strng{authorfullhashraw}{e629428a11bd4e1163f32bab0bd1eb6c}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Atomization and Sprays}
+      \field{number}{9}
+      \field{title}{Engine Combustion Network ({ECN}): Characterization and Comparison of Boundary Conditions for Different Combustion Vessels}
+      \field{volume}{22}
+      \field{year}{2012}
+      \field{pages}{777\bibrangedash 806}
+      \range{pages}{30}
+      \verb{doi}
+      \verb 10.1615/AtomizSpr.2012006083
+      \endverb
+    \endentry
+    \entry{StumppRicco1996}{report}{}{}
+      \name{author}{2}{}{%
+        {{hash=7e901c9c3c0e4e20885c1f02eb5b2f24}{%
+           family={Stumpp},
+           familyi={S\bibinitperiod},
+           given={G.},
+           giveni={G\bibinitperiod}}}%
+        {{hash=a1cffaf17a372d3455c15b549c66825c}{%
+           family={Ricco},
+           familyi={R\bibinitperiod},
+           given={M.},
+           giveni={M\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {SAE International}%
+      }
+      \strng{namehash}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{fullhash}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{fullhashraw}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{bibnamehash}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{authorbibnamehash}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{authornamehash}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{authorfullhash}{b3816141e28fdc7068e9707b41f26f77}
+      \strng{authorfullhashraw}{b3816141e28fdc7068e9707b41f26f77}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{number}{960870}
+      \field{title}{Common Rail---An Attractive Fuel Injection System for Passenger Car {DI} Diesel Engines}
+      \field{type}{techreport}
+      \field{year}{1996}
+      \verb{doi}
+      \verb 10.4271/960870
+      \endverb
+    \endentry
+    \entry{NickollsBuckGarlandSkadron2008}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=4e9afb5dec66f82dce8dd9cd8b94345c}{%
+           family={Nickolls},
+           familyi={N\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod}}}%
+        {{hash=26af11cfc02d0f239a5482f14e1413f7}{%
+           family={Buck},
+           familyi={B\bibinitperiod},
+           given={Ian},
+           giveni={I\bibinitperiod}}}%
+        {{hash=b65b1e0d8d79fe6e41bb998ea526b3cd}{%
+           family={Garland},
+           familyi={G\bibinitperiod},
+           given={Michael},
+           giveni={M\bibinitperiod}}}%
+        {{hash=892a3e33d25b9ce399f8972f67cf93a6}{%
+           family={Skadron},
+           familyi={S\bibinitperiod},
+           given={Kevin},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{8cb7d32ec75904edfafaff49577f267c}
+      \strng{fullhash}{45dc0be15277d2e82e366afe22773b3c}
+      \strng{fullhashraw}{45dc0be15277d2e82e366afe22773b3c}
+      \strng{bibnamehash}{45dc0be15277d2e82e366afe22773b3c}
+      \strng{authorbibnamehash}{45dc0be15277d2e82e366afe22773b3c}
+      \strng{authornamehash}{8cb7d32ec75904edfafaff49577f267c}
+      \strng{authorfullhash}{45dc0be15277d2e82e366afe22773b3c}
+      \strng{authorfullhashraw}{45dc0be15277d2e82e366afe22773b3c}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{ACM Queue}
+      \field{number}{2}
+      \field{title}{Scalable Parallel Programming with {CUDA}}
+      \field{volume}{6}
+      \field{year}{2008}
+      \field{pages}{40\bibrangedash 53}
+      \range{pages}{14}
+      \verb{doi}
+      \verb 10.1145/1365490.1365500
+      \endverb
+    \endentry
+    \entry{GonzalezWoodsDIP}{book}{}{}
+      \name{author}{2}{}{%
+        {{hash=07713b8c79fe78ffaf9ab728a5f3ce88}{%
+           family={Gonzalez},
+           familyi={G\bibinitperiod},
+           given={Rafael\bibnamedelima C.},
+           giveni={R\bibinitperiod\bibinitdelim C\bibinitperiod}}}%
+        {{hash=f7e4f4ce32d8e1ac04f7ee5eefcabe8f}{%
+           family={Woods},
+           familyi={W\bibinitperiod},
+           given={Richard\bibnamedelima E.},
+           giveni={R\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Hoboken, NJ}%
+      }
+      \list{publisher}{1}{%
+        {Pearson}%
+      }
+      \strng{namehash}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{fullhash}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{fullhashraw}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{bibnamehash}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{authorbibnamehash}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{authornamehash}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{authorfullhash}{629c2754a63b62c1f205866b8ab085f9}
+      \strng{authorfullhashraw}{629c2754a63b62c1f205866b8ab085f9}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{edition}{4}
+      \field{isbn}{9780133356724}
+      \field{title}{Digital Image Processing}
+      \field{year}{2018}
+    \endentry
+    \entry{Szeliski2010Vision}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=f2e556c93256e7d70895d67702e14f1a}{%
+           family={Szeliski},
+           familyi={S\bibinitperiod},
+           given={Richard},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {London}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{fullhash}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{fullhashraw}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{bibnamehash}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{authorbibnamehash}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{authornamehash}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{authorfullhash}{f2e556c93256e7d70895d67702e14f1a}
+      \strng{authorfullhashraw}{f2e556c93256e7d70895d67702e14f1a}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Computer Vision: Algorithms and Applications}
+      \field{year}{2011}
+      \verb{doi}
+      \verb 10.1007/978-1-84882-935-0
+      \endverb
+    \endentry
+    \entry{Pratt1987CircleFit}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=c4c811ec90866da6350f251f46860f82}{%
+           family={Pratt},
+           familyi={P\bibinitperiod},
+           given={Vaughan},
+           giveni={V\bibinitperiod}}}%
+      }
+      \strng{namehash}{c4c811ec90866da6350f251f46860f82}
+      \strng{fullhash}{c4c811ec90866da6350f251f46860f82}
+      \strng{fullhashraw}{c4c811ec90866da6350f251f46860f82}
+      \strng{bibnamehash}{c4c811ec90866da6350f251f46860f82}
+      \strng{authorbibnamehash}{c4c811ec90866da6350f251f46860f82}
+      \strng{authornamehash}{c4c811ec90866da6350f251f46860f82}
+      \strng{authorfullhash}{c4c811ec90866da6350f251f46860f82}
+      \strng{authorfullhashraw}{c4c811ec90866da6350f251f46860f82}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Computer Graphics}
+      \field{number}{4}
+      \field{title}{Direct Least-Squares Fitting of Algebraic Surfaces}
+      \field{volume}{21}
+      \field{year}{1987}
+      \field{pages}{145\bibrangedash 152}
+      \range{pages}{8}
+      \verb{doi}
+      \verb 10.1145/37402.37420
+      \endverb
+    \endentry
+    \entry{Taubin1991CircleFit}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=b3b3511f4ef528ffb91c3a5b925a0337}{%
+           family={Taubin},
+           familyi={T\bibinitperiod},
+           given={Gabriel},
+           giveni={G\bibinitperiod}}}%
+      }
+      \strng{namehash}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{fullhash}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{fullhashraw}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{bibnamehash}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{authorbibnamehash}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{authornamehash}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{authorfullhash}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \strng{authorfullhashraw}{b3b3511f4ef528ffb91c3a5b925a0337}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{IEEE Transactions on Pattern Analysis and Machine Intelligence}
+      \field{number}{11}
+      \field{title}{Estimation of Planar Curves, Surfaces, and Nonplanar Space Curves Defined by Implicit Equations, with Applications to Edge and Range Image Segmentation}
+      \field{volume}{13}
+      \field{year}{1991}
+      \field{pages}{1115\bibrangedash 1138}
+      \range{pages}{24}
+      \verb{doi}
+      \verb 10.1109/34.103273
+      \endverb
+    \endentry
+    \entry{OppenheimSchaferStockham1968}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=3d2d1d8687de3baa625d3d62a7e0e464}{%
+           family={Oppenheim},
+           familyi={O\bibinitperiod},
+           given={Alan\bibnamedelima V.},
+           giveni={A\bibinitperiod\bibinitdelim V\bibinitperiod}}}%
+        {{hash=fd563e605c810572cece256b4271abd4}{%
+           family={Schafer},
+           familyi={S\bibinitperiod},
+           given={Ronald\bibnamedelima W.},
+           giveni={R\bibinitperiod\bibinitdelim W\bibinitperiod}}}%
+        {{hash=d858982d1688b628b57da9b27a32af88}{%
+           family={Stockham},
+           familyi={S\bibinitperiod},
+           given={Jr.},
+           giveni={J\bibinitperiod},
+           suffix={Thomas\bibnamedelima G.},
+           suffixi={T\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+      }
+      \strng{namehash}{41fec73bfc99cf63af049d00eebe951f}
+      \strng{fullhash}{1202b527d7edc28bb8987ec12378160d}
+      \strng{fullhashraw}{1202b527d7edc28bb8987ec12378160d}
+      \strng{bibnamehash}{1202b527d7edc28bb8987ec12378160d}
+      \strng{authorbibnamehash}{1202b527d7edc28bb8987ec12378160d}
+      \strng{authornamehash}{41fec73bfc99cf63af049d00eebe951f}
+      \strng{authorfullhash}{1202b527d7edc28bb8987ec12378160d}
+      \strng{authorfullhashraw}{1202b527d7edc28bb8987ec12378160d}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{IEEE Transactions on Audio and Electroacoustics}
+      \field{number}{3}
+      \field{title}{Nonlinear Filtering of Multiplied and Convolved Signals}
+      \field{volume}{16}
+      \field{year}{1968}
+      \field{pages}{437\bibrangedash 466}
+      \range{pages}{30}
+      \verb{doi}
+      \verb 10.1109/TAU.1968.1161990
+      \endverb
+    \endentry
+    \entry{ZackRogersLatt1977}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=fe4e761b104a258b2f43cb1e4220d404}{%
+           family={Zack},
+           familyi={Z\bibinitperiod},
+           given={G.\bibnamedelimi W.},
+           giveni={G\bibinitperiod\bibinitdelim W\bibinitperiod}}}%
+        {{hash=41eb4365a43e984d458853d68f263f20}{%
+           family={Rogers},
+           familyi={R\bibinitperiod},
+           given={W.\bibnamedelimi E.},
+           giveni={W\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=ac41ce401072346adf219b4507c03cc5}{%
+           family={Latt},
+           familyi={L\bibinitperiod},
+           given={S.\bibnamedelimi A.},
+           giveni={S\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+      }
+      \strng{namehash}{a070d753e8977cbac0756fb74861a0da}
+      \strng{fullhash}{cfb1eade18c3137e0c683984297cf66e}
+      \strng{fullhashraw}{cfb1eade18c3137e0c683984297cf66e}
+      \strng{bibnamehash}{cfb1eade18c3137e0c683984297cf66e}
+      \strng{authorbibnamehash}{cfb1eade18c3137e0c683984297cf66e}
+      \strng{authornamehash}{a070d753e8977cbac0756fb74861a0da}
+      \strng{authorfullhash}{cfb1eade18c3137e0c683984297cf66e}
+      \strng{authorfullhashraw}{cfb1eade18c3137e0c683984297cf66e}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Histochemistry and Cytochemistry}
+      \field{number}{7}
+      \field{title}{Automatic Measurement of Sister Chromatid Exchange Frequency}
+      \field{volume}{25}
+      \field{year}{1977}
+      \field{pages}{741\bibrangedash 753}
+      \range{pages}{13}
+      \verb{doi}
+      \verb 10.1177/25.7.70454
+      \endverb
+    \endentry
+    \entry{JinKimKakamiNishidaOgataLuo2020}{article}{}{}
+      \name{author}{6}{}{%
+        {{hash=1be87e5d8d0d2f7c36a29e129c47216a}{%
+           family={Jin},
+           familyi={J\bibinitperiod},
+           given={Yu},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=f8d998b38c3ad0c4e0ca1907e34ae06b}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Jaeheun},
+           giveni={J\bibinitperiod}}}%
+        {{hash=93ab08dfbba38950803f66bb0a0aa973}{%
+           family={Kakami},
+           familyi={K\bibinitperiod},
+           given={Shinichi},
+           giveni={S\bibinitperiod}}}%
+        {{hash=7e6a83a0316b26b550f1b86efb5857d7}{%
+           family={Nishida},
+           familyi={N\bibinitperiod},
+           given={Keiya},
+           giveni={K\bibinitperiod}}}%
+        {{hash=42359701242e08b22634492b030daf3b}{%
+           family={Ogata},
+           familyi={O\bibinitperiod},
+           given={Yoichi},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=355883183e9e4b1a32f369eb76529c2c}{%
+           family={Luo},
+           familyi={L\bibinitperiod},
+           given={Hongliang},
+           giveni={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{f8104bb6f23f51e03bf7de8304f860df}
+      \strng{fullhash}{e69ec47b72fc2dc07d9e1ad477e9f725}
+      \strng{fullhashraw}{e69ec47b72fc2dc07d9e1ad477e9f725}
+      \strng{bibnamehash}{e69ec47b72fc2dc07d9e1ad477e9f725}
+      \strng{authorbibnamehash}{e69ec47b72fc2dc07d9e1ad477e9f725}
+      \strng{authornamehash}{f8104bb6f23f51e03bf7de8304f860df}
+      \strng{authorfullhash}{e69ec47b72fc2dc07d9e1ad477e9f725}
+      \strng{authorfullhashraw}{e69ec47b72fc2dc07d9e1ad477e9f725}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{International Communications in Heat and Mass Transfer}
+      \field{title}{Comparison of Diesel Spray with Small Injection Amount Between Single-Hole and Multi-Hole Injectors: Results Under Same Rail Pressure and Similar Injection Rate}
+      \field{volume}{118}
+      \field{year}{2020}
+      \field{pages}{104862}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.icheatmasstransfer.2020.104862
+      \endverb
+    \endentry
+    \entry{MopuriGrahnSedarskyHyvonen2024}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=e6c404676f9b38ee82400b28282b31dc}{%
+           family={Mopuri},
+           familyi={M\bibinitperiod},
+           given={Lokesh},
+           giveni={L\bibinitperiod}}}%
+        {{hash=ec2fdb5e70cea664024798cf88c5ee78}{%
+           family={Grahn},
+           familyi={G\bibinitperiod},
+           given={Viljam},
+           giveni={V\bibinitperiod}}}%
+        {{hash=bbe3a6b46d8f64492ccdc4cbd6abdadc}{%
+           family={Sedarsky},
+           familyi={S\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=4fb8870fa73b9ae912d59ea1caf4160b}{%
+           family={Hyvönen},
+           familyi={H\bibinitperiod},
+           given={Jari},
+           giveni={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{811a284d19f90dc6bb1d43537f19127b}
+      \strng{fullhash}{608505aa07a0daa1294ba2081653ab46}
+      \strng{fullhashraw}{608505aa07a0daa1294ba2081653ab46}
+      \strng{bibnamehash}{608505aa07a0daa1294ba2081653ab46}
+      \strng{authorbibnamehash}{608505aa07a0daa1294ba2081653ab46}
+      \strng{authornamehash}{811a284d19f90dc6bb1d43537f19127b}
+      \strng{authorfullhash}{608505aa07a0daa1294ba2081653ab46}
+      \strng{authorfullhashraw}{608505aa07a0daa1294ba2081653ab46}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Experiments in Fluids}
+      \field{title}{Shape/Penetration Analysis and Comparisons of Isolated Spray Plumes in a Multi-Hole Diesel Spray}
+      \field{volume}{65}
+      \field{year}{2024}
+      \field{pages}{92}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1007/s00348-024-03829-6
+      \endverb
+    \endentry
+    \entry{CooleyTukey1965FFT}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=9a5cfe59165ea73852bf47c17612fc90}{%
+           family={Cooley},
+           familyi={C\bibinitperiod},
+           given={James\bibnamedelima W.},
+           giveni={J\bibinitperiod\bibinitdelim W\bibinitperiod}}}%
+        {{hash=9edab5dbc1987bcb98d6de058f00fc47}{%
+           family={Tukey},
+           familyi={T\bibinitperiod},
+           given={John\bibnamedelima W.},
+           giveni={J\bibinitperiod\bibinitdelim W\bibinitperiod}}}%
+      }
+      \strng{namehash}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{fullhash}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{fullhashraw}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{bibnamehash}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{authorbibnamehash}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{authornamehash}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{authorfullhash}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \strng{authorfullhashraw}{ee74374d9504fa6fb4aa57320b0e47fc}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Mathematics of Computation}
+      \field{number}{90}
+      \field{title}{An Algorithm for the Machine Calculation of Complex Fourier Series}
+      \field{volume}{19}
+      \field{year}{1965}
+      \field{pages}{297\bibrangedash 301}
+      \range{pages}{5}
+      \verb{doi}
+      \verb 10.1090/S0025-5718-1965-0178586-1
+      \endverb
+    \endentry
+    \entry{Tobin1958}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=7c1d1b55f2b782f914e8e343fb8781ff}{%
+           family={Tobin},
+           familyi={T\bibinitperiod},
+           given={James},
+           giveni={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{fullhash}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{fullhashraw}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{bibnamehash}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{authorbibnamehash}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{authornamehash}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{authorfullhash}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \strng{authorfullhashraw}{7c1d1b55f2b782f914e8e343fb8781ff}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Econometrica}
+      \field{number}{1}
+      \field{title}{Estimation of Relationships for Limited Dependent Variables}
+      \field{volume}{26}
+      \field{year}{1958}
+      \field{pages}{24\bibrangedash 36}
+      \range{pages}{13}
+    \endentry
+    \entry{BuckleyJames1979}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=0c0abf5fe3e9bdfa3a5087254481b975}{%
+           family={Buckley},
+           familyi={B\bibinitperiod},
+           given={Jonathan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=6bfbf6e924b57a497d83769f386080f0}{%
+           family={James},
+           familyi={J\bibinitperiod},
+           given={Ian},
+           giveni={I\bibinitperiod}}}%
+      }
+      \strng{namehash}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{fullhash}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{fullhashraw}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{bibnamehash}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{authorbibnamehash}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{authornamehash}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{authorfullhash}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \strng{authorfullhashraw}{9bb752c8bc8ea3dd7103bc67f273d0e9}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Biometrika}
+      \field{number}{3}
+      \field{title}{Linear Regression with Censored Data}
+      \field{volume}{66}
+      \field{year}{1979}
+      \field{pages}{429\bibrangedash 436}
+      \range{pages}{8}
+      \verb{doi}
+      \verb 10.1093/biomet/66.3.429
+      \endverb
+    \endentry
+    \entry{BishopPRML2006}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=9dfd0135a5e80aa6d81cea2c10fb7f73}{%
+           family={Bishop},
+           familyi={B\bibinitperiod},
+           given={Christopher\bibnamedelima M.},
+           giveni={C\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {New York}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{fullhash}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{fullhashraw}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{bibnamehash}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{authorbibnamehash}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{authornamehash}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{authorfullhash}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \strng{authorfullhashraw}{9dfd0135a5e80aa6d81cea2c10fb7f73}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9780387310732}
+      \field{title}{Pattern Recognition and Machine Learning}
+      \field{year}{2006}
+    \endentry
+    \entry{KangKang2024KDRegression}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=b4546bbc53e5264a818ba9b75e22a252}{%
+           family={Kang},
+           familyi={K\bibinitperiod},
+           given={Myeonginn},
+           giveni={M\bibinitperiod}}}%
+        {{hash=678c2de2ea268890fd466bfb47056634}{%
+           family={Kang},
+           familyi={K\bibinitperiod},
+           given={Seokho},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{b04e126e842b168d695dd2895ca98369}
+      \strng{fullhash}{b04e126e842b168d695dd2895ca98369}
+      \strng{fullhashraw}{b04e126e842b168d695dd2895ca98369}
+      \strng{bibnamehash}{b04e126e842b168d695dd2895ca98369}
+      \strng{authorbibnamehash}{b04e126e842b168d695dd2895ca98369}
+      \strng{authornamehash}{b04e126e842b168d695dd2895ca98369}
+      \strng{authorfullhash}{b04e126e842b168d695dd2895ca98369}
+      \strng{authorfullhashraw}{b04e126e842b168d695dd2895ca98369}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Engineering Applications of Artificial Intelligence}
+      \field{title}{Knowledge Distillation with Insufficient Training Data for Regression}
+      \field{volume}{132}
+      \field{year}{2024}
+      \field{pages}{108001}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.engappai.2024.108001
+      \endverb
+    \endentry
+    \entry{HintonVinyalsDean2015}{misc}{}{}
+      \name{author}{3}{}{%
+        {{hash=9a8750ccdb2a4cf14d2655face1ce016}{%
+           family={Hinton},
+           familyi={H\bibinitperiod},
+           given={Geoffrey},
+           giveni={G\bibinitperiod}}}%
+        {{hash=494b568c5dc85ba8f3f409635f9c5f25}{%
+           family={Vinyals},
+           familyi={V\bibinitperiod},
+           given={Oriol},
+           giveni={O\bibinitperiod}}}%
+        {{hash=62f954323339abeba6c6a240e9d2855b}{%
+           family={Dean},
+           familyi={D\bibinitperiod},
+           given={Jeff},
+           giveni={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{394c7f90c50c43b0c3394f0b9f423e53}
+      \strng{fullhash}{ffe4fa3a93a3b1a8ca1d3c8b76f864d7}
+      \strng{fullhashraw}{ffe4fa3a93a3b1a8ca1d3c8b76f864d7}
+      \strng{bibnamehash}{ffe4fa3a93a3b1a8ca1d3c8b76f864d7}
+      \strng{authorbibnamehash}{ffe4fa3a93a3b1a8ca1d3c8b76f864d7}
+      \strng{authornamehash}{394c7f90c50c43b0c3394f0b9f423e53}
+      \strng{authorfullhash}{ffe4fa3a93a3b1a8ca1d3c8b76f864d7}
+      \strng{authorfullhashraw}{ffe4fa3a93a3b1a8ca1d3c8b76f864d7}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{stat.ML}
+      \field{eprinttype}{arXiv}
+      \field{title}{Distilling the Knowledge in a Neural Network}
+      \field{year}{2015}
+      \verb{doi}
+      \verb 10.48550/arXiv.1503.02531
+      \endverb
+      \verb{eprint}
+      \verb 1503.02531
+      \endverb
+    \endentry
+    \entry{TarvainenValpola2017}{inproceedings}{}{}
+      \name{author}{2}{}{%
+        {{hash=3043c52b71829288274c6587601704a8}{%
+           family={Tarvainen},
+           familyi={T\bibinitperiod},
+           given={Antti},
+           giveni={A\bibinitperiod}}}%
+        {{hash=130b7c3a12dc949e574f845c6b83a9af}{%
+           family={Valpola},
+           familyi={V\bibinitperiod},
+           given={Harri},
+           giveni={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{9945020ab9fe51f572128e962cdd769f}
+      \strng{fullhash}{9945020ab9fe51f572128e962cdd769f}
+      \strng{fullhashraw}{9945020ab9fe51f572128e962cdd769f}
+      \strng{bibnamehash}{9945020ab9fe51f572128e962cdd769f}
+      \strng{authorbibnamehash}{9945020ab9fe51f572128e962cdd769f}
+      \strng{authornamehash}{9945020ab9fe51f572128e962cdd769f}
+      \strng{authorfullhash}{9945020ab9fe51f572128e962cdd769f}
+      \strng{authorfullhashraw}{9945020ab9fe51f572128e962cdd769f}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Advances in Neural Information Processing Systems 30}
+      \field{title}{Mean Teachers Are Better Role Models: Weight-Averaged Consistency Targets Improve Semi-Supervised Deep Learning Results}
+      \field{year}{2017}
+      \field{pages}{1195\bibrangedash 1204}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.48550/arXiv.1703.01780
+      \endverb
+    \endentry
+    \entry{liu2024marine_impingement}{article}{}{}
+      \name{author}{7}{}{%
+        {{hash=7dbcd223db163eb1fc0b2e4f844602cd}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Rui},
+           giveni={R\bibinitperiod}}}%
+        {{hash=681158b9ce78de7b8ffe986317d913c2}{%
+           family={Huang},
+           familyi={H\bibinitperiod},
+           given={Li},
+           giveni={L\bibinitperiod}}}%
+        {{hash=700f97d056ba2c6811dffa3f5eba1694}{%
+           family={Yi},
+           familyi={Y\bibinitperiod},
+           given={Ran},
+           giveni={R\bibinitperiod}}}%
+        {{hash=4ecde7d9751c220e59eae2f2170a3512}{%
+           family={Xia},
+           familyi={X\bibinitperiod},
+           given={Jin},
+           giveni={J\bibinitperiod}}}%
+        {{hash=112faefb37293f52cd92c3bb36fcc08b}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Jian},
+           giveni={J\bibinitperiod}}}%
+        {{hash=fd741918156fc667d5e1180d24e6a460}{%
+           family={Feng},
+           familyi={F\bibinitperiod},
+           given={Mingzhi},
+           giveni={M\bibinitperiod}}}%
+        {{hash=da7412c6f0197e09cd618df7eb5ae879}{%
+           family={Lu},
+           familyi={L\bibinitperiod},
+           given={Xingcai},
+           giveni={X\bibinitperiod}}}%
+      }
+      \strng{namehash}{037e6926e09ea313bacbdfaffec60461}
+      \strng{fullhash}{bc45b998033af2d3bceb631f6fd2a6aa}
+      \strng{fullhashraw}{bc45b998033af2d3bceb631f6fd2a6aa}
+      \strng{bibnamehash}{037e6926e09ea313bacbdfaffec60461}
+      \strng{authorbibnamehash}{037e6926e09ea313bacbdfaffec60461}
+      \strng{authornamehash}{037e6926e09ea313bacbdfaffec60461}
+      \strng{authorfullhash}{bc45b998033af2d3bceb631f6fd2a6aa}
+      \strng{authorfullhashraw}{bc45b998033af2d3bceb631f6fd2a6aa}
+      \field{extraname}{2}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Applied Thermal Engineering}
+      \field{title}{Visualization on Spray and Flame Characteristics of Wall-Impinging Spray Under Marine Diesel Engine Conditions}
+      \field{volume}{244}
+      \field{year}{2024}
+      \field{pages}{122655}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.applthermaleng.2024.122655
+      \endverb
+    \endentry
+    \entry{Karim2015DualFuel}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=e693b862aa009d7e38689b225c67b962}{%
+           family={Karim},
+           familyi={K\bibinitperiod},
+           given={Ghazi\bibnamedelima A.},
+           giveni={G\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Boca Raton, FL}%
+      }
+      \list{publisher}{1}{%
+        {CRC Press}%
+      }
+      \strng{namehash}{e693b862aa009d7e38689b225c67b962}
+      \strng{fullhash}{e693b862aa009d7e38689b225c67b962}
+      \strng{fullhashraw}{e693b862aa009d7e38689b225c67b962}
+      \strng{bibnamehash}{e693b862aa009d7e38689b225c67b962}
+      \strng{authorbibnamehash}{e693b862aa009d7e38689b225c67b962}
+      \strng{authornamehash}{e693b862aa009d7e38689b225c67b962}
+      \strng{authorfullhash}{e693b862aa009d7e38689b225c67b962}
+      \strng{authorfullhashraw}{e693b862aa009d7e38689b225c67b962}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9781498703093}
+      \field{title}{Dual-Fuel Diesel Engines}
+      \field{year}{2015}
+    \endentry
+    \entry{WeiGeng2016DualFuelReview}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=82621754ea06e578c41ff7803715b136}{%
+           family={Wei},
+           familyi={W\bibinitperiod},
+           given={Liangjie},
+           giveni={L\bibinitperiod}}}%
+        {{hash=042e123f61a46a0bf11a239a9eca63f1}{%
+           family={Geng},
+           familyi={G\bibinitperiod},
+           given={Peng},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{bf8e467be9509e9238e0c895123712ff}
+      \strng{fullhash}{bf8e467be9509e9238e0c895123712ff}
+      \strng{fullhashraw}{bf8e467be9509e9238e0c895123712ff}
+      \strng{bibnamehash}{bf8e467be9509e9238e0c895123712ff}
+      \strng{authorbibnamehash}{bf8e467be9509e9238e0c895123712ff}
+      \strng{authornamehash}{bf8e467be9509e9238e0c895123712ff}
+      \strng{authorfullhash}{bf8e467be9509e9238e0c895123712ff}
+      \strng{authorfullhashraw}{bf8e467be9509e9238e0c895123712ff}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Fuel Processing Technology}
+      \field{title}{A review on natural gas/diesel dual fuel combustion, emissions and performance}
+      \field{volume}{142}
+      \field{year}{2016}
+      \field{pages}{264\bibrangedash 278}
+      \range{pages}{15}
+      \verb{doi}
+      \verb 10.1016/j.fuproc.2015.09.018
+      \endverb
+    \endentry
+    \entry{Sahoo2009DualFuelReview}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=8c46d0630d3d56a501e626df0cbcf65e}{%
+           family={Sahoo},
+           familyi={S\bibinitperiod},
+           given={B.\bibnamedelimi B.},
+           giveni={B\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+        {{hash=959af08daf8b8db072593e6a0da6a016}{%
+           family={Sahoo},
+           familyi={S\bibinitperiod},
+           given={N.},
+           giveni={N\bibinitperiod}}}%
+        {{hash=f0f39cb24075b277b75b9bab5a221ae7}{%
+           family={Saha},
+           familyi={S\bibinitperiod},
+           given={U.\bibnamedelimi K.},
+           giveni={U\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
+      }
+      \strng{namehash}{7797b0bd92c9e7701ff2dbd93dabdc6f}
+      \strng{fullhash}{c3fb1d4f12b13681a5b587c21de8897e}
+      \strng{fullhashraw}{c3fb1d4f12b13681a5b587c21de8897e}
+      \strng{bibnamehash}{c3fb1d4f12b13681a5b587c21de8897e}
+      \strng{authorbibnamehash}{c3fb1d4f12b13681a5b587c21de8897e}
+      \strng{authornamehash}{7797b0bd92c9e7701ff2dbd93dabdc6f}
+      \strng{authorfullhash}{c3fb1d4f12b13681a5b587c21de8897e}
+      \strng{authorfullhashraw}{c3fb1d4f12b13681a5b587c21de8897e}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Renewable and Sustainable Energy Reviews}
+      \field{number}{6-7}
+      \field{title}{Effect of engine parameters and type of gaseous fuel on the performance of dual-fuel gas diesel engines---{A} critical review}
+      \field{volume}{13}
+      \field{year}{2009}
+      \field{pages}{1151\bibrangedash 1184}
+      \range{pages}{34}
+      \verb{doi}
+      \verb 10.1016/j.rser.2008.08.003
+      \endverb
+    \endentry
+    \entry{Park2018WallImpingement}{article}{}{}
+      \name{author}{4}{}{%
+        {{hash=b0b13f1274faf920ab691d63ea607c1f}{%
+           family={Park},
+           familyi={P\bibinitperiod},
+           given={Junkyu},
+           giveni={J\bibinitperiod}}}%
+        {{hash=31d855b7027855bc783d7863ff0a74ed}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Taehoon},
+           giveni={T\bibinitperiod}}}%
+        {{hash=6eb6e3c3fd279c1f6ff6d5abadedbe7c}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Donghwan},
+           giveni={D\bibinitperiod}}}%
+        {{hash=b4e93f3291daa3af4c3905b598f1d6d2}{%
+           family={Park},
+           familyi={P\bibinitperiod},
+           given={Sungwook},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{795e56dc2ba5d06905d1b847d0c641bf}
+      \strng{fullhash}{87d536f6ef9860e979877e7c51bd91a2}
+      \strng{fullhashraw}{87d536f6ef9860e979877e7c51bd91a2}
+      \strng{bibnamehash}{87d536f6ef9860e979877e7c51bd91a2}
+      \strng{authorbibnamehash}{87d536f6ef9860e979877e7c51bd91a2}
+      \strng{authornamehash}{795e56dc2ba5d06905d1b847d0c641bf}
+      \strng{authorfullhash}{87d536f6ef9860e979877e7c51bd91a2}
+      \strng{authorfullhashraw}{87d536f6ef9860e979877e7c51bd91a2}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Fuel Processing Technology}
+      \field{title}{Prediction of Wall Impingement in a Direct Injection Spark Ignition Engine by Analyzing Spray Images for High-Pressure Injection up to 50~{MPa}}
+      \field{volume}{179}
+      \field{year}{2018}
+      \field{pages}{238\bibrangedash 249}
+      \range{pages}{12}
+      \verb{doi}
+      \verb 10.1016/j.fuproc.2018.07.002
+      \endverb
+    \endentry
+    \entry{ThielickeSonntag2021PIVlab}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=9a6c5d96e3d4000b43d2071dc2fe73c1}{%
+           family={Thielicke},
+           familyi={T\bibinitperiod},
+           given={William},
+           giveni={W\bibinitperiod}}}%
+        {{hash=6be53f5f95571549a270aba78005ee9c}{%
+           family={Sonntag},
+           familyi={S\bibinitperiod},
+           given={René},
+           giveni={R\bibinitperiod}}}%
+      }
+      \strng{namehash}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{fullhash}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{fullhashraw}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{bibnamehash}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{authorbibnamehash}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{authornamehash}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{authorfullhash}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \strng{authorfullhashraw}{11fa53e7a8d98a4b8a4a871d5a9b8c93}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Open Research Software}
+      \field{number}{1}
+      \field{title}{Particle Image Velocimetry for {MATLAB}: Accuracy and Enhanced Algorithms in {PIVlab}}
+      \field{volume}{9}
+      \field{year}{2021}
+      \field{pages}{12}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.5334/jors.334
+      \endverb
+    \endentry
+    \entry{Huber1964}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=2e7489c001c33b64b64d65458065bd5c}{%
+           family={Huber},
+           familyi={H\bibinitperiod},
+           given={Peter\bibnamedelima J.},
+           giveni={P\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+      }
+      \strng{namehash}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{fullhash}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{fullhashraw}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{bibnamehash}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{authorbibnamehash}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{authornamehash}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{authorfullhash}{2e7489c001c33b64b64d65458065bd5c}
+      \strng{authorfullhashraw}{2e7489c001c33b64b64d65458065bd5c}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{The Annals of Mathematical Statistics}
+      \field{number}{1}
+      \field{title}{Robust Estimation of a Location Parameter}
+      \field{volume}{35}
+      \field{year}{1964}
+      \field{pages}{73\bibrangedash 101}
+      \range{pages}{29}
+      \verb{doi}
+      \verb 10.1214/aoms/1177703732
+      \endverb
+    \endentry
+    \entry{NocedalWright2006}{book}{}{}
+      \name{author}{2}{}{%
+        {{hash=88a342d927bf795b0d92af8a5613da31}{%
+           family={Nocedal},
+           familyi={N\bibinitperiod},
+           given={Jorge},
+           giveni={J\bibinitperiod}}}%
+        {{hash=c49efb16d3fa7eef002cc3620d42ab8a}{%
+           family={Wright},
+           familyi={W\bibinitperiod},
+           given={Stephen\bibnamedelima J.},
+           giveni={S\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {New York}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{fullhash}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{fullhashraw}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{bibnamehash}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{authorbibnamehash}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{authornamehash}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{authorfullhash}{5b8fd28f6245ae8b0af119560622fa4f}
+      \strng{authorfullhashraw}{5b8fd28f6245ae8b0af119560622fa4f}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{edition}{2}
+      \field{title}{Numerical Optimization}
+      \field{year}{2006}
+      \verb{doi}
+      \verb 10.1007/978-0-387-40065-5
+      \endverb
+    \endentry
+    \entry{HeywoodICE}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=ce5ff4f9688cf2e0903b78b04e09bf06}{%
+           family={Heywood},
+           familyi={H\bibinitperiod},
+           given={John\bibnamedelima B.},
+           giveni={J\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {New York}%
+      }
+      \list{publisher}{1}{%
+        {McGraw-Hill}%
+      }
+      \strng{namehash}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{fullhash}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{fullhashraw}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{bibnamehash}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{authorbibnamehash}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{authornamehash}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{authorfullhash}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \strng{authorfullhashraw}{ce5ff4f9688cf2e0903b78b04e09bf06}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{978-0070286375}
+      \field{title}{Internal Combustion Engine Fundamentals}
+      \field{year}{1988}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

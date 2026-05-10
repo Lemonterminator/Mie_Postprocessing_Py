@@ -1,0 +1,30 @@
+\section{结论}
+
+\subsection{已验证结果}
+
+\begin{itemize}
+  \item 本文交付了一套完整工作流，从手动喷嘴标定和 GPU 加速 plume 提取，到拟合后的穿深目标和分阶段 surrogate 模型。
+  \item 在 795{,}561 个预测点和 33{,}845 条轨迹的外部清洗评估协议上，三阶段过渡区缩放 MLP（anchor-off）四次重复训练平均达到 RMSE~\SI{6.094}{mm}、MAE~\SI{4.465}{mm}、P95~\SI{12.888}{mm}，并给出 0.783/0.982 的保守 1$\sigma$/2$\sigma$ 覆盖率。
+  \item 在较早的原始归档留出切分上，同一 anchor-off Stage~3 surrogate 在 21{,}470 条轨迹上达到 RMSE~\SI{6.68}{mm}、MAE~\SI{4.83}{mm}、bias~\SI{-0.02}{mm}，并给出 72.24\% / 97.03\% 的保守 1$\sigma$/2$\sigma$ 覆盖率。
+  \item 相对校准后的 Hiroyasu--Arai、Naber--Siebers 和稀疏异方差 Gaussian process，三阶段模型分别降低 RMSE 38.9\%、31.1\% 和 11.7\%。
+  \item 留一喷嘴族评估显示该方法在未见喷嘴族上仍优于物理基线，但困难喷嘴族的低覆盖说明外推风险仍需显式报告。
+  \item 分阶段设计得到了实证支持：Stage~1 提供稳定的均值锚点，Stage~2 在完整过滤数据集上提供异方差教师，Stage~3 则通过结合可信原始监督与抗删失教师引导，成为最可信的筛查模型。
+\end{itemize}
+
+\subsection{当前原型边界}
+
+\begin{itemize}
+  \item 概率性 wall-interaction 筛查说明，穿深 surrogate 已经可以被投影为时间分辨的几何风险分数，但当前旋转 Gaussian 几何与玩具活塞案例只是流水线演示，仍未与匹配实验或 CFD 做验证。
+  \item 该模型应被理解为非反应、室温、Mie 定义工况域内的早期筛查 surrogate，而不是对真实发动机液态撞壁的相态分辨预测器。
+\end{itemize}
+
+\subsection{下一步开发重点}
+
+\begin{enumerate}
+  \item 用匹配的光学实验或 CFD 碰撞数据验证 $P_{\mathrm{hit}}(t)$ 与累积暴露量 $E$。
+  \item 用可学习的二维包络模型替代当前解析的常锥角包络。
+  \item 量化多次训练重复中的 seed-to-seed 可复现性和标定稳定性。
+  \item 引入喷嘴族条件化的瞬态先验，使 HZ\_Nozzle3 和 Nozzle0 这类困难案例得到更明确的建模。
+\end{enumerate}
+
+\clearpage
