@@ -4,7 +4,8 @@
     },
     "latex-workshop.view.pdf.viewer": "tab",
     "latex-workshop.latex.autoBuild.run": "onSave",
-    "latex-workshop.latex.outDir": "%DIR%",
+    "latex-workshop.latex.outDir": "%WORKSPACE_FOLDER%/Thesis/pdf",
+    "latex-workshop.latex.autoClean.run": "onBuilt",
     "latex-workshop.latex.tools": [
         {
             "name": "pdflatex",
@@ -13,6 +14,7 @@
                 "-synctex=1",
                 "-interaction=nonstopmode",
                 "-file-line-error",
+                "-output-directory=%OUTDIR%",
                 "%DOC%"
             ]
         },
@@ -20,7 +22,8 @@
             "name": "biber",
             "command": "biber",
             "args": [
-                "%DOCFILE%"
+                "--output-directory=%OUTDIR%",
+                "%OUTDIR%/%DOCFILE%"
             ]
         },
         {
@@ -31,6 +34,7 @@
                 "-synctex=1",
                 "-interaction=nonstopmode",
                 "-file-line-error",
+                "-outdir=%OUTDIR%",
                 "%DOC%"
             ]
         },
@@ -41,6 +45,7 @@
                 "-synctex=1",
                 "-interaction=nonstopmode",
                 "-file-line-error",
+                "-output-directory=%OUTDIR%",
                 "%DOC%"
             ]
         }

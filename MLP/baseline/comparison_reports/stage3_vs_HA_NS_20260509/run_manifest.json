@@ -1,0 +1,23 @@
+{
+  "baseline_set": "ha_ns",
+  "output_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\baseline\\comparison_reports\\stage3_vs_HA_NS_20260509",
+  "time_bin_ms": 0.05,
+  "n_condition_plots": 598,
+  "models": [
+    {
+      "label": "Hiroyasu-Arai calibrated",
+      "kind": "ha_calibrated",
+      "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\baseline\\Hiroyasu_Arai\\outputs\\20260509_020253_ha_calibrated_grouped_condition_all_all_clean_diagnostic_20260509_review"
+    },
+    {
+      "label": "Naber-Siebers delay",
+      "kind": "ns_delay",
+      "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\baseline\\Naber_Siebers\\outputs\\20260509_004452_ns_delay_grouped_condition_all_clean_diagnostic_20260509"
+    },
+    {
+      "label": "Stage-3 MLP anchor_off",
+      "kind": "stage3_mlp",
+      "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260509_004118_winner_full"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+<?xpacket begin='' id='W5M0MpCehiHzreSzNTczkc9d' ?> 
+
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 4.0-c316 44.253921, Sun Oct 01 2006 17:14:39"> 
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"> 
+  <rdf:Description rdf:about="" 
+   xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" 
+   xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" 
+   xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#" 
+    > 
+   <pdfaExtension:schemas> 
+   <rdf:Bag> 
+     <rdf:li rdf:parseType="Resource"> 
+       <pdfaSchema:namespaceURI>http://ns.adobe.com/pdfx/1.3/</pdfaSchema:namespaceURI> 
+       <pdfaSchema:prefix>pdfx</pdfaSchema:prefix> 
+       <pdfaSchema:schema>PDF/X Schema</pdfaSchema:schema> 
+       <pdfaSchema:property><rdf:Seq> 
+          <rdf:li rdf:parseType="Resource"> 
+            <pdfaProperty:category>external</pdfaProperty:category> 
+            <pdfaProperty:description>URL to an online version or preprint</pdfaProperty:description> 
+            <pdfaProperty:name>AuthoritativeDomain</pdfaProperty:name> 
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType> 
+          </rdf:li></rdf:Seq> 
+       </pdfaSchema:property> 
+   </rdf:li> 
+   <rdf:li rdf:parseType="Resource"> 
+      <pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI> 
+      <pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix> 
+      <pdfaSchema:schema>PDF/UA ID Schema</pdfaSchema:schema> 
+      <pdfaSchema:property><rdf:Seq> 
+         <rdf:li rdf:parseType="Resource"> 
+            <pdfaProperty:category>internal</pdfaProperty:category> 
+            <pdfaProperty:description>Part of PDF/UA standard</pdfaProperty:description> 
+            <pdfaProperty:name>part</pdfaProperty:name> 
+            <pdfaProperty:valueType>Integer</pdfaProperty:valueType> 
+         </rdf:li></rdf:Seq> 
+      </pdfaSchema:property> 
+   </rdf:li> 
+   <rdf:li rdf:parseType="Resource"> 
+      <pdfaSchema:schema>PRISM metadata</pdfaSchema:schema> 
+      <pdfaSchema:namespaceURI>http://prismstandard.org/namespaces/basic/2.2/</pdfaSchema:namespaceURI> 
+      <pdfaSchema:prefix>prism</pdfaSchema:prefix> 
+      <pdfaSchema:property><rdf:Seq> 
+        <rdf:li rdf:parseType="Resource">
+            <pdfaProperty:name>aggregationType</pdfaProperty:name>
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType>
+            <pdfaProperty:category>external</pdfaProperty:category>
+            <pdfaProperty:description>The type of publication. If defined, must be one of book, catalog, feed, journal, magazine, manual, newsletter, pamphlet.</pdfaProperty:description>
+      </rdf:li> 
+   <rdf:li rdf:parseType="Resource">
+    <pdfaProperty:name>url</pdfaProperty:name>
+    <pdfaProperty:valueType>URL</pdfaProperty:valueType>
+    <pdfaProperty:category>external</pdfaProperty:category>
+    <pdfaProperty:description>URL for the article or unit of content</pdfaProperty:description>
+  </rdf:li> 
+      </rdf:Seq></pdfaSchema:property> 
+   </rdf:li> 
+   </rdf:Bag> 
+   </pdfaExtension:schemas> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/"> 
+   <pdf:Producer>pdfTeX</pdf:Producer> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"> 
+   <dc:format>application/pdf</dc:format> 
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">基于 Mie 散射视频的数据驱动穿深预测与概率性碰壁筛查</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>Linan Jiang</rdf:li></rdf:Seq></dc:creator>
+   <dc:language><rdf:Bag><rdf:li>en</rdf:li></rdf:Bag></dc:language>
+   <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></dc:rights>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">多燃料船用发动机中的柴油预喷具有持续时间短、瞬态特征强等特点。若液相包络在形成有效点火核之前即到达活塞顶或缸壁，可能引发壁面润湿、润滑油稀释以及混合准备恶化等问题。本文建立了一套基于实验证据的筛查工作流，将高速 Mie 散射视频转化为以穿深为核心的几何观测量，并构建用于早期喷雾撞壁风险筛查的代理模型。研究数据来自 Wärtsilä 光学喷雾燃烧舱的室温、非反应、顶视 Mie 记录，覆盖多种工况与喷嘴几何。该工作流结合人工喷嘴标定、CUDA 加速的多孔视频处理、逐喷油束特征提取，以及一种用于平滑噪声标签并缓解视场边界右删失低估偏差的降阶轨迹拟合方法。基于拟合目标，本文训练了三阶段神经网络代理模型：Stage 1 学习确定性代表轨迹基线；Stage 2 扩展至完整过滤数据集，并预测异方差均值与方差；Stage 3 在早期观测可靠时对齐原始 CDF 数据，在晚期观测稀疏时保留保守的教师引导，以避免将离开视场误判为物理饱和。在来自 9 个喷嘴试验批次的 21,470 条轨迹上，最终 anchor-off 模型的总体 RMSE 为 6.68 mm，并获得 72.24 percent 的 1-sigma 覆盖率与 97.03 percent 的 2-sigma 覆盖率。最新外部清洗评估协议包含 795,561 个预测点和 33,845 条轨迹；在该协议下，采用过渡区物理缩放的三阶段模型四次同配置（anchor-off）重复训练平均 RMSE 为 6.094 mm，seed-to-seed 标准差为 0.120 mm，MAE 为 4.465 mm，95 percent 绝对误差为 12.888 mm，并获得 0.783 / 0.982 的 1-sigma / 2-sigma 覆盖率。与校准后的 Hiroyasu--Arai、Naber--Siebers 和稀疏异方差 Gaussian process 基线相比，该模型在 RMSE、MAE 和尾部误差上均更低。随后，本文通过简化几何投影，将预测穿深分布映射为概率性撞壁筛查代理指标。需要强调的是，该工作流的适用范围限于测量域内的早期工程筛查，不能替代 CFD、发动机试验或经验证的缸内撞壁物理模型。</rdf:li></rdf:Alt></dc:description>
+   <dc:subject><rdf:Bag><rdf:li>Mie 散射</rdf:li>
+     <rdf:li>喷雾成像</rdf:li>
+     <rdf:li>穿深</rdf:li>
+     <rdf:li>计算机视觉</rdf:li>
+     <rdf:li>代理模型</rdf:li></rdf:Bag></dc:subject>
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:prism="http://prismstandard.org/namespaces/basic/2.2/"> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/"> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"> 
+   <pdfaid:part>2</pdfaid:part> 
+   <pdfaid:conformance>B</pdfaid:conformance> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"> 
+   <xmp:CreatorTool>LaTeX with hyperref</xmp:CreatorTool> 
+   <xmp:ModifyDate>2026-05-10T09:29:29+03:00</xmp:ModifyDate> 
+   <xmp:CreateDate>2026-05-10T09:29:29+03:00</xmp:CreateDate> 
+   <xmp:MetadataDate>2026-05-10T09:29:29+03:00</xmp:MetadataDate> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmpRights = "http://ns.adobe.com/xap/1.0/rights/"> 
+   <xmpRights:Marked>True</xmpRights:Marked>
+   <xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></xmpRights:UsageTerms>
+   <xmpRights:WebStatement>https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en</xmpRights:WebStatement>
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"> 
+   <xmpMM:DocumentID>uuid:F78D18BF-7FBF-2447-F37B-95D09FF822DB</xmpMM:DocumentID> 
+   <xmpMM:InstanceID>uuid:06277229-1BDF-7B0B-A11A-2792367A6CC4</xmpMM:InstanceID> 
+  </rdf:Description> 
+ </rdf:RDF> 
+</x:xmpmeta> 
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+<?xpacket end='w'?> 

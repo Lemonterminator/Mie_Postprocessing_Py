@@ -272,19 +272,23 @@ def diag_param_distributions(rows: pd.DataFrame, out_dir: Path) -> dict:
     reg_df.to_csv(reg_csv, index=False)
 
     # Three-panel scatter: each parameter vs delta_p, colored by P_ch
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.4))
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 5.2), constrained_layout=True)
     panels = [("k_quarter", "$k_{1/4}$ [mm/s$^{1/4}$]", df["k_quarter"]),
               ("t0_ms", "$t_0$ [ms]", df["t0_ms"]),
               ("s_ms", "$s$ [ms]", df["s_ms"])]
+    import matplotlib.ticker as ticker
     for ax, (key, ylab, yvals) in zip(axes, panels):
         sc = ax.scatter(
-            df["delta_p_bar"], yvals,
+            df["delta_p_bar"] / 1000.0, yvals,
             c=df["chamber_pressure_bar"], cmap="viridis",
             s=4, alpha=0.35, edgecolors="none",
         )
         ax.set_xscale("log")
+        ax.set_xticks([0.5, 1, 2, 3])
+        ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+        ax.xaxis.set_minor_formatter(ticker.NullFormatter())
         ax.set_yscale("log" if key == "k_quarter" else "linear")
-        ax.set_xlabel(r"$\Delta P = P_{inj} - P_{ch}$ [bar]")
+        ax.set_xlabel(r"$\Delta P = P_{inj} - P_{ch}$ [$10^3$ bar]")
         ax.set_ylabel(ylab)
         ax.grid(True, which="both", alpha=0.25)
         rec = next((r for r in regression_records if r["target"] == key), None)
@@ -292,13 +296,13 @@ def diag_param_distributions(rows: pd.DataFrame, out_dir: Path) -> dict:
             ax.set_title(
                 f"{key}: $\\Delta P^{{{rec['exp_delta_p']:.2f}}}\\,"
                 f"\\rho_a^{{{rec['exp_rho_air']:.2f}}}\\,"
-                f"d^{{{rec['exp_diameter']:.2f}}}$, $R^2$={rec['r2']:.2f}"
+                f"d^{{{rec['exp_diameter']:.2f}}}$\n$R^2$={rec['r2']:.2f}"
             )
         else:
             ax.set_title(key)
     cbar = fig.colorbar(sc, ax=axes, shrink=0.85, pad=0.02)
     cbar.set_label("$P_{ch}$ [bar]")
-    fig.suptitle("Fitted q1 parameters vs operating conditions (clean rows)")
+    fig.suptitle("Fitted q1 parameters vs operating conditions (clean rows)", fontsize=16)
     fig.savefig(out_dir / "param_vs_conditions.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 

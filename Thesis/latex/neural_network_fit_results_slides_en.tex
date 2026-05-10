@@ -1,0 +1,291 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{xurl}
+\usepackage{xcolor}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\graphicspath{{images/neural_network_fit_results/}}
+
+\newcommand{\goodtext}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warntext}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\notetext}[1]{\textcolor{blue!65!black}{#1}}
+\newcommand{\pathtext}[1]{{\scriptsize\url{#1}}}
+\newcommand{\src}[1]{\vfill{\tiny\textcolor{gray!75!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\title[NN Fitting Results]{Neural Network Fitting Results}
+\subtitle{Latest \texorpdfstring{\(\Delta P^{0.5}\)}{Delta P\textasciicircum 0.5} Stage-3 model, five-seed stability, and trajectory diagnostics}
+\author{Linan Jiang}
+\institute{Aalto University}
+\date{10 May 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Why This Version Replaces the April Deck}
+\small
+\begin{block}{Key change}
+The May pipeline uses cleaner and larger upstream CDF/clean data, and the feature
+engineering changed from \(\Delta P^{0.25}\) to the data-supported
+\(\Delta P^{0.5}\) scale. Therefore, the 18 April tuned run is no longer the
+current best model, and it should not be compared directly to the retrained model
+as a percentage improvement.
+\end{block}
+
+\begin{block}{Strict reporting convention in this deck}
+\begin{itemize}
+  \item Headline results use the common external clean diagnostic:
+  \num{795561} points and \num{33845} trajectories.
+  \item The main result is the five-seed aggregate of the \(\Delta P^{0.5}\)
+  Stage-3 pipeline.
+  \item Diagnostic plots use representative best single seed 99; these plots show
+  error structure but do not replace the five-seed conclusion.
+  \item The 2026-04-18 figures are archival and are not used for current model-comparison claims.
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Current Evaluation Target}
+\small
+\begin{tabular}{L{0.30\linewidth}L{0.60\linewidth}}
+\toprule
+Item & Setting \\
+\midrule
+Model family & Stage-3 raw-CDF refinement with \(\Delta P^{0.5}\) engineered feature scaling \\
+Headline protocol & external clean diagnostic, \SIrange{0}{5}{ms} \\
+Headline statistic & five-seed mean \(\pm\) seed-to-seed std / bootstrap CI \\
+Representative plot seed & seed 99, \texttt{anchor\_off}, lowest single-seed RMSE \\
+Input features & \(t\), tilt angle, plume count, injection duration, control backpressure \\
+Removed sparse axes & direct \(d_n\), \(P_{\mathrm{inj}}\), \(P_{\mathrm{ch}}\), and \(\Delta P\) inputs \\
+Target scaling & \(S/A,\quad A=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}\) \\
+\bottomrule
+\end{tabular}
+
+\src{Thesis/generated/baseline_comparison_20260509/per_seed_new_mlp_eval.csv}
+\end{frame}
+
+\begin{frame}{Data Scale and Current Best Result}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.49\linewidth}
+\begin{tabular}{L{0.55\linewidth}R{0.32\linewidth}}
+\toprule
+Metric & Value \\
+\midrule
+CSV files & 4,391 \\
+Trajectories & 33,845 \\
+Prediction points & 795,561 \\
+Truth range & \SIrange{0.00}{95.88}{mm} \\
+\midrule
+5-seed RMSE & \goodtext{\SI{6.211}{mm} \(\pm\) \SI{0.283}{mm}} \\
+5-seed MAE & \SI{4.587}{mm} \(\pm\) \SI{0.281}{mm} \\
+5-seed Bias & \SI{-0.838}{mm} \(\pm\) \SI{0.702}{mm} \\
+P95 absolute error & \SI{13.029}{mm} \(\pm\) \SI{0.411}{mm} \\
+Range-normalized RMSE & 6.48\% \\
+\bottomrule
+\end{tabular}
+\end{column}
+
+\begin{column}{0.47\linewidth}
+\begin{block}{Representative best single model: seed 99}
+\footnotesize
+\begin{itemize}
+  \item RMSE = \SI{5.948}{mm}
+  \item MAE = \SI{4.383}{mm}
+  \item Bias = \SI{-0.074}{mm}
+  \item P95 absolute error = \SI{12.533}{mm}
+  \item 1\(\sigma\)/2\(\sigma\) coverage = 0.792 / 0.985
+\end{itemize}
+\end{block}
+
+\begin{block}{Strict interpretation}
+\footnotesize
+Seed 99 shows what the current pipeline can achieve in its best single run. The
+thesis headline should still cite the five-seed aggregate because it captures
+training-randomness stability.
+\end{block}
+\end{column}
+\end{columns}
+
+\src{Thesis/generated/baseline_comparison_20260509/new_mlp_5seed_aggregate.csv}
+\end{frame}
+
+\begin{frame}{Metric Contract}
+\small
+\begin{tabular}{L{0.23\linewidth}L{0.67\linewidth}}
+\toprule
+Metric & Meaning \\
+\midrule
+RMSE & \(\sqrt{\frac{1}{n}\sum_i(\hat y_i-y_i)^2}\); tail-sensitive primary accuracy metric. \\
+MAE & \(\frac{1}{n}\sum_i|\hat y_i-y_i|\); typical absolute millimetre error. \\
+Bias & \(\frac{1}{n}\sum_i(\hat y_i-y_i)\); signed systematic over-/under-prediction. \\
+P95 abs. err. & 95th percentile of \(|\hat y-y|\); tail-risk metric. \\
+Coverage & \(\Pr(|y-\mu|\leq k\sigma)\). Calibrated Gaussian targets are 0.683 and 0.954 for 1\(\sigma\)/2\(\sigma\). \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+\footnotesize
+This deck therefore reports current absolute error, seed stability, tail error,
+and uncertainty coverage under the clean protocol; it no longer states improvement
+against the 4/16 baseline.
+\end{frame}
+
+\begin{frame}{Predicted vs. Measured Penetration}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.57\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.73\textheight,keepaspectratio]{latest_pred_vs_actual_seed99.png}
+\end{column}
+\begin{column}{0.39\linewidth}
+\footnotesize
+\begin{block}{How to read it}
+\begin{itemize}
+  \item Each point is one time sample in the external clean set.
+  \item The \(y=x\) line marks perfect penetration prediction.
+  \item Seed 99 has near-zero bias, so the global under-prediction seen in older runs is strongly reduced.
+  \item Tail scatter remains at high penetration and should be read together with P95 and trajectory review.
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\src{MLP/eval/rmse_eval_clean_20260509_215303_newdp_seed99_points/points.csv}
+\end{frame}
+
+\begin{frame}{Residual Distribution and Calibration}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.56\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{latest_residual_histogram_seed99.png}
+\end{column}
+\begin{column}{0.40\linewidth}
+\footnotesize
+\begin{block}{Residual definition}
+\[
+e = \hat y_{\mathrm{pen}} - y_{\mathrm{pen}}.
+\]
+\end{block}
+
+\begin{itemize}
+  \item Seed 99 bias = \SI{-0.074}{mm}, close to zero global bias.
+  \item 1\(\sigma\) coverage = 0.792, above the Gaussian nominal 0.683.
+  \item 2\(\sigma\) coverage = 0.985, above the Gaussian nominal 0.954.
+  \item On this clean protocol the model is conservative, which is acceptable for a screening surrogate.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Five-Seed Stability}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.58\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio]{latest_per_seed_rmse.png}
+\end{column}
+\begin{column}{0.38\linewidth}
+\scriptsize
+\begin{block}{Main readout}
+\begin{itemize}
+  \item The RMSE spread across five seeds is about \(\pm\SI{0.283}{mm}\).
+  \item Seed 99 is the best single seed; seed 2024 selected a different
+  \texttt{raw\_reliable\_no\_kd} ablation.
+  \item If the thesis needs strict same-ablation stability, report the four
+  \texttt{anchor\_off} seeds separately.
+\end{itemize}
+\end{block}
+
+\begin{block}{Deck convention}
+\footnotesize
+Use the five-seed mean for the conclusion and seed 99 plots for error-structure
+diagnosis; they are different statistical objects.
+\end{block}
+\end{column}
+\end{columns}
+\src{Thesis/generated/baseline_comparison_20260509/per_seed_new_mlp_eval.csv}
+\end{frame}
+
+\begin{frame}{Per-Folder Error and Coverage}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.50\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{latest_per_folder_rmse_seed99.png}
+\end{column}
+\begin{column}{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{latest_per_folder_coverage_seed99.png}
+\end{column}
+\end{columns}
+
+\vspace{0.1em}
+\footnotesize
+Nozzle7/5/0 are lower-error folders. BC20241014\_HZ\_Nozzle3 remains the hardest
+folder and also under-covers at 1\(\sigma\), making it the main trajectory-level
+risk point in the current model.
+
+\src{MLP/eval/rmse_eval_clean_20260509_215303_newdp_seed99_points/per_folder.csv}
+\end{frame}
+
+\begin{frame}{Representative Trajectories: Low and High Error}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.67\textheight,keepaspectratio]{latest_best_traj_seed99.png}
+
+  \footnotesize
+  Nozzle0 T3 plume 2: RMSE \SI{0.36}{mm}, 1\(\sigma\) coverage 1.00.
+\end{column}
+\begin{column}{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.67\textheight,keepaspectratio]{latest_worst_traj_seed99.png}
+
+  \footnotesize
+  BC20241014\_HZ\_Nozzle3 T6 plume 4: RMSE \SI{38.77}{mm}, 1\(\sigma\) coverage 0.11.
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Conclusions}
+\small
+\begin{enumerate}
+  \item \goodtext{Current reportable best result}: the \(\Delta P^{0.5}\) Stage-3 MLP reaches a five-seed external-clean RMSE of \SI{6.211}{mm} \(\pm\) \SI{0.283}{mm}.
+  \item \goodtext{Latest single-seed diagnostic}: seed 99 reaches RMSE \SI{5.948}{mm}, MAE \SI{4.383}{mm}, and bias \SI{-0.074}{mm}, showing that global under-prediction is strongly reduced in the new pipeline.
+  \item \notetext{Uncertainty readout}: clean-set 1\(\sigma\)/2\(\sigma\) coverage is 0.774/0.981 for the five-seed mean, so the model is conservative rather than under-covering.
+  \item \warntext{Remaining risk}: Nozzle3 still shows a geometry-dependent failure mode; trajectory-level review remains necessary.
+\end{enumerate}
+
+\begin{block}{Thesis convention}
+Do not compare the May retrained model directly against the April model as a
+percentage improvement; they use different clean data scale and a different
+feature-scaling protocol.
+\end{block}
+\end{frame}
+
+\begin{frame}{File Index}
+\small
+\begin{tabular}{L{0.24\linewidth}L{0.68\linewidth}}
+\toprule
+Content & File \\
+\midrule
+Slides source & \pathtext{Thesis/latex/neural_network_fit_results_slides_en.tex} \\
+Compiled PDF & \pathtext{Thesis/pdf/neural_network_fit_results_slides_en.pdf} \\
+Latest figures & \pathtext{Thesis/images/neural_network_fit_results/latest_*.png} \\
+5-seed aggregate & \pathtext{Thesis/generated/baseline_comparison_20260509/new_mlp_5seed_aggregate.csv} \\
+Representative seed eval & \pathtext{MLP/eval/rmse_eval_clean_20260509_215303_newdp_seed99_points/} \\
+Asset manifest & \pathtext{Thesis/images/neural_network_fit_results/latest_assets_manifest.csv} \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\end{document}

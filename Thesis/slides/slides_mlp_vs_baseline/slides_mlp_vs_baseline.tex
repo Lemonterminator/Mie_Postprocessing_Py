@@ -1,0 +1,164 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{xurl}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\src}[1]{\vfill{\tiny\textcolor{gray!75!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\title[MLP vs Baselines]{MLP vs. Traditional Baselines for Spray Penetration}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Scope of This Overview}
+\small
+\begin{block}{Role}
+This short deck is the bridge between method families. The detailed evidence is
+split into three thesis decks: baseline comparison, engineered-feature scaling,
+and probabilistic calibration.
+\end{block}
+
+\begin{block}{Current headline}
+On the common external clean diagnostic set
+(\num{795561} points, \num{33845} trajectories), the \(\Delta P^{0.5}\)
+Stage-3 MLP five-seed mean beats calibrated Hiroyasu--Arai, Naber--Siebers delay,
+and sparse heteroscedastic GP on RMSE, MAE, and P95 absolute error.
+\end{block}
+\end{frame}
+
+\begin{frame}{Summary of Recent Experiments}
+\textbf{Recent Progress \& Evaluations:}
+\begin{itemize}
+    \item \textbf{Traditional Baseline Comparison:} Benchmarked MLP against empirical formula curve fitting (Naber-Siebers, Hiroyasu-Arai).
+    \item \textbf{Stability Testing:} Conducted 5-seed Stage-3 evaluation to separate a real effect from seed luck.
+    \item \textbf{Machine Learning Baseline:} Implemented sparse heteroscedastic Gaussian Process regression as a non-parametric uncertainty baseline.
+    \item \textbf{Feature Engineering Upgrade:} Replaced sparse raw pressure/diameter axes with \(A=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}\).
+    \item \textbf{OOD Testing:} Added leave-one-nozzle-out evaluation to test unseen nozzle-family generalization.
+    \item \textbf{Probabilistic Calibration:} Evaluated reliability, ECE, CRPS, PIT, and Gaussian coverage.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Metric Contract}
+\small
+\begin{tabular}{L{0.24\linewidth}L{0.66\linewidth}}
+\toprule
+Metric & Meaning \\
+\midrule
+RMSE & Penalizes large point-prediction errors; primary accuracy metric. \\
+MAE & Typical absolute millimetre error; less tail-sensitive than RMSE. \\
+P95 abs. err. & 95th percentile of \(|\hat y-y|\); reports tail risk. \\
+Bias & Mean signed error; detects systematic over-/under-prediction. \\
+1\(\sigma\), 2\(\sigma\) coverage & Fraction with \(|y-\mu|\leq k\sigma\); calibrated Gaussian targets are 0.683 and 0.954. \\
+ECE & Mean reliability-diagram gap over lower-tail probabilities; lower is better. \\
+CRPS & Proper probabilistic score in mm; lower means better calibration--sharpness trade-off. \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{Traditional Baseline I: Naber--Siebers Correlation}
+\textbf{Formulation:}
+The Naber--Siebers model correlates spray penetration $S(t)$ with physical parameters:
+\[
+S(t) = K \cdot \underbrace{\left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d_n}}_{\text{Scaling Factor } A} \cdot \sqrt{\max(t - t_d, 0)}
+\]
+\vspace{0.2em}
+\textbf{Fitted Parameters:}
+\begin{itemize}
+    \item $K$: Global scaling constant.
+    \item $t_d$: Fitted temporal delay (accounting for hydraulic lag).
+\end{itemize}
+\vspace{0.2em}
+\textbf{Image Processing Data Utilized:}
+\begin{itemize}
+    \item \textbf{CDF Penetration Series:} Cleaned, delay-aligned penetration trajectories from top-view Mie scattering.
+    \item \textbf{Cone Angle $\theta$ (Optional Variant):} Incorporates spreading factor $\frac{1}{\sqrt{\max(\tan(\theta/2), 10^{-9})}}$ extracted directly from video segmentation.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Traditional Baseline II: Hiroyasu--Arai (1990) \& Zhou (2019)}
+\textbf{Formulation (Multi-stage):}
+\begin{itemize}
+    \item \textbf{Early Stage ($t < t_b$):} $S = k_v \sqrt{\frac{2 \Delta P}{\rho_l}} t$
+    \item \textbf{Late Stage ($t \geq t_b$):} $S = k_p \left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d_n t}$
+    \item \textbf{Breakup Time:} $t_b = k_{bt} \frac{\rho_l d_n}{\sqrt{\rho_a \Delta P}}$
+    \item \textbf{Zhou Extension (Post-injection, $t > 2t_i$):} 
+    \[ S = \sqrt{2} k_p \left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d_n} t_i^{0.25} (t - t_i)^{0.25} \]
+\end{itemize}
+
+\vspace{0.2em}
+\textbf{Fitted Parameters:}
+\begin{itemize}
+    \item $k_v, k_p, k_{bt}$ calibrated on the dataset (or literature defaults).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Machine-Learning Baseline: Sparse Heteroscedastic GP}
+\small
+\begin{block}{Model role}
+The GP is a strong non-parametric baseline for smooth functions and uncertainty.
+It tests whether the MLP only wins because no ML baseline was attempted.
+\end{block}
+
+\[
+f(x)\sim\mathcal{GP}(m(x),k_\theta(x,x')),
+\qquad
+\hat S=S/A_{\mathrm{scale}}.
+\]
+
+\begin{itemize}
+  \item Sparse variational GP avoids exact GP \(O(n^3)\) scaling.
+  \item Mean GP predicts penetration; a residual/log-variance stage supplies heteroscedastic \(\sigma(x,t)\).
+  \item In the clean benchmark, GP is closer to nominal coverage, but MLP is more accurate.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{External Clean Headline Numbers}
+\scriptsize
+\begin{center}
+{\setlength{\tabcolsep}{3pt}
+\begin{tabular}{L{0.38\linewidth}R{0.10\linewidth}R{0.10\linewidth}R{0.10\linewidth}R{0.11\linewidth}R{0.11\linewidth}}
+\toprule
+Model & RMSE & MAE & P95 & 1\(\sigma\) & 2\(\sigma\) \\
+\midrule
+Hiroyasu--Arai calibrated & 9.974 & 7.686 & 20.493 & 0.536 & 0.886 \\
+Naber--Siebers delay & 8.840 & 6.780 & 17.922 & 0.620 & 0.893 \\
+Sparse heteroscedastic GP, 5-seed mean & 6.898 & 5.206 & 14.365 & 0.670 & 0.950 \\
+\good{Stage-3 MLP \(\Delta P^{0.5}\), 5-seed mean} & \good{6.211} & \good{4.587} & \good{13.029} & 0.774 & 0.981 \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\vspace{0.35em}
+\footnotesize
+Relative RMSE reductions for MLP: 37.7\% vs HA, 29.7\% vs NS, and 10.0\% vs GP.
+The MLP is conservative on clean-set coverage; GP is closer to nominal coverage.
+
+\src{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv}
+\end{frame}
+
+\begin{frame}{MLP vs. Empirical Correlations}
+\textbf{Why Compare against these Baselines?}
+\begin{itemize}
+    \item \textbf{Rigidity of Traditional Models:} Empirical formulas lock the penetration curve into $\sqrt{t}$ or $t^{0.25}$ dependencies, ignoring specific internal nozzle geometry or complex post-injection pressure wave dynamics.
+    \item \textbf{Advantage of MLP:} With the \textbf{upgraded engineered features} (e.g., $A=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}$), the MLP is anchored to physical dimensions but retains the capacity to learn non-linear residuals.
+    \item \textbf{Data Utilization:} Naber-Siebers optional variant relies on the explicit video-measured cone angle $\theta$. The MLP aims to predict penetration mapping directly from controllable condition parameters, without needing "oracle" visual features during inference.
+\end{itemize}
+\end{frame}
+
+\end{document}

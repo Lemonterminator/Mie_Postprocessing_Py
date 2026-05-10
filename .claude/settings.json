@@ -32,7 +32,15 @@
       "Bash(Write-Host \"dir created\")",
       "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant ha_hiroyasu --max-trajectories 20 --no-plots --tag smoke_test)",
       "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant ha_calibrated --no-plots --tag cal_test)",
-      "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant zhou_calibrated --no-plots --tag zhou_cal)"
+      "Bash(.venv/Scripts/python.exe MLP/baseline/Hiroyasu_Arai/run_baseline.py --variant zhou_calibrated --no-plots --tag zhou_cal)",
+      "Bash(git -C \"c:/Users/Jiang/Documents/Mie_Postprocessing_Py\" diff --stat HEAD -- \"MLP/MLP_training/engineered_feature_common.py\")",
+      "Bash(python MLP/MLP_training/compare_delta_p_exponent_collapse.py)",
+      "Bash(python -c \"import torch; print\\('cuda:', torch.cuda.is_available\\(\\), 'name:', torch.cuda.get_device_name\\(0\\) if torch.cuda.is_available\\(\\) else 'n/a'\\)\")",
+      "Bash(python MLP/MLP_training/train_stage1_mse.py --seed 2024 --variant a_only)",
+      "Bash(tee /tmp/stage1_dp05_run.log)",
+      "Bash(python MLP/MLP_training/run_full_pipeline.py --mode C)",
+      "Bash(python MLP/eval/eval_new_winners_vs_baselines.py)",
+      "Bash(python MLP/curve_fit/time_windowed_exponent_regression.py)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py",

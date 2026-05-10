@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OpenPIV - open source particle image velocimetry</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Alex Liberzon">
+
+  <!-- Bootstrap 5.3 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+  
+  <!-- Custom CSS -->
+  <link href="/css/style.css" rel="stylesheet">
+
+  <!-- Favicons -->
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/img/apple-touch-icon-144-precomposed.png">
+  <link rel="apple-touch-icon-precomposed" sizes="114x114" href="/img/apple-touch-icon-114-precomposed.png">
+  <link rel="apple-touch-icon-precomposed" sizes="72x72" href="/img/apple-touch-icon-72-precomposed.png">
+  <link rel="apple-touch-icon-precomposed" href="/img/apple-touch-icon-57-precomposed.png">
+  <link rel="shortcut icon" href="img/favicon.png">
+  
+  <!-- Progressive image loading -->
+  <style>
+    img[loading="lazy"] {
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    img[loading="lazy"].loaded {
+      opacity: 1;
+    }
+    
+    /* Placeholder for images while loading */
+    img[loading="lazy"]:not(.loaded) {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="OpenPIV - Open-source Particle Image Velocimetry software for experimental fluid dynamics. Free PIV analysis tools in Python and Matlab since 1999.">
+  <meta name="keywords" content="PIV, Particle Image Velocimetry, OpenPIV, fluid dynamics, flow visualization, open source, Python, Matlab, experimental fluid mechanics">
+  <meta name="author" content="OpenPIV Community">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://www.openpiv.net/">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.openpiv.net/">
+  <meta property="og:title" content="OpenPIV - Open Source Particle Image Velocimetry - OpenPIV">
+  <meta property="og:description" content="Open-source Particle Image Velocimetry software for experimental fluid dynamics">
+  <meta property="og:image" content="https://www.openpiv.net/images/openpiv_arrow.png">
+  
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://www.openpiv.net/">
+  <meta property="twitter:title" content="OpenPIV - Open Source Particle Image Velocimetry - OpenPIV">
+  <meta property="twitter:description" content="Open-source Particle Image Velocimetry software for experimental fluid dynamics">
+  <meta property="twitter:image" content="https://www.openpiv.net/images/openpiv_arrow.png">
+  
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenPIV",
+    "applicationCategory": "ScientificApplication",
+    "operatingSystem": "Windows, macOS, Linux",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Open-source Particle Image Velocimetry software for experimental fluid dynamics",
+    "url": "https://www.openpiv.net",
+    "author": {
+      "@type": "Organization",
+      "name": "OpenPIV Community",
+      "url": "https://www.openpiv.net/aboutus.html"
+    },
+    "softwareVersion": "3.0",
+    "programmingLanguage": ["Python", "Matlab"],
+    "codeRepository": "https://github.com/OpenPIV",
+    "license": "https://www.openpiv.net/license.html"
+  }
+  </script>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#667eea">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="OpenPIV">
+  
+  <!-- Google Analytics 4 (Update with your GA4 ID) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX', {
+      'anonymize_ip': true,
+      'cookie_flags': 'SameSite=Lax;Secure'
+    });
+  </script>
+</head>
+
+<body>
+  <!-- Skip to main content for accessibility -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/index.html">
+        <i class="bi bi-arrow-right-circle"></i> OpenPIV
+      </a>
+      
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/downloads.html">
+              <i class="bi bi-download"></i> Software
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/gettingstarted.html">
+              <i class="bi bi-play-circle"></i> Get Started
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/quickstart.html">
+              <i class="bi bi-rocket"></i> Quick Start
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/snapshots.html">
+              <i class="bi bi-images"></i> Gallery
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/faq.html">
+              <i class="bi bi-question-circle"></i> FAQ
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/blog.html">
+              <i class="bi bi-newspaper"></i> Blog
+            </a>
+          </li>
+        </ul>
+        
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/aboutus.html">
+              <i class="bi bi-people"></i> About
+            </a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i> How to
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+              <li>
+                <a class="dropdown-item" href="/howtocite.html">
+                  <i class="bi bi-quote"></i> Cite OpenPIV
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/howtoupdate.html">
+                  <i class="bi bi-pencil"></i> Update Website
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/license.html">
+                  <i class="bi bi-file-text"></i> License Info
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item" href="/developers.html">
+                  <i class="bi bi-code-slash"></i> Join Developers
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="https://github.com/OpenPIV" target="_blank">
+              <i class="bi bi-github"></i> GitHub
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main id="main-content" class="content-wrapper" role="main">
+    <div class="hero-banner">
+  <div class="container py-5">
+    <div class="row align-items-center">
+      <div class="col-lg-8">
+        <h1 class="display-4 fw-bold mb-3">OpenPIV</h1>
+        <p class="lead mb-4">
+          <strong>OpenPIV</strong> is the community-driven initiative to develop free and open-source software for Particle Image Velocimetry (PIV) image analysis and post-processing.
+        </p>
+        <p class="mb-4">
+          OpenPIV is the successor of the popular URAPIV software, but it is faster, more user-friendly, and much more flexible.
+        </p>
+        <div class="d-flex gap-3 flex-wrap">
+          <a href="downloads.html" class="btn btn-primary btn-lg">
+            <i class="bi bi-download"></i> Download Software
+          </a>
+          <a href="gettingstarted.html" class="btn btn-outline-primary btn-lg">
+            <i class="bi bi-play-circle"></i> Get Started
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-4 text-center mt-4 mt-lg-0">
+        <img src="images/openpiv_arrow.png" loading="lazy" class="img-fluid" alt="OpenPIV Logo" style="max-width: 300px;" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container my-5">
+  
+  <!-- Key Info -->
+  <div class="alert alert-info text-center" role="alert">
+    <i class="bi bi-info-circle"></i>
+    OpenPIV exists since <strong>1999</strong> in several languages and multiple versions. 
+    From <strong>2020</strong>, the main effort is devoted to the <strong>Python version of OpenPIV</strong>.
+  </div>
+
+  <hr class="my-5" />
+
+  <!-- Available Platforms -->
+  <h2 class="text-center mb-4">Available Platforms</h2>
+
+  <!-- Python Section -->
+  <div class="platform-section mb-4">
+    <h3><i class="bi bi-python text-primary"></i> Python</h3>
+    <div class="ms-4">
+      <ol>
+        <li>The main repository is <a href="https://github.com/OpenPIV/openpiv-python" target="_blank">openpiv-python</a>.</li>
+        <li>It can be used through a Python shell, as a script, as a Jupyter notebook, or through a 
+        <a href="https://github.com/OpenPIV/openpiv_tk_gui" target="_blank">GUI</a>.</li>
+        <li>There are also additional extensions: cloud infrastructure support, cluster computing, 
+        <a href="https://github.com/OpenPIV/openpiv-python-gpu" target="_blank">GPU accelerated version</a>, and more.</li>
+      </ol>
+      <p><a href="downloads.html" class="btn btn-primary btn-sm"><i class="bi bi-download"></i> View All Software Packages</a></p>
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- Matlab Section -->
+  <div class="platform-section mb-4">
+    <h4><i class="bi bi-calculator text-warning"></i> Matlab</h4>
+    <div class="alert alert-warning ms-4" role="alert">
+      <i class="bi bi-exclamation-triangle"></i>
+      <strong>Note:</strong> Matlab version of OpenPIV will not be developed after January 1st, 2021. We plan to translate the code to Python.
+    </div>
+    <div class="ms-4">
+      <p>This includes a large set of toolboxes:</p>
+      <ol>
+        <li>PIV processing in Matlab with a simple GUI (openpiv-matlab)</li>
+        <li>Spatial and Temporal PIV data analysis toolbox</li>
+        <li>Proper Orthogonal Decomposition (POD) toolbox</li>
+        <li>Pressure from PIV toolbox</li>
+        <li>getWake toolbox for post-processing time-resolved bluff body wakes</li>
+      </ol>
+      <p class="mb-3">See our recent webinar on the Matlab version:</p>
+      <a href="https://www.youtube.com/watch?v=ci98mLhYEeg" target="_blank" class="d-inline-block">
+        <img src="https://img.youtube.com/vi/ci98mLhYEeg/1.jpg" loading="lazy" alt="Matlab Webinar" class="img-fluid rounded shadow-sm" style="max-width: 400px;" />
+      </a>
+    </div>
+  </div>
+
+</div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer mt-5 py-4 bg-dark text-white" role="contentinfo">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <h5><i class="bi bi-arrow-right-circle"></i> OpenPIV</h5>
+          <p>Open-source Particle Image Velocimetry software for experimental fluid dynamics since 1999.</p>
+        </div>
+        <div class="col-md-4 mb-3">
+          <h5>Quick Links</h5>
+          <ul class="list-unstyled">
+            <li><a href="/license.html" class="text-white-50"><i class="bi bi-file-text"></i> License</a></li>
+            <li><a href="/howtocite.html" class="text-white-50"><i class="bi bi-quote"></i> How to Cite</a></li>
+            <li><a href="/howtoupdate.html" class="text-white-50"><i class="bi bi-pencil"></i> Update Website</a></li>
+            <li><a href="/developers.html" class="text-white-50"><i class="bi bi-code-slash"></i> Developers</a></li>
+          </ul>
+        </div>
+        <div class="col-md-4 mb-3">
+          <h5>Community</h5>
+          <ul class="list-unstyled">
+            <li><a href="https://groups.google.com/forum/#!forum/openpiv-users" class="text-white-50" target="_blank"><i class="bi bi-people"></i> Forum</a></li>
+            <li><a href="mailto:openpiv2008@gmail.com" class="text-white-50"><i class="bi bi-envelope"></i> Email Us</a></li>
+            <li><a href="https://github.com/OpenPIV" class="text-white-50" target="_blank"><i class="bi bi-github"></i> GitHub</a></li>
+          </ul>
+        </div>
+      </div>
+      <hr class="bg-white">
+      <div class="text-center">
+        <small>&copy; 1999-<span id="current-year"></span> OpenPIV Community. Licensed under open-source licenses.</small>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bootstrap 5.3 Bundle (includes Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  
+  <!-- Dynamic copyright year -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var yearElement = document.getElementById('current-year');
+      if (yearElement) {
+        yearElement.textContent = new Date().getFullYear();
+      }
+    });
+  </script>
+  
+  <!-- Custom scripts -->
+  <script type="text/javascript" src="/js/scripts.js"></script>
+  
+  <!-- Phase 3B Scripts -->
+  <script src="/js/search.js"></script>
+  <script src="/js/clipboard.js"></script>
+  
+  <!-- Lazy Loading Implementation -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Native lazy loading support check
+      if ('loading' in HTMLImageElement.prototype) {
+        const images = document.querySelectorAll('img[loading="lazy"]');
+        images.forEach(img => {
+          img.addEventListener('load', function() {
+            this.classList.add('loaded');
+          });
+        });
+      } else {
+        // Fallback for older browsers
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js';
+        document.body.appendChild(script);
+      }
+    });
+  </script>
+  
+  <!-- Performance Monitoring -->
+  <script>
+    // Log Core Web Vitals
+    if (typeof PerformanceObserver !== 'undefined') {
+      function sendToAnalytics(metric) {
+        if (typeof gtag !== 'undefined') {
+          gtag('event', metric.name, {
+            value: Math.round(metric.name === 'CLS' ? metric.value * 1000 : metric.value),
+            event_category: 'Web Vitals',
+            event_label: metric.id,
+            non_interaction: true,
+          });
+        }
+        console.log(metric.name, metric.value);
+      }
+      
+      // Largest Contentful Paint (LCP)
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const lastEntry = entries[entries.length - 1];
+        sendToAnalytics({
+          name: 'LCP',
+          value: lastEntry.renderTime || lastEntry.loadTime,
+          id: 'v1-' + Date.now()
+        });
+      }).observe({type: 'largest-contentful-paint', buffered: true});
+      
+      // First Input Delay (FID)
+      new PerformanceObserver((list) => {
+        list.getEntries().forEach((entry) => {
+          sendToAnalytics({
+            name: 'FID',
+            value: entry.processingStart - entry.startTime,
+            id: 'v1-' + Date.now()
+          });
+        });
+      }).observe({type: 'first-input', buffered: true});
+      
+      // Cumulative Layout Shift (CLS)
+      let clsValue = 0;
+      new PerformanceObserver((list) => {
+        list.getEntries().forEach((entry) => {
+          if (!entry.hadRecentInput) {
+            clsValue += entry.value;
+          }
+        });
+      }).observe({type: 'layout-shift', buffered: true});
+      
+      // Report CLS on page unload
+      window.addEventListener('beforeunload', () => {
+        sendToAnalytics({
+          name: 'CLS',
+          value: clsValue,
+          id: 'v1-' + Date.now()
+        });
+      });
+    }
+  </script>
+  
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js')
+          .then(function(registration) {
+            console.log('ServiceWorker registered: ', registration.scope);
+          })
+          .catch(function(err) {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+      });
+    }
+  </script>
+</body>
+</html>

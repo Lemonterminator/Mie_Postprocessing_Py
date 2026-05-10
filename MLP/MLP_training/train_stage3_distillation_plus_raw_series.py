@@ -1011,6 +1011,10 @@ def parse_args() -> argparse.Namespace:
                    help="Prefix for the refinement run directory under MLP/runs_mlp.")
     p.add_argument("--ablation-name", default=None,
                    help="Optional label stored in refine_config.json.")
+    p.add_argument("--lono-holdout", type=str, default=None,
+                   help="If set, treat all rows with experiment_name=<value> as the test "
+                        "split (leave-one-nozzle-out OOD protocol). Train+val is carved "
+                        "from the remaining experiments only.")
 
     loss_group = p.add_argument_group("Stage3 loss tuning")
     loss_group.add_argument("--lambda-anchor", type=float, default=None,
@@ -1417,12 +1421,40 @@ def main() -> None:
     ).to_numpy(dtype=np.float32)
 
     # ── build refinement datasets ──
-    train_idx, val_idx, test_idx = split_indices(
-        len(cdf_wide_df),
-        seed=refine_config["seed"],
-        val_frac=refine_config["val_frac"],
-        test_frac=refine_config["test_frac"],
-    )
+    if getattr(args, "lono_holdout", None) is not None:
+        # Leave-one-nozzle-out: held-out experiment_name -> entire test split.
+        # Train+val carved from remaining experiments via split_indices.
+        if "experiment_name" not in cdf_wide_df.columns:
+            raise KeyError("cdf_wide_df missing experiment_name column required for LONO split.")
+        is_holdout = cdf_wide_df["experiment_name"].astype(str) == str(args.lono_holdout)
+        n_holdout = int(is_holdout.sum())
+        if n_holdout == 0:
+            raise ValueError(
+                f"--lono-holdout={args.lono_holdout!r} matched 0 rows in cdf_wide_df."
+            )
+        remaining_idx = np.where(~is_holdout.to_numpy())[0]
+        holdout_idx = np.where(is_holdout.to_numpy())[0]
+        # Use split_indices to carve train+val from remaining; ignore its test slice.
+        rng = np.random.default_rng(int(refine_config["seed"]))
+        shuffled = remaining_idx.copy()
+        rng.shuffle(shuffled)
+        n_remaining = len(shuffled)
+        n_val = int(round(n_remaining * float(refine_config["val_frac"])))
+        n_val = min(max(n_val, 1), max(n_remaining - 1, 1))
+        val_idx = shuffled[:n_val]
+        train_idx = shuffled[n_val:]
+        test_idx = holdout_idx
+        print(
+            f"LONO split: holdout='{args.lono_holdout}', "
+            f"train={len(train_idx)} val={len(val_idx)} test={len(test_idx)}"
+        )
+    else:
+        train_idx, val_idx, test_idx = split_indices(
+            len(cdf_wide_df),
+            seed=refine_config["seed"],
+            val_frac=refine_config["val_frac"],
+            test_frac=refine_config["test_frac"],
+        )
 
     ds_kwargs = dict(
         regime_bins_df=cdf_regime_bins_df,

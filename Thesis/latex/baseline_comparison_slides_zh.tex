@@ -1,0 +1,508 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage{iftex}
+\ifXeTeX
+  \usepackage{fontspec}
+  \usepackage{xeCJK}
+  \setmainfont{Times New Roman}
+  \IfFontExistsTF{Microsoft JhengHei}{
+    \setCJKmainfont{Microsoft JhengHei}
+    \setCJKsansfont{Microsoft JhengHei}
+    \setCJKmonofont{Microsoft JhengHei}
+  }{
+    \setCJKmainfont{SimSun}
+    \setCJKsansfont{SimSun}
+    \setCJKmonofont{SimSun}
+  }
+  \IfFontExistsTF{Consolas}{\setmonofont{Consolas}}{}
+\fi
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{xurl}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\graphicspath{{images/baseline_comparison_20260509/}{images/lono_20260509/}}
+\urlstyle{same}
+
+\definecolor{aaltoBlue}{RGB}{0,83,155}
+\definecolor{goodGreen}{RGB}{35,120,75}
+\definecolor{warnRed}{RGB}{170,55,55}
+\definecolor{softGray}{RGB}{245,246,248}
+
+\newcommand{\good}[1]{\textcolor{goodGreen}{#1}}
+\newcommand{\warn}[1]{\textcolor{warnRed}{#1}}
+\newcommand{\blue}[1]{\textcolor{aaltoBlue}{#1}}
+\newcommand{\sourcepath}[1]{{\scriptsize\url{#1}}}
+\newcommand{\sourcenote}[1]{\vfill{\tiny\textcolor{gray!70!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\title[Baseline Comparison]{Baseline 对比与 \texorpdfstring{\(\Delta P^{0.5}\)}{Delta P exponent 0.5} Stage-3 MLP}
+\subtitle{Hiroyasu--Arai、Naber--Siebers、Sparse GP 与五 seed 外部 clean eval}
+\author{Linan Jiang}
+\institute{Aalto University}
+\date{9 May 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  \vspace{-0.8em}
+  \centering
+  \tiny Frozen slide data snapshot:
+  \url{Thesis/generated/baseline_comparison_20260509/}
+\end{frame}
+
+\begin{frame}{这套 slides 的证据链}
+\small
+\begin{tabular}{L{0.24\linewidth}L{0.33\linewidth}L{0.34\linewidth}}
+\toprule
+问题 & 方法 & 读法 \\
+\midrule
+物理公式能否解释数据？ &
+Hiroyasu--Arai 与 Naber--Siebers &
+确定性物理相关式；给出强但刚性的 reference。 \\
+普通 ML baseline 是否已足够？ &
+Sparse heteroscedastic GP &
+非参数、带不确定度；检验 MLP 是否只是吃到小数据优势。 \\
+神经网络是否稳定？ &
+\(\Delta P^{0.5}\) Stage-3，5 seed &
+看 seed-to-seed 波动，而不是单次 run headline。 \\
+是否泛化到未见喷嘴？ &
+Leave-one-nozzle-out &
+整组喷嘴从训练中移除，测试真正的 OOD 插值/外推压力。 \\
+不确定度是否可信？ &
+Coverage、reliability、CRPS、PIT &
+区分“误差小”和“误差条有统计意义”。 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\footnotesize
+本 deck 的重点不是只报一个 RMSE，而是把 accuracy、tail error、calibration、
+seed stability 与 OOD behaviour 放在同一协议框架下解释。
+\end{frame}
+
+\begin{frame}{指标含义：accuracy、tail 与 calibration}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{block}{点预测误差}
+\footnotesize
+\[
+\mathrm{RMSE}=\sqrt{\frac{1}{n}\sum_i(\hat y_i-y_i)^2},
+\quad
+\mathrm{MAE}=\frac{1}{n}\sum_i|\hat y_i-y_i|.
+\]
+RMSE 对大误差更敏感；MAE 更接近日常意义上的平均毫米误差。
+\[
+\mathrm{Bias}=\frac{1}{n}\sum_i(\hat y_i-y_i)
+\]
+用于判断系统性高估或低估。
+\end{block}
+\end{column}
+
+\begin{column}{0.48\linewidth}
+\begin{block}{尾部误差与不确定度}
+\footnotesize
+\[
+P95=\mathrm{quantile}_{0.95}(|\hat y-y|)
+\]
+表示 95\% 点的误差不超过该值，直接反映 worst-case tail。
+\[
+\mathrm{Coverage}_{k\sigma}
+=\Pr(|y-\mu|\leq k\sigma).
+\]
+若 Gaussian 预测校准良好，1\(\sigma\)/2\(\sigma\) 应接近
+0.683/0.954。高于 nominal 是 over-coverage，通常更保守但不够 sharp。
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{协议含义：in-pipeline vs external clean}
+\small
+\begin{block}{In-pipeline 5-seed bootstrap}
+\footnotesize
+每个 seed 完整重跑 Stage-1/2/3 pipeline，并在该 seed 的 post-evaluation
+test subset 上计算 winner metrics。Bootstrap 的对象是 seed-level metric：
+对五个 seed 有放回重采样，得到均值的经验分布与 95\% interval。
+它回答的是：\textbf{训练随机性会不会改变结论？}
+\end{block}
+
+\begin{block}{External clean protocol}
+\footnotesize
+训练好的模型再统一评估到同一个 full-clean diagnostic set：
+\num{795561} points，\num{33845} trajectories。它回答的是：
+\textbf{所有方法在同一大规模外部 clean 集合上谁更准？}
+\end{block}
+
+\begin{block}{严谨表述}
+\footnotesize
+这两个协议不能直接混合成一个数字。本文把 in-pipeline 结果用于 seed stability，
+把 external clean 结果用于 headline model comparison。
+\end{block}
+\end{frame}
+
+\begin{frame}{一句话结论}
+\small
+\begin{block}{同一外部 clean eval 协议}
+\(\Delta P^{0.5}\) 特征工程后的 Stage-3 MLP 五 seed 均值，在
+\num{795561} 个点、\num{33845} 条轨迹上达到
+\good{RMSE \SI{6.211}{mm} \(\pm\) \SI{0.283}{mm}}。
+\end{block}
+
+\vspace{0.4em}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{block}{相对物理 baseline}
+\begin{itemize}
+  \item vs Hiroyasu--Arai：RMSE \good{-37.7\%}，MAE \good{-40.3\%}。
+  \item vs Naber--Siebers：RMSE \good{-29.7\%}，MAE \good{-32.3\%}。
+  \item vs sparse GP：RMSE \good{-10.0\%}，MAE \good{-11.9\%}。
+\end{itemize}
+\end{block}
+\end{column}
+
+\begin{column}{0.48\linewidth}
+\begin{block}{相对旧 MLP}
+\begin{itemize}
+  \item 旧 \(\Delta P^{0.25}\) seed 42：RMSE \SI{6.696}{mm}。
+  \item 新 \(\Delta P^{0.5}\) 五 seed 均值：RMSE \SI{6.211}{mm}。
+  \item Sparse GP mean：RMSE \SI{6.898}{mm}，MAE \SI{5.206}{mm}。
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+
+\sourcenote{snapshot/analysis_summary.md}
+\end{frame}
+
+\begin{frame}{Headline 对比表}
+\scriptsize
+{\setlength{\tabcolsep}{3pt}
+\begin{tabular}{L{0.34\linewidth}R{0.09\linewidth}R{0.09\linewidth}R{0.09\linewidth}R{0.09\linewidth}R{0.09\linewidth}R{0.09\linewidth}}
+\toprule
+Model & RMSE & MAE & Bias & P95 & 1\(\sigma\) cov. & 2\(\sigma\) cov. \\
+\midrule
+Hiroyasu--Arai calibrated & 9.974 & 7.686 & +0.625 & 20.493 & 0.536 & 0.886 \\
+Naber--Siebers delay & 8.840 & 6.780 & -0.344 & 17.922 & 0.620 & 0.893 \\
+Stage-3 MLP \(\Delta P^{0.25}\), seed 42 & 6.696 & 4.875 & -1.149 & 14.118 & 0.745 & 0.979 \\
+\good{Stage-3 MLP \(\Delta P^{0.5}\), 5-seed mean} & \good{6.211} & \good{4.587} & \good{-0.838} & \good{13.029} & \good{0.774} & \good{0.981} \\
+Sparse heteroscedastic GP, 5-seed mean & 6.898 & 5.206 & -1.184 & 14.365 & 0.670 & 0.950 \\
+\bottomrule
+\end{tabular}
+}
+
+\vspace{0.7em}
+\small
+\begin{block}{写进 thesis 时的定位}
+旧 MLP 结果不再作为神经网络 headline，只作为 \(\Delta P\) 指数从
+0.25 改到 0.5 之前的 reference row。GP 是强 ML baseline：校准接近 nominal，
+但精度不及新 MLP 五 seed 均值。
+\end{block}
+
+\sourcenote{snapshot/headline_comparison.csv}
+\end{frame}
+
+\begin{frame}{物理 baseline I：Hiroyasu--Arai / Zhou}
+\small
+\begin{block}{理论角色}
+\footnotesize
+Hiroyasu--Arai 把喷雾穿深写成分阶段经验律：早期受喷出速度控制，破碎后转入
+entrainment-dominated 的平方根时间标度。Zhou 型后喷射扩展进一步给出 EOI 后
+\((t-t_i)^{1/4}\) 分支。
+\end{block}
+
+\vspace{-0.2em}
+\[
+S(t)=
+\begin{cases}
+k_v\sqrt{2\Delta P/\rho_l}\,t, & t<t_b,\\[0.25em]
+k_p(\Delta P/\rho_a)^{1/4}d_n^{1/2}t^{1/2}, & t\ge t_b.
+\end{cases}
+\]
+\[
+t_b=k_{bt}\frac{\rho_l d_n}{\sqrt{\rho_a\Delta P}},
+\qquad
+S_{\mathrm{post}}\propto
+(\Delta P/\rho_a)^{1/4}d_n^{1/2}t_i^{1/4}(t-t_i)^{1/4}.
+\]
+
+\footnotesize
+本研究使用 calibrated 版本作为强物理 baseline；其 uncertainty 来自残差统计，
+不是输入相关的 learned \(\sigma(x,t)\)。
+\end{frame}
+
+\begin{frame}{物理 baseline II：Naber--Siebers}
+\small
+\begin{block}{理论角色}
+\footnotesize
+Naber--Siebers 是 mixing-limited penetration 相关式。它把主要工况依赖折叠进
+物理尺度 \(A\)，再乘以 \(\sqrt{t}\) 型时间增长。
+\end{block}
+
+\[
+S(t)=K\,
+\underbrace{\left(\frac{\Delta P}{\rho_a}\right)^{1/4}d_n^{1/2}}_{A_{\mathrm{NS}}}
+\sqrt{\max(t-t_d,0)}.
+\]
+
+\begin{itemize}
+  \item \(K\)：global scale；\(t_d\)：液压/观测延迟。
+  \item optional cone-angle variant 可使用 video-measured \(\theta\)，但 headline
+  对比使用无需 oracle visual feature 的 delay variant。
+  \item 方法意义：给 MLP 一个可解释、低自由度、物理刚性的 baseline。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{ML baseline：Sparse heteroscedastic GP}
+\small
+\begin{block}{为什么需要 GP}
+\footnotesize
+Gaussian Process 是小数据、平滑函数和 uncertainty 的强 baseline。若 GP 同时赢
+accuracy 与 calibration，MLP 的必要性会被削弱；若 MLP 赢 accuracy 而 GP 赢
+calibration，就形成清楚的 trade-off。
+\end{block}
+
+\[
+f(x)\sim\mathcal{GP}(m(x),k_\theta(x,x')),
+\qquad
+\hat S = S/A_{\mathrm{scale}}.
+\]
+
+\begin{itemize}
+  \item 使用 sparse variational GP 避免 exact GP 的 \(O(n^3)\) 成本。
+  \item 输入与 MLP 相同：time、tilt、plume count、injection duration、control backpressure。
+  \item Heteroscedastic two-stage 版本：mean GP 预测 \(\mu\)，log-variance GP
+  从 residual scale 学 \(\sigma(x,t)\)。
+  \item 读法：GP 接近 nominal coverage，但 external clean accuracy 不及
+  \(\Delta P^{0.5}\) MLP。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{GP 能打赢 MLP 吗？}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{block}{Accuracy：没有}
+{\setlength{\tabcolsep}{3pt}
+\begin{tabular}{L{0.48\linewidth}R{0.20\linewidth}R{0.20\linewidth}}
+\toprule
+Metric & MLP & GP \\
+\midrule
+RMSE & \good{6.211} & 6.898 \\
+MAE & \good{4.587} & 5.206 \\
+P95 & \good{13.029} & 14.365 \\
+\bottomrule
+\end{tabular}
+}
+
+\vspace{0.4em}
+\footnotesize
+相对新 MLP，GP 的 RMSE/MAE/P95 分别高 11.1\%/13.5\%/10.2\%。
+\end{block}
+\end{column}
+
+\begin{column}{0.48\linewidth}
+\begin{block}{Calibration：GP 更接近 nominal}
+{\setlength{\tabcolsep}{3pt}
+\begin{tabular}{L{0.48\linewidth}R{0.20\linewidth}R{0.20\linewidth}}
+\toprule
+Metric & MLP & GP \\
+\midrule
+1\(\sigma\) cov. & 0.774 & \good{0.670} \\
+2\(\sigma\) cov. & 0.981 & \good{0.950} \\
+\bottomrule
+\end{tabular}
+}
+
+\vspace{0.4em}
+\footnotesize
+Gaussian nominal 为 0.683/0.954。GP 的不确定性更贴近 nominal，MLP 在 clean
+set 上偏保守。
+\end{block}
+\end{column}
+\end{columns}
+
+\vspace{0.2em}
+\begin{block}{结论}
+GP 是强 baseline，尤其证明 uncertainty comparison 是公平的；但在同一 external
+clean 协议下，它没有打赢 \(\Delta P^{0.5}\) Stage-3 MLP。
+\end{block}
+
+\sourcenote{snapshot/headline_comparison.csv}
+\end{frame}
+
+\begin{frame}{OOD / LONO：方法含义}
+\small
+\begin{block}{Leave-one-nozzle-out protocol}
+\footnotesize
+LONO 将某个 nozzle family / experiment label 的全部样本从训练集中移除，
+只在该 held-out group 上测试。它比普通 group-aware split 更严格，因为测试喷嘴
+在训练阶段完全不可见。
+\end{block}
+
+\begin{block}{它回答的问题}
+\footnotesize
+External clean eval 主要验证同分布条件下的性能；LONO 验证模型能否在未见喷嘴族上
+保持物理 scaling 与 residual learning 的有效性。这里的统计对象是 fold-to-fold
+variation，而不是 seed-to-seed variation。
+\end{block}
+
+\begin{block}{当前 5-fold 结果}
+\footnotesize
+MLP \(\Delta P^{0.5}\)：RMSE \(7.435\pm0.692\) mm；HA：
+\(10.713\pm1.542\) mm；NS：\(9.784\pm2.102\) mm。相对 HA/NS 的 RMSE
+下降约 30.6\% / 24.0\%。
+\end{block}
+\end{frame}
+
+\begin{frame}{LONO 结果：每个 held-out nozzle 的 RMSE}
+\centering
+\includegraphics[width=0.92\linewidth,height=0.72\textheight,keepaspectratio]{lono_rmse_by_fold.png}
+
+\vspace{0.15em}
+\footnotesize
+五个 held-out fold 中，MLP 均低于 HA 与 NS；最难 fold 为 BC20241017\_HZ\_Nozzle2，
+MLP RMSE 为 \SI{8.517}{mm}，仍低于 HA \SI{11.754}{mm} 与 NS \SI{11.236}{mm}。
+
+\sourcenote{MLP/runs\_mlp/lono\_pipeline\_20260509\_215613/per\_fold.csv}
+\end{frame}
+
+\begin{frame}{LONO 结果：coverage 是否随 OOD 崩掉？}
+\centering
+\includegraphics[width=0.92\linewidth,height=0.72\textheight,keepaspectratio]{lono_coverage_by_fold.png}
+
+\vspace{0.15em}
+\footnotesize
+MLP 的 1\(\sigma\) coverage 均值为 0.701，接近 Gaussian nominal 0.683；
+Nozzle2 fold 明显偏 under-coverage，说明该喷嘴族仍是 OOD 风险点，而不是被平均值掩盖。
+
+\sourcenote{MLP/runs\_mlp/lono\_pipeline\_20260509\_215613/aggregate.csv}
+\end{frame}
+
+\begin{frame}{误差指标：物理 baseline、GP 与 MLP}
+\centering
+\includegraphics[width=0.90\linewidth,height=0.70\textheight,keepaspectratio]{metric_bars_rmse_mae_p95.png}
+
+\vspace{0.2em}
+\footnotesize
+在该 clean 评估协议下，sparse GP 明显优于物理 baseline，但仍未超过
+\(\Delta P^{0.5}\) Stage-3 MLP 的 RMSE、MAE 和尾部 P95 error。
+
+\sourcenote{snapshot/headline_comparison.csv}
+\end{frame}
+
+\begin{frame}{五 seed 外部评估：MLP vs GP}
+\centering
+\includegraphics[width=0.92\linewidth,height=0.72\textheight,keepaspectratio]{per_seed_rmse.png}
+
+\vspace{0.1em}
+\footnotesize
+\(\Delta P^{0.5}\) MLP 五 seed RMSE 均值为 \SI{6.211}{mm}；GP 五 seed
+external mean 为 \SI{6.898}{mm}。GP 的最好 seed 仍高于 MLP 的 5-seed mean。
+
+\sourcenote{snapshot/new_mlp_5seed_aggregate.csv}
+\end{frame}
+
+\begin{frame}{Coverage：GP 更接近 nominal，MLP 更准}
+\centering
+\includegraphics[width=0.90\linewidth,height=0.72\textheight,keepaspectratio]{coverage_comparison.png}
+
+\vspace{0.1em}
+\footnotesize
+新 MLP 的 1\(\sigma\)/2\(\sigma\) coverage 为 0.774/0.981，属于 clean set 上
+over-coverage；GP 为 0.670/0.950，更接近 Gaussian nominal 0.683/0.954。
+因此 GP 赢在 calibration closeness，MLP 赢在 accuracy。
+
+\sourcenote{snapshot/headline_comparison.csv}
+\end{frame}
+
+\begin{frame}{写入 thesis 的推荐表述}
+\small
+\begin{block}{Abstract / introduction 版本}
+\(\Delta P^{0.5}\) feature engineering reduced the Stage-3 MLP RMSE from
+\SI{6.70}{mm} for the previous \(\Delta P^{0.25}\) seed-42 model to
+\SI{6.21}{mm} \(\pm\) \SI{0.28}{mm} over five full-clean external evaluations.
+\end{block}
+
+\begin{block}{Results 版本}
+Under the same \num{795561}-point clean diagnostic protocol, the
+\(\Delta P^{0.5}\) Stage-3 MLP reduced RMSE by 37.7\% relative to the calibrated
+Hiroyasu--Arai correlation, by 29.7\% relative to the Naber--Siebers delay
+model, and by 10.0\% relative to a sparse heteroscedastic GP.
+\end{block}
+
+\sourcenote{snapshot/DATA_SOURCES.md}
+\end{frame}
+
+\begin{frame}{GP 与稳定性 caveat}
+\small
+\begin{block}{GP baseline 版本}
+\footnotesize
+The sparse heteroscedastic GP reached near-nominal uncertainty coverage
+(0.670/0.950 for 1\(\sigma\)/2\(\sigma\)), but its external-clean RMSE, MAE, and
+P95 error were 11.1\%, 13.5\%, and 10.2\% higher than the \(\Delta P^{0.5}\)
+Stage-3 MLP five-seed mean.
+\end{block}
+
+\begin{block}{Limitations 版本}
+\footnotesize
+The five-seed aggregate is a \(\Delta P^{0.5}\) Stage-3 pipeline aggregate, not a
+strict same-ablation seed study: seed 2024 selected \texttt{raw\_reliable\_no\_kd},
+whereas the other four seeds selected \texttt{anchor\_off}.
+\end{block}
+
+\sourcenote{snapshot/DATA_SOURCES.md}
+\end{frame}
+
+\begin{frame}{数据来源与更新入口}
+\scriptsize
+\begin{tabular}{L{0.24\linewidth}L{0.68\linewidth}}
+\toprule
+Item & Path \\
+\midrule
+Frozen snapshot &
+\sourcepath{Thesis/generated/baseline_comparison_20260509/} \\
+Source report &
+\sourcepath{MLP/baseline/comparison_reports/gp_vs_mlp_20260509/} \\
+Headline table &
+\sourcepath{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv} \\
+Five-seed aggregate &
+\sourcepath{Thesis/generated/baseline_comparison_20260509/new_mlp_5seed_aggregate.csv} \\
+Per-seed eval rows &
+\sourcepath{Thesis/generated/baseline_comparison_20260509/per_seed_new_mlp_eval.csv} \\
+GP bootstrap &
+\sourcepath{Thesis/generated/baseline_comparison_20260509/gp_bootstrap_summary.json} \\
+LONO result &
+\sourcepath{MLP/runs_mlp/lono_pipeline_20260509_215613/} \\
+Figure builder &
+\sourcepath{Thesis/generated/baseline_comparison_20260509/make_figures.py} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+\begin{block}{刷新流程}
+\footnotesize
+更新 comparison report 的 CSV \(\rightarrow\) 覆盖本 snapshot 中的 CSV
+\(\rightarrow\) 运行
+\sourcepath{.venv/Scripts/python.exe Thesis/generated/baseline_comparison_20260509/make_figures.py}
+\(\rightarrow\) 重编译本 slides。
+\end{block}
+
+\begin{block}{协议标签}
+\footnotesize
+所有 headline rows 均为 external clean eval：
+\num{795561} points，\num{33845} trajectories。
+\end{block}
+\end{frame}
+
+\end{document}

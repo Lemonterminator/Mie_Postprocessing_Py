@@ -124,6 +124,7 @@ def build_command(
     teacher_run: Path,
     common: dict[str, Any],
     ablation: dict[str, Any],
+    lono_holdout: str | None = None,
 ) -> list[str]:
     ablation_name = str(ablation["name"])
     cmd = [
@@ -146,6 +147,9 @@ def build_command(
         raise ValueError(f"Ablation '{ablation_name}' field 'args' must be an object.")
     for key, value in ablation_args.items():
         append_cli_option(cmd, key, value)
+
+    if lono_holdout is not None:
+        cmd.extend(["--lono-holdout", str(lono_holdout)])
 
     return cmd
 
@@ -262,6 +266,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dry-run", action="store_true", help="Print commands without running them.")
     parser.add_argument("--continue-on-error", action="store_true")
+    parser.add_argument("--lono-holdout", type=str, default=None,
+                        help="If set, hold out experiment_name=<value> as test; "
+                             "use leave-one-nozzle-out split. Forwarded to each "
+                             "Stage-3 training run.")
     return parser.parse_args()
 
 
@@ -322,6 +330,7 @@ def main() -> None:
             teacher_run=teacher_run,
             common=common,
             ablation=ablation,
+            lono_holdout=args.lono_holdout,
         )
         print()
         print(f"[{index}/{len(ablations)}] {name}")

@@ -74,7 +74,7 @@ N_WORKERS = 0  # 0 = use all logical CPUs; 1 = single-process (easy debugging); 
 
 
 
-DIFF_THRESHOLD_LOWER = 1.0 # mm
+DIFF_THRESHOLD_LOWER = 0.5 # mm
 DIFF_THRESHOLD_UPPER = 10.0  # mm
 MIN_TI = 0.0
 MIN_SERIES_POINTS = 10  # discard series with fewer valid points before fitting

@@ -166,6 +166,7 @@ def run_rmse_evaluation(
     *,
     refinement_run: Path | str,
     split: str = "clean",
+    filter_experiment: str | None = None,
     device: torch.device | str | None = None,
     t_min_ms: float = 0.0,
     t_max_ms: float = 5.0,
@@ -182,6 +183,15 @@ def run_rmse_evaluation(
     artifacts = load_run_artifacts(run_path, device=device)
     registry = build_dataset_registry()
     cdf_wide_df = load_source_table("cdf", split=split)
+    if filter_experiment is not None:
+        if "experiment_name" not in cdf_wide_df.columns:
+            raise KeyError("CDF wide table missing experiment_name column required by filter_experiment.")
+        mask = cdf_wide_df["experiment_name"].astype(str) == str(filter_experiment)
+        n_rows = int(mask.sum())
+        if n_rows == 0:
+            raise ValueError(f"filter_experiment={filter_experiment!r} matched 0 CDF rows.")
+        cdf_wide_df = cdf_wide_df.loc[mask].reset_index(drop=True)
+        print(f"Filtered CDF rows to experiment_name={filter_experiment!r}: {n_rows} trajectories")
 
     time_cols = [c for c in cdf_wide_df.columns if c.startswith("time_ms_")]
     time_cols.sort(key=lambda name: int(name.rsplit("_", 1)[1]))
@@ -340,6 +350,7 @@ def run_rmse_evaluation(
     summary = {
         "refinement_run": str(run_path),
         "split": split,
+        "filter_experiment": filter_experiment,
         "t_window_ms": [float(t_min_ms), float(t_max_ms)],
         "rel_err_floor_mm": float(rel_err_floor_mm),
         "n_csv_files": int(cdf_wide_df["file_path"].nunique()) if "file_path" in cdf_wide_df else int(len(cdf_wide_df)),
@@ -376,6 +387,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refinement-run", required=True, type=Path)
     parser.add_argument("--split", choices=("clean", "all"), default="clean")
+    parser.add_argument("--filter-experiment", default=None,
+                        help="If set, evaluate only CDF rows with experiment_name equal to this value.")
     parser.add_argument("--device", default=None)
     parser.add_argument("--t-min-ms", type=float, default=0.0)
     parser.add_argument("--t-max-ms", type=float, default=5.0)
@@ -395,6 +408,7 @@ def main() -> None:
     out_dir, summary = run_rmse_evaluation(
         refinement_run=args.refinement_run,
         split=args.split,
+        filter_experiment=args.filter_experiment,
         device=None if args.device is None or str(args.device).lower() == "auto" else args.device,
         t_min_ms=args.t_min_ms,
         t_max_ms=args.t_max_ms,

@@ -1,0 +1,84 @@
+{
+  "pen_key": "cdf",
+  "out_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics",
+  "n_clean_rows": 20761,
+  "n_series_rows": 500928,
+  "sections": {
+    "error_by_condition": {
+      "n_rows": 20761,
+      "outputs": {
+        "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\error_by_condition\\rmse_by_condition.csv",
+        "boxplot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\error_by_condition\\rmse_by_nozzle.png",
+        "heatmap_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\error_by_condition\\rmse_heatmap_pinj_pch.png"
+      }
+    },
+    "param_distributions": {
+      "n_rows": 20761,
+      "outputs": {
+        "regression_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\param_distributions\\scaling_regression.csv",
+        "scatter_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\param_distributions\\param_vs_conditions.png",
+        "ha_reference_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\param_distributions\\ha_reference_exponents.csv"
+      },
+      "regression": [
+        {
+          "target": "k_quarter",
+          "n": 20761,
+          "exp_delta_p": 0.5107439527858997,
+          "exp_rho_air": -0.25156686944955353,
+          "exp_diameter": 0.42711240519746435,
+          "intercept": 3.2216420565049178,
+          "r2": 0.34529069195576545
+        },
+        {
+          "target": "t0_ms",
+          "n": 20761,
+          "exp_delta_p": -0.14464730344152527,
+          "exp_rho_air": -0.00479173359541319,
+          "exp_diameter": -4.819210170530622,
+          "intercept": -4.879399367649933,
+          "r2": 0.178998598423057
+        },
+        {
+          "target": "s_ms",
+          "n": 20761,
+          "exp_delta_p": 0.06166768259722224,
+          "exp_rho_air": 0.17063344261311109,
+          "exp_diameter": -3.6115691433996036,
+          "intercept": -6.4366099226572295,
+          "r2": 0.13072471733821434
+        }
+      ]
+    },
+    "residual_structure": {
+      "n_rows": 500928,
+      "outputs": {
+        "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\residual_structure\\residual_vs_time.csv",
+        "plot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\residual_structure\\residual_vs_time.png"
+      }
+    },
+    "convergence": {
+      "n_rows": 20761,
+      "outputs": {
+        "status_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\convergence\\convergence_by_status.csv",
+        "plot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\convergence\\convergence_diagnostics.png"
+      }
+    },
+    "identifiability": {
+      "n_rows": 20761,
+      "outputs": {
+        "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\identifiability\\identifiability_summary.csv",
+        "plot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\identifiability\\identifiability.png"
+      },
+      "median_correlations": {
+        "logk_logt0": 0.7476045612051614,
+        "logk_logs": 0.8311092224209481,
+        "logt0_logs": 0.4688913044006342
+      }
+    }
+  },
+  "thesis_figure_copies": [
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\Thesis\\images\\fig_q1_param_scaling.png",
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\Thesis\\images\\fig_q1_residual_structure.png",
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\Thesis\\images\\fig_q1_identifiability.png"
+  ]
+}

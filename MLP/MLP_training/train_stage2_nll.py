@@ -16,6 +16,7 @@ from engineered_feature_common import (
     DEFAULT_STAGE2_CONFIG,
     apply_saved_scaler_state,
     assign_splits_by_group,
+    assign_splits_leave_one_out,
     build_all_stage_tables,
     build_dataset_registry,
     build_model,
@@ -63,6 +64,9 @@ def parse_args() -> argparse.Namespace:
                         help="Override config seed (controls split assignment and torch RNG).")
     parser.add_argument("--allow-failed-precheck", action="store_true")
     parser.add_argument("--no-shuffle", action="store_true")
+    parser.add_argument("--lono-holdout", type=str, default=None,
+                        help="If set, hold out experiment_name=<value> as test; "
+                             "use leave-one-nozzle-out split.")
     return parser.parse_args()
 
 
@@ -145,12 +149,21 @@ def main() -> None:
             "Representative pretrain collapse check failed. Re-run with --allow-failed-precheck to override."
         )
 
-    filtered_df = assign_splits_by_group(
-        stage_tables.filtered,
-        val_ratio=float(config["val_ratio"]),
-        test_ratio=float(config["test_ratio"]),
-        seed=int(config["seed"]),
-    )
+    if args.lono_holdout is not None:
+        filtered_df = assign_splits_leave_one_out(
+            stage_tables.filtered,
+            holdout_value=args.lono_holdout,
+            holdout_column="experiment_name",
+            val_ratio=float(config["val_ratio"]),
+            seed=int(config["seed"]),
+        )
+    else:
+        filtered_df = assign_splits_by_group(
+            stage_tables.filtered,
+            val_ratio=float(config["val_ratio"]),
+            test_ratio=float(config["test_ratio"]),
+            seed=int(config["seed"]),
+        )
     scaler_state = dict(stage1_artifacts.scaler_state)
     row_table = apply_saved_scaler_state(filtered_df, scaler_state).reset_index(drop=True)
 

@@ -24,6 +24,7 @@ from engineered_feature_common import (
     plot_loss_curves,
     save_training_outputs,
     assign_splits_by_group,
+    assign_splits_leave_one_out,
     train_with_early_stopping,
 )
 
@@ -45,6 +46,9 @@ def parse_args() -> argparse.Namespace:
                         help="Override config seed (controls split assignment and torch RNG).")
     parser.add_argument("--allow-failed-precheck", action="store_true")
     parser.add_argument("--no-shuffle", action="store_true")
+    parser.add_argument("--lono-holdout", type=str, default=None,
+                        help="If set, hold out experiment_name=<value> as test; "
+                             "use leave-one-nozzle-out split.")
     return parser.parse_args()
 
 
@@ -97,12 +101,21 @@ def main() -> None:
             "Pretrain collapse check failed. Re-run with --allow-failed-precheck to override."
         )
 
-    representative_df = assign_splits_by_group(
-        stage_tables.representative,
-        val_ratio=float(config["val_ratio"]),
-        test_ratio=float(config["test_ratio"]),
-        seed=int(config["seed"]),
-    )
+    if args.lono_holdout is not None:
+        representative_df = assign_splits_leave_one_out(
+            stage_tables.representative,
+            holdout_value=args.lono_holdout,
+            holdout_column="experiment_name",
+            val_ratio=float(config["val_ratio"]),
+            seed=int(config["seed"]),
+        )
+    else:
+        representative_df = assign_splits_by_group(
+            stage_tables.representative,
+            val_ratio=float(config["val_ratio"]),
+            test_ratio=float(config["test_ratio"]),
+            seed=int(config["seed"]),
+        )
     row_table, scaler_state, feature_columns = build_variant_feature_table(
         representative_df,
         variant=config["variant"],

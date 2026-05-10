@@ -574,7 +574,7 @@ def build_canonical_feature_table(
         bad = df.loc[delta_pressure <= 0, ["dataset_key", "injection_pressure_bar", "ambient_pressure_bar_phys"]].head()
         raise ValueError(f"Found non-positive delta_pressure_bar_phys rows:\n{bad}")
     df["delta_pressure_bar_phys"] = delta_pressure.astype(float)
-    df["A_scale"] = np.power(df["delta_pressure_bar_phys"] / df["ambient_density_kg_m3"], 0.25) * np.sqrt(df["diameter_mm"])
+    df["A_scale"] = np.power(df["delta_pressure_bar_phys"], 0.5) * np.power(df["ambient_density_kg_m3"], -0.25) * np.sqrt(df["diameter_mm"])
     df["log_A"] = np.log(df["A_scale"])
     return df
 
@@ -611,6 +611,52 @@ def assign_splits_by_group(
     df = df_in.copy()
     df["sample_split"] = df["sample_group_id"].astype(str).map(label)
     return df
+
+
+def assign_splits_leave_one_out(
+    df_in: pd.DataFrame,
+    *,
+    holdout_value: str,
+    holdout_column: str = "experiment_name",
+    val_ratio: float = 0.15,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """LONO split: one experiment_name → entire test split.
+
+    Within the remaining trajectories, carve out val_ratio for validation
+    by `sample_group_id` (so a trajectory's curves stay together). Train
+    gets the rest.
+    """
+    df = df_in.copy()
+    if holdout_column not in df.columns:
+        fallback_columns = ("source_dataset_name", "folder", "dataset_key")
+        fallback = next((col for col in fallback_columns if col in df.columns), None)
+        if fallback is None:
+            raise KeyError(
+                f"Missing holdout column {holdout_column!r}; no fallback among {fallback_columns}."
+            )
+        holdout_column = fallback
+    is_holdout = df[holdout_column].astype(str) == str(holdout_value)
+    df_holdout = df.loc[is_holdout].copy()
+    df_remaining = df.loc[~is_holdout].copy()
+    if df_holdout.empty:
+        raise ValueError(f"No rows match {holdout_column}={holdout_value!r}.")
+
+    # Re-use sample_group_id-based splitting on the remaining rows for val.
+    rng = np.random.default_rng(int(seed))
+    groups = np.asarray(
+        pd.Series(df_remaining["sample_group_id"]).astype(str).drop_duplicates().tolist(),
+        dtype=object,
+    )
+    rng.shuffle(groups)
+    n_val = int(np.floor(val_ratio * len(groups)))
+    val_groups = set(groups[:n_val].tolist())
+
+    df_remaining["sample_split"] = df_remaining["sample_group_id"].astype(str).map(
+        lambda g: "val" if g in val_groups else "train"
+    )
+    df_holdout["sample_split"] = "test"
+    return pd.concat([df_remaining, df_holdout], ignore_index=True)
 
 
 def fit_zscore_params(train_df: pd.DataFrame, base_cols: Sequence[str]) -> dict[str, dict[str, float]]:
@@ -1585,7 +1631,7 @@ def canonicalize_raw_input(
     if delta_pressure <= 0:
         raise ValueError("delta_pressure_bar_phys must stay positive during inference.")
     out["delta_pressure_bar_phys"] = delta_pressure
-    out["A_scale"] = math.pow(delta_pressure / density, 0.25) * math.sqrt(out["diameter_mm"])
+    out["A_scale"] = math.pow(delta_pressure, 0.5) * math.pow(density, -0.25) * math.sqrt(out["diameter_mm"])
     out["log_A"] = math.log(out["A_scale"])
     return out
 
@@ -1749,7 +1795,7 @@ def build_feature_tensor_torch(
         injection_pressure = tensors["injection_pressure_bar"]
         delta_pressure = torch.clamp(injection_pressure - ambient_pressure, min=1e-6)
         diameter = tensors["diameter_mm"]
-        a_scale = torch.pow(delta_pressure / ambient_density, 0.25) * torch.sqrt(torch.clamp(diameter, min=1e-9))
+        a_scale = torch.pow(delta_pressure, 0.5) * torch.pow(ambient_density, -0.25) * torch.sqrt(torch.clamp(diameter, min=1e-9))
         log_a = torch.log(torch.clamp(a_scale, min=1e-9))
         feature_series = {
             str(artifacts.train_config.get("time_feature", TIME_FEATURE)): time_norm,

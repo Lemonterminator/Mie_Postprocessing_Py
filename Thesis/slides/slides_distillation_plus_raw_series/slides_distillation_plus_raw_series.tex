@@ -1,0 +1,321 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{xurl}
+
+\title[Stage-3 Raw CDF Refinement]{Stage-3 Raw CDF Refinement\\Distillation, Ablation, and Final Metrics}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\src}[1]{\vfill{\tiny\textcolor{gray!75!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Message}
+\small
+\textbf{Claim:} Stage-3 refinement turns the Stage-2 heteroscedastic teacher into a raw-CDF-aware predictor by mixing direct raw supervision with teacher distillation under time-dependent coverage regimes.
+
+\vspace{0.45em}
+\textbf{Current status after the \(\Delta P^{0.5}\) feature-engineering update:}
+\begin{itemize}
+  \item the teacher/student feature space uses \(A_{\mathrm{scale}}=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}\);
+  \item Stage-3 is evaluated over five seeds in the mode-C pipeline;
+  \item the dominant winning ablation is \texttt{anchor\_off};
+  \item external clean evaluation has been completed on \num{795561} points and \num{33845} trajectories;
+  \item empirical baselines and a sparse heteroscedastic GP are now included for comparison.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Why Stage-3 Exists}
+\small
+\begin{block}{Stage-2 teacher}
+Stage 2 learns a heteroscedastic Gaussian model from fitted representative curves. It is smooth and defined everywhere on \(0\)--\SI{5}{ms}, but it can inherit fitting assumptions from the reduced curve model.
+\end{block}
+
+\begin{block}{Raw CDF series}
+Raw CDF observations are closer to measured data, but they are incomplete and time-dependent: coverage thins as trajectories disappear from the field of view or fail quality filters.
+\end{block}
+
+\begin{block}{Stage-3 refinement}
+Stage 3 uses raw CDF where it is reliable, teacher distillation where raw data are sparse, and light shape/onset priors to keep trajectories physically plausible.
+\end{block}
+\end{frame}
+
+\begin{frame}{CDF Coverage Regimes}
+\small
+Time is binned into \(\Delta t=\SI{0.1}{ms}\) intervals. For each operating-condition group, smoothed CDF sample counts define three supervision regimes:
+
+\vspace{0.4em}
+\begin{tabular}{L{0.24\linewidth}L{0.28\linewidth}L{0.36\linewidth}}
+\toprule
+Regime & Trigger & Supervision role \\
+\midrule
+\texttt{raw\_reliable} & coverage \(\geq70\%\) of peak & raw CDF is trusted directly \\
+\texttt{raw\_uncertain} & below \(70\%\), above \(20\%\) & teacher dominates transition \\
+\texttt{teacher\_only} & below \(20\%\) or \(<4\) samples & teacher is the only usable signal \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+Transitions require consecutive bins, which prevents isolated coverage dips from changing the regime.
+\end{frame}
+
+\begin{frame}{Default Supervision Weights}
+\small
+\begin{center}
+\begin{tabular}{L{0.32\linewidth}R{0.20\linewidth}R{0.20\linewidth}}
+\toprule
+Regime & Raw NLL weight & KD KL weight \\
+\midrule
+\texttt{raw\_reliable} & 1.00 & 0.25 \\
+\texttt{raw\_uncertain} & 0.00 & 1.00 \\
+\texttt{teacher\_only} & 0.00 & 0.75 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.45em}
+\begin{itemize}
+  \item Raw NLL is used only where raw CDF is reliable and finite.
+  \item KD KL prevents the student from drifting where raw observations are sparse.
+  \item A global inverse-frequency time-bin weight is clipped to \(0.5\)--\(2.0\).
+  \item Teacher confidence further down-weights high-\(\sigma\) teacher regions.
+\end{itemize}
+
+\src{MLP/MLP_training/train_stage3_distillation_plus_raw_series.py}
+\end{frame}
+
+\begin{frame}{\(\Delta P^{0.5}\) A-Scaled Physical Space}
+\small
+\textbf{Current engineered scale:}
+\[
+A_{\mathrm{scale}}=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}.
+\]
+
+\textbf{Network output is still scaled:}
+\[
+\hat \mu(t)=\mu(t)/A,\qquad \hat\sigma(t)=\sigma(t)/A.
+\]
+
+\textbf{Stage-3 losses are computed in physical millimetres:}
+\[
+\mu_{\mathrm{phys}}=A\hat\mu,\qquad
+\sigma_{\mathrm{phys}}=A\hat\sigma.
+\]
+
+\vspace{0.25em}
+This lets raw CDF targets enter directly in mm while keeping the sparse pressure/diameter axes collapsed through the data-supported \(A\)-scale.
+
+\src{MLP/MLP_training/engineered_feature_common.py}
+\end{frame}
+
+\begin{frame}{Composite Loss}
+\small
+\[
+\mathcal{L}
+= \mathcal{L}_{\mathrm{raw}}
++ \mathcal{L}_{\mathrm{KD}}
++ \lambda_{\mathrm{onset}}\mathcal{L}_{\mathrm{onset}}
++ \lambda_{\mathrm{anchor}}\mathcal{L}_{\mathrm{anchor}}
++ \lambda_{d_1}P_{d_1}
++ \lambda_{d_2}P_{d_2}.
+\]
+
+\vspace{0.2em}
+\begin{tabular}{L{0.23\linewidth}L{0.68\linewidth}}
+\toprule
+Term & Role \\
+\midrule
+Raw NLL & Gaussian NLL against raw CDF in physical space \\
+KD KL & Gaussian KL between student and Stage-2 teacher in physical space \\
+Onset BCE & soft ramp target in the first \(\SI{0.2}{ms}\) \\
+Anchor & optional early-time penalty on \(\mu(t\approx0)\) \\
+\(P_{d_1}\) & monotonicity penalty against negative increments \\
+\(P_{d_2}\) & concavity penalty after \(t\geq\SI{0.5}{ms}\) \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{Loss Terms: Probabilistic Meaning}
+\small
+\begin{block}{Raw Gaussian NLL}
+\footnotesize
+Where raw CDF samples are reliable, the student is scored directly in physical mm:
+\[
+\mathcal{L}_{\mathrm{raw},i}
+=\frac{1}{2}\left[
+\frac{(y_i-\mu_i)^2}{\sigma_i^2}
++\log\sigma_i^2
+\right] + \mathrm{const.}
+\]
+This rewards both accurate means and correctly sized variances; shrinking
+\(\sigma_i\) is penalized if residuals remain large.
+\end{block}
+
+\begin{block}{Teacher--student Gaussian KL}
+\footnotesize
+When raw coverage is weak, the student is kept close to the Stage-2 teacher:
+\[
+D_{\mathrm{KL}}(T\Vert S)
+=\log\frac{\sigma_S}{\sigma_T}
++\frac{\sigma_T^2+(\mu_T-\mu_S)^2}{2\sigma_S^2}
+-\frac{1}{2}.
+\]
+The direction \(T\Vert S\) treats the teacher distribution as the reference
+distribution that the student should cover in sparse regions.
+\end{block}
+\end{frame}
+
+\begin{frame}{Key Ablation Finding: Anchor Off}
+\small
+\begin{block}{Old design assumption}
+The early anchor was originally included to keep \(\mu(t\approx0)\) close to zero and prevent unphysical onset behavior.
+\end{block}
+
+\begin{block}{What the ablation found}
+The best current Stage-3 setting is usually \texttt{anchor\_off}, i.e. \(\lambda_{\mathrm{anchor}}=0\). In the five-seed \(\Delta P^{0.5}\) mode-C pipeline, seeds 42, 17, 99, and 7 selected \texttt{anchor\_off}; seed 2024 selected \texttt{raw\_reliable\_no\_kd}.
+\end{block}
+
+\begin{block}{Interpretation}
+The learned onset head, raw/KD regime weights, and shape priors are enough to regularize early time. A hard \(\mu(0)\) anchor can overconstrain the raw-CDF refinement.
+\end{block}
+\end{frame}
+
+\begin{frame}{Metric Contract for Stage-3 Results}
+\small
+\begin{block}{Accuracy metrics}
+\footnotesize
+RMSE emphasizes large misses; MAE reports the typical absolute millimetre error;
+P95 absolute error reports the tail. Bias keeps the sign, so it exposes systematic
+over- or under-prediction that RMSE/MAE hide.
+\end{block}
+
+\begin{block}{Uncertainty metrics}
+\footnotesize
+Coverage is
+\[
+\Pr(|y-\mu|\leq k\sigma),\qquad k\in\{1,2\}.
+\]
+For a calibrated Gaussian, the nominal targets are 0.683 and 0.954. Higher values
+mean conservative intervals; lower values mean under-coverage.
+\end{block}
+
+\begin{block}{Protocol separation}
+\footnotesize
+The five-seed in-pipeline result measures training stability on each seed's
+post-evaluation subset. The external clean diagnostic is the headline comparison
+because every model is evaluated on the same \num{795561} points.
+\end{block}
+\end{frame}
+
+\begin{frame}{Five-Seed In-Pipeline Result}
+\small
+This is the mode-C pipeline bootstrap on the common post-evaluation test subset.
+
+\vspace{0.35em}
+\begin{center}
+\begin{tabular}{L{0.34\linewidth}R{0.22\linewidth}R{0.22\linewidth}}
+\toprule
+Metric & Mean \(\pm\) std & 95\% CI \\
+\midrule
+RMSE mm & 8.924 \(\pm\) 1.133 & 8.070--9.855 \\
+MAE mm & 7.207 \(\pm\) 1.000 & 6.507--8.076 \\
+Bias mm & -5.435 \(\pm\) 1.655 & -6.945---4.421 \\
+P95 abs. err. mm & 17.114 \(\pm\) 1.993 & 15.528--18.700 \\
+1\(\sigma\) coverage & 0.654 \(\pm\) 0.067 & 0.601--0.706 \\
+2\(\sigma\) coverage & 0.966 \(\pm\) 0.016 & 0.954--0.979 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+\footnotesize
+Important protocol note: this in-pipeline summary has \(n=8398\) post-evaluation points per seed. It is a stability diagnostic, not the external \num{795561}-point clean benchmark.
+
+\src{MLP/runs_mlp/full_pipeline_C_20260509_110100/bootstrap_summary.json}
+\end{frame}
+
+\begin{frame}{External Clean Diagnostic}
+\small
+The same trained Stage-3 models were evaluated on the full clean diagnostic protocol: \num{795561} points and \num{33845} trajectories.
+
+\vspace{0.35em}
+\begin{center}
+\begin{tabular}{L{0.38\linewidth}R{0.12\linewidth}R{0.12\linewidth}R{0.12\linewidth}R{0.12\linewidth}}
+\toprule
+Model & RMSE & MAE & P95 & 1\(\sigma\) cov. \\
+\midrule
+Hiroyasu--Arai calibrated & 9.974 & 7.686 & 20.493 & 0.536 \\
+Naber--Siebers delay & 8.840 & 6.780 & 17.922 & 0.620 \\
+Sparse heteroscedastic GP mean & 6.898 & 5.206 & 14.365 & 0.670 \\
+\good{Stage-3 MLP \(\Delta P^{0.5}\), 5-seed mean} & \good{6.211} & \good{4.587} & \good{13.029} & 0.774 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.25em}
+The Stage-3 MLP beats the GP on accuracy, while the GP remains closer to nominal uncertainty coverage.
+
+\src{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv}
+\end{frame}
+
+\begin{frame}{Clean vs Hard-Subset Calibration}
+\small
+\begin{block}{External clean diagnostic}
+The \(\Delta P^{0.5}\) Stage-3 MLP over-covers on the clean full diagnostic: 1\(\sigma\)/2\(\sigma\) coverage is \(0.774/0.981\), above nominal \(0.683/0.954\).
+\end{block}
+
+\begin{block}{In-pipeline post-evaluation subset}
+The same pipeline has 1\(\sigma\)/2\(\sigma\) coverage of \(0.654/0.966\), much closer to nominal and slightly under at 1\(\sigma\).
+\end{block}
+
+\begin{block}{Paper interpretation}
+The learned \(\sigma\) is not a single global error bar. It behaves differently on clean/easy trajectories and harder representative rows, which is evidence for difficulty-aware uncertainty rather than pure input-independent noise.
+\end{block}
+\end{frame}
+
+\begin{frame}{What Should Go Into the Thesis}
+\small
+\begin{block}{Method sentence}
+Stage 3 refines the Stage-2 heteroscedastic teacher against raw CDF measurements using regime-dependent raw NLL and teacher KL losses, with regimes determined by per-condition CDF coverage over time.
+\end{block}
+
+\begin{block}{Ablation sentence}
+The best \(\Delta P^{0.5}\) Stage-3 configuration removes the explicit early-time anchor in four of five seeds, indicating that the onset head and raw/KD regime weighting provide sufficient early-time regularization.
+\end{block}
+
+\begin{block}{Result sentence}
+On the external clean benchmark, the resulting five-seed Stage-3 MLP reaches RMSE \(6.211\pm0.283\) mm and outperforms Hiroyasu--Arai, Naber--Siebers, and a sparse heteroscedastic GP on RMSE, MAE, and P95 error.
+\end{block}
+\end{frame}
+
+\begin{frame}{Data Sources for Thesis Extraction}
+\small
+\begin{tabular}{L{0.30\linewidth}L{0.60\linewidth}}
+\toprule
+Item & Path \\
+\midrule
+Stage-3 training script & \scriptsize\url{MLP/MLP_training/train_stage3_distillation_plus_raw_series.py} \\
+Five-seed pipeline summary & \scriptsize\url{MLP/runs_mlp/full_pipeline_C_20260509_110100/bootstrap_summary.json} \\
+Representative winner run & \scriptsize\url{MLP/runs_mlp/distill_cdf_onset_v2_ablate_anchor_off_20260509_111556/} \\
+External comparison table & \scriptsize\url{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv} \\
+GP baseline output & \scriptsize\url{MLP/runs_mlp/gp_baseline_20260509_201444/} \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\end{document}

@@ -257,8 +257,14 @@
 %
 \RequirePackage{calc}%
 \RequirePackage{geometry}%
-\RequirePackage[kerning=true, spacing=true, babel=true, tracking=true,%	
-  protrusion=false]{microtype}%
+\RequirePackage{iftex}%
+\ifXeTeX
+  \RequirePackage[kerning=false, spacing=false, babel=true, tracking=false,%
+    protrusion=false]{microtype}%
+\else
+  \RequirePackage[kerning=true, spacing=true, babel=true, tracking=true,%
+    protrusion=false]{microtype}%
+\fi
 \RequirePackage{fancyhdr}% For typsetting the cover- and abstract pages
 \RequirePackage{sectsty}% Set section title fonts to sans serif
 %\allsectionsfont{\usefont{T1}{phv}{b}{n}}

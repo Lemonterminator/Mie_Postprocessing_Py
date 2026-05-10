@@ -1,0 +1,330 @@
+{
+  "method": "svgp_heteroscedastic_two_stage",
+  "seeds": [
+    42,
+    17,
+    99,
+    7,
+    2024
+  ],
+  "per_seed": [
+    {
+      "seed": 42,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_only_20260509_110102",
+      "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\gp_baseline_20260509_201444\\per_seed\\seed_42\\model.pt",
+      "test_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 12.103900909423828,
+        "mae_mm": 8.861579895019531,
+        "bias_mm": -1.504615306854248,
+        "median_abs_err_mm": 6.316688537597656,
+        "p90_abs_err_mm": 20.757652282714844,
+        "p95_abs_err_mm": 24.980323791503906,
+        "coverage_1sigma": 0.6317892120215312,
+        "coverage_2sigma": 0.9478964189593302,
+        "mean_pred_std_mm": 10.958608627319336,
+        "nll_scaled": 0.09721208363771439
+      },
+      "val_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 11.413742065429688,
+        "mae_mm": 8.116031646728516,
+        "bias_mm": 0.12037215381860733,
+        "median_abs_err_mm": 5.366935729980469,
+        "p90_abs_err_mm": 19.530364990234375,
+        "p95_abs_err_mm": 24.599489212036133,
+        "coverage_1sigma": 0.6606375224282297,
+        "coverage_2sigma": 0.9584657221889952,
+        "mean_pred_std_mm": 10.306668281555176,
+        "nll_scaled": -0.006570307072252035
+      },
+      "latency": {
+        "n_points": 10000,
+        "repeats": 5,
+        "median_total_ms": 5.510300004971214,
+        "median_ms_per_point": 0.0005510300004971213
+      },
+      "best_epochs": {
+        "mean": 11,
+        "logvar": 5
+      },
+      "best_val_losses": {
+        "mean": 1.2819873653530505,
+        "logvar": 2.1523375043458346
+      }
+    },
+    {
+      "seed": 17,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_only_20260509_111905",
+      "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\gp_baseline_20260509_201444\\per_seed\\seed_17\\model.pt",
+      "test_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 12.531187057495117,
+        "mae_mm": 9.131874084472656,
+        "bias_mm": 0.11327310651540756,
+        "median_abs_err_mm": 6.684230804443359,
+        "p90_abs_err_mm": 20.585613250732422,
+        "p95_abs_err_mm": 26.015792846679688,
+        "coverage_1sigma": 0.6679967852870813,
+        "coverage_2sigma": 0.9595964787679426,
+        "mean_pred_std_mm": 11.529930114746094,
+        "nll_scaled": 0.12476830184459686
+      },
+      "val_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 11.207972526550293,
+        "mae_mm": 8.248612403869629,
+        "bias_mm": -0.6293894648551941,
+        "median_abs_err_mm": 5.792449951171875,
+        "p90_abs_err_mm": 18.893692016601562,
+        "p95_abs_err_mm": 23.020313262939453,
+        "coverage_1sigma": 0.6762858851674641,
+        "coverage_2sigma": 0.9565172697368421,
+        "mean_pred_std_mm": 10.753843307495117,
+        "nll_scaled": 0.06558562815189362
+      },
+      "latency": {
+        "n_points": 10000,
+        "repeats": 5,
+        "median_total_ms": 8.045700000366196,
+        "median_ms_per_point": 0.0008045700000366196
+      },
+      "best_epochs": {
+        "mean": 12,
+        "logvar": 3
+      },
+      "best_val_losses": {
+        "mean": 1.2600885903436032,
+        "logvar": 2.140839612084713
+      }
+    },
+    {
+      "seed": 99,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_only_20260509_113739",
+      "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\gp_baseline_20260509_201444\\per_seed\\seed_99\\model.pt",
+      "test_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 11.749361991882324,
+        "mae_mm": 8.67859935760498,
+        "bias_mm": -0.7076711654663086,
+        "median_abs_err_mm": 6.151359558105469,
+        "p90_abs_err_mm": 20.031326293945312,
+        "p95_abs_err_mm": 24.703279495239258,
+        "coverage_1sigma": 0.6730571546052632,
+        "coverage_2sigma": 0.9685163726076556,
+        "mean_pred_std_mm": 11.435425758361816,
+        "nll_scaled": 0.086170494556427
+      },
+      "val_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 12.131077766418457,
+        "mae_mm": 8.893644332885742,
+        "bias_mm": -0.4511084258556366,
+        "median_abs_err_mm": 6.222841262817383,
+        "p90_abs_err_mm": 21.17080307006836,
+        "p95_abs_err_mm": 26.28722381591797,
+        "coverage_1sigma": 0.6610066537081339,
+        "coverage_2sigma": 0.9648157147129187,
+        "mean_pred_std_mm": 11.282278060913086,
+        "nll_scaled": 0.08178037405014038
+      },
+      "latency": {
+        "n_points": 10000,
+        "repeats": 5,
+        "median_total_ms": 21.360700004152022,
+        "median_ms_per_point": 0.002136070000415202
+      },
+      "best_epochs": {
+        "mean": 10,
+        "logvar": 12
+      },
+      "best_val_losses": {
+        "mean": 1.3114365784175088,
+        "logvar": 2.156559957841937
+      }
+    },
+    {
+      "seed": 7,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_only_20260509_115553",
+      "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\gp_baseline_20260509_201444\\per_seed\\seed_7\\model.pt",
+      "test_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 12.359526634216309,
+        "mae_mm": 9.046489715576172,
+        "bias_mm": -0.016909923404455185,
+        "median_abs_err_mm": 6.242034912109375,
+        "p90_abs_err_mm": 20.939924240112305,
+        "p95_abs_err_mm": 25.443939208984375,
+        "coverage_1sigma": 0.6179210900119617,
+        "coverage_2sigma": 0.9379625822368421,
+        "mean_pred_std_mm": 10.278181076049805,
+        "nll_scaled": 0.147703155875206
+      },
+      "val_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 11.192704200744629,
+        "mae_mm": 8.176482200622559,
+        "bias_mm": -0.3977162539958954,
+        "median_abs_err_mm": 5.787832260131836,
+        "p90_abs_err_mm": 18.82494354248047,
+        "p95_abs_err_mm": 23.13239860534668,
+        "coverage_1sigma": 0.6635298295454546,
+        "coverage_2sigma": 0.9584143241626795,
+        "mean_pred_std_mm": 10.690223693847656,
+        "nll_scaled": 0.04254667088389397
+      },
+      "latency": {
+        "n_points": 10000,
+        "repeats": 5,
+        "median_total_ms": 6.421899990527891,
+        "median_ms_per_point": 0.0006421899990527891
+      },
+      "best_epochs": {
+        "mean": 6,
+        "logvar": 7
+      },
+      "best_val_losses": {
+        "mean": 1.2317457900663311,
+        "logvar": 2.2165738315673535
+      }
+    },
+    {
+      "seed": 2024,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_only_20260509_121710",
+      "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\gp_baseline_20260509_201444\\per_seed\\seed_2024\\model.pt",
+      "test_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 11.99173355102539,
+        "mae_mm": 9.076011657714844,
+        "bias_mm": 0.17270351946353912,
+        "median_abs_err_mm": 6.852813720703125,
+        "p90_abs_err_mm": 19.71256446838379,
+        "p95_abs_err_mm": 23.834774017333984,
+        "coverage_1sigma": 0.6510868346291866,
+        "coverage_2sigma": 0.9426024222488039,
+        "mean_pred_std_mm": 11.559930801391602,
+        "nll_scaled": 0.15456931293010712
+      },
+      "val_metrics": {
+        "n_points": 214016,
+        "rmse_mm": 12.837446212768555,
+        "mae_mm": 9.536182403564453,
+        "bias_mm": -0.009216837584972382,
+        "median_abs_err_mm": 7.08259916305542,
+        "p90_abs_err_mm": 21.420127868652344,
+        "p95_abs_err_mm": 27.160484313964844,
+        "coverage_1sigma": 0.6728749252392344,
+        "coverage_2sigma": 0.961105711722488,
+        "mean_pred_std_mm": 12.365020751953125,
+        "nll_scaled": 0.16714833676815033
+      },
+      "latency": {
+        "n_points": 10000,
+        "repeats": 5,
+        "median_total_ms": 5.73610000719782,
+        "median_ms_per_point": 0.000573610000719782
+      },
+      "best_epochs": {
+        "mean": 2,
+        "logvar": 5
+      },
+      "best_val_losses": {
+        "mean": 1.4097010621613864,
+        "logvar": 2.160345966165716
+      }
+    }
+  ],
+  "bootstrap": {
+    "metrics": {
+      "rmse_mm": {
+        "mean": 12.147142028808593,
+        "std": 0.30693987677663664,
+        "ci_lo": 11.91721839904785,
+        "ci_hi": 12.377065658569336,
+        "n": 5
+      },
+      "mae_mm": {
+        "mean": 8.958910942077637,
+        "std": 0.1866459113591909,
+        "ci_lo": 8.805850410461426,
+        "ci_hi": 9.092452239990234,
+        "n": 5
+      },
+      "bias_mm": {
+        "mean": -0.38864395394921303,
+        "std": 0.7163079528300738,
+        "ci_lo": -1.0097627133131026,
+        "ci_hi": 0.11100866571068764,
+        "n": 5
+      },
+      "p95_abs_err_mm": {
+        "mean": 24.99562187194824,
+        "std": 0.8177718340740497,
+        "ci_lo": 24.330308151245116,
+        "ci_hi": 25.601605224609376,
+        "n": 5
+      },
+      "coverage_1sigma": {
+        "mean": 0.6483702153110048,
+        "std": 0.023473954411360395,
+        "ci_lo": 0.6301014877392345,
+        "ci_hi": 0.666638942882775,
+        "n": 5
+      },
+      "coverage_2sigma": {
+        "mean": 0.9513148549641148,
+        "std": 0.012553414650905433,
+        "ci_lo": 0.9418052855861244,
+        "ci_hi": 0.9608244243421054,
+        "n": 5
+      }
+    },
+    "latency_ms_per_point": {
+      "mean": 0.0009414940001443028,
+      "std": 0.000675119185653754,
+      "ci_lo": 0.0005782940002973192,
+      "ci_hi": 0.0015527620003558695,
+      "n": 5
+    }
+  },
+  "config": {
+    "method": "svgp_heteroscedastic_two_stage",
+    "mlp_bootstrap": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\full_pipeline_C_20260509_110100\\bootstrap_summary.json",
+    "variant": "a_only",
+    "feature_columns": [
+      "time_norm_0_5ms",
+      "tilt_angle_radian_z",
+      "plumes_z",
+      "injection_duration_us_z",
+      "control_backpressure_bar_z"
+    ],
+    "time_feature": "time_norm_0_5ms",
+    "n_points": 512,
+    "batch_points": 1024,
+    "eval_batch_points": 65536,
+    "num_inducing": 256,
+    "kmeans_samples": 50000,
+    "epochs": 80,
+    "var_epochs": 80,
+    "learning_rate": 0.01,
+    "var_learning_rate": 0.01,
+    "early_stopping_patience": 12,
+    "early_stopping_min_delta": 0.0001,
+    "log_interval": 5,
+    "num_workers": 0,
+    "time_min_ms": 0.0,
+    "time_max_ms": 5.0,
+    "residual_eps": 1e-06,
+    "std_floor_scaled": 1e-06,
+    "logvar_clamp_min": -20.0,
+    "logvar_clamp_max": 10.0,
+    "mean_only": false,
+    "include_mean_posterior_var": false,
+    "calibrate_logvar_bias": true,
+    "max_curves_per_split": null,
+    "allow_a_scale_mismatch": false,
+    "latency_points": 10000,
+    "latency_repeats": 5,
+    "device": "cuda"
+  }
+}

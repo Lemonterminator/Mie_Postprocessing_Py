@@ -1,0 +1,7 @@
+\Title {基于 Mie 散射视频的数据驱动穿深预测与概率性碰壁筛查}
+\Author {Linan Jiang}
+\Language {en}
+\Copyright {\textcopyright \ 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.}
+\CopyrightURL {https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en}
+\Subject {多燃料船用发动机中的柴油预喷具有持续时间短、瞬态特征强等特点。若液相包络在形成有效点火核之前即到达活塞顶或缸壁，可能引发壁面润湿、润滑油稀释以及混合准备恶化等问题。本文建立了一套基于实验证据的筛查工作流，将高速 Mie 散射视频转化为以穿深为核心的几何观测量，并构建用于早期喷雾撞壁风险筛查的代理模型。研究数据来自 Wärtsilä 光学喷雾燃烧舱的室温、非反应、顶视 Mie 记录，覆盖多种工况与喷嘴几何。该工作流结合人工喷嘴标定、CUDA 加速的多孔视频处理、逐喷油束特征提取，以及一种用于平滑噪声标签并缓解视场边界右删失低估偏差的降阶轨迹拟合方法。基于拟合目标，本文训练了三阶段神经网络代理模型：Stage 1 学习确定性代表轨迹基线；Stage 2 扩展至完整过滤数据集，并预测异方差均值与方差；Stage 3 在早期观测可靠时对齐原始 CDF 数据，在晚期观测稀疏时保留保守的教师引导，以避免将离开视场误判为物理饱和。在来自 9 个喷嘴试验批次的 21,470 条轨迹上，最终 anchor-off 模型的总体 RMSE 为 6.68 mm，并获得 72.24 percent 的 1-sigma 覆盖率与 97.03 percent 的 2-sigma 覆盖率。最新外部清洗评估协议包含 795,561 个预测点和 33,845 条轨迹；在该协议下，采用过渡区物理缩放的三阶段模型四次同配置（anchor-off）重复训练平均 RMSE 为 6.094 mm，seed-to-seed 标准差为 0.120 mm，MAE 为 4.465 mm，95 percent 绝对误差为 12.888 mm，并获得 0.783 / 0.982 的 1-sigma / 2-sigma 覆盖率。与校准后的 Hiroyasu--Arai、Naber--Siebers 和稀疏异方差 Gaussian process 基线相比，该模型在 RMSE、MAE 和尾部误差上均更低。随后，本文通过简化几何投影，将预测穿深分布映射为概率性撞壁筛查代理指标。需要强调的是，该工作流的适用范围限于测量域内的早期工程筛查，不能替代 CFD、发动机试验或经验证的缸内撞壁物理模型。}
+\Keywords {Mie 散射\sep 喷雾成像\sep 穿深\sep 计算机视觉\sep 代理模型}
