@@ -172,6 +172,48 @@ Representative cases make this difference visible. Figure~\ref{fig:traj-best-cas
 \label{fig:traj-worst-case}
 \end{figure}
 
+\subsection{Visual evidence and failure mode analysis of hard cases: Nozzle 3 example}
+
+The leave-one-nozzle-family evaluation reveals that the surrogate model experiences under-coverage and amplified errors on specific nozzle families such as Nozzle 3. To investigate the physical root cause of the model's underperformance in these hard cases, this thesis extracts the raw Phantom high-speed Mie scattering images and cross-references them with the corresponding per-plume penetration trajectories (Figure~\ref{fig:failure-mode-nozzle3}).
+
+The image sequence ($t \approx 0.6 \sim 1.0\,\si{ms}$) exposes extreme hole-to-hole asymmetry: while the plumes on the left establish stable continuous jets, the three plumes on the bottom right (approximately 3 to 5 o'clock positions) appear severely stunted. Some of these holes only manage to squeeze out detached puffs of low-momentum liquid, which rapidly decelerate against the ambient gas. This visual observation perfectly matches the flat "plateau" feature seen in the penetration curves (e.g., the green curve for Plume 2 and the blue curve for Plume 0) within the same time window. Subsequently ($t > 1.0\,\si{ms}$), the main jet on the bottom right suddenly bursts through and rapidly overtakes the initial puff, appearing as an unphysical step-like surge in the penetration curve.
+
+This localised "lead-dissipation followed by main-jet surge" phenomenon strongly points to needle eccentricity and wobble during the extreme transients of the pilot injection. During the micro-lift stage, the lateral displacement of the needle severely throttles the valve seat clearance on the bottom right side. Only after the needle is fully lifted can the high-pressure fuel flow smoothly through all holes.
+
+This finding provides a direct physical explanation for the limitations of the surrogate model. Although the computer-vision pipeline faithfully captures this micro-hydrodynamic anomaly, the reduced-order fit target ($k_{1/4}t^{1/4}$) is mathematically incapable of enveloping an "S-shaped" step trajectory that features such aggressive second-derivative discontinuities. Forcing a smooth, monotonic prior onto this highly transient physical reality inevitably leads to massive target distortion, which is the root cause of the degraded coverage of the Stage-2 and Stage-3 networks on these nozzle families. This proves that future modelling of extreme transient sprays cannot rely solely on smooth empirical shape priors, but must explicitly account for mechanical asymmetries such as needle wobble.
+
+\begin{figure}[p]
+\centering
+\begin{minipage}{0.24\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t3.png}\\
+(a) $t\approx 0.6\sim0.8\,\si{ms}$
+\end{minipage}
+\hfill
+\begin{minipage}{0.24\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t4.png}\\
+(b) $t\approx 0.8\,\si{ms}$
+\end{minipage}
+\hfill
+\begin{minipage}{0.24\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t5.png}\\
+(c) $t\approx 1.0\,\si{ms}$
+\end{minipage}
+\hfill
+\begin{minipage}{0.24\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t6.png}\\
+(d) $t > 1.0\,\si{ms}$
+\end{minipage}
+
+\vspace{1em}
+\includegraphics[width=0.95\linewidth]{images/failure_mode_nozzle3/nozzle3_t16_plot.png}
+\caption{Visual evidence and corresponding penetration curves of extreme transient spray for Nozzle 3 (T16 condition). The top row captures the bottom-right plumes suffering severe throttling and forming detached puffs, followed by a main-jet burst after $1.0\,\si{ms}$. The bottom row's penetration curves (e.g., Plume 0 in blue and Plume 2 in green) accurately reflect this step-like trajectory, which mathematically violates the surrogate model's assumption of monotonic, smooth growth.}
+\label{fig:failure-mode-nozzle3}
+\end{figure}
+
 \subsection{Ablation evidence for the final tuning choice}
 
 The ablation suite compared four Stage~3 configurations:
@@ -211,21 +253,34 @@ The ablation trend also clarifies why Stage~3 is more credible than Stage~1 or S
 
 \subsection{Prototype screening output and evidence boundary}
 
-The final surrogate can be coupled to a simplified collision-screening geometry. On the default toy input ($d_n=\SI{0.34}{mm}$, injection pressure \SI{2000}{bar}, chamber pressure \SI{15}{bar}, tilt $20^{\circ}$, 10 plumes, injection duration \SI{800}{\micro s}, $\mathrm{RPM}=250$), the prototype produces $\mu(t)\in[-0.07,\,118.89]\,\si{mm}$ and $\sigma_{\parallel}(t)\in[1.81,\,14.75]\,\si{mm}$ over the 0--\SI{5}{ms} window. The instantaneous near-wall interception score peaks at $P_{\mathrm{hit}}\approx0.846$ near $t\approx\SI{3.90}{ms}$, and trapezoidal integration gives a cumulative exposure of $E\approx\SI{2.67}{ms}$. These numbers show that the end-to-end chain can propagate a penetration distribution into a time-resolved screening score; Figure~\ref{fig:impingement-preview} shows a spatial snapshot at the peak frame, and Figure~\ref{fig:impingement-summary} provides a probabilistic temporal summary within the \SI{5}{ms} time window.
+The final surrogate can be coupled to a simplified collision-screening geometry. On the default toy input,
+\[
+\left\{
+\begin{aligned}
+d_n &= \SI{0.34}{mm},\\
+p_{\mathrm{inj}} &= \SI{2000}{bar},\\
+p_{\mathrm{amb}} &= \SI{15}{bar},\\
+\theta_{\mathrm{tilt}} &= 20^{\circ},\\
+N_{\mathrm{plume}} &= 10,\\
+t_{\mathrm{inj}} &= \SI{800}{\micro s},\\
+\mathrm{RPM} &= 250,
+\end{aligned}
+\right.
+\]
+the prototype produces plotting-time non-negative means $\mu_{+}(t)\in[\SI{1.70}{mm},\,\SI{112.95}{mm}]$ and $\sigma_{\parallel}(t)\in[\SI{4.39}{mm},\,\SI{17.66}{mm}]$ over the 0--\SI{5}{ms} window. The instantaneous near-wall interception score peaks at $P_{\mathrm{hit}}=\SI{77.66}{\percent}$ at $t=\SI{4.237}{ms}$, and trapezoidal integration gives a cumulative exposure of $E=\SI{2.475}{ms}$. These numbers show that the end-to-end chain can propagate a penetration distribution into a time-resolved screening score; Figure~\ref{fig:impingement-preview} shows a spatial snapshot at the peak frame, and Figure~\ref{fig:impingement-summary} provides a probabilistic temporal summary within the \SI{5}{ms} time window.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.62\linewidth]{images/impingement_preview.png}
-\caption{Spatial snapshot of the impingement screening prototype (Design A, peak collision frame, $t=\SI{3.90}{ms}$). The solid white line is the piston crown profile, the dashed red line is the cylinder wall, the gold asterisk is the nozzle location, the dashed white ellipse and dotted cyan ellipse are the $1\sigma$ and $2\sigma$ contour lines of the spray's 2D Gaussian density respectively, and the colorbar represents the spray probability density ($\si{mm^{-2}}$). The instantaneous piston interception probability at this frame is $P_{\mathrm{hit}}=0.846$, and the cylinder wall interception probability is $P_{\mathrm{wall}}=0.071$.}
+\caption{Spatial snapshot of the impingement screening prototype (Design A, peak collision frame, $t=\SI{4.24}{ms}$). The solid white line is the piston crown profile, the dashed red line is the cylinder wall, the gold asterisk is the nozzle location, the dashed white ellipse and dotted cyan ellipse are the $1\sigma$ and $2\sigma$ contour lines of the spray's 2D Gaussian density respectively, and the colorbar represents the spray probability density ($\si{mm^{-2}}$). The instantaneous piston interception probability at this frame is $P_{\mathrm{hit}}=\SI{77.66}{\percent}$, and the cylinder wall interception probability is $P_{\mathrm{wall}}=\SI{6.60}{\percent}$.}
 \label{fig:impingement-preview}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.90\linewidth]{images/impingement_summary.png}
-\caption{Temporal summary of the impingement screening prototype (Design A, RPM~250, crank phase $0^{\circ}$, $0$--$\SI{5}{ms}$). Top: instantaneous interception probabilities---the solid blue line is the piston impingement probability, the dashed red line is the cylinder wall impingement probability, and the dash-dot blue-grey line is the start-of-injection probability secondary output. Bottom: cumulative integral of piston interception $E=\int P_{\mathrm{hit}}\,\mathrm{d}t$, reaching $\SI{2.671}{ms}$ at $\SI{5}{ms}$, serving as a weighted summary of exposure over the entire injection window.}
+\caption{Temporal summary of the impingement screening prototype (Design A, RPM~250, crank phase $0^{\circ}$, $0$--$\SI{5}{ms}$). Top: instantaneous interception probabilities---the solid blue line is the piston impingement probability, the dashed red line is the cylinder wall impingement probability, and the dash-dot blue-grey line is the start-of-injection probability secondary output. Middle: cumulative integral of piston interception $E=\int P_{\mathrm{hit}}\,\mathrm{d}t$, reaching $\SI{2.475}{ms}$ at $\SI{5}{ms}$. Bottom: penetration mean and its $\pm1\sigma$ interval.}
 \label{fig:impingement-summary}
 \end{figure}
 
-The evidence boundary is equally important. The toy condition is flagged as out of distribution by the support check, so the reported collision probabilities should be read only as a pipeline demonstration. The validated contribution in this thesis is the penetration surrogate within its measured domain and its coupling interface to a probabilistic geometry screen, not a phase-resolved predictor of harmful liquid-wall contact. The numerical claims reported here are traceable to cleaned trajectory tables, stored checkpoints, and exported evaluation figures included in the project archive.
-
+The evidence boundary is equally important. The reported collision probabilities should be read only as a pipeline demonstration and ranking-oriented proxy, not as direct probabilities of harmful liquid-wall contact in a real engine. The validated contribution in this thesis is the penetration surrogate within its measured domain and its coupling interface to a probabilistic geometry screen, not a phase-resolved predictor of harmful liquid-wall contact. The numerical claims reported here are traceable to cleaned trajectory tables, stored checkpoints, and exported evaluation figures included in the project archive.

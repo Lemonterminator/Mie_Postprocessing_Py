@@ -359,10 +359,20 @@ V_{p,\min}(t)=\pi x_{\mathrm{scale}}\sum_x \min(w_u,w_l)^2.
 \]
 最后从靠近喷嘴的检测窗口推断近喷嘴开启和关闭时间。这些度量很重要，因为它们将每个对齐条带转换为紧凑的几何状态向量；然而，本论文中的下游建模仍然专注于穿深，这是存档笔记本中最支持的目标\cite{Linne2013SprayImaging,LefebvreMcDonell2017}。
 
+\subsubsection{方法评价与适用性说明}
+
+本文没有将喷雾边界提取表述为像素级监督分割任务，因此未采用 IoU 或 F1 score 等依赖人工标注真值的分割指标作为主要评价依据。对于高速 Mie 图像，液滴散射通常形成亮前景与暗背景之间的直接局部对比；相较于 Schlieren 图像中常见的背景折射率纹理和大尺度灰度起伏，这一成像特征更适合用梯度增强和形态学清理来获得操作性边界。需要强调的是，雾化、破碎和灰度渐变使喷雾边界本身并不存在唯一的像素级真值；构建 IoU 或 F1 基准需要对大量时间序列图像进行逐像素人工标注，而这些标注同样会包含边界判断的主观性。因此，本文主要依据 Mie 散射成像机理、边界叠加检查、时序连续性以及多个几何代理指标的一致性来评估边界提取结果的可靠性。该评价方式服务于本文的目标：稳定提取穿深、锥角和边界包络等几何观测量，而不是训练或比较通用语义分割器。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/fig_mie_segmentation_boundary_overlay.png}
+\caption{喷雾边界提取结果的可视化检查。灰度前景由原始 Mie 图像经对数除背景、Sobel 梯度增强和最近邻旋转重映射得到；红色轮廓为二值支持图像导出的 BW boundary。该叠加图显示，边界代理主要跟随局部对比度突变形成的有效液相包络，而不是依赖单个最前端亮点。}
+\label{fig:mie-segmentation-boundary-overlay-zh}
+\end{figure}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_metrics_summary.pdf}
 \caption{对齐和二值化后的主文定量输出示例。（a）三种穿深描述符随帧序列变化；（b）两种 cone-angle proxy；（c）代表 plume 的二值条带最大投影及近喷嘴开启、关闭帧。}
 \label{fig:mie-metrics-summary}
 \end{figure}
-

@@ -363,10 +363,20 @@ and by fitting fixed-intercept boundary lines and taking
 \]
 Near-nozzle opening and closing times are finally inferred from a small detection window close to the injector. These metrics matter because they turn each aligned strip into a compact geometric state vector; however, the downstream modeling in this thesis remains focused on penetration, which is the best-supported target in the available analyses \cite{Linne2013SprayImaging,LefebvreMcDonell2017}.
 
+\subsubsection{Method evaluation and applicability}
+
+This thesis does not formulate spray-boundary extraction as a pixel-level supervised segmentation task, and therefore does not use IoU or F1 score, which require manually annotated ground-truth masks, as the primary evaluation criteria. For high-speed Mie images, droplet scattering usually creates direct local contrast between a bright foreground and a dark background; compared with the background refractive-index texture and large-scale grey-level variation often encountered in Schlieren images, this imaging characteristic is better matched to gradient enhancement and morphological cleanup for obtaining an operational boundary. The spray boundary itself is also affected by atomisation, breakup, and grey-level transition, so it does not provide a unique pixel-level ground truth. Building an IoU or F1 benchmark would require pixel-wise manual annotation over a large time sequence, and those annotations would still contain subjective boundary judgements. The reliability of the extracted boundary is therefore assessed primarily through the Mie-scattering imaging mechanism, overlay inspection, temporal continuity, and consistency among multiple geometric proxy metrics. This evaluation choice matches the objective of the thesis: stable extraction of penetration, cone angle, and boundary-envelope observables, rather than training or comparing a generic semantic segmenter.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/fig_mie_segmentation_boundary_overlay.png}
+\caption{Visual inspection of the spray-boundary extraction result. The grey foreground is obtained from the raw Mie image by logarithmic background division, Sobel gradient enhancement, and nearest-neighbour rotational remapping; the red contour is the BW boundary exported from the binary support image. The overlay shows that the boundary proxy follows the effective liquid envelope formed by local contrast changes rather than relying on a single foremost bright pixel.}
+\label{fig:mie-segmentation-boundary-overlay}
+\end{figure}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_metrics_summary.pdf}
 \caption{Examples of the main quantitative outputs after alignment and binarisation. (a) Three penetration descriptors versus frame index; (b) two cone-angle proxies; (c) maximum projection of the binarised strip of a representative plume, with the near-nozzle opening and closing frames marked.}
 \label{fig:mie-metrics-summary}
 \end{figure}
-

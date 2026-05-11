@@ -64,6 +64,18 @@ LEGACY_FILL_DEFAULTS = {
     "control_backpressure_bar": 4.0,
 }
 
+
+def umbrella_to_tilt_radian(umbrella_angle_deg: float) -> float:
+    return float(np.deg2rad((180.0 - float(umbrella_angle_deg)) / 2.0))
+
+
+def resolve_tilt_angle_radian(raw: Mapping[str, Any]) -> float:
+    if "tilt_angle_radian" in raw:
+        return float(raw["tilt_angle_radian"])
+    if "umbrella_angle_deg" in raw:
+        return umbrella_to_tilt_radian(float(raw["umbrella_angle_deg"]))
+    raise KeyError("raw input must include either 'tilt_angle_radian' or 'umbrella_angle_deg'.")
+
 DEFAULT_STAGE1_CONFIG = {
     "seed": 42,
     "comparison_time_s": 5e-3,
@@ -1595,8 +1607,11 @@ def canonicalize_raw_input(
     *,
     for_engineered_v2: bool,
 ) -> dict[str, float]:
+    tilt_angle_radian = resolve_tilt_angle_radian(raw)
+    umbrella_angle_deg = float(raw["umbrella_angle_deg"]) if "umbrella_angle_deg" in raw else float(180.0 - np.rad2deg(2.0 * tilt_angle_radian))
     out: dict[str, float] = {
-        "tilt_angle_radian": float(raw["tilt_angle_radian"]),
+        "tilt_angle_radian": tilt_angle_radian,
+        "umbrella_angle_deg": umbrella_angle_deg,
         "plumes": float(raw["plumes"]),
         "diameter_mm": float(raw["diameter_mm"]),
         "injection_duration_us": float(raw["injection_duration_us"]),
@@ -1799,7 +1814,12 @@ def build_feature_tensor_torch(
         log_a = torch.log(torch.clamp(a_scale, min=1e-9))
         feature_series = {
             str(artifacts.train_config.get("time_feature", TIME_FEATURE)): time_norm,
-            "tilt_angle_radian_z": _torch_zscore(artifacts.scaler_state, tensors["tilt_angle_radian"], "tilt_angle_radian_z", device),
+            "tilt_angle_radian_z": _torch_zscore(
+                artifacts.scaler_state,
+                torch_scalar(resolve_tilt_angle_radian(raw_values), device=device),
+                "tilt_angle_radian_z",
+                device,
+            ),
             "plumes_z": _torch_zscore(artifacts.scaler_state, tensors["plumes"], "plumes_z", device),
             "injection_duration_us_z": _torch_zscore(artifacts.scaler_state, tensors["injection_duration_us"], "injection_duration_us_z", device),
             "control_backpressure_bar_z": _torch_zscore(artifacts.scaler_state, tensors["control_backpressure_bar"], "control_backpressure_bar_z", device),
@@ -1814,7 +1834,12 @@ def build_feature_tensor_torch(
         a_scale = torch.ones_like(delta_pressure)
         feature_series = {
             str(artifacts.train_config.get("time_feature", TIME_FEATURE)): time_norm,
-            "tilt_angle_radian_z": _torch_zscore(artifacts.scaler_state, tensors["tilt_angle_radian"], "tilt_angle_radian_z", device),
+            "tilt_angle_radian_z": _torch_zscore(
+                artifacts.scaler_state,
+                torch_scalar(resolve_tilt_angle_radian(raw_values), device=device),
+                "tilt_angle_radian_z",
+                device,
+            ),
             "plumes_z": _torch_zscore(artifacts.scaler_state, tensors["plumes"], "plumes_z", device),
             "diameter_mm_z": _torch_zscore(artifacts.scaler_state, tensors["diameter_mm"], "diameter_mm_z", device),
             "injection_duration_us_z": _torch_zscore(artifacts.scaler_state, tensors["injection_duration_us"], "injection_duration_us_z", device),

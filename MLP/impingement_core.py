@@ -4,6 +4,7 @@ import importlib.util
 import json
 import math
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -20,8 +21,9 @@ import torch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MLP_DIR = Path(__file__).resolve().parent
-V2_DIR = MLP_DIR / "training"
-for search_path in (PROJECT_ROOT, MLP_DIR, V2_DIR):
+TRAINING_DIR = MLP_DIR / "MLP_training"
+LEGACY_TRAINING_DIR = MLP_DIR / "training"
+for search_path in (PROJECT_ROOT, MLP_DIR, TRAINING_DIR, LEGACY_TRAINING_DIR):
     search_path_str = str(search_path)
     if search_path_str not in sys.path:
         sys.path.insert(0, search_path_str)
@@ -32,6 +34,7 @@ from engineered_feature_common import (  # noqa: E402
     build_feature_matrix_np,
     infer_feature_family,
     load_run_artifacts,
+    umbrella_to_tilt_radian,
 )
 from piston.design_A import _validate_design_a_geometry, piston_design_A  # noqa: E402
 from piston.design_B import build_piston_design_b, piston_design_B  # noqa: E402
@@ -101,6 +104,7 @@ class ImpingementRunResult:
     state: WizardState
     output_dir: Path
     cache_path: Path
+    metadata_json_path: Path
     summary_json_path: Path
     summary_plot_path: Path
     preview_plot_path: Path
@@ -108,6 +112,8 @@ class ImpingementRunResult:
     warnings: list[str]
     metrics: dict[str, float]
     time_ms: np.ndarray
+    penetration_mu_mm: np.ndarray
+    penetration_std_mm: np.ndarray
     collision_prob: np.ndarray
     wall_prob: np.ndarray
     cumulative_collision: np.ndarray
@@ -120,6 +126,8 @@ class _SimulationSnapshot:
     design_code: DesignChoice
     output_dir: Path
     time_ms: np.ndarray
+    penetration_mu_mm: np.ndarray
+    penetration_std_mm: np.ndarray
     collision_prob: np.ndarray
     wall_prob: np.ndarray
     cumulative_collision: np.ndarray
@@ -161,6 +169,22 @@ def _trapezoid(y: np.ndarray, x: np.ndarray) -> float:
     return float(trapezoid_fn(y, x))
 
 
+def _resolve_tilt_angle_radian(nn_conditions: dict[str, float]) -> float:
+    if "tilt_angle_radian" in nn_conditions:
+        return float(nn_conditions["tilt_angle_radian"])
+    if "umbrella_angle_deg" in nn_conditions:
+        return umbrella_to_tilt_radian(float(nn_conditions["umbrella_angle_deg"]))
+    raise KeyError("nn_conditions must include either tilt_angle_radian or umbrella_angle_deg.")
+
+
+def _resolve_umbrella_angle_deg(nn_conditions: dict[str, float]) -> float:
+    if "umbrella_angle_deg" in nn_conditions:
+        return float(nn_conditions["umbrella_angle_deg"])
+    if "tilt_angle_radian" in nn_conditions:
+        return float(180.0 - np.rad2deg(2.0 * float(nn_conditions["tilt_angle_radian"])))
+    raise KeyError("nn_conditions must include either umbrella_angle_deg or tilt_angle_radian.")
+
+
 def build_default_state(defaults: NotebookDefaults) -> WizardState:
     return WizardState(
         run_dir=Path(defaults.run_dir),
@@ -178,6 +202,11 @@ def build_default_state(defaults: NotebookDefaults) -> WizardState:
 
 
 def serialize_wizard_state(state: WizardState) -> dict[str, Any]:
+    nn_conditions = dict(state.nn_conditions)
+    tilt_angle_radian = _resolve_tilt_angle_radian(nn_conditions)
+    umbrella_angle_deg = _resolve_umbrella_angle_deg(nn_conditions)
+    nn_conditions["tilt_angle_radian"] = float(tilt_angle_radian)
+    nn_conditions["umbrella_angle_deg"] = float(umbrella_angle_deg)
     return {
         "run_dir": str(Path(state.run_dir)),
         "selected_design": state.selected_design,
@@ -186,7 +215,7 @@ def serialize_wizard_state(state: WizardState) -> dict[str, Any]:
             **{key: float(value) for key, value in state.time_grid.items() if key != "n_frames"},
             "n_frames": int(round(float(state.time_grid["n_frames"]))),
         },
-        "nn_conditions": dict(state.nn_conditions),
+        "nn_conditions": nn_conditions,
         "piston_motion": dict(state.piston_motion),
         "piston_a_params": dict(state.piston_a_params),
         "piston_b_params": dict(state.piston_b_params),
@@ -200,6 +229,8 @@ def build_summary_figure(result: ImpingementRunResult) -> plt.Figure:
     return _create_summary_figure(
         design_label=result.state.design_label,
         time_ms=result.time_ms,
+        penetration_mu_mm=result.penetration_mu_mm,
+        penetration_std_mm=result.penetration_std_mm,
         collision_prob=result.collision_prob,
         wall_prob=result.wall_prob,
         cumulative_collision=result.cumulative_collision,
@@ -247,6 +278,10 @@ def validate_wizard_state(state: WizardState) -> None:
     _require_positive(state.nn_conditions, "injection_pressure_bar")
     _require_positive(state.nn_conditions, "ambient_pressure_bar_phys")
     _require_positive(state.nn_conditions, "control_backpressure_bar")
+    tilt_rad = _resolve_tilt_angle_radian(state.nn_conditions)
+    umbrella_angle_deg = _resolve_umbrella_angle_deg(state.nn_conditions)
+    if not (0.0 < umbrella_angle_deg < 180.0):
+        raise ValueError("umbrella_angle_deg must stay between 0 and 180.")
     cone_angle_deg = float(state.nn_conditions["cone_angle_deg"])
     if cone_angle_deg <= 0.0 or cone_angle_deg >= 180.0:
         raise ValueError("cone_angle_deg must stay between 0 and 180.")
@@ -378,12 +413,15 @@ def run_impingement_case(
     summary_plot_path = output_dir / "summary.png"
     preview_plot_path = output_dir / "preview.png"
     cache_path = output_dir / "impingement_frames.npz"
+    metadata_json_path = output_dir / "metadata.json"
     summary_json_path = output_dir / "summary.json"
 
     _emit_status(status_callback, "Saving summary plot...")
     summary_figure = _create_summary_figure(
         design_label=snapshot.design_label,
         time_ms=snapshot.time_ms,
+        penetration_mu_mm=snapshot.penetration_mu_mm,
+        penetration_std_mm=snapshot.penetration_std_mm,
         collision_prob=snapshot.collision_prob,
         wall_prob=snapshot.wall_prob,
         cumulative_collision=snapshot.cumulative_collision,
@@ -424,6 +462,7 @@ def run_impingement_case(
         state=state,
         output_dir=output_dir,
         cache_path=cache_path,
+        metadata_json_path=metadata_json_path,
         summary_json_path=summary_json_path,
         summary_plot_path=summary_plot_path,
         preview_plot_path=preview_plot_path,
@@ -431,11 +470,14 @@ def run_impingement_case(
         warnings=warnings,
         metrics=metrics,
         time_ms=snapshot.time_ms,
+        penetration_mu_mm=snapshot.penetration_mu_mm,
+        penetration_std_mm=snapshot.penetration_std_mm,
         collision_prob=snapshot.collision_prob,
         wall_prob=snapshot.wall_prob,
         cumulative_collision=snapshot.cumulative_collision,
         onset_prob=snapshot.onset_prob,
     )
+    _write_metadata_json(result, artifacts)
     _write_summary_json(result)
     _emit_status(status_callback, "Done.")
     return result
@@ -540,7 +582,7 @@ def _simulate_selected_design(
     std_arr = prediction["std_np"]
     onset_prob_arr = prediction["onset_prob_np"]
 
-    tilt_rad = float(state.nn_conditions["tilt_angle_radian"])
+    tilt_rad = _resolve_tilt_angle_radian(state.nn_conditions)
     cone_angle_deg = float(state.nn_conditions["cone_angle_deg"])
     half_cone_rad = float(np.deg2rad(cone_angle_deg / 2.0))
     injector_xy = (
@@ -612,6 +654,8 @@ def _simulate_selected_design(
         design_code=state.selected_design,
         output_dir=output_dir,
         time_ms=time_ms.astype(np.float32),
+        penetration_mu_mm=mu_arr.astype(np.float32),
+        penetration_std_mm=std_arr.astype(np.float32),
         collision_prob=collision_prob.astype(np.float32),
         wall_prob=wall_prob.astype(np.float32),
         cumulative_collision=cumulative_collision.astype(np.float32),
@@ -653,7 +697,8 @@ def _predict_physical_with_onset(
     feature_columns = list(artifacts.train_config["feature_columns"])
     time_feature = str(artifacts.train_config.get("time_feature", TIME_FEATURE))
     raw = {
-        "tilt_angle_radian": float(state.nn_conditions["tilt_angle_radian"]),
+        "tilt_angle_radian": _resolve_tilt_angle_radian(state.nn_conditions),
+        "umbrella_angle_deg": _resolve_umbrella_angle_deg(state.nn_conditions),
         "plumes": float(state.nn_conditions["plumes"]),
         "diameter_mm": float(state.nn_conditions["diameter_mm"]),
         "injection_duration_us": float(state.nn_conditions["injection_duration_us"]),
@@ -740,6 +785,8 @@ def _create_summary_figure(
     *,
     design_label: str,
     time_ms: np.ndarray,
+    penetration_mu_mm: np.ndarray,
+    penetration_std_mm: np.ndarray,
     collision_prob: np.ndarray,
     wall_prob: np.ndarray,
     cumulative_collision: np.ndarray,
@@ -747,12 +794,12 @@ def _create_summary_figure(
     piston_motion: dict[str, float],
     time_grid: dict[str, float],
 ) -> plt.Figure:
-    fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(9.0, 6.8), sharex=True)
-    ax_top.plot(time_ms, collision_prob, color="#2563eb", linewidth=2.0, label="piston impact")
-    ax_top.plot(time_ms, wall_prob, color="#ef4444", linewidth=1.5, linestyle="--", label="bore wall impact")
+    fig, (ax_top, ax_mid, ax_bottom) = plt.subplots(3, 1, figsize=(9.0, 8.8), sharex=True)
+    ax_top.plot(time_ms, 100.0 * collision_prob, color="#2563eb", linewidth=2.0, label="piston impact")
+    ax_top.plot(time_ms, 100.0 * wall_prob, color="#ef4444", linewidth=1.5, linestyle="--", label="bore wall impact")
     if onset_prob is not None:
-        ax_top.plot(time_ms, onset_prob, color="#64748b", linewidth=1.2, linestyle="-.", label="onset probability")
-    ax_top.set_ylabel("Probability")
+        ax_top.plot(time_ms, 100.0 * onset_prob, color="#64748b", linewidth=1.2, linestyle="-.", label="onset probability")
+    ax_top.set_ylabel("Probability [%]")
     ax_top.grid(alpha=0.3)
     ax_top.legend(loc="upper left", fontsize=8)
     ax_top.set_title(
@@ -762,11 +809,19 @@ def _create_summary_figure(
     )
 
     total_integral = _trapezoid(collision_prob, time_ms)
-    ax_bottom.plot(time_ms, cumulative_collision, color="#0891b2", linewidth=2.0)
+    ax_mid.plot(time_ms, cumulative_collision, color="#0891b2", linewidth=2.0)
+    ax_mid.set_ylabel("∫ P(piston) dt [ms]")
+    ax_mid.grid(alpha=0.3)
+    ax_mid.set_title(f"Cumulative piston impact integral = {total_integral:.3e} ms")
+
+    lower = penetration_mu_mm - penetration_std_mm
+    upper = penetration_mu_mm + penetration_std_mm
+    ax_bottom.plot(time_ms, penetration_mu_mm, color="#7c3aed", linewidth=2.0, label="penetration mean")
+    ax_bottom.fill_between(time_ms, lower, upper, color="#7c3aed", alpha=0.18, label="penetration ±1σ")
     ax_bottom.set_xlabel("Time [ms]")
-    ax_bottom.set_ylabel("∫ P(piston) dt [ms]")
+    ax_bottom.set_ylabel("Penetration [mm]")
     ax_bottom.grid(alpha=0.3)
-    ax_bottom.set_title(f"Cumulative piston impact integral = {total_integral:.3e} ms")
+    ax_bottom.legend(loc="upper left", fontsize=8)
 
     fig.tight_layout()
     return fig
@@ -943,6 +998,10 @@ def _create_preview_figure(snapshot: _SimulationSnapshot) -> plt.Figure:
     axis.grid(False)
     axis.set_title(f"{snapshot.design_label} — peak impact frame", color=PREVIEW_FG_TEXT, pad=10.0)
 
+    figure.subplots_adjust(left=0.17, right=0.84, bottom=0.28, top=0.90)
+    axis.set_xlim(-10.0, snapshot.canvas_w_mm)
+    axis.set_ylim(snapshot.canvas_h_mm, -10.0)
+
     colorbar = figure.colorbar(image_pdf, ax=axis, fraction=0.046, pad=0.02)
     colorbar.set_label("spray PDF [1/mm²]", color=PREVIEW_FG_TEXT)
     colorbar.ax.yaxis.set_tick_params(color=PREVIEW_FG_TEXT)
@@ -950,18 +1009,21 @@ def _create_preview_figure(snapshot: _SimulationSnapshot) -> plt.Figure:
     colorbar.outline.set_edgecolor("#111827")
 
     legend = axis.legend(
-        loc="lower right",
+        loc="upper left",
+        bbox_to_anchor=(0.0, -0.30),
         fontsize=8,
         framealpha=0.90,
         facecolor=PREVIEW_BG_PANEL,
         edgecolor="#111827",
+        ncol=1,
+        borderaxespad=0.0,
     )
     for text in legend.get_texts():
         text.set_color(PREVIEW_FG_TEXT)
 
-    axis.text(
-        0.98,
-        0.98,
+    figure.text(
+        0.985,
+        0.03,
         (
             f"t = {snapshot.time_ms[peak_index]:.2f} ms\n"
             f"μplot = {snapshot.mu_plot_arr[peak_index]:.1f} mm\n"
@@ -970,10 +1032,10 @@ def _create_preview_figure(snapshot: _SimulationSnapshot) -> plt.Figure:
             f"P(impact) = {snapshot.collision_prob[peak_index]:.3e}\n"
             f"P(wall) = {snapshot.wall_prob[peak_index]:.3e}"
         ),
-        transform=axis.transAxes,
+        transform=figure.transFigure,
         fontsize=9,
         color=PREVIEW_FG_TEXT,
-        va="top",
+        va="bottom",
         ha="right",
         bbox={
             "boxstyle": "round,pad=0.35",
@@ -982,7 +1044,6 @@ def _create_preview_figure(snapshot: _SimulationSnapshot) -> plt.Figure:
             "linewidth": 0.9,
             "alpha": 0.92,
         },
-        zorder=8,
     )
 
     figure.tight_layout()
@@ -1078,6 +1139,38 @@ def _write_summary_json(result: ImpingementRunResult) -> None:
         },
     }
     with result.summary_json_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, ensure_ascii=False)
+
+
+def _write_metadata_json(result: ImpingementRunResult, artifacts: Any) -> None:
+    payload = {
+        "generated_at_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "environment": {
+            "python_executable": sys.executable,
+            "python_version": sys.version,
+            "platform": platform.platform(),
+            "torch_device": "cuda" if torch.cuda.is_available() else "cpu",
+        },
+        "source_run": {
+            "run_dir": str(Path(artifacts.run_dir)),
+            "model_path": str(Path(artifacts.model_path)),
+            "train_config_used": artifacts.train_config,
+            "scaler_state": artifacts.scaler_state,
+        },
+        "state": serialize_wizard_state(result.state),
+        "metrics": result.metrics,
+        "outputs": {
+            "output_dir": str(result.output_dir),
+            "cache_path": str(result.cache_path),
+            "metadata_json_path": str(result.metadata_json_path),
+            "summary_json_path": str(result.summary_json_path),
+            "summary_plot_path": str(result.summary_plot_path),
+            "preview_plot_path": str(result.preview_plot_path),
+            "video_path": None if result.video_path is None else str(result.video_path),
+        },
+        "warnings": list(result.warnings),
+    }
+    with result.metadata_json_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
 

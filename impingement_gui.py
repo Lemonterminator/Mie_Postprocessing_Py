@@ -16,7 +16,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-for search_path in (PROJECT_ROOT, PROJECT_ROOT / "MLP", PROJECT_ROOT / "MLP" / "training"):
+for search_path in (
+    PROJECT_ROOT,
+    PROJECT_ROOT / "MLP",
+    PROJECT_ROOT / "MLP" / "MLP_training",
+    PROJECT_ROOT / "MLP" / "training",
+):
     search_path_str = str(search_path)
     if search_path_str not in sys.path:
         sys.path.insert(0, search_path_str)
@@ -35,6 +40,7 @@ from engineered_feature_common import infer_feature_family  # noqa: E402
 RUNS_ROOT = PROJECT_ROOT / "MLP" / "runs_mlp"
 IMPINGEMENT_RUN_DIR_ENV = "IMPINGEMENT_RUN_DIR"
 SUPPORTED_RUN_FAMILY = "engineered_v2"
+PREFERRED_DEFAULT_RUN_DIR = RUNS_ROOT / "distill_cdf_onset_v2_ablate_anchor_off_20260509_115301"
 
 
 def _read_run_feature_family(run_dir: Path) -> str | None:
@@ -66,6 +72,9 @@ def _resolve_default_run_dir() -> Path:
     override = os.environ.get(IMPINGEMENT_RUN_DIR_ENV)
     if override:
         return Path(override).expanduser()
+
+    if _read_run_feature_family(PREFERRED_DEFAULT_RUN_DIR) == SUPPORTED_RUN_FAMILY:
+        return PREFERRED_DEFAULT_RUN_DIR
 
     candidate_dirs = _iter_run_dirs()
     for candidate in candidate_dirs:
@@ -122,7 +131,7 @@ DEFAULT_TIME_GRID = {
 
 # ─── Spray inputs (neural-network features + cone) ───────────────────────────
 DEFAULT_NN_CONDITIONS = {
-    "tilt_angle_radian": float(np.deg2rad(20.0)),
+    "umbrella_angle_deg": 140.0,
     "plumes": 10.0,
     "diameter_mm": 0.34,
     "injection_duration_us": 800.0,
@@ -402,12 +411,14 @@ class ImpingementWizardGUI:
         frame = ttk.Frame(self.body, padding=18)
         frame.grid(row=0, column=0, sticky="nsew")
         ttk.Label(frame, text="Step 3: NN Operating Conditions and Cone", font=("Segoe UI", 16, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 10))
-        self._build_numeric_form(frame, self.state.nn_conditions, "nn", columns=2)
+        form_frame = ttk.Frame(frame)
+        form_frame.grid(row=1, column=0, sticky="w", pady=(14, 0))
+        self._build_numeric_form(form_frame, self.state.nn_conditions, "nn", columns=2)
         ttk.Label(
             frame,
-            text="tilt_angle_radian is in radians. For 20 degrees, keep the default value 0.349066.",
+            text="umbrella_angle_deg is in degrees. Tilt angle is (180 - umbrella_angle_deg) / 2.",
             foreground="#475569",
-        ).grid(row=20, column=0, sticky="w", pady=(12, 0))
+        ).grid(row=2, column=0, sticky="w", pady=(12, 0))
 
     def _build_solver_page(self) -> None:
         frame = ttk.Frame(self.body, padding=18)

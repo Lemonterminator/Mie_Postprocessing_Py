@@ -193,7 +193,7 @@ class PistonImpingementScene(Scene):
                 "stroke_width": 1.5,
             },
         )
-        axes.to_edge(LEFT, buff=0.8)
+        axes.to_edge(LEFT, buff=1.05)
 
         plot_panel = RoundedRectangle(
             corner_radius=0.18,
@@ -358,18 +358,18 @@ class PistonImpingementScene(Scene):
             text_obj.add_updater(make_line_updater(formatter, color_value, anchor))
 
         guide_label = Text(
-            f"cone +/- {cone_angle_deg / 2.0:.0f} deg",
+            f"cone angle: +/- {cone_angle_deg / 2.0:.0f} deg",
             color="#0891b2",
             font_size=16,
         )
-        guide_label.to_edge(RIGHT, buff=0.72).shift(DOWN * 2.65)
 
         legend = VGroup(
+            guide_label,
             Text("σ-shell: 3σ Gaussian overlay", color="#0284c7", font_size=16),
             Text("PDF: spray distribution", color="#d97706", font_size=16),
             Text("rose: bore wall", color="#fb7185", font_size=16),
         ).arrange(DOWN, aligned_edge=LEFT, buff=0.10)
-        legend.to_edge(RIGHT, buff=0.72).shift(DOWN * 1.25)
+        legend.to_edge(DOWN, buff=0.32).align_to(plot_panel, LEFT)
 
         self.play(
             FadeIn(plot_panel),
