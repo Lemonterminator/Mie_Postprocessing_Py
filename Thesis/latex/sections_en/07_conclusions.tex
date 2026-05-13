@@ -1,14 +1,14 @@
 \section{Conclusions}
 
+This thesis demonstrates that archive-scale Mie-scattering videos of multi-hole diesel injection can be turned into a calibrated, uncertainty-aware penetration surrogate capable of early-stage geometric screening without CFD. Its architecture combines the finite-field-of-view treatment, plume-level heteroscedasticity, physical $A = (\Delta P/\rho_a)^{1/4}d_n^{1/2}$ scaling, and raw-CDF/teacher distillation established in the method chapters. The resulting model outperforms all three baselines on the shared evaluation protocol, maintains conservative empirical coverage, and extends to unseen nozzle families, while its probabilistic output projects directly into a frame-resolved geometric screening score.
+
 \subsection{Validated outcomes}
 
 \begin{itemize}
-  \item The thesis delivers a complete workflow from manual nozzle calibration and GPU-based plume extraction to fitted penetration targets and a staged surrogate model.
   \item Under the external-cleaning evaluation protocol, covering 795{,}561 prediction points and 33{,}845 trajectories, the transition-region-scaled three-stage MLP (anchor-off) reaches a four-run mean RMSE of~\SI{6.094}{mm}, MAE of~\SI{4.465}{mm}, P95 absolute error of~\SI{12.888}{mm}, and conservative 1$\sigma$/2$\sigma$ coverage of 0.783/0.982.
   \item On the earlier original archived held-out split, the same anchor-off Stage~3 surrogate reaches RMSE~\SI{6.68}{mm}, MAE~\SI{4.83}{mm}, bias~\SI{-0.02}{mm}, and conservative 1$\sigma$/2$\sigma$ coverage of 72.24\% / 97.03\% on 21{,}470 trajectories.
   \item Relative to calibrated Hiroyasu--Arai, delayed Naber--Siebers, and a sparse heteroscedastic Gaussian process, the three-stage model reduces RMSE by 38.9\%, 31.1\%, and 11.7\%, respectively.
   \item The leave-one-nozzle-family evaluation shows that the method remains below the physical baselines on unseen nozzle families, while under-coverage in difficult families indicates that extrapolation risk must still be reported explicitly.
-  \item The staged design is justified: Stage~1 provides a stable mean anchor, Stage~2 provides a heteroscedastic teacher on the full filtered dataset, and Stage~3 produces the most credible screening model by blending trustworthy raw supervision with censoring-robust teacher guidance.
 \end{itemize}
 
 \subsection{Current prototype boundary}

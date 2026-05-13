@@ -1,12 +1,64 @@
 \section{Trajectory Targets, Surrogate Modelling, and Probabilistic Screening}
 
-This chapter starts from the plume-resolved observables produced by the image-processing workflow and explains how those discrete, partially censored measurements are turned into trainable targets, an uncertainty-aware surrogate, and a simplified geometric screening proxy. The split is intentional: it separates the auditable ``video to observables'' layer from the ``observables to predictor'' layer, making the assumptions and limits of each part easier to inspect.
+This chapter starts from the plume-resolved observables produced by the image-processing workflow and turns those discrete, partially censored measurements into trainable targets, an uncertainty-aware surrogate, and a simplified geometric screening proxy. The split is intentional: it separates the auditable ``video to observables'' layer from the ``observables to predictor'' layer, making the assumptions and limits of each part easier to inspect.
+
+Short pilot injections sharpen the tension between measured traces and trainable targets.
+Classical empirical penetration laws remain physically valuable, but their applicability becomes more limited when the observable window is dominated by start-of-injection and end-of-injection transients.
+The right-censoring issue established in Chapter~2 is treated here as a target-construction constraint for the fitting, uncertainty, and distillation stages.
+
+\subsection{Spatial right-censoring audit of the CDF traces}
+\label{sec:cdf-spatial-censoring-audit}
+
+Before constructing fitted targets, the severity of the CDF right-censoring problem is quantified directly from the image-processing outputs. This audit defines censoring spatially rather than from the later \(\SI{5}{ms}\) surrogate horizon. For each nozzle family \(n\), all positive raw CDF penetration values exported by the multi-hole Mie workflow are pooled and a field-of-view cap \(C_n\) is estimated as the \(q=0.999\) quantile. A plume trajectory is then marked as spatially right-censored if its raw or cleaned CDF trace reaches \(C_n-\epsilon_n\), with \(\epsilon_n=\max(\SI{1}{mm},0.01C_n)\). The audit is implemented in \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py}, comparing the raw Mie outputs under \codepath{Mie\_scattering\_top\_view\_results} with the fitted targets in \codepath{MLP/synthetic\_data}.
+
+The resulting scalar diagnostic is the spatial censoring rate,
+\[
+\mathrm{SCR}
+=
+\frac{1}{N}\sum_{i=1}^{N}
+\mathbf{1}\!\left[
+\max_t S_i^{\mathrm{raw/clean}}(t)
+\ge C_{n(i)}-\epsilon_{n(i)}
+\right],
+\]
+where \(n(i)\) is the nozzle family of trajectory \(i\).
+
+The clean split contains \(24{,}316\) CDF trajectories, of which \(9{,}630\) meet this spatial right-censoring criterion, giving a spatial censoring rate of \(39.6\%\). The median nozzle-specific cap is \(\SI{92.52}{mm}\). Among censored clean trajectories, the median first cap hit occurs at \(\SI{1.76}{ms}\), corresponding to \(44.4\%\) of the raw positive observation span. If a naive target construction simply held the final cleaned CDF value forward, its median gap relative to the accepted q1 continuation at \(\SI{5}{ms}\) would be \(\SI{46.38}{mm}\); if the cap itself were treated as the terminal saturation value, the corresponding median gap would still be \(\SI{43.96}{mm}\). These continuation gaps are not treated as wide-field ground-truth errors. They quantify the size of the target bias that would be introduced by reading cap-hit traces as physically saturated observations.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.88\linewidth]{images/fig_spatial_censoring_fraction_by_nozzle_clean.png}
+\caption{Nozzle-wise spatial right-censoring fraction for the clean CDF trajectories. A trajectory is counted as censored when its raw or cleaned CDF penetration reaches the nozzle-specific field-of-view cap estimated from raw Mie outputs. The audit shows that the cap-hit problem is not restricted to a small tail of the archive: approximately \(39.6\%\) of clean CDF trajectories are spatially censored overall.}
+\label{fig:spatial-censoring-by-nozzle-clean}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{tabular}{@{}L{0.58\linewidth}L{0.34\linewidth}@{}}
+\toprule
+Audit quantity & Clean CDF split \\
+\midrule
+Total trajectories & \(24{,}316\) \\
+Spatially right-censored trajectories & \(9{,}630\) (\(39.6\%\)) \\
+Median nozzle-specific cap & \(\SI{92.52}{mm}\) \\
+Median first cap-hit time among censored traces & \(\SI{1.76}{ms}\) \\
+Median cap-hit position within raw positive span & \(44.4\%\) \\
+Median naive-hold gap relative to q1 continuation & \(\SI{46.38}{mm}\) \\
+Median cap-saturation gap relative to q1 continuation & \(\SI{43.96}{mm}\) \\
+\bottomrule
+\end{tabular}
+\caption{Spatial censoring audit summary for clean CDF trajectories. The two continuation-gap rows compare naive censored-target constructions with the accepted q1 continuation at \(\SI{5}{ms}\); they are used as target-bias diagnostics rather than as direct measurement error against unavailable wide-field truth.}
+\label{tab:spatial-censoring-audit-clean}
+\end{table}
+
+This audit makes the modelling consequence explicit. The raw CDF traces handed over by Chapter~3 are not merely short or noisy; a large fraction of them reach a nozzle-specific spatial limit well before the time horizon used by the surrogate targets. The reduced-order continuation, the heteroscedastic teacher, and the later raw/KD regime split are therefore responses to a quantified observation problem rather than optional modelling embellishments.
 
 \subsection{Trajectory cleaning and reduced-order fitting}
 
-The learned models do not train directly on the raw exported traces. Instead, the cleaning and fitting routine first cleans and time-aligns them. For each plume, the routine finds the earliest valid penetration segment, takes the first few positive samples after onset (currently two), fits a straight line to those early nonzero points, and uses the \(x\)-axis intercept of that line as a subframe opening-delay estimate whenever the fitted slope is positive. If an area-based onset marker is available, that frame anchors the delay scan; otherwise it falls back to the first positive penetration frame. The resulting raw delay is then clipped to a small median-centered window across plumes so that one anomalous plume does not over-shift the whole group.
+The learned models do not train directly on the raw exported traces. Instead, the cleaning and fitting routine first cleans and time-aligns them. For each plume, the routine finds the earliest valid penetration segment, takes the first two positive samples after onset, fits a straight line to those early nonzero points, and uses the \(x\)-axis intercept of that line as a subframe opening-delay estimate whenever the fitted slope is positive. If an area-based onset marker is available, that frame anchors the delay scan; otherwise it falls back to the first positive penetration frame. The resulting raw delay is then clipped to a small median-centred window across plumes so that one anomalous plume does not over-shift the whole group.
 
-That delay estimate is used in two coupled ways. The penetration array itself is shifted left by the nearest integer number of frames, while the aligned time vector retains the fractional residual through the exact offset subtraction. The pipeline therefore does not merely discard leading zeros; it performs a plume-onset registration that preserves subframe timing information before the later reduced-order fit. After alignment, sudden unrealistic jumps are removed, pixels are converted to corrected physical length, and low-quality fits are flagged through a set of rule-based masks.
+That delay estimate is used in two coupled ways. The penetration array itself is shifted left by the nearest integer number of frames, while the aligned time vector retains the fractional residual through the exact offset subtraction. The pipeline performs a plume-onset registration that preserves subframe timing information before the later reduced-order fit. After alignment, sudden unrealistic jumps are removed, pixels are converted to corrected physical length, and low-quality fits are flagged through a set of rule-based masks.
 
 Each accepted trajectory is then fitted with a smooth two-regime model,
 \[
@@ -31,9 +83,9 @@ with the Huber penalty
 \delta\left(|r|-\tfrac{1}{2}\delta\right), & |r|>\delta.
 \end{cases}
 \]
-where \(r = S(t_i;\theta)-y_i\) is the fitting residual and \(\delta\) is the threshold where the penalty transitions from squared-error to absolute-error. The objective is solved by trust-region nonlinear least squares with \(\delta=1\), while the log-parameterization keeps the fitted gains and transition scale positive \cite{Huber1964,NocedalWright2006}. This fit is not introduced as a baseless convenience curve. It is a reduced-order, data-driven adaptation of the regime-change viewpoint used in diesel spray-penetration literature: Hiroyasu and Arai describe spray development in terms of changing penetration behavior across stages \cite{HiroyasuArai1990}, and later work on start-of-injection transients shows that short injections are difficult to represent well with one rigid empirical expression over the entire trace \cite{ZhouLiYi2021}. That consideration is especially relevant here because the present experiments use pilot diesel injection, for which the near-SOI portion is short, highly transient, and relatively noisy.
+where \(r = S(t_i;\theta)-y_i\) is the fitting residual and \(\delta\) is the threshold where the penalty transitions from squared-error to absolute-error. The objective is solved by trust-region nonlinear least squares with \(\delta=1\), while the log-parameterization keeps the fitted gains and transition scale positive \cite{Huber1964,NocedalWright2006}. The fit is a reduced-order, data-driven adaptation of the regime-change viewpoint used in diesel spray-penetration literature: Hiroyasu and Arai describe spray development in terms of changing penetration behavior across stages \cite{HiroyasuArai1990}, and later work on start-of-injection transients shows that short injections are difficult to represent well with one rigid empirical expression over the entire trace \cite{ZhouLiYi2021}. That consideration is especially relevant here because the present experiments use pilot diesel injection, for which the near-SOI portion is short, highly transient, and relatively noisy.
 
-The model should therefore be read as a temporal parameterization rather than as an explicit physics law. Its purpose is twofold: to provide believable extrapolation farther from EOI, where the downstream surrogate needs stable targets, and to provide acceptable interpolation near SOI, where the relative error is larger and the apparent early-time physics are harder to constrain from the image trace alone. The sigmoid gate is important for that role. Instead of imposing a hard breakpoint between two empirical branches, it creates a differentiable transition, which keeps the fitted curve smooth and makes it more compatible with the later neural-network stage. In other words, the early transient physics are not forced into a rigid closed-form law here; they are only approximated well enough that the subsequent network can learn the remaining condition-dependent behavior from the full operating-point inputs.
+The model should therefore be read as a temporal parameterization rather than as an explicit physics law. Its purpose is twofold: to provide believable extrapolation farther from EOI, where the downstream surrogate needs stable targets, and to provide acceptable interpolation near SOI, where the relative error is larger and the apparent early-time physics are harder to constrain from the image trace alone. The sigmoid gate is important for that role. Instead of imposing a hard breakpoint between two empirical branches, it creates a differentiable transition, which keeps the fitted curve smooth and makes it more compatible with the later neural-network stage. In other words, the early transient physics are not forced into a rigid closed-form law here; they are only approximated well enough that the subsequent network can learn the remaining condition-dependent behaviour from the full operating-point inputs.
 
 This interpretation becomes clearer when the fit is compared with the extended EOI expressions in the spray literature. The Zhou et al.\ post-EOI model distinguishes the global injection clock \(t\) from the delayed clock \((t-t_i)\), because the late penetration branch is activated only after the end-of-injection dynamics have propagated downstream \cite{ZhouLiLaiWei2019}. The present pipeline handles that delay in two layers. First, the preprocessing stage estimates a plume-wise onset delay from the early linear extrapolation described above and shifts the observed series toward a common \(t\approx 0\) reference. Second, the reduced-order fit itself still does not contain an explicit delayed clock inside the parametric branch. Instead, it uses
 \[
@@ -138,7 +190,7 @@ z_{\mathrm{robust}}(x)=0.6745\,\frac{x-\operatorname{median}(x)}{\operatorname{M
 \qquad
 \operatorname{MAD}(x)=\operatorname{median}\!\left(\lvert x-\operatorname{median}(x)\rvert\right),
 \]
-applied to \(t_0\), \(\log(1+\mathrm{RMSE})\), and \(\log(1+\mathrm{cost\_per\_point})\) within each file group. Rows with \(|z_{\mathrm{robust}}|>3\) on any of those diagnostics are marked as outliers and excluded from the clean archive. 
+applied to \(t_0\), \(\log(1+\mathrm{RMSE})\), and \(\log(1+\mathrm{cost\_per\_point})\) within each file group. Rows with \(|z_{\mathrm{robust}}|>3\) on any of those diagnostics are marked as outliers and excluded from the clean archive.
 
 This stringent masking process, particularly the basic checks requiring a minimum number of valid frames (\(n \ge 10\)) and a plausible transition time (\(t_0 < \SI{0.8}{ms}\)), introduces a deliberate and significant engineering trade-off. In Mie-scattering experiments, uneven illumination or plume-to-plume occlusion often causes the optical signal of back-lit or blocked plumes to drop below the detection threshold. The upstream computer vision pipeline either misidentifies background noise as the spray tip (causing physically impossible jumps blocked by an explicit upper difference threshold) or loses the plume entirely (resulting in heavily truncated series). The Huber loss and masking logic systematically flag and discard these degraded trajectories.
 
@@ -153,7 +205,9 @@ Figure~\ref{fig:filter-survival-cdf-nozzle} shows the CDF q1 filter survival rat
 \label{fig:filter-survival-cdf-nozzle}
 \end{figure}
 
-However, this subjective bias is a necessary trade-off. By aggressively killing ambiguous data, the pipeline guarantees that the Stage-2 model learns robust, purely fluid-dynamic penetration trends without having its gradients contaminated by optical vanishing effects, background reflections, or incorrect hydraulic delay alignments. This idealized Stage-2 model then serves as a pristine, censoring-free teacher. In the final Stage-3 distillation, the architecture recombines this clean prior with the raw, unfiltered data: it trusts the raw CDF observations in the high-confidence raw regime, where optical contrast is universally strong, but dynamically falls back to the bias-free Stage-2 teacher in the teacher-only extrapolation regime, where raw signals vanish. Thus, the cleaning and fitting pipeline acts as the crucial filter that immunizes the teacher model against right-censoring, allowing the final distilled student model to smoothly bridge early-time reality with late-time physical consistency.
+The trade-off is deliberate but limited. By excluding ambiguous data, the pipeline gives Stage~2 a clean teacher target that is less exposed to optical vanishing effects, background reflections, and incorrect hydraulic delay alignments. Stage~3 then recombines this clean prior with the raw, unfiltered CDF data: it trusts raw observations in high-confidence bins and falls back to the Stage~2 teacher where coverage collapses. The result is a controlled interpolation between early-time raw-signal fidelity and late-time physical consistency.
+
+That design does not remove the selection bias introduced by filtering. The teacher's late-time prior remains conditioned on well-illuminated, unobstructed plumes; when Stage~3 defers to it, the output should be read as a clean-plume continuation rather than as a debiased ensemble over all nozzle geometries.
 
 \textbf{Overall assessment of the q1 reduced-order surrogate.} The combined evidence positions \(S(t)=\sigma((t-t_0)/s)\,k_{1/4}\,t^{1/4}\) as a physically defensible and numerically robust reduced-order trajectory surrogate rather than a new closed-form penetration law. The kinematic exponent \(t^{1/4}\) inherits the regime-change shape used by Hiroyasu and Arai \cite{HiroyasuArai1990} and the post-EOI extensions of Zhou et al.\ \cite{ZhouLiLaiWei2019,ZhouLiYi2021}; the sigmoid gate replaces their hard breakpoint with a differentiable transition, the structural prerequisite for using fitted curves as targets in a downstream neural surrogate. The empirical \(k_{1/4}\) scaling matches the Hiroyasu--Arai free-jet predictions in \(\rho_a\) and \(d_n\) almost exactly, while the steeper \(\Delta P\) exponent is consistent with the wall-jet regime that dominates the surviving population; the data itself selects \(t^{1/4}\) by collapsing the four-parameter blend to \(k_{\mathrm{sqrt}}\!\approx\!0\) in \(99.8\%\) of fits; and the central-window robust spread of \(\sim\SI{0.60}{mm}\) sits near the optical noise floor of the imaging chain.
 
@@ -195,9 +249,9 @@ The four sparse inputs---nozzle diameter \(d_n\), injection pressure \(P_{\mathr
 \]
 treats $A$ as a target divisor only. The six-feature scaling-and-residual form additionally contains $\log A_z$ as a one-dimensional residual axis. The training target is reparameterised to the non-dimensional penetration $\hat{S}(t)=S(t)/A$; the network predicts $\hat{\mu}$ and $\log\hat{\sigma}^2$, and physical predictions are recovered at inference as $\mu_S=A\,\hat{\mu}$ and $\sigma_S=A\,\hat{\sigma}$.
 
-Before any optimisation, a scaling-validation routine tests the assumption on the actual dataset: each trajectory is divided by its own $A$, the per-time-slice variance reduction is reported, and a linear-regression $R^2$ of $\hat{S}(t)$ on the kept features is computed. In the final study runs the check passed with a median post-\SI{0.5}{ms} variance reduction of~59.5\% (collapse ratio~0.405) and a sparse-feature $R^2$ dropping from~0.34 on $S$ to~0.14 on $\hat{S}$, confirming that $A$ accounts for the dominant diameter and pressure variation and that the network is learning only the residual structure on the dense, well-supported axes. If the check fails, training aborts by default, making the physical prior falsifiable rather than asserted.
+Before any optimisation, a scaling-validation routine tests the assumption on the actual dataset: each trajectory is divided by its own $A$, the per-time-slice variance reduction is reported, and a linear-regression $R^2$ of $\hat{S}(t)$ on the kept features is computed. In the final study runs the check passed with a median post-\SI{0.5}{ms} variance reduction of~59.5\% (collapse ratio~0.405) and a sparse-feature $R^2$ dropping from~0.34 on $S$ to~0.14 on $\hat{S}$, confirming that $A$ accounts for the dominant diameter and pressure variation and that the network is learning only the residual structure on the dense, well-supported axes. If the check fails, training aborts by default, making the physical prior falsifiable rather than asserted. The Hiroyasu--Arai exponents embedded in $A = (\Delta P/\rho_a)^{1/4}d_n^{1/2}$ are therefore not a post-hoc normalisation convenience; they carry an empirically checkable prediction that the training protocol is structured to confirm or reject before any weights are updated.
 
-Stage~1 and Stage~2 also share a group-aware data split: whole operating-condition groups are assigned to train, validation, or test, preventing leakage between curves that share an operating point. Stage~2 warm-starts from the Stage-1 engineered run directory and reuses its scaler state, guaranteeing consistent variant choice and $A$-scaling across both stages.
+Stage~1 and Stage~2 also share a group-aware data split: whole operating-condition groups — defined by nozzle identity, injection pressure, chamber pressure, and injection duration — are assigned together to train, validation, or test, preventing leakage between curves that share an operating point. Without this constraint, a random trajectory-level split would allow the network to interpolate between near-identical curves from the same operating condition seen during training, and the resulting held-out error would reflect intra-condition smoothness rather than generalisation across the condition space. The group assignment is therefore the structural guarantee that the reported test metrics are interpretable as interpolation performance across distinct operating conditions, not memorisation within them. Stage~2 warm-starts from the Stage-1 engineered run directory and reuses its scaler state, guaranteeing consistent variant choice and $A$-scaling across both stages.
 
 \subsection{Construction and fitting protocol for physical and non-parametric baselines}\label{sec:baseline-fitting-protocol-en}
 
@@ -253,6 +307,23 @@ GP mean and input-dependent variance, rescaled by \(A\) to mm \\
 \caption{Unified construction protocol for the traditional physical baselines and the non-parametric statistical baseline in the external-cleaning evaluation. All models use the same image-derived penetration table, group-aware split, and evaluation target.}
 \label{tab:baseline-fitting-protocol-en}
 \end{table}
+
+\subsection{Evaluation protocol and metrics}
+\label{sec:evaluation-protocol-en}
+
+All models are evaluated on a common held-out test set derived from the external-cleaning evaluation table described above. The external-cleaning procedure re-runs the full image-processing and target-construction chain on a frozen image archive and produces a penetration table that is then partitioned group-wise into training, validation, and test splits. The test partition is never used for model selection or hyperparameter tuning; reported test-set numbers are therefore single evaluations on data the model has not influenced.
+
+\textbf{Point-error metrics.} Root-mean-square error (RMSE) and mean absolute error (MAE) measure the accuracy of the predicted conditional mean $\mu(t)$ against held-out pointwise penetration observations. Both are computed over the full time range covered by the test trajectories. Because errors within a single trajectory are temporally correlated, the effective sample size is substantially smaller than the raw point count, and reported values characterise average per-point error across a heterogeneous population of operating conditions and time instants rather than a statistically independent sample.
+
+\textbf{Empirical coverage.} A heteroscedastic model outputs both a conditional mean $\mu(t)$ and a conditional standard deviation $\sigma(t)$. The primary calibration question is whether the predicted uncertainty intervals are empirically trustworthy: under a Gaussian predictive distribution, $68.3\%$ of observations should fall within the $[\mu-\sigma,\,\mu+\sigma]$ interval and $95.4\%$ within the $[\mu-2\sigma,\,\mu+2\sigma]$ interval. The empirical $1\sigma$ coverage on the held-out test set is the primary calibration metric for each probabilistic model: values above $68.3\%$ indicate conservative (over-dispersed) intervals, values below indicate over-confident (under-dispersed) predictions. For the physical baselines, $\sigma(t)$ is the time-binned robust residual spread estimated from training residuals; for the MLP stages, $\sigma(t)$ is the network's direct output.
+
+\textbf{Continuous ranked probability score.} The CRPS evaluates the predictive cumulative distribution function $F$ against a scalar observation $y$ as
+\[
+\mathrm{CRPS}(F,y) = \int_{-\infty}^{\infty}\!\left(F(z)-\mathbf{1}[z\geq y]\right)^2\mathrm{d}z.
+\]
+Under a Gaussian predictive distribution with mean $\mu$ and standard deviation $\sigma$ this reduces to a closed-form expression that simultaneously rewards accuracy (small $|\mu-y|$) and calibration (neither too wide nor too narrow $\sigma$). Lower CRPS is better; a perfectly sharp and accurate point forecast has $\mathrm{CRPS}=0$.
+
+\textbf{Leave-one-nozzle-family evaluation.} The standard group-aware split retains all nozzle families in the training and validation partitions and evaluates interpolation across pressure and duration combinations within the supported operating domain. To probe out-of-distribution robustness in a physically meaningful direction, a secondary leave-one-nozzle-family evaluation is also conducted: all operating conditions belonging to one nozzle family are removed from the training and validation splits, the model is retrained on the remaining families, and performance is evaluated on the held-out family alone. This procedure is repeated for each nozzle family in turn. Because nozzle families differ in hole diameter, plume count, and early-transient spray formation dynamics, the leave-one-family test asks whether the staged architecture generalises to a nozzle geometry never seen during training — the most demanding interpolation scenario the present dataset can provide. Results from both evaluation protocols are reported in Chapter~5.
 
 \subsection{Stage-1 MSE baseline on the non-dimensional target}
 
@@ -380,10 +451,11 @@ Both channels are further modulated by a global time-bin rebalancing weight (inv
 \[
 \mathcal{L} = \mathcal{L}_{\mathrm{raw}} + \mathcal{L}_{\mathrm{KD}} + \lambda_{\mathrm{onset}}\,\mathcal{L}_{\mathrm{onset}} + \lambda_{\mathrm{anchor}}\,\mathcal{L}_{\mathrm{anchor}} + \lambda_{d_1}\,P_{d_1} + \lambda_{d_2}\,P_{d_2},
 \]
-where $\mathcal{L}_{\mathrm{raw}}$ is the Gaussian NLL on physical $(\mu,\sigma^2)$ against raw CDF targets weighted by $w_{\mathrm{raw}}$; $\mathcal{L}_{\mathrm{KD}}$ is the forward KL divergence $\mathrm{KL}(q_{\mathrm{student}}\|p_{\mathrm{teacher}})$ in physical space weighted by $w_{\mathrm{kd}}$ and a teacher confidence factor
+where $\mathcal{L}_{\mathrm{raw}}$ is the Gaussian NLL on physical $(\mu,\sigma^2)$ against raw CDF targets weighted by $w_{\mathrm{raw}}$; $\mathcal{L}_{\mathrm{KD}}$ is the forward KL divergence $D_{\mathrm{KL}}(p_{\mathrm{teacher}}\|p_{\mathrm{student}})$ in physical space weighted by $w_{\mathrm{kd}}$ and a teacher confidence factor
 \[
 w_{\mathrm{conf}}(t) = \mathrm{clamp}\!\left(\frac{\sigma_{\mathrm{ref}}}{\sigma_{\mathrm{teacher}}(t)},\;0.25,\;1.0\right),\quad\sigma_{\mathrm{ref}}=\SI{10}{mm};
 \]
+This factor reduces the effective KD weight in proportion to how far the teacher's uncertainty exceeds the reference scale: when $\sigma_{\mathrm{teacher}}\leq\sigma_{\mathrm{ref}}$ the teacher is confident and $w_{\mathrm{conf}}=1$; when $\sigma_{\mathrm{teacher}}\gg\sigma_{\mathrm{ref}}$ the teacher is expressing genuine extrapolation uncertainty, and its guidance is down-weighted to a floor of $0.25$, preventing the student from being pulled toward an increasingly speculative distribution in the censored late-time tail.
 $\mathcal{L}_{\mathrm{onset}}$ is a binary cross-entropy loss on a new onset logit output against a ramp target $\min(t/t_{\mathrm{ramp}},1)$ active only for $t\leq\SI{0.2}{ms}$ ($\lambda_{\mathrm{onset}}=0.1$); $\mathcal{L}_{\mathrm{anchor}}$ is a quadratic penalty pulling $\mu(t\approx0)$ toward zero, ramping down over the first \SI{0.15}{ms}. This anchor term is retained in the general objective and in the baseline run ($\lambda_{\mathrm{anchor}}=0.01$), but the final selected checkpoint sets $\lambda_{\mathrm{anchor}}=0$ after the ablation evidence below showed that the anchor introduced a small systematic under-prediction. $P_{d_1}=\operatorname{ReLU}(-\Delta\mu)^2$ enforces monotonicity; and $P_{d_2}=\operatorname{ReLU}(+\Delta^2\mu)^2$ enforces concavity for $t\geq\SI{0.5}{ms}$.
 
 \begin{table}[t]
@@ -470,3 +542,4 @@ where \(\mathbf{1}_{\Omega_{\mathrm{piston}}(t)}\) is the binary indicator funct
 
 \textbf{Scope of the claim.}  The rotated-Gaussian envelope, the analytic cone-angle spread, and the slider-crank crown model are engineering simplifications, not resolved droplet-scale physics. This prototype is the probabilistic screening proxy argued for in the literature review; it is not a validated collision predictor against experimental high-speed footage or CFD collision fields.
 
+The modelling workflow presented in this chapter --- from cleaned reduced-order targets through staged heteroscedastic training to probabilistic collision scoring --- constitutes the surrogate contribution of this thesis. A quantitative comparison of Stage~1, Stage~2, Stage~3, and the physical and non-parametric baselines on held-out test data, including coverage statistics and a leave-one-nozzle-family stress test, is presented in Chapter~5. The design decisions and their motivations are established here; the numerical payoff is reported there.

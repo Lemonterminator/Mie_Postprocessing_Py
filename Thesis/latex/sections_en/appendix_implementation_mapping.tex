@@ -15,7 +15,7 @@ To improve the readability of the methodological descriptions, the codebase-spec
 the data cleaning and fitting routine & \texttt{fit\_raw\_data.py} \\
 the interactive calibration interface & \texttt{GUI.py} \\
 the multi-hole geometric construction script & \codepath{mie\_multi\_hole.py} \\
-the dataset summarization script & \texttt{MLP/summarize\_dataset.py} \\
+the dataset summarisation script & \texttt{MLP/summarize\_dataset.py} \\
 the calibration configuration file & \texttt{config.json} \\
 the training log file & \codepath{epoch\_loss.csv} \\
 the Stage-1 model checkpoint & \codepath{best\_model\_stage1.pt} \\
@@ -63,6 +63,7 @@ the GPU video remapping routine & \texttt{remap\_video\_cupy} \\
 the plume-wise CDF penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
 the axial CDF front locator & \texttt{penetration\_cdf\_front} \\
 the secondary feature extractor & \texttt{extract\_single\_plume\_features} \\
+the binary plume-video repair function & \texttt{repair\_binary\_plume\_video} \\
 the robust outlier masking routine & \texttt{apply\_filter\_masking} \\
 the group-aware dataset splitting routine & \texttt{assign\_splits\_by\_group} \\
 the physical scaling validation routine & \texttt{run\_pretrain\_collapse\_check} \\
@@ -80,7 +81,7 @@ the physical scaling validation routine & \texttt{run\_pretrain\_collapse\_check
 \textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
 \midrule
 the X/Y-coordinate inverse spatial maps & \texttt{mapx}, \texttt{mapy} \\
-the standardized strip dimensions & \texttt{OUT\_SHAPE} \\
+the standardised strip dimensions & \texttt{OUT\_SHAPE} \\
 the axial binary penetration metric & \texttt{penetration\_bw\_x} \\
 the polar binary penetration metric & \texttt{penetration\_bw\_polar} \\
 the cleaned CDF penetration & \texttt{penetration\_cdf clean} \\
@@ -123,4 +124,18 @@ the rectified-linear-unit operator $\operatorname{ReLU}(\cdot)$ & ReLU, equivale
 \caption{Mapping between the concept phrases used in the neural-network sections and the conventional named-algorithm identifiers.}
 \end{table}
 
+\section{Methodological Primer for Non-ML Readers}\label{app:ml-primer}
 
+This appendix provides an intuitive introduction to the four technical domains used in this thesis --- computer vision, robust optimisation, GPU parallel computing, and neural-network training --- intended for readers whose primary background is in fluid mechanics or mechanical design. The four tools are connected in sequence: image processing extracts penetration observables from videos; robust optimisation compresses noisy trajectories into stable fitting targets; GPU parallelism allows large-batch processing to finish within a reasonable timeframe; and neural networks learn conditional predictive distributions from those targets.
+
+\paragraph{Computer Vision and Signal Processing.}
+Computers store images as numerical matrices: each pixel corresponds to a matrix element, and its value represents the intensity at that point. \emph{Convolution} slides a small template window (the kernel) over the image and performs a weighted sum at each step; the effect depends on the kernel shape and can smooth, extract edges, or enhance textures. The Sobel operator is a convolution kernel that computes local brightness gradients and responds most strongly to abrupt contrast changes such as liquid-phase boundaries, making it a standard tool for locating boundaries in spray images. \emph{Polar-coordinate transformation} converts an image from Cartesian pixel rows and columns into a coordinate system with angle and radial distance as axes; performed around the calibrated nozzle centre, it folds the directional structure of a multi-hole spray into a 1D angular signal that simplifies registration. The \emph{Fast Fourier Transform} (FFT) decomposes a signal into sinusoidal components, exposing periodic structures as frequency-domain peaks; this thesis uses it to identify the rotational periodicity of multi-hole sprays and estimate each hole's angular offset.
+
+\paragraph{Robust Optimisation and Curve Fitting.}
+Least-squares fitting finds a curve that minimises the sum of squared distances from observations to that curve. When the data contain outliers --- for example, frames corrupted by optical noise or quantisation artefacts --- the squared penalty allows those points to disproportionately affect the result. The Huber loss is a compromise: it retains the smooth squared penalty for small residuals but switches to an absolute-value penalty above a threshold, suppressing outlier leverage. This is consistent with the engineering practice of down-weighting anomalous readings and is supported by robust statistics \cite{Huber1964,NocedalWright2006}. The \emph{gradient descent} algorithm used for neural-network training computes the partial derivative of the loss with respect to each parameter, then takes a small step along the direction of steepest descent, repeating until the loss converges --- conceptually equivalent to walking downhill in a high-dimensional parameter space.
+
+\paragraph{GPU Parallel Computing.}
+CPUs typically have a few highly optimised cores well suited to complex sequential logic. GPUs have thousands of simpler cores and are ideal for applying the same arithmetic operation to many well-organised data elements simultaneously. Image processing fits this pattern: convolving each pixel, accumulating in each angular bin, and thresholding each frame are operations that are independent across pixels or frames, so the GPU can distribute them across thousands of cores. CUDA is NVIDIA's parallel-computing platform; CuPy is a Python library that mirrors the NumPy interface, allowing this thesis's image-processing chain to switch to a GPU backend with minimal code changes. The engineering significance is that GPU acceleration turns terabyte-scale batch processing from a multi-day task into one that finishes within hours and supports iterative refinement \cite{NickollsBuckGarlandSkadron2008}.
+
+\paragraph{Neural Networks and Deep Learning.}
+The Multilayer Perceptron (MLP) used in this thesis cascades several layers of linear transformations and non-linear activation functions into a parameterised non-linear function, mapping operating-condition features and time to penetration predictions. Modern training depends on regularisation and optimisation choices: dropout randomly masks neurons during training, forcing redundant representations and reducing overfitting when operating-condition support is sparse \cite{Srivastava2014Dropout}; decoupled weight decay, as in AdamW, separates the decay term from the adaptive gradient update and can improve generalisation \cite{LoshchilovHutter2019AdamW}; smooth gated activations such as SiLU/Swish preserve smooth derivative propagation, which matters for the derivative-based physical penalties introduced later \cite{Ramachandran2017Swish}. Parameters are obtained by iterative gradient descent on a training loss. Mean Squared Error (MSE) is the simplest objective and corresponds to regression toward the conditional mean. Heteroscedastic Gaussian Negative Log-Likelihood (NLL) extends MSE by letting the network output both a conditional mean and a conditional variance, equivalent to an uncertainty band that varies with the operating condition rather than a fixed error band for all conditions \cite{KendallGal2017}. Knowledge distillation is a teacher--student framework: a teacher network trained on clean data provides soft targets that a student network imitates in regions where direct labels are sparse or incomplete, analogous to an experienced engineer supplying a baseline judgement when measurements are insufficient \cite{HintonVinyalsDean2015}.

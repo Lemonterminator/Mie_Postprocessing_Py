@@ -4,15 +4,14 @@
 
 图~\ref{fig:surrogate-data-flow} 给出了本文代理模型工作流的整体数据流向。整个流程按四条泳道组织：原始输入（高速 Mie 视频、标定配置与试验元数据）经 CUDA 加速图像处理生成 1D 特征与边界点，并由此分别得到基于二值（BW-Based）与基于累积分布（CDF-Based）的穿深与其他几何度量；这些观测量随后被无参曲线拟合扩展为合成轨迹，依次驱动 Stage~1（MSE）、Stage~2（NLL）与 Stage~3（Raw + KD）三阶段神经训练；最终训练完成的模型被部署于撞壁筛查应用，结合活塞设计与物理参数输出碰撞概率与可视化动画。表~\ref{tab:workflow} 进一步以文字形式总结了本文实现的工作流及其各阶段的作用。本章聚焦图~\ref{fig:surrogate-data-flow} 的前两条泳道：OSCC 视频数据如何被标定、预处理、配准并转换为逐 plume 的几何观测量。轨迹目标构造、surrogate 训练和概率性筛查则在下一章单独展开。
 
+方法层面的动机在于，光学实验能够提供图像证据，但逐次图像后处理结果本质上仍是离散观测表。
+若停留在这一层面，这些观测不能直接转化为设计迭代所需的条件参数化预测模型。
+因此，本章将图像处理视为一层可审计方法，而不是附属的预处理步骤：它负责把高速 Mie 记录转化为定义一致的逐喷油束时序观测量。
+
 这些任务在 Wärtsilä 光学喷雾燃烧舱（OSCC）数据上展开。
 原始数据是在固定相机布置下采集的 TB 级室温、非反应、顶视 Mie 散射记录，覆盖多种工况与喷嘴几何。
 研究路线首先对喷嘴几何进行人工标定，随后通过 CUDA 加速预处理、极坐标配准和喷油束条带提取链生成逐喷油束观测量；
-在此基础上，采用降阶拟合构造穿深目标，并训练三阶段 MLP 代理模型。
-Stage~1 用代表性曲线建立稳定均值基线；
-Stage~2 将监督扩展至完整过滤数据集并学习异方差条件方差，
-因为喷油束间差异与 shot-to-shot 离散性本身即为工程相关信息，而非可以简单平均消除的噪声 \cite{KendallGal2017}；
-Stage~3 在原始观测仍可靠的早期时间段重新引入原始 CDF 穿深进行监督学习，
-在晚期观测稀疏时退回到教师引导，从而降低把轨迹离开视场误读为物理饱和的风险。
+在此基础上，采用降阶拟合构造穿深目标，并将其交给第~4 章描述的三阶段 MLP surrogate。
 
 \begin{figure}[t]
 \centering
@@ -81,9 +80,10 @@ Nozzle0   & 0.384 & 10 & 140 & 34{,}000 & 1400--2200    & 340--1200  \\
 指令喷射时长为 340 至 1,200\,\si{\micro s}，
 腔压范围为 4.42 至 35\,bar。
 每个工况子文件夹通常包含五次重复记录，
-每段记录均被截断为 80 帧以限制 GPU 处理过程中的内存使用。
+每段记录均截断至约 100 帧以限制 GPU 处理过程中的内存使用。
 处理后的归档总计涵盖 266 个测试工况子文件夹和 2,992 个记录文件
-（每个 \texttt{.cine} 对应一个 CSV），对应数十 GB 的原始视频归档。
+（每个 \texttt{.cine} 对应一个 CSV）；截断后的工作归档占据数十 GB，
+而未截断的完整记录构成 TB 量级的原始输入。
 最新的数据统计会在每次运行 数据清洗与拟合程序 结束时由 \textbf{数据集统计脚本} 自动重新生成。
 
 \subsection{喷嘴几何的人工标定}
@@ -112,7 +112,7 @@ Nozzle0   & 0.384 & 10 & 140 & 34{,}000 & 1400--2200    & 340--1200  \\
 
 \textbf{多孔几何构建脚本} 中的文件处理器是图像分析工作流的中枢。对于每个 \texttt{.cine} 记录，\textbf{视频处理循环} 会把视频加载到当前数组后端，复用整个文件夹的环形掩码，调用 \textbf{多孔预处理程序} 与 \textbf{多孔后处理程序}，提取逐 plume 穿深曲线，计算基于边界的几何度量，并最终导出同步 CSV 与元数据文件。关键在于，这条链中数值开销最大的部分都尽量保留在后端本地：当 CuPy 可用时，卷积、角度分箱、重映射、阈值处理、连通域清理和形态学操作都会沿着 CUDA 路径执行，直到最终表格导出为止。
 
-这一实现选择来自此前内部处理路线的实际限制。旧流程依赖逐帧 MATLAB 处理，缺少有效并行加速。这里批评的并不是 MATLAB 语言本身：例如 PIVlab 就是一个成熟的 MATLAB 开源 PIV 工具箱 \cite{ThielickeSonntag2021PIVlab}。真正的限制在于本地批处理架构；在这种形式下，即使处理约 50~GB 的视频也可能需要一天左右，并且仍然容易崩溃。因此，将主要图像操作转入批量 CUDA 导向流程，在本文中被视为方法设计的一部分，而不是单纯的软件优化。
+这一实现选择来自此前内部处理路线的实际限制。旧流程依赖逐帧 MATLAB 处理，缺少有效并行加速；例如 PIVlab 虽然是成熟的 MATLAB 开源 PIV 工具箱 \cite{ThielickeSonntag2021PIVlab}，但本地批处理架构在处理约 50~GB 视频时仍可能需要一天左右，并且容易崩溃。因此，将主要图像操作转入批量 CUDA 导向流程，在本文中被视为方法设计的一部分，而不是单纯的软件优化。
 
 \subsubsection{批量调度、内存复用与恢复合约}
 
@@ -122,7 +122,7 @@ Nozzle0   & 0.384 & 10 & 140 & 34{,}000 & 1400--2200    & 340--1200  \\
 
 为了让几十 GB 级视频归档可以安全恢复，每个结果根目录都会维护 \codepath{processing_checkpoint.json}。该 checkpoint 以 \texttt{status}、\texttt{file}、\texttt{outputs}、\texttt{error} 和 \texttt{updated\_at} 记录当前文件状态，并在写入 JSON 后调用 \texttt{os.fsync} 强制落盘。重复运行时，跳过条件不是单一文件存在，而是输出合约满足：metrics CSV 和 metadata JSON 必须同时存在；当边界点导出开关启用时，还必须存在对应的 boundary NPZ。若只有 CSV 和 metadata 而缺少 boundary NPZ，脚本不会把该文件视为完成，而是重新处理以补齐边界输出。
 
-同一合约还负责统一不同年份实验归档的元数据差异。FPS 优先从 Phantom CINE header 中的 \texttt{FrameRate}、\texttt{FrameRate16} 或 \texttt{fPbRate} 读取；喷射时长可由 test-matrix JSON 中基于 cine 编号的 lookup 规则计算，并回退到组内常量；喷射压力、背压、喷孔数和伞角等来自 nozzle/test-matrix JSON，缺失时才使用脚本内的保守默认值。这一点对 Nozzle0（2022）与 Nozzle1--8（2024）这样的混合归档尤其重要。原始载入阶段还将每个 \texttt{.cine} 限制在前 80 帧；这不仅控制显存，在 \(25\,000~fps\) 下对应约 \(\SI{3.2}{ms}\)，在 \(34\,000~fps\) 下对应约 \(\SI{2.35}{ms}\)，覆盖本文关注的 pilot 喷射及其早期松弛尾部。
+同一合约还负责统一不同年份实验归档的元数据差异。FPS 优先从 Phantom CINE header 中的 \texttt{FrameRate}、\texttt{FrameRate16} 或 \texttt{fPbRate} 读取；喷射时长可由 test-matrix JSON 中基于 cine 编号的 lookup 规则计算，并回退到组内常量；喷射压力、背压、喷孔数和伞角等来自 nozzle/test-matrix JSON，缺失时才使用脚本内的保守默认值。这一点对 Nozzle0（2022）与 Nozzle1--8（2024）这样的混合归档尤其重要。原始载入阶段还将每个 \texttt{.cine} 限制在约 100 帧；这不仅控制显存，在各录制帧率下对应约 3--4\,ms，覆盖本文关注的 pilot 喷射及其早期松弛尾部。
 
 \subsubsection{标定移交和批量锚定}
 
@@ -159,7 +159,7 @@ F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
 \]
 其中，\(\varepsilon\) 为避免对数零的极小常数；\(t_{\mathrm{SOI}}\) 为喷射起始（Start of Injection）时刻；\(B(x,y) = \exp(L_{\mathrm{bkg}}(x,y)) - \varepsilon\) 为线性尺度下的背景强度；\(\alpha\) 为强度门槛乘子；\(R_0(x,y)\) 为喷射前的残余对数比基线；\(\tau\) 为用于抑制残余背景波动的软阈值。代码随后按稳健分位数重新缩放结果，然后进行任何几何处理。这个序列对Mie视频很重要，因为原始强度不是液体体积分数的直接度量，而且实际目标是在非均匀照明、眩光和背景纹理下稳定几何提取，而不是精确的光学反演\cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}。
 
-这种鲁棒预处理的需要在可视化级别上已经可以看到。图~\ref{fig:gui-gain-halo}比较了同一喷雾帧在两个显示增益下的情况，其余GUI参数保持不变。在较低增益下，喷雾核心相对紧凑。在较高增益下，明亮的光环在喷雾核心周围扩散并污染图像的更大区域。对于本论文的目的，这种行为被视为实用证据，表明基于Mie的强度强烈受多重散射、眩光和显示敏感背景污染的影响。因此，从单个灰度背景减法或直接强度阈值处理将对增益依赖性扩散过于敏感。这就是为什么实现的流程使用来自预注入统计的鲁棒背景估计，然后将表示转换为边缘主导的Sobel特征，其几何响应比原始亮度幅度更稳定\cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}。
+这种鲁棒预处理的必要性在可视化层面已经可以直观体现。图~\ref{fig:gui-gain-halo} 对同一喷雾帧在两个显示增益下的结果进行了比较，其余 GUI 参数保持不变。在较低增益下，喷雾核心相对紧凑；在较高增益下，明亮的光晕在喷雾核心周围扩散，污染了图像的大片区域。增益响应揭示了 Mie 成像的一个物理局限：高增益下显现的弥散光晕来自多次散射和眩光，而非几何上清晰的液相边界。因此，单纯基于单帧灰度背景减法或对强度的直接阈值化都会对增益引起的扩散过于敏感。这正是流程采用基于喷射前统计量的鲁棒背景估计、并将表示转向边缘主导 Sobel 特征的原因：后者的几何响应比原始亮度幅度更为稳定。
 
 \begin{figure}[t]
 \centering
@@ -183,7 +183,7 @@ F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
 \label{fig:mie-preproc-background}
 \end{figure}
 
-\subsubsection{CUDA后端上的超高效Sobel高通滤波}
+\subsubsection{秩-1可分离Sobel高通滤波}
 
 第二个贡献是直接应用于整个视频立方体的显式边缘增强高通阶段。在\textbf{GPU加速的Sobel滤波器}中，Sobel核\(K_x\)和\(K_y\)生成一次并使用\textbf{2D卷积程序}应用：
 \[
@@ -195,9 +195,9 @@ S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2},
 \[
 K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf{g},
 \]
-其中\(\mathbf{g}\)是离散高斯包络，\(\mathbf{d}_g\)是其导数。外积矩阵的代数秩恰好为1。函数\textbf{秩-1可分离性测试}通过计算核矩阵的截断\textnormal{SVD}分解$K \approx \sigma_1 \mathbf{u}_1 \mathbf{v}_1^{\top}$自动检验这一性质：若第二奇异值可以忽略，则将二维卷积替换为沿空间轴的两次顺序一维卷积。对于$k \times k$核，每像素乘加运算量从$O(k^2)$降至$O(2k)$。由于Sobel核在构造上始终为秩-1，可分离路径在运行时无条件执行，$K_x$和$K_y$均以一对一维卷积的形式应用于整个视频立方体。
+其中\(\mathbf{g}\)是离散高斯包络，\(\mathbf{d}_g\)是其导数。外积矩阵的秩恰好为1，因此二维卷积等价于沿空间轴的两次顺序一维卷积。\textbf{秩-1可分离性测试}自动验证这一性质，并在满足条件时切换至可分离路径，对 $k \times k$ 核，每像素乘加运算量从 $O(k^2)$ 降至 $O(2k)$。由于Sobel核在构造上始终为秩-1，$K_x$和$K_y$在运行时始终以一对一维卷积的形式应用于整个视频立方体。
 
-然后再次进行稳健缩放并用环形几何掩码。在实现术语中这很重要，因为它将低对比度灰度喷雾转换为边缘主导表示，同时保持整个操作在CuPy后端。贡献不是Sobel算子本身，这是经典的，而是将其集成到避免重复主机-设备复制的批量视频工作流中，为每个喷雾准备相同的下游几何处理\cite{GonzalezWoodsDIP,Szeliski2010Vision}。
+然后再次进行稳健缩放并用环形几何掩码。在实现术语中这很重要，因为它将低对比度灰度喷雾转换为边缘主导表示，同时保持整个操作在CuPy后端。这里的贡献在于将经典 Sobel 算子集成到避免重复主机-设备复制的批量视频工作流中，为每个喷雾准备相同的下游几何处理\cite{GonzalezWoodsDIP,Szeliski2010Vision}。
 
 \begin{figure}[t]
 \centering
@@ -248,7 +248,7 @@ D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 \]
 并结合三角阈值占用掩码和短间隙填充来拒绝空角度扇区。FFT本身是标准的；这里的贡献是使用已知喷嘴多重性将角度密度信号转换为自动喷雾配准规则\cite{CooleyTukey1965FFT,Szeliski2010Vision}。
 
-同一个 occupied-angle mask 还可以给出一个简单的 cone-angle proxy。具体做法是将 bin-wise 掩码视为定义在\([0,360^\circ)\)上的周期信号，把跨越\(0^\circ/360^\circ\)边界的 \texttt{True} 段合并为同一连续区间，再把每个连续区间的长度从 bins 换算为角度。得到的各段角宽描述了整段视频中每个 plume 实际占据的角度支持范围。在 notebook 的作图流程中，我们同时报告总 occupied angle 与各连续段角宽的平均值；后者可作为一个粗略的 cone-angle proxy，因为它在不需要逐帧重新做边缘拟合的情况下，概括了单个 plume 的平均角向展开宽度。
+同一个 occupied-angle mask 还可以给出一个简单的 cone-angle proxy。具体做法是将 bin-wise 掩码视为定义在\([0,360^\circ)\)上的周期信号，把跨越\(0^\circ/360^\circ\)边界的 \texttt{True} 段合并为同一连续区间，再把每个连续区间的长度从 bins 换算为角度。得到的各段角宽描述了整段视频中每个 plume 实际占据的角度支持范围。我们同时报告总 occupied angle 与各连续段角宽的平均值；后者可作为一个粗略的 cone-angle proxy，因为它在不需要逐帧重新做边缘拟合的情况下，概括了单个 plume 的平均角向展开宽度。
 
 \begin{figure}[t]
 \centering
@@ -259,17 +259,19 @@ D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 
 \subsubsection{逆仿射映射和喷雾条带提取}
 
-一旦知道目标角度，每个喷雾都重新映射到共同的喷嘴左条带坐标系统。在\textbf{正向仿射变换构建器}中构建的前向仿射变换是
+一旦知道目标角度，每个喷雾都重新映射到共同的喷嘴左条带坐标系统。每个喷油束角度 \(\phi_p\) 定义了一个将喷嘴放置在输出条带左边缘和中间高度的旋转加平移变换；重映射通过\textbf{逆向仿射映射生成器}中实现的逆关系完成：
 \[
+\begin{bmatrix}
+x_{\mathrm{src}}\\y_{\mathrm{src}}
+\end{bmatrix}
+=
+\mathbf{A}^{-1}
+\!\left(
 \begin{bmatrix}
 u\\v
 \end{bmatrix}
-=
-\mathbf{A}
-\begin{bmatrix}
-x\\y
-\end{bmatrix}
-+\mathbf{b},
+-\mathbf{b}
+\right),
 \qquad
 \mathbf{A}
 =
@@ -280,21 +282,7 @@ x\\y
 \qquad
 \mathbf{b}=\mathbf{t}-\mathbf{A}\mathbf{c},
 \]
-其中\(\mathbf{c}=(c_x,c_y)^\top\)是喷嘴中心，\(\mathbf{t}\)将喷嘴放置在输出条带的左边缘和中间高度。实际重映射使用逆关系
-\[
-\begin{bmatrix}
-x_{\mathrm{src}}\\y_{\mathrm{src}}
-\end{bmatrix}
-=
-\mathbf{A}^{-1}
-\left(
-\begin{bmatrix}
-u\\v
-\end{bmatrix}
--\mathbf{b}
-\right),
-\]
-在\textbf{逆向仿射映射生成器}中实现。对于每个喷雾，映射数组（\textbf{水平坐标逆映射图 / 垂直坐标逆映射图}）一次性预计算，\textbf{GPU视频重采样程序}使用最近、双线性、双三次或Lanczos核采样整个视频。需要强调的是，这两张图并不是喷雾亮度图：水平坐标逆映射图中的像素值表示该输出条带像素在原始图像中采样的\(x\)坐标，垂直坐标逆映射图中的像素值表示对应的原始图像\(y\)坐标。多孔流程使用固定条带大小\textbf{标准化条带尺寸}并应用三角喷雾掩码。这种逆映射公式计算效率高且数值清洗，因为每个下游喷雾度量都在相同的局部坐标系中测量\cite{Szeliski2010Vision}。
+其中 \(\mathbf{c}=(c_x,c_y)^\top\) 是喷嘴中心，\(\mathbf{t}\) 是条带原点的平移向量。对于每个喷油束，\textbf{水平坐标逆映射图 / 垂直坐标逆映射图} 由\textbf{正向仿射变换构建器}一次性预计算，\textbf{GPU视频重采样程序}随后以最近邻、双线性、双三次或Lanczos核对整个视频立方体进行采样。这两张图存储的是原始图像采样坐标而非喷雾亮度：X 图的像素值给出该输出条带像素在原始图像中采样的 \(x\) 坐标，Y 图存储对应的 \(y\) 坐标。多孔流程使用固定条带大小\textbf{标准化条带尺寸}并在重映射后应用三角形喷雾掩码。每个喷油束角度只预计算一次逆映射图，使逐帧计算开销与旋转无关；所有下游度量均在相同的局部条带坐标系中测量\cite{Szeliski2010Vision}。
 
 \begin{figure}[t]
 \centering
@@ -359,13 +347,13 @@ V_{p,\min}(t)=\pi x_{\mathrm{scale}}\sum_x \min(w_u,w_l)^2.
 \]
 最后从靠近喷嘴的检测窗口推断近喷嘴开启和关闭时间。这些度量很重要，因为它们将每个对齐条带转换为紧凑的几何状态向量；然而，本论文中的下游建模仍然专注于穿深，这是存档笔记本中最支持的目标\cite{Linne2013SprayImaging,LefebvreMcDonell2017}。
 
-\subsubsection{方法评价与适用性说明}
+\subsection{方法评价与适用性说明}
 
 本文没有将喷雾边界提取表述为像素级监督分割任务，因此未采用 IoU 或 F1 score 等依赖人工标注真值的分割指标作为主要评价依据。对于高速 Mie 图像，液滴散射通常形成亮前景与暗背景之间的直接局部对比；相较于 Schlieren 图像中常见的背景折射率纹理和大尺度灰度起伏，这一成像特征更适合用梯度增强和形态学清理来获得操作性边界。需要强调的是，雾化、破碎和灰度渐变使喷雾边界本身并不存在唯一的像素级真值；构建 IoU 或 F1 基准需要对大量时间序列图像进行逐像素人工标注，而这些标注同样会包含边界判断的主观性。因此，本文主要依据 Mie 散射成像机理、边界叠加检查、时序连续性以及多个几何代理指标的一致性来评估边界提取结果的可靠性。该评价方式服务于本文的目标：稳定提取穿深、锥角和边界包络等几何观测量，而不是训练或比较通用语义分割器。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_mie_segmentation_boundary_overlay.png}
+\includegraphics[width=0.92\linewidth]{images/fig_mie_segmentation_boundary_overlay.png}
 \caption{喷雾边界提取结果的可视化检查。灰度前景由原始 Mie 图像经对数除背景、Sobel 梯度增强和最近邻旋转重映射得到；红色轮廓为二值支持图像导出的 BW boundary。该叠加图显示，边界代理主要跟随局部对比度突变形成的有效液相包络，而不是依赖单个最前端亮点。}
 \label{fig:mie-segmentation-boundary-overlay-zh}
 \end{figure}

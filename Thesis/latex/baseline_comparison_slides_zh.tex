@@ -17,6 +17,7 @@
   \IfFontExistsTF{Consolas}{\setmonofont{Consolas}}{}
 \fi
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage{graphicx}
@@ -28,7 +29,7 @@
 \usecolortheme{default}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
-\graphicspath{{images/baseline_comparison_20260509/}{images/lono_20260509/}}
+\graphicspath{{../images/baseline_comparison_20260509/}{../images/lono_20260509/}{images/baseline_comparison_20260509/}{images/lono_20260509/}}
 \urlstyle{same}
 
 \definecolor{aaltoBlue}{RGB}{0,83,155}
@@ -263,29 +264,339 @@ S(t)=K\,
 \end{itemize}
 \end{frame}
 
-\begin{frame}{ML baseline：Sparse heteroscedastic GP}
+\begin{frame}{GP 学习目标：从 MLP 回归换一个先验}
 \small
-\begin{block}{为什么需要 GP}
+\begin{block}{先把问题写成和 MLP 一样的监督学习}
 \footnotesize
-Gaussian Process 是小数据、平滑函数和 uncertainty 的强 baseline。若 GP 同时赢
-accuracy 与 calibration，MLP 的必要性会被削弱；若 MLP 赢 accuracy 而 GP 赢
-calibration，就形成清楚的 trade-off。
+每个样本点是
+\[
+x_i=[t,\;\mathrm{tilt},\;\mathrm{plumes},\;t_{\mathrm{inj}},\;p_{\mathrm{ctrl}}]_i,
+\qquad
+z_i=\frac{S_i}{A_i}.
+\]
+其中
+\[
+A_i=(\Delta P_i)^{0.5}\rho_{a,i}^{-0.25}d_{n,i}^{0.5}.
+\]
+MLP 学的是 \(x\mapsto z\)。GP baseline 也学同一个目标，最后再乘回 \(A_i\) 得到 mm。
 \end{block}
 
+\begin{block}{区别只在函数假设}
+\footnotesize
+MLP：用参数 \(\theta\) 显式表示函数 \(z_\theta(x)\)。\\
+GP：不先写一个固定网络，而是直接在函数 \(f(x)\) 上放概率先验：
 \[
-f(x)\sim\mathcal{GP}(m(x),k_\theta(x,x')),
-\qquad
-\hat S = S/A_{\mathrm{scale}}.
+z_i=f(x_i)+\epsilon_i.
 \]
+\end{block}
+\end{frame}
 
-\begin{itemize}
-  \item 使用 sparse variational GP 避免 exact GP 的 \(O(n^3)\) 成本。
-  \item 输入与 MLP 相同：time、tilt、plume count、injection duration、control backpressure。
-  \item Heteroscedastic two-stage 版本：mean GP 预测 \(\mu\)，log-variance GP
-  从 residual scale 学 \(\sigma(x,t)\)。
-  \item 读法：GP 接近 nominal coverage，但 external clean accuracy 不及
-  \(\Delta P^{0.5}\) MLP。
-\end{itemize}
+\begin{frame}{GP 定义：不是一条曲线，而是一族联合 Gaussian}
+\small
+\begin{block}{有限维定义}
+\footnotesize
+若任意有限输入集合 \(X=[x_1,\ldots,x_n]\) 上的函数值都满足
+\[
+\mathbf f_X=[f(x_1),\ldots,f(x_n)]^\top
+\sim
+\mathcal N(\mathbf m_X,K_{XX}),
+\]
+则称
+\[
+f(x)\sim\mathcal{GP}(m(x),k(x,x')).
+\]
+\end{block}
+
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{block}{mean function}
+\footnotesize
+\[
+(\mathbf m_X)_i=m(x_i)
+\]
+本实现使用 constant mean，让数据学习整体 offset。
+\end{block}
+\end{column}
+\begin{column}{0.48\linewidth}
+\begin{block}{kernel / covariance}
+\footnotesize
+\[
+(K_{XX})_{ij}=k(x_i,x_j)
+\]
+kernel 决定“两个输入点的函数值应该多相似”。
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Kernel：本论文用 ARD Matérn-\(5/2\)}
+\small
+\begin{block}{距离不是普通欧氏距离，而是按特征维度缩放}
+\footnotesize
+\[
+r^2(x,x')=\sum_{j=1}^{5}\left(\frac{x_j-x'_j}{\ell_j}\right)^2.
+\]
+\(\ell_j\) 是第 \(j\) 个输入维度的 length-scale。若 \(\ell_j\) 大，函数对该维度不敏感；
+若 \(\ell_j\) 小，该维度的小变化也会让预测变化。
+\end{block}
+
+\begin{block}{Matérn-\(5/2\) covariance}
+\footnotesize
+\[
+k_\theta(x,x')=\sigma_f^2
+\left(1+\sqrt{5}r+\frac{5r^2}{3}\right)\exp(-\sqrt{5}r).
+\]
+它比 RBF 少一点“过度光滑”的假设，适合喷雾穿深这种平滑但带瞬态变化的函数。
+\end{block}
+
+\vspace{-0.2em}
+\footnotesize
+代码对应：\texttt{ScaleKernel(MaternKernel(nu=2.5, ard\_num\_dims=5))}。
+\end{frame}
+
+\begin{frame}{Exact GP 推导：训练点和测试点联合 Gaussian}
+\small
+\begin{block}{同方差观测噪声版本，先看最基本公式}
+\footnotesize
+\[
+\mathbf z=\mathbf f_X+\boldsymbol\epsilon,
+\qquad
+\boldsymbol\epsilon\sim\mathcal N(0,\sigma_n^2I).
+\]
+对测试点 \(X_*\)，联合分布为
+\[
+\begin{bmatrix}
+\mathbf z\\
+\mathbf f_*
+\end{bmatrix}
+\sim
+\mathcal N\left(
+\begin{bmatrix}
+\mathbf m_X\\
+\mathbf m_*
+\end{bmatrix},
+\begin{bmatrix}
+K_{XX}+\sigma_n^2I & K_{X*}\\
+K_{*X} & K_{**}
+\end{bmatrix}
+\right).
+\]
+\end{block}
+
+\begin{block}{条件 Gaussian 公式就是 GP 预测公式}
+\footnotesize
+\[
+\mu_*=\mathbf m_*+K_{*X}(K_{XX}+\sigma_n^2I)^{-1}(\mathbf z-\mathbf m_X),
+\]
+\[
+\Sigma_*=K_{**}-K_{*X}(K_{XX}+\sigma_n^2I)^{-1}K_{X*}.
+\]
+这两行就是“根据相似训练点加权平均，并给出不确定度”。
+\end{block}
+\end{frame}
+
+\begin{frame}{Exact GP 为什么不能直接用在本数据上？}
+\small
+\begin{block}{超参数学习来自 marginal likelihood}
+\footnotesize
+令 \(K_y=K_{XX}+\sigma_n^2I\)，则
+\[
+\log p(\mathbf z|X,\theta)
+=-\frac{1}{2}(\mathbf z-\mathbf m)^\top K_y^{-1}(\mathbf z-\mathbf m)
+-\frac{1}{2}\log|K_y|-\frac{n}{2}\log 2\pi.
+\]
+第一项奖励拟合，第二项惩罚过复杂 covariance，第三项是常数。
+\end{block}
+
+\begin{block}{瓶颈}
+\footnotesize
+要算 \(K_y^{-1}\mathbf z\) 和 \(\log|K_y|\)，通常需要 Cholesky 分解：
+\[
+K_y=LL^\top,\qquad \mathrm{cost}=O(n^3),\quad \mathrm{memory}=O(n^2).
+\]
+本任务把每条轨迹展开成大量 time points；每个 seed 训练点可到百万级。
+因此 exact GP 不可行，必须用 sparse variational GP。
+\end{block}
+\end{frame}
+
+\begin{frame}{Sparse GP：用 inducing points 压缩函数信息}
+\small
+\begin{block}{核心想法}
+\footnotesize
+选择 \(m\ll n\) 个 inducing inputs
+\[
+Z=[z_1^{(u)},\ldots,z_m^{(u)}],
+\qquad
+\mathbf u=f(Z).
+\]
+它们不是训练标签，而是函数的“支撑点”。训练时学习这些点附近的函数分布，
+再用它们解释所有 \(n\) 个训练样本。
+\end{block}
+
+\begin{block}{条件结构}
+\footnotesize
+GP 先验给出
+\[
+p(\mathbf f,\mathbf u)=p(\mathbf f|\mathbf u)p(\mathbf u),
+\qquad
+p(\mathbf u)=\mathcal N(\mathbf m_Z,K_{ZZ}).
+\]
+若 \(m=256\)，主要矩阵操作从 \(n\times n\) 变成围绕 \(m\times m\) 与 minibatch covariance 展开。
+\end{block}
+
+\footnotesize
+本实现用 K-means 在训练输入中初始化 256 个 inducing points，并允许其位置继续学习。
+\end{frame}
+
+\begin{frame}{Variational GP：把后验 \(p(u|D)\) 换成可优化的 \(q(u)\)}
+\small
+\begin{block}{变分分布}
+\footnotesize
+Exact posterior \(p(\mathbf u|\mathcal D)\) 难直接算，因此设
+\[
+q(\mathbf u)=\mathcal N(\mathbf m_u,S_u),
+\]
+其中 \(\mathbf m_u\) 和 \(S_u\) 是待优化参数。对任意训练点函数值：
+\[
+q(\mathbf f)=\int p(\mathbf f|\mathbf u)q(\mathbf u)\,d\mathbf u.
+\]
+\end{block}
+
+\begin{block}{ELBO：优化一个可算的下界}
+\footnotesize
+\[
+\mathcal L
+=
+\sum_{i=1}^{n}
+\mathbb E_{q(f_i)}[\log p(z_i|f_i)]
+-
+\mathrm{KL}\!\left(q(\mathbf u)\,\|\,p(\mathbf u)\right).
+\]
+第一项要求预测能解释数据；第二项防止 \(q(u)\) 偏离 GP 先验太远。
+Minibatch 训练时，把 batch 的 likelihood 项按 \(n/|\mathcal B|\) 缩放。
+\end{block}
+\end{frame}
+
+\begin{frame}{本论文的 heteroscedastic GP：两个 SVGP 串起来}
+\small
+\begin{block}{第一阶段：mean SVGP}
+\footnotesize
+\[
+f_\mu(x)\sim\mathcal{GP}(m_\mu,k_\mu),
+\qquad
+z_i=f_\mu(x_i)+\epsilon_i.
+\]
+训练后得到
+\[
+\hat\mu_z(x)=\mathbb E[f_\mu(x)].
+\]
+\end{block}
+
+\begin{block}{第二阶段：log-variance SVGP}
+\footnotesize
+先用 mean GP 在训练集上算 residual：
+\[
+r_i=z_i-\hat\mu_z(x_i).
+\]
+再构造 variance target：
+\[
+g_i=\log(r_i^2+\varepsilon).
+\]
+第二个 SVGP 学
+\[
+f_v(x)\approx g,\qquad
+\hat\sigma_z^2(x)=\exp(\hat f_v(x)+b).
+\]
+\(b\) 是 validation 上的 log-variance bias correction。
+\end{block}
+\end{frame}
+
+\begin{frame}{从 scaled GP 回到论文里的 mm 预测}
+\small
+\begin{block}{scaled space}
+\footnotesize
+GP 训练和预测都在
+\[
+z=\frac{S}{A_{\mathrm{scale}}}
+\]
+空间进行，所以输出是
+\[
+\hat\mu_z(x),\qquad \hat\sigma_z(x).
+\]
+\end{block}
+
+\begin{block}{physical space}
+\footnotesize
+回到穿深单位：
+\[
+\hat\mu_S(x)=A_{\mathrm{scale}}(x)\hat\mu_z(x),
+\qquad
+\hat\sigma_S(x)=A_{\mathrm{scale}}(x)\hat\sigma_z(x).
+\]
+评价 RMSE、MAE、P95、coverage 时全部使用 \(\hat\mu_S,\hat\sigma_S\) 与真实 \(S\) 的 mm 值。
+\end{block}
+
+\begin{block}{一个实现细节}
+\footnotesize
+本次 headline GP 使用 residual log-variance 作为主要 uncertainty；
+\texttt{include\_mean\_posterior\_var=false}，也就是不额外把 mean GP 的 posterior variance 加进 \(\sigma\)。
+\end{block}
+\end{frame}
+
+\begin{frame}{把公式映射到本项目代码}
+\scriptsize
+\begin{tabular}{L{0.26\linewidth}L{0.34\linewidth}L{0.31\linewidth}}
+\toprule
+数学对象 & 本实现 & 解释 \\
+\midrule
+\(x\) &
+\texttt{a\_only} features &
+time、tilt、plume count、injection duration、control backpressure。 \\
+\(z=S/A\) &
+\texttt{target\_scaled} &
+和 Stage-3 MLP 使用同一 \(\Delta P^{0.5}\) scale。 \\
+\(k_\theta\) &
+ARD Matérn-\(5/2\) &
+每个输入维度一个 length-scale。 \\
+\(Z,\mathbf u\) &
+256 inducing points &
+K-means 初始化，训练时位置可学习。 \\
+\(q(u)\) &
+Cholesky variational distribution &
+GPyTorch 的 sparse variational posterior。 \\
+\(\mathcal L\) &
+\texttt{VariationalELBO} &
+minibatch Adam，mean 与 logvar 各训练最多 80 epoch。 \\
+\(\sigma(x)\) &
+second SVGP on \(\log r^2\) &
+two-stage heteroscedastic uncertainty。 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\footnotesize
+代码入口：\sourcepath{MLP/MLP_training/run_gp_baseline.py}
+\end{frame}
+
+\begin{frame}{为什么这个 GP baseline 是公平但仍输给 MLP？}
+\small
+\begin{block}{公平性}
+\footnotesize
+GP 使用与 MLP 相同的 split、相同的 five seeds、相同的 \(A_{\mathrm{scale}}\) target、
+相同的 controllable input features，并在同一个 external clean diagnostic set 上评价。
+\end{block}
+
+\begin{block}{GP 的优势}
+\footnotesize
+Kernel prior 给出强平滑假设，SVGP 自带概率预测，two-stage logvar 让不确定度随输入变化。
+所以它不是弱 baseline；它确实把 coverage 拉到接近 nominal。
+\end{block}
+
+\begin{block}{MLP 的优势}
+\footnotesize
+Stage-3 MLP 不只是普通回归器：它继承 fitted target 的完整轨迹结构，又在早期可靠区间对 raw CDF 做细化。
+GP baseline 学同一批 pointwise targets，但没有这一套 teacher/raw 分段训练机制。
+\end{block}
 \end{frame}
 
 \begin{frame}{GP 能打赢 MLP 吗？}

@@ -2,6 +2,7 @@
 \usetheme{Madrid}
 \usecolortheme{default}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{siunitx}
 \usepackage{graphicx}
@@ -96,7 +97,7 @@ S(t) = K \cdot \underbrace{\left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d
     \item \textbf{Early Stage ($t < t_b$):} $S = k_v \sqrt{\frac{2 \Delta P}{\rho_l}} t$
     \item \textbf{Late Stage ($t \geq t_b$):} $S = k_p \left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d_n t}$
     \item \textbf{Breakup Time:} $t_b = k_{bt} \frac{\rho_l d_n}{\sqrt{\rho_a \Delta P}}$
-    \item \textbf{Zhou Extension (Post-injection, $t > 2t_i$):} 
+    \item \textbf{Zhou Extension (Post-injection, $t > 2t_i$):}
     \[ S = \sqrt{2} k_p \left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d_n} t_i^{0.25} (t - t_i)^{0.25} \]
 \end{itemize}
 
@@ -107,24 +108,356 @@ S(t) = K \cdot \underbrace{\left( \frac{\Delta P}{\rho_a} \right)^{0.25} \sqrt{d
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Machine-Learning Baseline: Sparse Heteroscedastic GP}
+\begin{frame}{GP Learning Target: Same Regression, Different Prior}
 \small
-\begin{block}{Model role}
-The GP is a strong non-parametric baseline for smooth functions and uncertainty.
-It tests whether the MLP only wins because no ML baseline was attempted.
+\begin{block}{Start from the same supervised-learning problem as the MLP}
+\footnotesize
+Each pointwise training sample is
+\[
+x_i=[t,\;\mathrm{tilt},\;\mathrm{plumes},\;t_{\mathrm{inj}},\;p_{\mathrm{ctrl}}]_i,
+\qquad
+z_i=\frac{S_i}{A_i}.
+\]
+The physical scaling factor is
+\[
+A_i=(\Delta P_i)^{0.5}\rho_{a,i}^{-0.25}d_{n,i}^{0.5}.
+\]
+The MLP learns \(x\mapsto z\). The GP baseline learns the same target and is
+multiplied by \(A_i\) at the end to return to millimetres.
 \end{block}
 
+\begin{block}{The difference is the function assumption}
+\footnotesize
+MLP: represent the function explicitly with parameters, \(z_\theta(x)\).\\
+GP: place a probability distribution directly over the unknown function:
 \[
-f(x)\sim\mathcal{GP}(m(x),k_\theta(x,x')),
-\qquad
-\hat S=S/A_{\mathrm{scale}}.
+z_i=f(x_i)+\epsilon_i.
 \]
+\end{block}
+\end{frame}
 
-\begin{itemize}
-  \item Sparse variational GP avoids exact GP \(O(n^3)\) scaling.
-  \item Mean GP predicts penetration; a residual/log-variance stage supplies heteroscedastic \(\sigma(x,t)\).
-  \item In the clean benchmark, GP is closer to nominal coverage, but MLP is more accurate.
-\end{itemize}
+\begin{frame}{GP Definition: A Distribution over Functions}
+\small
+\begin{block}{Finite-dimensional definition}
+\footnotesize
+For any finite input set \(X=[x_1,\ldots,x_n]\), if the function values satisfy
+\[
+\mathbf f_X=[f(x_1),\ldots,f(x_n)]^\top
+\sim
+\mathcal N(\mathbf m_X,K_{XX}),
+\]
+then
+\[
+f(x)\sim\mathcal{GP}(m(x),k(x,x')).
+\]
+\end{block}
+
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{block}{Mean function}
+\footnotesize
+\[
+(\mathbf m_X)_i=m(x_i)
+\]
+The implementation uses a constant mean, so the data learn the global offset.
+\end{block}
+\end{column}
+\begin{column}{0.48\linewidth}
+\begin{block}{Kernel / covariance}
+\footnotesize
+\[
+(K_{XX})_{ij}=k(x_i,x_j)
+\]
+The kernel says how similar two function values should be.
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Kernel Used Here: ARD Matérn-\(5/2\)}
+\small
+\begin{block}{Distance is scaled by learned length-scales}
+\footnotesize
+\[
+r^2(x,x')=\sum_{j=1}^{5}\left(\frac{x_j-x'_j}{\ell_j}\right)^2.
+\]
+\(\ell_j\) is the length-scale for input dimension \(j\). A large \(\ell_j\)
+means the function is insensitive to that feature; a small \(\ell_j\) means
+small changes in that feature can change the prediction.
+\end{block}
+
+\begin{block}{Matérn-\(5/2\) covariance}
+\footnotesize
+\[
+k_\theta(x,x')=\sigma_f^2
+\left(1+\sqrt{5}r+\frac{5r^2}{3}\right)\exp(-\sqrt{5}r).
+\]
+It is smooth, but less over-smooth than an RBF kernel, which is useful for
+penetration traces with transient behaviour.
+\end{block}
+
+\vspace{-0.2em}
+\footnotesize
+Code: \texttt{ScaleKernel(MaternKernel(nu=2.5, ard\_num\_dims=5))}.
+\end{frame}
+
+\begin{frame}{Exact GP Posterior: Joint Gaussian Conditioning}
+\small
+\begin{block}{Start with the homoscedastic observation model}
+\footnotesize
+\[
+\mathbf z=\mathbf f_X+\boldsymbol\epsilon,
+\qquad
+\boldsymbol\epsilon\sim\mathcal N(0,\sigma_n^2I).
+\]
+For test inputs \(X_*\), the joint distribution is
+\[
+\begin{bmatrix}
+\mathbf z\\
+\mathbf f_*
+\end{bmatrix}
+\sim
+\mathcal N\left(
+\begin{bmatrix}
+\mathbf m_X\\
+\mathbf m_*
+\end{bmatrix},
+\begin{bmatrix}
+K_{XX}+\sigma_n^2I & K_{X*}\\
+K_{*X} & K_{**}
+\end{bmatrix}
+\right).
+\]
+\end{block}
+
+\begin{block}{Conditioning gives the prediction formula}
+\footnotesize
+\[
+\mu_*=\mathbf m_*+K_{*X}(K_{XX}+\sigma_n^2I)^{-1}(\mathbf z-\mathbf m_X),
+\]
+\[
+\Sigma_*=K_{**}-K_{*X}(K_{XX}+\sigma_n^2I)^{-1}K_{X*}.
+\]
+This is the mathematical form of ``average nearby training evidence and return
+an uncertainty''.
+\end{block}
+\end{frame}
+
+\begin{frame}{Why Exact GP Is Not Feasible Here}
+\small
+\begin{block}{Hyperparameters are learned by marginal likelihood}
+\footnotesize
+Let \(K_y=K_{XX}+\sigma_n^2I\). Then
+\[
+\log p(\mathbf z|X,\theta)
+=-\frac{1}{2}(\mathbf z-\mathbf m)^\top K_y^{-1}(\mathbf z-\mathbf m)
+-\frac{1}{2}\log|K_y|-\frac{n}{2}\log 2\pi.
+\]
+The first term rewards fit, the second penalizes overly flexible covariance,
+and the third is constant.
+\end{block}
+
+\begin{block}{The scaling bottleneck}
+\footnotesize
+Computing \(K_y^{-1}\mathbf z\) and \(\log|K_y|\) usually requires a Cholesky
+factorization:
+\[
+K_y=LL^\top,\qquad \mathrm{cost}=O(n^3),\quad \mathrm{memory}=O(n^2).
+\]
+This task expands trajectories into many time points; per-seed training can
+reach the million-point scale. Exact GP is therefore not practical.
+\end{block}
+\end{frame}
+
+\begin{frame}{Sparse GP: Compress the Function with Inducing Points}
+\small
+\begin{block}{Core idea}
+\footnotesize
+Choose \(m\ll n\) inducing inputs
+\[
+Z=[z_1^{(u)},\ldots,z_m^{(u)}],
+\qquad
+\mathbf u=f(Z).
+\]
+They are not labels. They are support locations for the latent function.
+Training learns the function distribution around these support locations and
+uses them to explain all \(n\) observations.
+\end{block}
+
+\begin{block}{Conditional structure}
+\footnotesize
+The GP prior gives
+\[
+p(\mathbf f,\mathbf u)=p(\mathbf f|\mathbf u)p(\mathbf u),
+\qquad
+p(\mathbf u)=\mathcal N(\mathbf m_Z,K_{ZZ}).
+\]
+With \(m=256\), the main operations are built around \(m\times m\) matrices and
+minibatch covariance blocks instead of one dense \(n\times n\) matrix.
+\end{block}
+
+\footnotesize
+In this implementation, the 256 inducing points are initialized by K-means on
+the training inputs and then allowed to move during training.
+\end{frame}
+
+\begin{frame}{Variational GP: Optimize \(q(u)\) Instead of Exact \(p(u|D)\)}
+\small
+\begin{block}{Variational distribution}
+\footnotesize
+The exact posterior \(p(\mathbf u|\mathcal D)\) is hard to compute, so we use
+\[
+q(\mathbf u)=\mathcal N(\mathbf m_u,S_u),
+\]
+with \(\mathbf m_u\) and \(S_u\) as trainable parameters. For any training
+function values,
+\[
+q(\mathbf f)=\int p(\mathbf f|\mathbf u)q(\mathbf u)\,d\mathbf u.
+\]
+\end{block}
+
+\begin{block}{ELBO}
+\footnotesize
+\[
+\mathcal L
+=
+\sum_{i=1}^{n}
+\mathbb E_{q(f_i)}[\log p(z_i|f_i)]
+-
+\mathrm{KL}\!\left(q(\mathbf u)\,\|\,p(\mathbf u)\right).
+\]
+The first term explains the data; the second prevents \(q(u)\) from drifting
+too far from the GP prior. In minibatch training, the likelihood part is scaled
+by \(n/|\mathcal B|\).
+\end{block}
+\end{frame}
+
+\begin{frame}{The Thesis GP Variant: Two SVGPs in Series}
+\small
+\begin{block}{Stage 1: mean SVGP}
+\footnotesize
+\[
+f_\mu(x)\sim\mathcal{GP}(m_\mu,k_\mu),
+\qquad
+z_i=f_\mu(x_i)+\epsilon_i.
+\]
+After training, it gives
+\[
+\hat\mu_z(x)=\mathbb E[f_\mu(x)].
+\]
+\end{block}
+
+\begin{block}{Stage 2: log-variance SVGP}
+\footnotesize
+First compute residuals from the mean GP:
+\[
+r_i=z_i-\hat\mu_z(x_i).
+\]
+Then construct the variance target:
+\[
+g_i=\log(r_i^2+\varepsilon).
+\]
+A second SVGP learns
+\[
+f_v(x)\approx g,
+\qquad
+\hat\sigma_z^2(x)=\exp(\hat f_v(x)+b).
+\]
+\(b\) is a validation-set log-variance bias correction.
+\end{block}
+\end{frame}
+
+\begin{frame}{Returning from Scaled GP Space to Millimetres}
+\footnotesize
+\begin{block}{Scaled space}
+\scriptsize
+The GP is trained and evaluated internally on
+\[
+z=\frac{S}{A_{\mathrm{scale}}},
+\]
+so it predicts
+\[
+\hat\mu_z(x),\qquad \hat\sigma_z(x).
+\]
+\end{block}
+
+\begin{block}{Physical space}
+\scriptsize
+For penetration in millimetres:
+\[
+\hat\mu_S(x)=A_{\mathrm{scale}}(x)\hat\mu_z(x),
+\qquad
+\hat\sigma_S(x)=A_{\mathrm{scale}}(x)\hat\sigma_z(x).
+\]
+RMSE, MAE, P95, and coverage are all computed in this physical space.
+\end{block}
+
+\vspace{-0.2em}
+\scriptsize
+\textbf{Implementation detail.}
+The headline GP uses residual log-variance as the uncertainty source:
+\texttt{include\_mean\_posterior\_var=false}, so reported \(\sigma\) does not
+add the mean GP posterior variance.
+\end{frame}
+
+\begin{frame}{Mapping the Formulae to the Project Code}
+\scriptsize
+\begin{tabular}{L{0.26\linewidth}L{0.34\linewidth}L{0.31\linewidth}}
+\toprule
+Mathematical object & Implementation & Meaning \\
+\midrule
+\(x\) &
+\texttt{a\_only} features &
+time, tilt, plume count, injection duration, control backpressure. \\
+\(z=S/A\) &
+\texttt{target\_scaled} &
+Same \(\Delta P^{0.5}\) target scaling as the Stage-3 MLP. \\
+\(k_\theta\) &
+ARD Matérn-\(5/2\) &
+One learned length-scale per input dimension. \\
+\(Z,\mathbf u\) &
+256 inducing points &
+K-means initialization; locations are trainable. \\
+\(q(u)\) &
+Cholesky variational distribution &
+GPyTorch sparse variational posterior. \\
+\(\mathcal L\) &
+\texttt{VariationalELBO} &
+Minibatch Adam; mean and logvar each train up to 80 epochs. \\
+\(\sigma(x)\) &
+second SVGP on \(\log r^2\) &
+Two-stage heteroscedastic uncertainty. \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\footnotesize
+Code entry point: \texttt{MLP/MLP\_training/run\_gp\_baseline.py}
+\end{frame}
+
+\begin{frame}{Why the GP Baseline Is Fair, but Still Loses on Accuracy}
+\small
+\begin{block}{Why it is fair}
+\footnotesize
+The GP uses the same splits, the same five seeds, the same \(A_{\mathrm{scale}}\)
+target, the same controllable input features, and the same external clean
+diagnostic set as the MLP comparison.
+\end{block}
+
+\begin{block}{Where GP is strong}
+\footnotesize
+The kernel prior gives a strong smoothness bias, SVGP gives probabilistic
+predictions, and the second log-variance GP makes uncertainty input-dependent.
+It is not a weak baseline; it brings coverage close to nominal.
+\end{block}
+
+\begin{block}{Where the MLP pipeline is stronger}
+\footnotesize
+The Stage-3 MLP is not just a generic regressor. It inherits the full fitted
+trajectory target structure and then refines early-time behaviour against raw
+CDF observations. The GP learns the same pointwise target family, but it does
+not include that teacher/raw staged training mechanism.
+\end{block}
 \end{frame}
 
 \begin{frame}{External Clean Headline Numbers}

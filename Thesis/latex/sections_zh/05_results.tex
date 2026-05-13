@@ -15,7 +15,7 @@
 
 \subsection{整体 surrogate 精度与不确定度行为}
 
-表~\ref{tab:model-summary} 总结了三个学习阶段的作用和留出集表现。Stage~1 在每个工况只使用一条代表性曲线，因此其角色更像是稳定的均值锚点，而不是最终筛查模型。Stage~2 解决的是更困难的问题：面对完整过滤数据集、组内 plume 差异以及需要同时学习均值与方差的监督任务。因此，它的测试 MAE 从 \SI{8.05}{mm} 上升到 \SI{9.28}{mm}，但这并不是整个建模方案的倒退，而是问题从中位轨迹回归转向条件分布建模后的自然结果，也正是它成为不确定性感知教师模型的原因。
+表~\ref{tab:model-summary} 总结了三个学习阶段的作用和留出集表现。Stage~1 在每个工况只使用一条代表性曲线，因此其角色更像是稳定的均值锚点，而不是最终筛查模型。Stage~2 解决的是更困难的问题：面对完整过滤数据集、组内 plume 差异以及需要同时学习均值与方差的监督任务。因此，它的测试 MAE 从 \SI{8.05}{mm} 上升到 \SI{9.28}{mm}，反映了问题从中位轨迹回归转向条件分布建模后的自然结果，也正是它成为不确定性感知教师模型的原因。
 
 在原始归档训练和评估切分下，anchor-off Stage~3 模型同时改善了精度与偏差，在 21{,}470 条轨迹、519{,}570 个留出时间点上达到总体 RMSE~\SI{6.68}{mm}、MAE~\SI{4.83}{mm} 和残余 bias~\SI{-0.02}{mm}。图~\ref{fig:pred-vs-actual-best} 表明，在整个测量范围内，留出集预测基本贴近恒等线，且随着穿深增大，散点逐步变宽。这种变宽与异方差设计是一致的：模型并没有强行对所有时刻和工况使用同一个固定误差条。
 
@@ -82,9 +82,7 @@ Stage~3 & 带区制相关 \textnormal{KD} 引导的原始 \textnormal{CDF} &
 汇总了本文主模型与三个基线：校准后的 Hiroyasu--Arai 经验关联式、带延迟项的
 Naber--Siebers 关联式，以及稀疏异方差 Gaussian process；这些基线的函数形式、图像特征来源和拟合协议见第~\ref{sec:baseline-fitting-protocol-zh} 节。过渡区缩放三阶段 MLP 四次同配置
 （anchor-off）重复训练的平均 RMSE 为 \SI{6.094}{mm}、MAE 为 \SI{4.465}{mm}、P95 绝对误差为 \SI{12.888}{mm}，并给出 0.783/0.982 的保守 1$\sigma$/2$\sigma$ 覆盖率；相对 Hiroyasu--Arai、
-Naber--Siebers 和 Gaussian process，RMSE 分别降低 38.9\%、31.1\% 和 11.7\%。这说明改进
-并非只来自与传统经验式的比较；即使面对一个具有不确定度输出的非参数机器学习基线，
-三阶段 MLP 仍在点预测和尾部误差上占优。随后，预测分布被投影到图~\ref{fig:impingement-preview-zh}--\ref{fig:impingement-summary-zh} 所示的简化二维发动机几何模型上，形成概率性撞壁筛查代理指标，而非确定性的通过/不通过阈值。
+Naber--Siebers 和 Gaussian process，RMSE 分别降低 38.9\%、31.1\% 和 11.7\%。这一结果说明，即使面对具有不确定度输出的非参数机器学习基线，三阶段 MLP 仍在点预测和尾部误差上占优。随后，预测分布被投影到图~\ref{fig:impingement-preview-zh}--\ref{fig:impingement-summary-zh} 所示的简化二维发动机几何模型上，形成概率性撞壁筛查代理指标，而非确定性的通过/不通过阈值。
 
 \begin{table}[t]
 \centering
