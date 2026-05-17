@@ -62,6 +62,11 @@ Mie imaging also brings a characteristic physical limitation from multiple scatt
 in the dense liquid-core region near the nozzle, repeated scattering and internal shadowing elevate the local intensity but contribute almost no sharp directional structure, producing a diffuse halo instead of a clean plume boundary \cite{BohrenHuffman2004,Linne2013SprayImaging}.
 This thesis treats the halo as a slowly varying background component rather than local liquid concentration; the corresponding suppression strategy (gradient-domain filtering) and the geometric correction associated with the line-of-sight simplification are described as part of the image-processing workflow in Chapter~3.
 
+Equally important, quantitative processing should preserve the camera's original linear greyscale response as far as possible.
+Display-oriented gamma correction, frame-wise display gain, and local contrast enhancement should not be treated as measurement inputs \cite{Cromey2010TwistedPixels}.
+Such nonlinear or adaptive grey-level transforms change local gradient ratios, threshold relationships, and the cumulative-distribution support used for front extraction.
+The enhancement steps used later in this thesis are therefore fixed, reproducible measurement operations for extracting geometric boundaries from the raw Mie records, not visual adjustments intended to make frames easier to inspect.
+
 A further point worth stressing is that the path from the Mie intensity field to geometric observables depends on the specific measurement rule.
 Magnotti and Genzale show that different liquid-penetration metrics lead to materially different conclusions in diesel-spray model validation,
 because each metric responds to a different facet of the underlying liquid distribution \cite{MagnottiGenzale2013}.
@@ -224,9 +229,11 @@ taking a logarithm turns those multiplications into additions,
 after which background subtraction and filtering behave more stably than they would on raw intensity
 \cite{OppenheimSchaferStockham1968,GonzalezWoodsDIP}.
 The choice has a direct numerical motivation in the present data as well:
+if the observed intensity is approximated as \(I(x,y,t)=L(x,y)S(x,y,t)+n\), with \(L\) representing slowly varying illumination, window reflection, or camera-gain structure, then \(\log(I+\epsilon)-\log(B+\epsilon)\) acts as a limited flat-field correction.
+It preferentially suppresses event-independent multiplicative background structure rather than changing the appearance of a single displayed frame.
 a pixel-wise division on raw intensity produces unstable ratios in low-brightness regions,
 while plain subtraction does not adequately remove multiplicative illumination variation.
-Working in the log domain simultaneously suppresses multiplicative illumination and gain drift
+Working in the log domain is not meant to interpret Mie intensity as concentration; it simultaneously suppresses multiplicative illumination and gain drift
 and avoids basing later boundary extraction on numerically fragile raw intensity ratios.
 
 \subsubsection{Metric definition and boundary extraction in spray imaging}
@@ -236,6 +243,7 @@ After foreground construction, Sobel-type gradient magnitudes, percentile scalin
 The aim is not to recover an absolute intensity field, but to describe boundary geometry in a stable way.
 In Mie videos, the effective liquid boundary is usually expressed first as a local contrast change, not as a globally consistent grey-level value.
 A gradient-dominated representation therefore matches the observation target better than a brightness-domain foreground.
+The distinction from gamma correction or display gain is important: a Sobel gradient is a fixed spatial-differentiation operator serving boundary geometry, whereas display or adaptive enhancement changes grey-scale relationships.
 This choice is consistent with earlier spray-imaging work:
 Johnson et al.\ showed that conventional threshold-based cone-angle estimation on back-scattered diesel images is highly sensitive to the selected intensity threshold, and proposed contour-based methods to reduce this subjectivity \cite{JohnsonNaberLee2012}.
 The present work therefore treats boundary measurements as operational geometric descriptors rather than direct measurements of a precise liquid envelope.
