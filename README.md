@@ -99,4 +99,25 @@ oscc-masters-thesis --video path/to/video.cine --output-dir path/to/results --co
 
 If `pycine` is missing, install the `masters-thesis` extra.
 
+## Thesis Reproducibility Pipeline
+
+The thesis workflow is wrapped under `pipelines/` as a four-phase chain:
+
+```bash
+python pipelines/run_full.py --input-root Mie_scattering_top_view_results
+```
+
+The phases are:
+
+- Phase 1 fit archive: `pipelines/fit/run_fit_pipeline.py`
+- Phase 2 audits: `pipelines/audit/run_audit_pipeline.py`
+- Phase 3 MLP training: `pipelines/train/run_train_pipeline.py`
+- Phase 4 thesis artifact assembly: `pipelines/report/run_report_pipeline.py`
+
+Use `--skip-phase fit`, `--skip-phase audit`, `--skip-phase train`, or
+`--skip-phase report` for partial reruns. Use `--dry-run` to check command
+wiring on machines without `Mie_scattering_top_view_results/`.
+
+See `pipelines/README.md` for archive layout, parent run pointers, generated
+LaTeX snippets, and the Phase 2/Phase 4 audit scripts.
 

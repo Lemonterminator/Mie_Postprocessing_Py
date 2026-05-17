@@ -2,7 +2,7 @@
 
 \subsection{Workflow overview}
 
-Figure~\ref{fig:surrogate-data-flow} shows the overall data flow of the surrogate-model workflow used in this thesis. The pipeline is organised into four lanes: raw inputs (high-speed Mie videos, calibration configuration, and test metadata) pass through CUDA-accelerated image processing to produce 1D features and boundary points, from which both binary-based (BW-Based) and CDF-based penetration traces and other geometric metrics are derived; these observables are then extended into synthetic trajectories by parameter-free curve fitting and used to drive the three neural training stages, Stage~1 (MSE), Stage~2 (NLL), and Stage~3 (Raw + KD); the final trained model is deployed in the wall-impingement screening application, combining piston geometry and physical parameters to produce collision probabilities and visualisation animations. Table~\ref{tab:workflow} further summarises the implemented workflow stages and the role of each stage in textual form. This chapter focuses on the first two lanes of Figure~\ref{fig:surrogate-data-flow}: how the OSCC video data are calibrated, preprocessed, registered, and converted into plume-resolved geometric observables. Target construction, surrogate training, and probabilistic screening are deferred to the following chapter.
+Figure~\ref{fig:surrogate-data-flow} shows the overall data flow of the surrogate-model workflow used in this thesis. The pipeline is organised into four lanes. Raw inputs (high-speed Mie videos, calibration configuration, and test metadata) pass through CUDA-accelerated image processing to produce 1D features and boundary points; from these, both binary-based (BW-based) and CDF-based penetration traces and other geometric metrics are derived. These observables are extended into synthetic trajectories by parameter-free curve fitting and used to drive three neural training stages: Stage~1 (MSE), Stage~2 (NLL), and Stage~3 (Raw + KD). The final trained model is deployed in the wall-impingement screening application, combining piston geometry and physical parameters to produce collision probabilities and visualisation animations. Table~\ref{tab:workflow} further summarises the implemented workflow stages and the role of each stage in textual form. This chapter focuses on the first two lanes of Figure~\ref{fig:surrogate-data-flow}: how the OSCC video data are calibrated, preprocessed, registered, and converted into plume-resolved geometric observables. Target construction, surrogate training, and probabilistic screening are deferred to the following chapter.
 
 The method-level motivation is that optical experiments provide image-based evidence, but the result of event-wise image post-processing is still essentially a tabulated dataset of discrete observations.
 If left at that level, these observations cannot directly serve as a condition-parametric predictive model for fast design iteration.
@@ -113,7 +113,7 @@ This design is appropriate for the current datasets because the camera and injec
 \label{fig:pipeline-overview}
 \end{figure}
 
-The file processor in \textbf{the multi-hole geometric construction script} is the operational centre of the image-analysis workflow. For each \texttt{.cine} recording, \textbf{the video-processing loop} loads the video to the active array backend, reuses an annular ring mask for the whole folder, calls \textbf{the multi-hole preprocessing routine} and \textbf{the multi-hole postprocessing routine}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and finally exports synchronised CSV and metadata files. The important engineering point is that the numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final tabular export.
+The file processor in \textbf{the multi-hole geometric construction script} is the operational centre of the image-analysis workflow. For each \texttt{.cine} recording, \textbf{the video-processing loop} loads the video to the active array backend, reuses an annular ring mask for the whole folder, calls \textbf{the multi-hole preprocessing routine} and \textbf{the multi-hole postprocessing routine}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and finally exports synchronised CSV and metadata files. The numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final tabular export. Throughout this section, bolded descriptive names are used in place of specific script, function, and variable names to keep the exposition implementation-agnostic; the correspondence is tabulated in Appendix~\ref{app:implementation_mapping}.
 
 This implementation choice was motivated by the practical limits of the earlier in-house route, which relied on frame-by-frame MATLAB processing and lacked effective batch parallelism: processing approximately 50~GB of video could take roughly a day and remain prone to crashes. Moving the heavy image operations into a bulk CUDA-oriented pipeline is therefore presented as a methodological rather than a cosmetic software decision.
 
@@ -121,19 +121,26 @@ This implementation choice was motivated by the practical limits of the earlier 
 
 The CUDA pipeline is an end-to-end archive-processing scheduler built around three engineering safeguards.
 Video loading uses a depth-1 producer--consumer prefetch: while recording~\(N\) is being processed on the GPU, a background worker reads recording~\(N+1\) from disk, so that GPU compute and disk I/O overlap rather than serialise.
-Memory management is matched to the archive access pattern: CUDA memory-pool blocks are retained across recordings within the same subfolder, because consecutive files typically share the same frame shape, avoiding repeated GPU driver allocation overhead; pool release is deferred to subfolder boundaries to limit fragmentation during long runs.
+Host-to-device transfers and CuPy array construction are deliberately kept in the main thread, because CuPy's CUDA execution context is thread-affine; this ensures that kernel dispatch, synchronisation, and memory-pool state are all managed by a single thread without locking overhead.
+Output writes are handled by a persistent three-worker I/O pool: metrics CSVs, metadata JSONs, boundary archives, and optional preview video files are submitted as futures immediately after the GPU stage completes, so that the next recording's GPU processing overlaps with the previous one's disk writes.
+
+Memory management is matched to the archive access pattern.
+After each recording, intermediate arrays are released and a garbage-collection pass returns CuPy arrays to the default memory pool, but block-level pool deallocation is deliberately deferred to subfolder boundaries.
+Because consecutive recordings within the same subfolder typically share the same frame shape, retaining pool blocks allows the next file to reuse an already-allocated GPU buffer directly, avoiding repeated round-trips to the CUDA driver; hard pool release at subfolder boundaries limits fragmentation across long archive runs.
 
 The pipeline also maintains a recoverable output contract.
-A checkpoint file written with a filesystem flush records the processing status of each recording, so that a failed batch run can be resumed from the last successful file rather than reprocessed from the beginning.
-Completion requires both a metrics CSV and a metadata JSON to be present; if boundary export is enabled, the corresponding boundary archive must also exist, and a partial result triggers reprocessing rather than being accepted.
+A per-run checkpoint file, \codepath{processing\_checkpoint.json}, is written with an explicit filesystem flush after each recording; it tracks per-file fields \texttt{status}, \texttt{file}, \texttt{outputs}, \texttt{error}, and \texttt{updated\_at}.
+Completion requires both a metrics CSV and a metadata JSON to be present; when boundary export is enabled, the corresponding boundary archive must also exist, and a partial result triggers reprocessing rather than being silently accepted.
+This contract allows a failed multi-hour batch run to resume from the last successful file without repeating work.
 
-The same checkpoint logic normalises metadata across heterogeneous experiment years: frame rate, injection duration, injection pressure, plume count, and umbrella angle are read first from the recording header or test-matrix JSON, with conservative defaults as fallback.
-This matters for the mixed Nozzle0 (2022) and Nozzle1--8 (2024) archives, whose metadata conventions differ.
+The same checkpoint logic normalises metadata across heterogeneous experiment years.
+Frame rate is read preferentially from the Phantom CINE header field \texttt{FrameRate}, with \texttt{FrameRate16} and \texttt{fPbRate} as successive fallbacks; injection duration is resolved from a test-matrix JSON lookup keyed on the CINE filename, with a within-group constant as a further fallback; injection pressure, plume count, and umbrella angle come from nozzle or test-matrix JSON files, reverting to conservative in-script defaults only when absent.
+This metadata hierarchy matters for the mixed Nozzle0 (2022) and Nozzle1--8 (2024) archives, whose recording-header conventions differ.
 The clipping bounds described in Section~3.2 set a physical time window of approximately 3--4\,ms, covering the pilot injection and its early relaxation tail targeted in this thesis.
 
 \subsubsection{Calibration hand-off and batch anchoring}
 
-The batch stage starts from the calibration produced in Section~3.2. In the algebraic circle fitting function, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
+The batch stage starts from the calibration produced in Section~3.3. In the algebraic circle fitting function, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
 \[
 x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \]
@@ -204,7 +211,7 @@ K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf
 \]
 where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative. An outer-product matrix has rank exactly one, so the 2-D convolution is equivalent to two sequential 1-D passes along the spatial axes. \textbf{The rank-1 separability test} verifies this automatically and switches to the separable path when it holds, reducing the per-pixel multiply-add cost from \(O(k^2)\) to \(O(2k)\) for a \(k\times k\) kernel. Because the Sobel kernel is rank-1 by construction, both \(K_x\) and \(K_y\) are always applied as a pair of 1-D convolutions across the full video cube.
 
-The output is then robust-scaled again and masked by the ring geometry. In implementation terms this matters because it converts a low-contrast grayscale plume into an edge-dominant representation while keeping the whole operation on the CuPy backend. The contribution is not the Sobel operator itself, which is classical, but its integration into a bulk video workflow that avoids repeated host-device copies and prepares every plume for the same downstream geometric treatment \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
+The output is then robust-scaled again and masked by the ring geometry, converting a low-contrast greyscale plume into an edge-dominant representation while keeping the entire operation on the CuPy backend. The contribution is not the Sobel operator itself, which is classical, but its integration into a bulk video workflow that avoids repeated host--device copies and prepares every plume for the same downstream geometric treatment \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
 
 \begin{figure}[t]
 \centering
@@ -294,7 +301,7 @@ where \(\mathbf{c}=(c_x,c_y)^\top\) is the nozzle centre and \(\mathbf{t}\) is t
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_efficient_rotation.pdf}
-\caption{Inverse affine remapping and geometric metrics in strip coordinates. (a) Rotated single-plume high-pass strip with the local orifice position, inner radius, $S_{\mathrm{CDF}}$, $S_{\mathrm{BW,x}}$, and $R_{\mathrm{BW}}$ overlaid in the same coordinate system; (b) triangular spray mask applied after remapping; (c) compact preview of the inverse-map arrays, where colour channels encode the source-image sampling coordinates of each output-strip pixel.}
+\caption{Inverse affine remapping and geometric metrics in strip coordinates. (a) Rotated single-plume high-pass strip with the local orifice position, inner radius, $S_{\mathrm{CDF}}$ (CDF penetration front $\hat{x}_p$, defined in Section~3.4.8), $S_{\mathrm{BW,x}}$ (axial binary penetration), and $R_{\mathrm{BW}}$ (polar binary penetration $R_p$, defined in Section~3.4.9) overlaid in the same coordinate system; (b) triangular spray mask applied after remapping; (c) compact preview of the inverse-map arrays, where colour channels encode the source-image sampling coordinates of each output-strip pixel.}
 \label{fig:efficient-rotation}
 \end{figure}
 
@@ -354,9 +361,10 @@ and by fitting fixed-intercept boundary lines and taking
 \]
 Near-nozzle opening and closing times are finally inferred from a small detection window close to the injector. These metrics matter because they turn each aligned strip into a compact geometric state vector; however, the downstream modeling in this thesis remains focused on penetration, which is the best-supported target in the available analyses \cite{Linne2013SprayImaging,LefebvreMcDonell2017}.
 
-\subsection{Method evaluation and applicability}
+\subsection{Boundary extraction without pixel-level ground truth}
 
 This thesis does not formulate spray-boundary extraction as a pixel-level supervised segmentation task, and therefore does not use IoU or F1 score, which require manually annotated ground-truth masks, as the primary evaluation criteria. For high-speed Mie images, droplet scattering usually creates direct local contrast between a bright foreground and a dark background; compared with the background refractive-index texture and large-scale grey-level variation often encountered in Schlieren images, this imaging characteristic is better matched to gradient enhancement and morphological cleanup for obtaining an operational boundary. The spray boundary itself is also affected by atomisation, breakup, and grey-level transition, so it does not provide a unique pixel-level ground truth. Building an IoU or F1 benchmark would require pixel-wise manual annotation over a large time sequence, and those annotations would still contain subjective boundary judgements. The reliability of the extracted boundary is therefore assessed primarily through the Mie-scattering imaging mechanism, overlay inspection, temporal continuity, and consistency among multiple geometric proxy metrics. This evaluation choice matches the objective of the thesis: stable extraction of penetration, cone angle, and boundary-envelope observables, rather than training or comparing a generic semantic segmenter.
+Quantitative evidence supporting the reliability of the extracted observables --- including cross-metric consistency between CDF and binary penetration estimates, temporal-continuity checks, and leave-one-nozzle-family diagnostics --- is presented in Chapter~5.
 
 \begin{figure}[t]
 \centering

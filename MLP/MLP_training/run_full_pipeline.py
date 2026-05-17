@@ -27,7 +27,9 @@ Usage
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -122,6 +124,7 @@ def run_subprocess(
     *,
     log_path: Path,
     dry_run: bool,
+    env_extra: dict[str, str] | None = None,
 ) -> tuple[int, str]:
     """Run cmd, tee stdout/stderr to a log file and to console, return rc + tail.
 
@@ -133,10 +136,14 @@ def run_subprocess(
         return 0, ""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     captured_lines: list[str] = []
+    env = os.environ.copy()
+    if env_extra:
+        env.update({str(k): str(v) for k, v in env_extra.items() if v is not None})
     with log_path.open("w", encoding="utf-8") as log_f:
         proc = subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -186,10 +193,110 @@ def read_flag(seed_dir: Path, name: str) -> dict[str, Any] | None:
         return None
 
 
+def _read_first_csv_row(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    return rows[-1] if rows else {}
+
+
+def _coerce_number(value: Any) -> Any:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+        if text == "":
+            return None
+        number = float(text)
+        return int(number) if number.is_integer() else number
+    except Exception:
+        return value
+
+
+def stamp_run_metadata(run_dir: Path, *, phase: str, parent_run_ids: dict[str, str], orchestrator_dir: Path | None = None) -> None:
+    if not run_dir or str(run_dir).startswith("DRY_RUN"):
+        return
+    run_dir = Path(run_dir)
+    if not run_dir.exists():
+        return
+    path = run_dir / "_metadata.json"
+    if path.exists():
+        try:
+            metadata = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            metadata = {}
+    else:
+        metadata = {}
+    metadata.update(
+        {
+            "phase": phase,
+            "run_id": run_dir.name,
+            "updated_at": datetime.now().isoformat(),
+            "parent_run_ids": {**metadata.get("parent_run_ids", {}), **{k: v for k, v in parent_run_ids.items() if v}},
+        }
+    )
+    if orchestrator_dir is not None:
+        metadata["orchestrator_dir"] = str(orchestrator_dir)
+    path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+
+def write_thesis_metrics(run_dir: Path, *, stage: str, parent_run_ids: dict[str, str]) -> None:
+    if not run_dir or str(run_dir).startswith("DRY_RUN"):
+        return
+    run_dir = Path(run_dir)
+    if not run_dir.exists():
+        return
+    targets = {
+        "stage1": "representative_q1_fits",
+        "stage2": "clean_q1_fits",
+        "stage3": "raw_cdf_with_kd_regimes",
+    }
+    source_files: list[str] = []
+    metrics_source: dict[str, Any] = {}
+    post_eval = run_dir / "post_train_rmse_eval.json"
+    if post_eval.exists():
+        payload = json.loads(post_eval.read_text(encoding="utf-8"))
+        metrics_source.update(payload.get("overall", {}))
+        source_files.append(str(post_eval))
+    test_summary = run_dir / "test_summary.csv"
+    row = _read_first_csv_row(test_summary)
+    if row:
+        metrics_source.update(row)
+        source_files.append(str(test_summary))
+    epoch_loss = run_dir / "epoch_loss.csv"
+    if epoch_loss.exists():
+        source_files.append(str(epoch_loss))
+    target = targets.get(stage, "unspecified")
+    metrics = {
+        key: {"value": _coerce_number(value), "target": target}
+        for key, value in metrics_source.items()
+        if key not in {"split"} and _coerce_number(value) is not None
+    }
+    payload = {
+        "stage": stage,
+        "run_dir": str(run_dir),
+        "metric_target": target,
+        "parent_run_ids": {k: v for k, v in parent_run_ids.items() if v},
+        "source_files": source_files,
+        "metrics": metrics,
+    }
+    (run_dir / "_thesis_metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 # ----------------------------- stage runners -----------------------------
 
 
-def run_stage1(*, seed: int, variant: str, device: str, log_path: Path, dry_run: bool) -> Path:
+def run_stage1(
+    *,
+    seed: int,
+    variant: str,
+    device: str,
+    log_path: Path,
+    dry_run: bool,
+    data_dir: Path | None = None,
+    parent_env: dict[str, str] | None = None,
+) -> Path:
     cmd = [
         python_exe(),
         str(STAGE1_SCRIPT),
@@ -197,7 +304,9 @@ def run_stage1(*, seed: int, variant: str, device: str, log_path: Path, dry_run:
         "--device", device,
         "--seed", str(int(seed)),
     ]
-    rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run)
+    if data_dir is not None:
+        cmd.extend(["--data-dir", str(data_dir)])
+    rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run, env_extra=parent_env)
     if rc != 0:
         raise RuntimeError(f"Stage 1 failed (rc={rc}). See {log_path}.")
     if dry_run:
@@ -215,6 +324,8 @@ def run_stage2(
     device: str,
     log_path: Path,
     dry_run: bool,
+    data_dir: Path | None = None,
+    parent_env: dict[str, str] | None = None,
 ) -> Path:
     cmd = [
         python_exe(),
@@ -223,7 +334,9 @@ def run_stage2(
         "--device", device,
         "--seed", str(int(seed)),
     ]
-    rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run)
+    if data_dir is not None:
+        cmd.extend(["--data-dir", str(data_dir)])
+    rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run, env_extra=parent_env)
     if rc != 0:
         raise RuntimeError(f"Stage 2 failed (rc={rc}). See {log_path}.")
     if dry_run:
@@ -243,6 +356,8 @@ def run_stage3_suite(
     include_sensitivity: bool,
     log_path: Path,
     dry_run: bool,
+    synthetic_root: Path | None = None,
+    parent_env: dict[str, str] | None = None,
 ) -> Path | None:
     cmd = [
         python_exe(),
@@ -254,7 +369,9 @@ def run_stage3_suite(
     ]
     if include_sensitivity:
         cmd.append("--include-sensitivity")
-    rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run)
+    if synthetic_root is not None:
+        cmd.extend(["--synthetic-root", str(synthetic_root)])
+    rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run, env_extra=parent_env)
     if rc != 0:
         raise RuntimeError(f"Stage 3 suite failed (rc={rc}). See {log_path}.")
     if dry_run:
@@ -278,6 +395,10 @@ def run_one_seed(
     shared_stage1_run: Path | None,
     shared_stage2_run: Path | None,
     dry_run: bool,
+    data_dir: Path | None,
+    parent_run_ids: dict[str, str],
+    parent_env: dict[str, str],
+    orchestrator_dir: Path,
 ) -> dict[str, Any]:
     """Train (or reuse) Stage 1, 2 and run Stage 3 ablation suite for one seed."""
     seed_dir.mkdir(parents=True, exist_ok=True)
@@ -292,12 +413,16 @@ def run_one_seed(
             stage1_run = run_stage1(
                 seed=seed, variant=variant, device=device,
                 log_path=seed_dir / "stage1.log", dry_run=dry_run,
+                data_dir=data_dir,
+                parent_env=parent_env,
             )
             if not dry_run:
                 write_flag(seed_dir, "stage1", {"run_dir": str(stage1_run), "seed": seed})
     else:
         stage1_run = shared_stage1_run
         print(f"[seed {seed}] Reusing shared Stage 1 -> {stage1_run}")
+    stamp_run_metadata(stage1_run, phase="stage1", parent_run_ids=parent_run_ids, orchestrator_dir=orchestrator_dir)
+    write_thesis_metrics(stage1_run, stage="stage1", parent_run_ids=parent_run_ids)
 
     # Stage 2
     if rerun_stage2 or shared_stage2_run is None:
@@ -309,12 +434,16 @@ def run_one_seed(
             stage2_run = run_stage2(
                 stage1_run_dir=stage1_run, seed=seed, device=device,
                 log_path=seed_dir / "stage2.log", dry_run=dry_run,
+                data_dir=data_dir,
+                parent_env=parent_env,
             )
             if not dry_run:
                 write_flag(seed_dir, "stage2", {"run_dir": str(stage2_run), "seed": seed})
     else:
         stage2_run = shared_stage2_run
         print(f"[seed {seed}] Reusing shared Stage 2 -> {stage2_run}")
+    stamp_run_metadata(stage2_run, phase="stage2", parent_run_ids=parent_run_ids, orchestrator_dir=orchestrator_dir)
+    write_thesis_metrics(stage2_run, stage="stage2", parent_run_ids=parent_run_ids)
 
     # Stage 3 ablation suite (always re-run per seed; that's the whole point)
     cached = read_flag(seed_dir, "stage3")
@@ -327,6 +456,8 @@ def run_one_seed(
             suite_config_path=suite_config_path,
             include_sensitivity=include_sensitivity,
             log_path=seed_dir / "stage3.log", dry_run=dry_run,
+            synthetic_root=data_dir,
+            parent_env=parent_env,
         )
         if not dry_run and suite_summary is not None:
             write_flag(seed_dir, "stage3", {"summary": str(suite_summary), "seed": seed})
@@ -344,6 +475,10 @@ def run_one_seed(
         record["winner_name"] = best.get("name")
         record["winner_run_dir"] = best.get("run_dir")
         record["winner_metrics"] = {k: overall.get(k) for k in WINNER_METRIC_KEYS}
+        if best.get("run_dir"):
+            winner_dir = Path(best["run_dir"])
+            stamp_run_metadata(winner_dir, phase="stage3", parent_run_ids=parent_run_ids, orchestrator_dir=orchestrator_dir)
+            write_thesis_metrics(winner_dir, stage="stage3", parent_run_ids=parent_run_ids)
     (seed_dir / "seed_summary.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
     return record
 
@@ -401,7 +536,25 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", help="Print commands without running them.")
     p.add_argument("--output-root", type=Path, default=None,
                    help="Where to put full_pipeline_<timestamp>/. Defaults to MLP/runs_mlp.")
+    p.add_argument("--fit-run-id", default=None,
+                   help="Parent Phase-1 fit run id under MLP/synthetic_data_runs/.")
+    p.add_argument("--fit-run-dir", type=Path, default=None,
+                   help="Explicit parent Phase-1 fit run directory; also used as --data-dir unless overridden.")
+    p.add_argument("--audit-run-id", default=None,
+                   help="Parent Phase-2 audit run id under MLP/audit_runs/.")
+    p.add_argument("--audit-run-dir", type=Path, default=None,
+                   help="Explicit parent Phase-2 audit run directory.")
+    p.add_argument("--data-dir", type=Path, default=None,
+                   help="Synthetic data root for Stage 1/2/3. Defaults to --fit-run-dir or MLP/synthetic_data.")
     return p.parse_args()
+
+
+def _resolve_parent_dir(root: Path, run_id: str | None, explicit: Path | None) -> Path | None:
+    if explicit is not None:
+        return explicit.resolve()
+    if run_id:
+        return (root / run_id).resolve()
+    return None
 
 
 def main() -> None:
@@ -418,6 +571,19 @@ def main() -> None:
     if not suite_config_path.is_absolute():
         suite_config_path = PROJECT_ROOT / suite_config_path
     include_sensitivity = bool(args.include_sensitivity or config.get("include_sensitivity", False))
+    fit_run_dir = _resolve_parent_dir(MLP_ROOT / "synthetic_data_runs", args.fit_run_id, args.fit_run_dir)
+    audit_run_dir = _resolve_parent_dir(MLP_ROOT / "audit_runs", args.audit_run_id, args.audit_run_dir)
+    data_dir = (args.data_dir.resolve() if args.data_dir is not None else fit_run_dir)
+    parent_run_ids = {
+        "fit": fit_run_dir.name if fit_run_dir is not None else "",
+        "audit": audit_run_dir.name if audit_run_dir is not None else "",
+    }
+    parent_env = {
+        "MLP_PARENT_FIT_RUN_ID": parent_run_ids["fit"],
+        "MLP_PARENT_AUDIT_RUN_ID": parent_run_ids["audit"],
+    }
+    if data_dir is not None:
+        parent_env["MLP_SYNTHETIC_ROOT"] = str(data_dir)
 
     if mode_spec.get("single_seed_only", False):
         seeds: list[int] = [int(config["default_seed"])]
@@ -442,6 +608,9 @@ def main() -> None:
             "include_sensitivity": include_sensitivity,
             "config_source": str(config_path),
             "dry_run": bool(args.dry_run),
+            "fit_run_dir": None if fit_run_dir is None else str(fit_run_dir),
+            "audit_run_dir": None if audit_run_dir is None else str(audit_run_dir),
+            "data_dir": None if data_dir is None else str(data_dir),
         }, indent=2),
         encoding="utf-8",
     )
@@ -454,6 +623,9 @@ def main() -> None:
     print(f"Device:          {device}  (requested: {requested_device})")
     print(f"Suite config:    {suite_config_path}")
     print(f"Sensitivity:     {include_sensitivity}")
+    print(f"Data dir:        {data_dir or (MLP_ROOT / 'synthetic_data')}")
+    print(f"Parent fit:      {parent_run_ids['fit'] or '(none)'}")
+    print(f"Parent audit:    {parent_run_ids['audit'] or '(none)'}")
     print(f"Dry-run:         {args.dry_run}")
     print()
 
@@ -474,8 +646,12 @@ def main() -> None:
         shared_s1 = run_stage1(
             seed=int(config["default_seed"]), variant=variant, device=device,
             log_path=shared_dir / "stage1.log", dry_run=args.dry_run,
+            data_dir=data_dir,
+            parent_env=parent_env,
         )
         write_flag(shared_dir, "stage1_shared", {"run_dir": str(shared_s1)})
+        stamp_run_metadata(shared_s1, phase="stage1", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
+        write_thesis_metrics(shared_s1, stage="stage1", parent_run_ids=parent_run_ids)
     if not rerun_s2:
         assert shared_s1 is not None, "shared Stage-1 must be set before shared Stage-2"
         shared_dir = pipeline_dir / "shared_stage2"
@@ -483,8 +659,12 @@ def main() -> None:
             stage1_run_dir=shared_s1,
             seed=int(config["default_seed"]), device=device,
             log_path=shared_dir / "stage2.log", dry_run=args.dry_run,
+            data_dir=data_dir,
+            parent_env=parent_env,
         )
         write_flag(shared_dir, "stage2_shared", {"run_dir": str(shared_s2)})
+        stamp_run_metadata(shared_s2, phase="stage2", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
+        write_thesis_metrics(shared_s2, stage="stage2", parent_run_ids=parent_run_ids)
 
     seed_records: list[dict[str, Any]] = []
     for index, seed in enumerate(seeds, start=1):
@@ -503,12 +683,18 @@ def main() -> None:
             shared_stage1_run=shared_s1,
             shared_stage2_run=shared_s2,
             dry_run=args.dry_run,
+            data_dir=data_dir,
+            parent_run_ids=parent_run_ids,
+            parent_env=parent_env,
+            orchestrator_dir=pipeline_dir,
         )
         seed_records.append(record)
 
     summary = {
         "mode": args.mode,
         "seeds": seeds,
+        "parent_run_ids": parent_run_ids,
+        "data_dir": None if data_dir is None else str(data_dir),
         "shared_stage1_run": str(shared_s1) if shared_s1 else None,
         "shared_stage2_run": str(shared_s2) if shared_s2 else None,
         "per_seed": seed_records,

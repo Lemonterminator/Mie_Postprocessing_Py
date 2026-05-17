@@ -8,8 +8,16 @@ The right-censoring issue established in Chapter~2 is treated here as a target-c
 
 \subsection{Spatial right-censoring audit of the CDF traces}
 \label{sec:cdf-spatial-censoring-audit}
+\IfFileExists{../generated/current/scr_gap_tex.tex}{%
+  \input{../generated/current/scr_gap_tex.tex}%
+}{%
+  \newcommand{\scrNTotal}{24316}%
+  \newcommand{\scrNCensored}{9630}%
+  \newcommand{\scrRatePct}{39.6}%
+  \newcommand{\scrNaiveHoldGapMedianMm}{46}%
+}%
 
-Before constructing fitted targets, the severity of the CDF right-censoring problem is quantified directly from the image-processing outputs. This audit defines censoring spatially rather than from the later \(\SI{5}{ms}\) surrogate horizon. For each nozzle family \(n\), all positive raw CDF penetration values exported by the multi-hole Mie workflow are pooled and a field-of-view cap \(C_n\) is estimated as the \(q=0.999\) quantile. A plume trajectory is then marked as spatially right-censored if its raw or cleaned CDF trace reaches \(C_n-\epsilon_n\), with \(\epsilon_n=\max(\SI{1}{mm},0.01C_n)\). The audit is implemented in \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py}, comparing the raw Mie outputs under \codepath{Mie\_scattering\_top\_view\_results} with the fitted targets in \codepath{MLP/synthetic\_data}.
+Before constructing fitted targets, the severity of the CDF right-censoring problem is quantified directly from the image-processing outputs. This audit defines censoring spatially rather than from the later \(\SI{5}{ms}\) surrogate horizon. For each nozzle family \(n\), all positive raw CDF penetration values exported by the multi-hole Mie workflow are pooled and a field-of-view cap \(C_n\) is estimated as the \(q=0.999\) quantile. A plume trajectory is then marked as spatially right-censored if its raw or cleaned CDF trace reaches \(C_n-\epsilon_n\), with \(\epsilon_n=\max(\SI{1}{mm},0.01C_n)\). The audit is implemented in the spatial right-censoring audit script, comparing the raw Mie outputs in the Mie image-processing output directory with the fitted targets in the synthetic data export directory (codebase identifiers are tabulated in Appendix~\ref{app:implementation_mapping}).
 
 The resulting scalar diagnostic is the spatial censoring rate,
 \[
@@ -23,12 +31,12 @@ The resulting scalar diagnostic is the spatial censoring rate,
 \]
 where \(n(i)\) is the nozzle family of trajectory \(i\).
 
-The clean split contains \(24{,}316\) CDF trajectories, of which \(9{,}630\) meet this spatial right-censoring criterion, giving a spatial censoring rate of \(39.6\%\). The median nozzle-specific cap is \(\SI{92.52}{mm}\). Among censored clean trajectories, the median first cap hit occurs at \(\SI{1.76}{ms}\), corresponding to \(44.4\%\) of the raw positive observation span. If a naive target construction simply held the final cleaned CDF value forward, its median gap relative to the accepted q1 continuation at \(\SI{5}{ms}\) would be \(\SI{46.38}{mm}\); if the cap itself were treated as the terminal saturation value, the corresponding median gap would still be \(\SI{43.96}{mm}\). These continuation gaps are not treated as wide-field ground-truth errors. They quantify the size of the target bias that would be introduced by reading cap-hit traces as physically saturated observations.
+The clean split contains \(\num{\scrNTotal}\) CDF trajectories, of which \(\num{\scrNCensored}\) meet this spatial right-censoring criterion, giving a spatial censoring rate of \(\scrRatePct\%\). The median nozzle-specific cap is \(\SI{92.52}{mm}\). Among censored clean trajectories, the median first cap hit occurs at \(\SI{1.76}{ms}\), corresponding to \(44.4\%\) of the raw positive observation span. If a naive target construction simply held the final cleaned CDF value forward, its median gap relative to the accepted q1 continuation at \(\SI{5}{ms}\) would be approximately \(\SI{\scrNaiveHoldGapMedianMm}{mm}\); if the cap itself were treated as the terminal saturation value, the corresponding median gap would still be \(\SI{43.96}{mm}\). These continuation gaps are not treated as wide-field ground-truth errors. They quantify the size of the target bias that would be introduced by reading cap-hit traces as physically saturated observations.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.88\linewidth]{images/fig_spatial_censoring_fraction_by_nozzle_clean.png}
-\caption{Nozzle-wise spatial right-censoring fraction for the clean CDF trajectories. A trajectory is counted as censored when its raw or cleaned CDF penetration reaches the nozzle-specific field-of-view cap estimated from raw Mie outputs. The audit shows that the cap-hit problem is not restricted to a small tail of the archive: approximately \(39.6\%\) of clean CDF trajectories are spatially censored overall.}
+\caption{Nozzle-wise spatial right-censoring fraction for the clean CDF trajectories. A trajectory is counted as censored when its raw or cleaned CDF penetration reaches the nozzle-specific field-of-view cap estimated from raw Mie outputs. The audit shows that the cap-hit problem is not restricted to a small tail of the archive: approximately \(\scrRatePct\%\) of clean CDF trajectories are spatially censored overall.}
 \label{fig:spatial-censoring-by-nozzle-clean}
 \end{figure}
 
@@ -39,12 +47,12 @@ The clean split contains \(24{,}316\) CDF trajectories, of which \(9{,}630\) mee
 \toprule
 Audit quantity & Clean CDF split \\
 \midrule
-Total trajectories & \(24{,}316\) \\
-Spatially right-censored trajectories & \(9{,}630\) (\(39.6\%\)) \\
+Total trajectories & \(\num{\scrNTotal}\) \\
+Spatially right-censored trajectories & \(\num{\scrNCensored}\) (\(\scrRatePct\%\)) \\
 Median nozzle-specific cap & \(\SI{92.52}{mm}\) \\
 Median first cap-hit time among censored traces & \(\SI{1.76}{ms}\) \\
 Median cap-hit position within raw positive span & \(44.4\%\) \\
-Median naive-hold gap relative to q1 continuation & \(\SI{46.38}{mm}\) \\
+Median naive-hold gap relative to q1 continuation & \(\SI{\scrNaiveHoldGapMedianMm}{mm}\) \\
 Median cap-saturation gap relative to q1 continuation & \(\SI{43.96}{mm}\) \\
 \bottomrule
 \end{tabular}
@@ -56,9 +64,13 @@ This audit makes the modelling consequence explicit. The raw CDF traces handed o
 
 \subsection{Trajectory cleaning and reduced-order fitting}
 
+\subsubsection{Trajectory cleaning and time alignment}
+
 The learned models do not train directly on the raw exported traces. Instead, the cleaning and fitting routine first cleans and time-aligns them. For each plume, the routine finds the earliest valid penetration segment, takes the first two positive samples after onset, fits a straight line to those early nonzero points, and uses the \(x\)-axis intercept of that line as a subframe opening-delay estimate whenever the fitted slope is positive. If an area-based onset marker is available, that frame anchors the delay scan; otherwise it falls back to the first positive penetration frame. The resulting raw delay is then clipped to a small median-centred window across plumes so that one anomalous plume does not over-shift the whole group.
 
 That delay estimate is used in two coupled ways. The penetration array itself is shifted left by the nearest integer number of frames, while the aligned time vector retains the fractional residual through the exact offset subtraction. The pipeline performs a plume-onset registration that preserves subframe timing information before the later reduced-order fit. After alignment, sudden unrealistic jumps are removed, pixels are converted to corrected physical length, and low-quality fits are flagged through a set of rule-based masks.
+
+\subsubsection{Two-regime candidate model}
 
 Each accepted trajectory is then fitted with a smooth two-regime model,
 \[
@@ -95,6 +107,8 @@ to suppress the quarter-root branch before a learned transition time \(t_0\), an
 
 The engineering approach is therefore considered reasonable for the stated objective of this thesis, with one clear boundary. It is reasonable because the fit is used as a smooth compressor of noisy trajectories, not as a final mechanistic spray law; it keeps the curve differentiable for later learning; and it leaves the operating-condition dependence to the neural network instead of forcing every physical effect into the closed-form fit. The boundary is that this justification should be presented as a reduced-order surrogate motivated by empirical penetration theory, not as proof that the shifted-time physics have disappeared. That comparison is realised directly below as a quarter-root-only ablation.
 
+\subsubsection{Quarter-root dominance and selection of the q1 production model}
+
 Local analysis supports this interpretation. Exploratory diagnostics describe the model as a Hiroyasu--Arai-inspired two-branch blend, and the corresponding fit statistics show that \(k_{\mathrm{sqrt}}\) behaves more like an optional shape descriptor than a uniformly stable physical coefficient.
 
 A direct quantitative check across the \(14{,}563\) accepted plume fits in the polar binary penetration archive confirms this conclusively. At the fitted transition time \(t_0\), the two branch amplitudes are \(k_{1/4}\cdot t_0^{1/4}\) (quarter-root) and \(k_{\mathrm{sqrt}}\cdot t_0^{1/2}\) (square-root); their ratio is
@@ -121,6 +135,8 @@ reducing the parameter count from four to three: \([\log k_{1/4},\,\log t_0,\,\l
 Across all \(23{,}495\) series in the nine-nozzle CDF campaign (after discarding series shorter than ten valid frames), the four-parameter main model achieves a success rate of \(61.3\%\), while the q1 model achieves \(90.0\%\)---an absolute gain of 28.6~percentage points with no individual nozzle regressing. On the clean subset that passes both models, the median RMSE is \(\SI{1.23}{mm}\) for the main model and \(\SI{1.27}{mm}\) for q1, confirming that removing \(k_{\mathrm{sqrt}}\) costs nothing on well-behaved data. On the flagged subset the contrast is far more pronounced: the median RMSE drops from \(\SI{8.12}{mm}\) to \(\SI{1.08}{mm}\), a reduction of approximately \(7.5\times\). The gain is largest for the most heavily impinged datasets---DS300 improves by 37.6 percentage points and Nozzle~7 by 28.7 percentage points---which are precisely the conditions where the post-impingement deceleration phase makes the \(t^{1/4}\) form the dominant descriptor and renders the \(\sqrt{t}\) branch physically uninformative.
 
 Building on this ablation, q1 is promoted to the production fitting target, and the smooth targets consumed by Stage~1, Stage~2, and Stage~3 are all produced by q1 rather than by the four-parameter candidate model. The four-parameter results are retained in this thesis only as a structural diagnostic and a historical baseline that motivates why the reduced-order step is needed. The practical purpose of this fit is therefore not to claim a universal penetration law, but to compress noisy plume trajectories into smooth, differentiable, and trainable targets while still preserving the dataset's heteroscedastic variation for the later learning stages.
+
+\subsubsection{q1 diagnostics: scaling, residuals, and identifiability}
 
 \textbf{Empirical scaling check.} A post-hoc scaling regression on the \(20{,}998\) accepted q1 fits provides a sanity check against classical penetration theory. Fitting \(\log k_{1/4} = a\,\log\Delta P + b\,\log\rho_a + c\,\log d_n + \text{const}\) by ordinary least squares yields exponents \(a\approx 0.53\), \(b\approx -0.24\), \(c\approx 0.48\) with \(R^2\approx 0.33\). Two of those three exponents are remarkably close to the Hiroyasu--Arai post-breakup form \(S\propto\Delta P^{1/4}\rho_a^{-1/4}(d_n t)^{1/2}\): the empirical \(\rho_a\) exponent matches \(-1/4\) almost exactly, and the diameter exponent is within \(0.02\) of the classical \(1/2\). The injection-pressure exponent is steeper than \(1/4\), which is qualitatively consistent with the post-impingement deceleration regime that the \(t^{1/4}\) branch is meant to describe rather than the free-jet stage to which the original Hiroyasu--Arai form applies. Regressions on the gating parameters \(t_0\) and \(s\) yield much lower \(R^2\) (\(0.18\) and \(0.14\)), which is expected: a sigmoid switching time is not directly predicted by Hiroyasu--Arai theory and absorbs the residual onset-delay variability after preprocessing alignment.
 
@@ -184,6 +200,8 @@ Identifiability (median corr) & $\mathrm{corr}(\log t_0, \log s)$ & $0.45$ \\
 \end{tabular}
 \end{table}
 
+\subsubsection{Outlier masking and filter selection bias}
+
 The stricter post-fit masking stage is also an important part of the engineering contribution. The robust outlier mask first forms a far-time penetration proxy by evaluating the fitted curve at \(t_{\mathrm{far}}=\SI{5}{ms}\). A row is retained only if that far-time value remains inside a broad physically plausible window and if the fit parameters pass basic sanity checks on \(t_0\), \(s\), point count, and fit cost. Robust grouped outlier scores are then computed using the median absolute deviation,
 \[
 z_{\mathrm{robust}}(x)=0.6745\,\frac{x-\operatorname{median}(x)}{\operatorname{MAD}(x)+\epsilon},
@@ -204,6 +222,16 @@ Figure~\ref{fig:filter-survival-cdf-nozzle} shows the CDF q1 filter survival rat
 \caption{Example CDF q1 filter survival rate. The figure reports the total series count, cleaned series count, and pass ratio for the locally available Nozzle1--8 archives; complete DS300/Nozzle0 coverage needs to be re-checked once the original PC data is restored.}
 \label{fig:filter-survival-cdf-nozzle}
 \end{figure}
+
+\IfFileExists{../generated/current/data_attrition_tex.tex}{%
+\begin{table}[t]
+\centering
+\footnotesize
+\input{../generated/current/data_attrition_tex.tex}
+\caption{Trajectory attrition with a common raw-trajectory denominator. This generated table avoids multiplying percentages measured on different populations; each gate is reported as an absolute count against the raw CDF plume inventory.}
+\label{tab:data-attrition-generated}
+\end{table}
+}{}
 
 The trade-off is deliberate but limited. By excluding ambiguous data, the pipeline gives Stage~2 a clean teacher target that is less exposed to optical vanishing effects, background reflections, and incorrect hydraulic delay alignments. Stage~3 then recombines this clean prior with the raw, unfiltered CDF data: it trusts raw observations in high-confidence bins and falls back to the Stage~2 teacher where coverage collapses. The result is a controlled interpolation between early-time raw-signal fidelity and late-time physical consistency.
 
@@ -252,6 +280,190 @@ treats $A$ as a target divisor only. The six-feature scaling-and-residual form a
 Before any optimisation, a scaling-validation routine tests the assumption on the actual dataset: each trajectory is divided by its own $A$, the per-time-slice variance reduction is reported, and a linear-regression $R^2$ of $\hat{S}(t)$ on the kept features is computed. In the final study runs the check passed with a median post-\SI{0.5}{ms} variance reduction of~59.5\% (collapse ratio~0.405) and a sparse-feature $R^2$ dropping from~0.34 on $S$ to~0.14 on $\hat{S}$, confirming that $A$ accounts for the dominant diameter and pressure variation and that the network is learning only the residual structure on the dense, well-supported axes. If the check fails, training aborts by default, making the physical prior falsifiable rather than asserted. The Hiroyasu--Arai exponents embedded in $A = (\Delta P/\rho_a)^{1/4}d_n^{1/2}$ are therefore not a post-hoc normalisation convenience; they carry an empirically checkable prediction that the training protocol is structured to confirm or reject before any weights are updated.
 
 Stage~1 and Stage~2 also share a group-aware data split: whole operating-condition groups — defined by nozzle identity, injection pressure, chamber pressure, and injection duration — are assigned together to train, validation, or test, preventing leakage between curves that share an operating point. Without this constraint, a random trajectory-level split would allow the network to interpolate between near-identical curves from the same operating condition seen during training, and the resulting held-out error would reflect intra-condition smoothness rather than generalisation across the condition space. The group assignment is therefore the structural guarantee that the reported test metrics are interpretable as interpolation performance across distinct operating conditions, not memorisation within them. Stage~2 warm-starts from the Stage-1 engineered run directory and reuses its scaler state, guaranteeing consistent variant choice and $A$-scaling across both stages.
+
+\subsection{Stage-1 MSE baseline on the non-dimensional target}
+
+Stage~1 trains a deterministic mean model on a representative-trajectory subset. For each file-level operating-condition group, the fitted curve is evaluated at $t_{\mathrm{far}}=\SI{5}{ms}$, the group-median penetration is computed, and the nearest row is kept as the Stage-1 representative. This produces 599~representative trajectories, split by group into 421/89/89 train/validation/test trajectories.
+
+The loss applied to the non-dimensional target $\hat{S}$ is
+\[
+\begin{aligned}
+\mathcal{L}_{\mathrm{stage1}}
+=\;&\operatorname{MSE}\!\left(\hat{\mu},\hat{S}\right)
++\lambda_{\mathrm{var}}
+\mathbb{E}\!\left[\left(\log \hat{\sigma}^2-c_0\right)^2\right]\\
+&+\lambda_{1}
+\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu_S}{\partial t}\right)^2\right]
++\lambda_{2}
+\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu_S}{\partial t^2}\right)^2\right],
+\end{aligned}
+\]
+where $c_0=-2$ is the log-variance prior centre, $g(t)=\sigma((t-t_c)/\tau_c)$ gates the concavity penalty to activate after the transient region, and the derivative penalties are evaluated on the physical reconstruction $\mu_S=A\,\hat{\mu}$ so that the monotonicity and concavity constraints apply at the observable scale. The network is a three-hidden-layer MLP with dimensions $[512,512,128]$, smooth-gating activations, stochastic unit-masking at rate~0.3, and the decoupled-weight-decay adaptive-moment optimiser with gradient clipping and early stopping on validation loss. The archived Stage-1 run reaches a test physical MAE of \SI{8.05}{mm}; held-out metrics are summarised together with the other two stages in Table~\ref{tab:model-summary}.
+
+\subsection{Stage-2 NLL heteroscedastic extension}
+
+Stage~2 warm-starts from the Stage-1 checkpoint and expands the training set to all filtered trajectories, replacing the MSE data-fit term with a heteroscedastic Gaussian NLL on the scaled target:
+\[
+\begin{aligned}
+\mathcal{L}_{\mathrm{stage2}}
+&=
+\mathbb{E}\!\left[
+\frac{1}{2}
+\left(
+\log \hat{\sigma}^{2}
++\frac{(\hat{S}-\hat{\mu})^{2}}{\hat{\sigma}^{2}}
+\right)\right]
+\\
+&\quad
++\lambda_{1}\,
+\mathbb{E}\!\left[
+\operatorname{ReLU}\!\left(-\frac{\partial \mu_S}{\partial t}\right)^{2}
+\right]
++\lambda_{2}\,
+\mathbb{E}\!\left[
+g(t)\operatorname{ReLU}\!\left(\frac{\partial^{2}\mu_S}{\partial t^{2}}\right)^{2}
+\right],
+\\
+\hat{\sigma}^{2}
+&=\exp(\log\hat{\sigma}^{2})+\varepsilon.
+\end{aligned}
+\]
+The first term is the heteroscedastic NLL on the scaled target $\hat{S}$. The derivative penalties remain on the physical-space reconstruction $\mu_S=A\,\hat{\mu}$. The row table expands to 20{,}940~filtered trajectories, retaining all rows that pass the fit-level masks and a far-time z-score filter on group-wise spread. The split is assigned at the grouped-case level rather than at the individual plume-trajectory level, so trajectories from the same physical case do not leak across train, validation, and test partitions. With 512 time samples per trajectory over \SIrange{0}{5}{ms}, the final Stage-2 table contains 10{,}721{,}280 pointwise samples. The training split contains 14{,}584 trajectories, the validation split contains 3{,}160 trajectories, and the test split contains 3{,}196 trajectories.
+
+The retained trajectories span the dominant operating range in the archive: control back-pressure from 1 to \SI{4}{bar}, injection pressure from 1,400 to \SI{2,200}{bar}, injection duration from 340 to \SI{1,200}{\micro s}, and fitted far-time penetration from \SI{26.2}{mm} to \SI{217.3}{mm}. The Stage-2 model therefore does not only learn a single median curve; it sees the remaining within-condition plume and repeat variation after outlier removal. The heteroscedastic output is used to separate two effects that would be conflated by a pure MSE objective: the conditional mean trajectory and the conditional spread around that mean.
+
+Training reuses the Stage-1 feature mapping and scaler state. The input vector contains the normalised time coordinate, \(\theta_z\), \(N_{\mathrm{plume},z}\), \(\Delta t_{\mathrm{inj},z}\), and \(p_{\mathrm{back},z}\); the architecture remains the three-hidden-layer MLP with dimensions $[512,512,128]$, and the network is warm-started from the Stage-1 checkpoint. The Stage-2 run uses the decoupled-weight-decay adaptive-moment optimiser with learning rate \(8\times10^{-4}\), decoupled weight-decay coefficient \(10^{-4}\), batch size~96, gradient clipping at norm~1.0, log-variance bounds \([-10,6]\), and early stopping with patience~35. Thus the only intentional change in the data-fit term is the replacement of deterministic MSE by the Gaussian NLL and its learned variance output.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|L{0.20\linewidth}|L{0.08\linewidth}|L{0.14\linewidth}|L{0.13\linewidth}|L{0.12\linewidth}|L{0.12\linewidth}|}
+\hline
+Split & Epoch & Pointwise samples & Loss / scaled NLL & Physical MAE & Mean predicted std. \\
+\hline
+Train at best validation epoch & 70 & 7{,}467{,}008 & 2.241 / 2.234 & \SI{10.40}{mm} & \SI{13.14}{mm} \\
+Validation, best checkpoint & 70 & 1{,}617{,}920 & 2.099 / 2.099 & \SI{8.59}{mm} & \SI{12.42}{mm} \\
+Validation, stopping epoch & 105 & 1{,}617{,}920 & 2.136 / 2.136 & \SI{8.92}{mm} & \SI{13.12}{mm} \\
+Test, restored best checkpoint & 105 & 1{,}636{,}352 & 2.131 / 2.131 & \SI{9.28}{mm} & \SI{12.51}{mm} \\
+\hline
+\end{tabular}
+\caption{Stage-2 loss summary. The best validation NLL is reached at epoch~70; early stopping terminates the run at epoch~105 once no better validation loss is found. The test row is written after early stopping, but the model weights are restored to the best validation checkpoint before test evaluation.}
+\label{tab:stage2-epoch-loss}
+\end{table}
+
+Table~\ref{tab:stage2-epoch-loss} shows that the held-out test MAE of \SI{9.28}{mm} is close to the validation MAE. The Stage-2 test MAE is numerically higher than the Stage-1 value of \SI{8.05}{mm}, but the two figures are not directly comparable: Stage-1 trains on 599 representative trajectories (one per operating-condition group), whereas Stage-2 trains on 14{,}584 trajectories spanning within-group plume-to-plume variation across the full operating range; the wider, more heterogeneous training population is the intended input, not a relaxed accuracy criterion. The mean predicted standard deviation of \SI{12.51}{mm} remains larger than the point-error scale. This is the desired behaviour for this stage: the model is not forced to explain all residual plume-to-plume variation through the mean function, but instead assigns a nonzero conditional uncertainty that can be used by the later impingement and distillation stages. The resulting checkpoint serves as the teacher model for the subsequent distillation stage.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{images/stage2_loss_curves.png}
+\caption{Stage-2 NLL training curves showing train and validation Gaussian NLL per epoch. The best validation checkpoint is reached at epoch~70; early stopping halts training at epoch~105.}
+\label{fig:stage2-loss-curves}
+\end{figure}
+
+\subsection{Raw-CDF distillation and onset refinement}
+
+The NLL stage produces well-calibrated heteroscedastic predictions on the fitted training targets, but the fitted curves are not equally faithful over the whole time axis. Near the onset of injection the absolute penetration is small, and any timing offset, fit-delay ambiguity, or smoothness prior produces a relatively large fractional error, so the earliest segment of each predicted curve is dominated by the fitted-target prior rather than by directly observed raw plume dynamics. Figure~\ref{fig:stage2-toy-inference-early-time} illustrates this in a representative toy-inference sweep.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{images/stage2_toy_inference_2000bar_5bar.png}
+\caption{Toy inference of the stage-2 NLL model for a representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) case. The prediction is smooth and well-behaved overall, but the earliest part of the trajectory is still shaped primarily by the fitted-target prior, motivating the subsequent distillation refinement.}
+\label{fig:stage2-toy-inference-early-time}
+\end{figure}
+
+To refine the early-time dynamics against raw CDF observations while preventing collapse in the late-time sparse regime, a knowledge-distillation stage is introduced on top of the Stage-2 teacher. The student network inherits the teacher weights and is further trained on raw CDF together with teacher guidance.
+
+\textbf{CDF coverage regimes.}  Because the raw CDF series are right-censored (by $t\approx\SI{3}{ms}$ many operating conditions have lost more than 70\% of their measurements), direct raw supervision cannot be applied uniformly in time. For each operating-condition group, raw observations are binned in $\Delta t=\SI{0.1}{ms}$ intervals over $[0,5]\,\si{ms}$, and the smoothed sample count per bin determines three mutually exclusive regimes: the high-confidence raw regime (smoothed coverage $\geq70\%$ of peak), the uncertain raw regime (coverage between 20\% and 70\%), and the teacher-only extrapolation regime (coverage below 20\% or fewer than 4 samples per bin). Transitions require at least two consecutive bins in a regime to prevent isolated dips from triggering premature regime changes.
+
+The 70\%/20\% coverage boundaries are conservative engineering regime rules, not optima from a full grid search. The completed Stage~3 ablations mainly support two conclusions: switching off the early anchor reduces global underestimation bias, and retaining mild KD mixing in the reliable raw regime performs better than removing teacher guidance entirely. The coverage boundaries and \(\sigma_{\mathrm{ref}}\) should still be rerun as local sensitivity checks once the full PC data and training environment are restored.
+
+\IfFileExists{../generated/current/raw_coverage_heatmap.png}{%
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.94\linewidth]{../generated/current/raw_coverage_heatmap.png}
+\caption{Generated raw-CDF coverage heatmap used to audit the 70\%/20\% regime boundaries. Contours mark the reliable-to-uncertain and uncertain-to-teacher-only thresholds.}
+\label{fig:raw-coverage-heatmap-generated}
+\end{figure}
+}{}
+
+Figure~\ref{fig:raw-uncertain-teacher-gaussian} shows why this regime split motivates distillation rather than a single-source target. In representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) cases, the remaining uncertain-regime CDF points still carry useful local information, but they occupy a thinning and biased subset of the teacher's wider predictive distribution. The teacher Gaussian therefore acts as a stabilising continuation of the raw trend rather than as an arbitrary replacement of measured data.
+
+\begin{figure}[p]
+\centering
+\includegraphics[height=0.88\textheight,keepaspectratio]{images/raw_uncertain_vs_teacher_gaussian_2000bar_5bar.png}
+\caption{Representative uncertain-regime CDF points compared with the Stage~2 teacher Gaussian reconstruction for \(\SI{2000}{bar}\) injection pressure and \(\SI{5}{bar}\) chamber pressure. Black points are the surviving raw CDF observations in the uncertain regime, orange points are samples from the teacher Gaussian at the same times, and the blue curve and band show the teacher mean and \(\pm1\sigma\). The plot illustrates why the Stage~3 objective blends raw supervision with teacher guidance once coverage begins to collapse.}
+\label{fig:raw-uncertain-teacher-gaussian}
+\end{figure}
+
+\textbf{Supervision weights.}  Each grid point receives two independent weight channels:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Regime & Raw weight $w_{\mathrm{raw}}$ & KD weight $w_{\mathrm{kd}}$ \\
+\midrule
+the high-confidence raw regime  & 1.0 & 0.25 \\
+the uncertain raw regime & 0.0 & 1.0  \\
+the teacher-only extrapolation regime  & 0.0 & 0.75 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both channels are further modulated by a global time-bin rebalancing weight (inverse-frequency, clipped to $[0.5,2.0]$). In the high-confidence raw regime bins, raw NLL is the primary signal with mild KD regularisation. In the uncertain raw regime bins, raw supervision is dropped and teacher KL dominates. In the teacher-only extrapolation regime bins, the KD weight is slightly reduced to acknowledge teacher extrapolation uncertainty.
+
+\textbf{Composite loss.}  The training objective is
+\[
+\mathcal{L} = \mathcal{L}_{\mathrm{raw}} + \mathcal{L}_{\mathrm{KD}} + \lambda_{\mathrm{onset}}\,\mathcal{L}_{\mathrm{onset}} + \lambda_{\mathrm{anchor}}\,\mathcal{L}_{\mathrm{anchor}} + \lambda_{d_1}\,P_{d_1} + \lambda_{d_2}\,P_{d_2},
+\]
+where $\mathcal{L}_{\mathrm{raw}}$ is the Gaussian NLL on physical $(\mu,\sigma^2)$ against raw CDF targets weighted by $w_{\mathrm{raw}}$; $\mathcal{L}_{\mathrm{KD}}$ is the forward KL divergence $D_{\mathrm{KL}}(p_{\mathrm{teacher}}\|p_{\mathrm{student}})$ in physical space weighted by $w_{\mathrm{kd}}$ and a teacher confidence factor
+\[
+w_{\mathrm{conf}}(t) = \mathrm{clamp}\!\left(\frac{\sigma_{\mathrm{ref}}}{\sigma_{\mathrm{teacher}}(t)},\;0.25,\;1.0\right),\quad\sigma_{\mathrm{ref}}=\SI{10}{mm};
+\]
+This factor reduces the effective KD weight in proportion to how far the teacher's uncertainty exceeds the reference scale: when $\sigma_{\mathrm{teacher}}\leq\sigma_{\mathrm{ref}}$ the teacher is confident and $w_{\mathrm{conf}}=1$; when $\sigma_{\mathrm{teacher}}\gg\sigma_{\mathrm{ref}}$ the teacher is expressing genuine extrapolation uncertainty, and its guidance is down-weighted to a floor of $0.25$, preventing the student from being pulled toward an increasingly speculative distribution in the censored late-time tail.
+$\mathcal{L}_{\mathrm{onset}}$ is a binary cross-entropy loss on a new onset logit output against a ramp target $\min(t/t_{\mathrm{ramp}},1)$ active only for $t\leq\SI{0.2}{ms}$ ($\lambda_{\mathrm{onset}}=0.1$); $\mathcal{L}_{\mathrm{anchor}}$ is a quadratic penalty pulling $\mu(t\approx0)$ toward zero, ramping down over the first \SI{0.15}{ms}. This anchor term is retained in the general objective and in the baseline run ($\lambda_{\mathrm{anchor}}=0.01$), but the final selected checkpoint sets $\lambda_{\mathrm{anchor}}=0$ after the ablation evidence below showed that the anchor introduced a small systematic under-prediction. $P_{d_1}=\operatorname{ReLU}(-\Delta\mu)^2$ enforces monotonicity; and $P_{d_2}=\operatorname{ReLU}(+\Delta^2\mu)^2$ enforces concavity for $t\geq\SI{0.5}{ms}$.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{0.12\linewidth}L{0.24\linewidth}L{0.24\linewidth}L{0.30\linewidth}@{}}
+\toprule
+Stage & Data-fit and variance/onset terms & Shape priors & Gating and distillation parameters \\
+\midrule
+Stage~1 &
+\(\lambda_{\mathrm{var}}=10^{-3}\), \(c_0=-2\) &
+\(\lambda_1=5\times10^{-5}\), \(\lambda_2=5\times10^{-4}\) &
+\(t_c=\SI{0.9}{ms}\), \(\tau_c=\SI{0.05}{ms}\) \\
+Stage~2 &
+heteroscedastic NLL, \(\log\hat{\sigma}^2\in[-10,6]\) &
+\(\lambda_1=5\times10^{-5}\), \(\lambda_2=5\times10^{-5}\) &
+\(t_c=\SI{0.5}{ms}\), \(\tau_c=\SI{0.05}{ms}\) \\
+Stage~3 &
+\(\lambda_{\mathrm{onset}}=0.1\), final \(\lambda_{\mathrm{anchor}}=0\) &
+\(\lambda_{d_1}=5\times10^{-5}\), \(\lambda_{d_2}=5\times10^{-4}\) &
+\(t_c=\SI{0.5}{ms}\), \(\tau_c=\SI{0.05}{ms}\), \(\sigma_{\mathrm{ref}}=\SI{10}{mm}\); \(w_{\mathrm{raw}}=(1.0,0,0)\), \(w_{\mathrm{kd}}=(0.25,1.0,0.75)\) \\
+\bottomrule
+\end{tabular}
+\caption{Reproducibility-relevant hyperparameters for the three training stages. Stage~1/2 values are taken from the corresponding training-config snapshots; Stage~3 values are from the final anchor-off run. The \(w_{\mathrm{raw}}\) and \(w_{\mathrm{kd}}\) triples are ordered as (high-confidence raw regime, uncertain raw regime, teacher-only extrapolation regime).}
+\label{tab:training-hyperparameters}
+\end{table}
+
+\textbf{Student architecture.}  The student is a three-output MLP extending the teacher's two outputs $[\hat\mu,\;\log\hat\sigma^2]$ with an onset logit. All shared layers are copied from the teacher checkpoint; the final linear row for the onset head is initialised to zero (sigmoid $\to0.5$). All losses are computed in physical space by multiplying student and teacher outputs by the per-sample $A$ before evaluating $\mathcal{L}_{\mathrm{KD}}$, $\mathcal{L}_{\mathrm{raw}}$, and the shape priors.
+
+\textbf{Training and results.}  The student is optimised with the decoupled-weight-decay adaptive-moment optimiser at $\mathrm{lr}=3\times10^{-3}$ with gradient clipping at norm~1.0 and early stopping with patience~20. In the selected anchor-off configuration, the best validation composite loss is~2.230 (val raw NLL~2.185, val KD KL~0.0136, val onset BCE~0.320). On the held-out test set, the composite loss is~2.219, with raw NLL~2.173, KD KL~0.0136, onset BCE~0.320, and small derivative penalties ($P_{d_1}\approx8.9\times10^{-5}$, $P_{d_2}\approx2.5\times10^{-4}$). Figure~\ref{fig:distillation-loss} shows the training curves; the downstream screening performance of this checkpoint is reported in Table~\ref{tab:model-summary}.
+
+These Stage~3 loss values are not a direct improvement/degradation comparison against the Stage~2 scaled NLL. Stage~2 optimises fitted q1 targets on the filtered trajectory table, whereas Stage~3 mixes raw CDF likelihood, teacher--student KL, onset supervision, and shape penalties on a different raw/KD-regime population. The reproducibility pipeline therefore exports each stage metric with an explicit target-population label rather than placing all NLL-like numbers on a single leaderboard.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/distillation_loss_curves.png}
+\caption{Distillation stage training curves for the selected anchor-off Stage~3 run. The composite loss reaches its best validation value of~2.230.}
+\label{fig:distillation-loss}
+\end{figure}
+
+The three-stage surrogate constructed above is compared against physical and non-parametric baselines in Chapter~5. The following two subsections describe how those baselines are constructed and how the evaluation protocol operates across all models.
 
 \subsection{Construction and fitting protocol for physical and non-parametric baselines}\label{sec:baseline-fitting-protocol-en}
 
@@ -325,177 +537,6 @@ Under a Gaussian predictive distribution with mean $\mu$ and standard deviation 
 
 \textbf{Leave-one-nozzle-family evaluation.} The standard group-aware split retains all nozzle families in the training and validation partitions and evaluates interpolation across pressure and duration combinations within the supported operating domain. To probe out-of-distribution robustness in a physically meaningful direction, a secondary leave-one-nozzle-family evaluation is also conducted: all operating conditions belonging to one nozzle family are removed from the training and validation splits, the model is retrained on the remaining families, and performance is evaluated on the held-out family alone. This procedure is repeated for each nozzle family in turn. Because nozzle families differ in hole diameter, plume count, and early-transient spray formation dynamics, the leave-one-family test asks whether the staged architecture generalises to a nozzle geometry never seen during training — the most demanding interpolation scenario the present dataset can provide. Results from both evaluation protocols are reported in Chapter~5.
 
-\subsection{Stage-1 MSE baseline on the non-dimensional target}
-
-Stage~1 trains a deterministic mean model on a representative-trajectory subset. For each file-level operating-condition group, the fitted curve is evaluated at $t_{\mathrm{far}}=\SI{5}{ms}$, the group-median penetration is computed, and the nearest row is kept as the Stage-1 representative. This produces 599~representative trajectories, split by group into 421/89/89 train/validation/test trajectories.
-
-The loss applied to the non-dimensional target $\hat{S}$ is
-\[
-\begin{aligned}
-\mathcal{L}_{\mathrm{stage1}}
-=\;&\operatorname{MSE}\!\left(\hat{\mu},\hat{S}\right)
-+\lambda_{\mathrm{var}}
-\mathbb{E}\!\left[\left(\log \hat{\sigma}^2-c_0\right)^2\right]\\
-&+\lambda_{1}
-\mathbb{E}\!\left[\operatorname{ReLU}\!\left(-\frac{\partial \mu_S}{\partial t}\right)^2\right]
-+\lambda_{2}
-\mathbb{E}\!\left[g(t)\operatorname{ReLU}\!\left(\frac{\partial^2 \mu_S}{\partial t^2}\right)^2\right],
-\end{aligned}
-\]
-where $c_0=-2$ is the log-variance prior centre, $g(t)=\sigma((t-t_c)/\tau_c)$ gates the concavity penalty to activate after the transient region, and the derivative penalties are evaluated on the physical reconstruction $\mu_S=A\,\hat{\mu}$ so that the monotonicity and concavity constraints apply at the observable scale. The network is a three-hidden-layer MLP with dimensions $[512,512,128]$, smooth-gating activations, stochastic unit-masking at rate~0.3, and the decoupled-weight-decay adaptive-moment optimiser with gradient clipping and early stopping on validation loss. The archived Stage-1 run reaches a test physical MAE of \SI{8.05}{mm}; held-out metrics are summarised together with the other two stages in Table~\ref{tab:model-summary}.
-
-\subsection{Stage-2 NLL heteroscedastic extension}
-
-Stage~2 warm-starts from the Stage-1 checkpoint and expands the training set to all filtered trajectories, replacing the MSE data-fit term with a heteroscedastic Gaussian NLL on the scaled target:
-\[
-\begin{aligned}
-\mathcal{L}_{\mathrm{stage2}}
-&=
-\mathbb{E}\!\left[
-\frac{1}{2}
-\left(
-\log \hat{\sigma}^{2}
-+\frac{(\hat{S}-\hat{\mu})^{2}}{\hat{\sigma}^{2}}
-\right)\right]
-\\
-&\quad
-+\lambda_{1}\,
-\mathbb{E}\!\left[
-\operatorname{ReLU}\!\left(-\frac{\partial \mu_S}{\partial t}\right)^{2}
-\right]
-+\lambda_{2}\,
-\mathbb{E}\!\left[
-g(t)\operatorname{ReLU}\!\left(\frac{\partial^{2}\mu_S}{\partial t^{2}}\right)^{2}
-\right],
-\\
-\hat{\sigma}^{2}
-&=\exp(\log\hat{\sigma}^{2})+\varepsilon.
-\end{aligned}
-\]
-The first term is the heteroscedastic NLL on the scaled target $\hat{S}$. The derivative penalties remain on the physical-space reconstruction $\mu_S=A\,\hat{\mu}$. The row table expands to 20{,}940~filtered trajectories, retaining all rows that pass the fit-level masks and a far-time z-score filter on group-wise spread. The split is assigned at the grouped-case level rather than at the individual plume-trajectory level, so trajectories from the same physical case do not leak across train, validation, and test partitions. With 512 time samples per trajectory over \SIrange{0}{5}{ms}, the final Stage-2 table contains 10{,}721{,}280 pointwise samples. The training split contains 14{,}584 trajectories, the validation split contains 3{,}160 trajectories, and the test split contains 3{,}196 trajectories.
-
-The retained trajectories span the dominant operating range in the archive: control back-pressure from 1 to \SI{4}{bar}, injection pressure from 1,400 to \SI{2,200}{bar}, injection duration from 340 to \SI{1,200}{\micro s}, and fitted far-time penetration from \SI{26.2}{mm} to \SI{217.3}{mm}. The Stage-2 model therefore does not only learn a single median curve; it sees the remaining within-condition plume and repeat variation after outlier removal. The heteroscedastic output is used to separate two effects that would be conflated by a pure MSE objective: the conditional mean trajectory and the conditional spread around that mean.
-
-Training reuses the Stage-1 feature mapping and scaler state. The input vector contains the normalised time coordinate, \(\theta_z\), \(N_{\mathrm{plume},z}\), \(\Delta t_{\mathrm{inj},z}\), and \(p_{\mathrm{back},z}\); the architecture remains the three-hidden-layer MLP with dimensions $[512,512,128]$, and the network is warm-started from the Stage-1 checkpoint. The Stage-2 run uses the decoupled-weight-decay adaptive-moment optimiser with learning rate \(8\times10^{-4}\), decoupled weight-decay coefficient \(10^{-4}\), batch size~96, gradient clipping at norm~1.0, log-variance bounds \([-10,6]\), and early stopping with patience~35. Thus the only intentional change in the data-fit term is the replacement of deterministic MSE by the Gaussian NLL and its learned variance output.
-
-\begin{table}[t]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{|L{0.20\linewidth}|L{0.08\linewidth}|L{0.14\linewidth}|L{0.13\linewidth}|L{0.12\linewidth}|L{0.12\linewidth}|}
-\hline
-Split & Epoch & Pointwise samples & Loss / scaled NLL & Physical MAE & Mean predicted std. \\
-\hline
-Train at best validation epoch & 70 & 7{,}467{,}008 & 2.241 / 2.234 & \SI{10.40}{mm} & \SI{13.14}{mm} \\
-Validation, best checkpoint & 70 & 1{,}617{,}920 & 2.099 / 2.099 & \SI{8.59}{mm} & \SI{12.42}{mm} \\
-Validation, stopping epoch & 105 & 1{,}617{,}920 & 2.136 / 2.136 & \SI{8.92}{mm} & \SI{13.12}{mm} \\
-Test, restored best checkpoint & 105 & 1{,}636{,}352 & 2.131 / 2.131 & \SI{9.28}{mm} & \SI{12.51}{mm} \\
-\hline
-\end{tabular}
-\caption{Stage-2 loss summary. The best validation NLL is reached at epoch~70; early stopping terminates the run at epoch~105 once no better validation loss is found. The test row is written after early stopping, but the model weights are restored to the best validation checkpoint before test evaluation.}
-\label{tab:stage2-epoch-loss}
-\end{table}
-
-Table~\ref{tab:stage2-epoch-loss} shows that the held-out test MAE of \SI{9.28}{mm} is close to the validation MAE, and the mean predicted standard deviation of \SI{12.51}{mm} remains larger than the point-error scale. This is the desired behaviour for this stage: the model is not forced to explain all residual plume-to-plume variation through the mean function, but instead assigns a nonzero conditional uncertainty that can be used by the later impingement and distillation stages. The resulting checkpoint serves as the teacher model for the subsequent distillation stage.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.85\linewidth]{images/stage2_loss_curves.png}
-\caption{Stage-2 NLL training curves showing train and validation Gaussian NLL per epoch. The best validation checkpoint is reached at epoch~70; early stopping halts training at epoch~105.}
-\label{fig:stage2-loss-curves}
-\end{figure}
-
-\subsection{Raw-CDF distillation and onset refinement}
-
-The NLL stage produces well-calibrated heteroscedastic predictions on the fitted training targets, but the fitted curves are not equally faithful over the whole time axis. Near the onset of injection the absolute penetration is small, and any timing offset, fit-delay ambiguity, or smoothness prior produces a relatively large fractional error, so the earliest segment of each predicted curve is dominated by the fitted-target prior rather than by directly observed raw plume dynamics. Figure~\ref{fig:stage2-toy-inference-early-time} illustrates this in a representative toy-inference sweep.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.82\linewidth]{images/stage2_toy_inference_2000bar_5bar.png}
-\caption{Toy inference of the stage-2 NLL model for a representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) case. The prediction is smooth and well-behaved overall, but the earliest part of the trajectory is still shaped primarily by the fitted-target prior, motivating the subsequent distillation refinement.}
-\label{fig:stage2-toy-inference-early-time}
-\end{figure}
-
-To refine the early-time dynamics against raw CDF observations while preventing collapse in the late-time sparse regime, a knowledge-distillation stage is introduced on top of the Stage-2 teacher. The student network inherits the teacher weights and is further trained on raw CDF together with teacher guidance.
-
-\textbf{CDF coverage regimes.}  Because the raw CDF series are right-censored (by $t\approx\SI{3}{ms}$ many operating conditions have lost more than 70\% of their measurements), direct raw supervision cannot be applied uniformly in time. For each operating-condition group, raw observations are binned in $\Delta t=\SI{0.1}{ms}$ intervals over $[0,5]\,\si{ms}$, and the smoothed sample count per bin determines three mutually exclusive regimes: the high-confidence raw regime (smoothed coverage $\geq70\%$ of peak), the uncertain raw regime (coverage between 20\% and 70\%), and the teacher-only extrapolation regime (coverage below 20\% or fewer than 4 samples per bin). Transitions require at least two consecutive bins in a regime to prevent isolated dips from triggering premature regime changes.
-
-The 70\%/20\% coverage boundaries are conservative engineering regime rules, not optima from a full grid search. The completed Stage~3 ablations mainly support two conclusions: switching off the early anchor reduces global underestimation bias, and retaining mild KD mixing in the reliable raw regime performs better than removing teacher guidance entirely. The coverage boundaries and \(\sigma_{\mathrm{ref}}\) should still be rerun as local sensitivity checks once the full PC data and training environment are restored.
-
-Figure~\ref{fig:raw-uncertain-teacher-gaussian} shows why this regime split motivates distillation rather than a single-source target. In representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) cases, the remaining uncertain-regime CDF points still carry useful local information, but they occupy a thinning and biased subset of the teacher's wider predictive distribution. The teacher Gaussian therefore acts as a stabilising continuation of the raw trend rather than as an arbitrary replacement of measured data.
-
-\begin{figure}[p]
-\centering
-\includegraphics[height=0.88\textheight,keepaspectratio]{images/raw_uncertain_vs_teacher_gaussian_2000bar_5bar.png}
-\caption{Representative uncertain-regime CDF points compared with the Stage~2 teacher Gaussian reconstruction for \(\SI{2000}{bar}\) injection pressure and \(\SI{5}{bar}\) chamber pressure. Black points are the surviving raw CDF observations in the uncertain regime, orange points are samples from the teacher Gaussian at the same times, and the blue curve and band show the teacher mean and \(\pm1\sigma\). The plot illustrates why the Stage~3 objective blends raw supervision with teacher guidance once coverage begins to collapse.}
-\label{fig:raw-uncertain-teacher-gaussian}
-\end{figure}
-
-\textbf{Supervision weights.}  Each grid point receives two independent weight channels:
-
-\begin{center}
-\begin{tabular}{lcc}
-\toprule
-Regime & Raw weight $w_{\mathrm{raw}}$ & KD weight $w_{\mathrm{kd}}$ \\
-\midrule
-the high-confidence raw regime  & 1.0 & 0.25 \\
-the uncertain raw regime & 0.0 & 1.0  \\
-the teacher-only extrapolation regime  & 0.0 & 0.75 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Both channels are further modulated by a global time-bin rebalancing weight (inverse-frequency, clipped to $[0.5,2.0]$). In the high-confidence raw regime bins, raw NLL is the primary signal with mild KD regularisation. In the uncertain raw regime bins, raw supervision is dropped and teacher KL dominates. In the teacher-only extrapolation regime bins, the KD weight is slightly reduced to acknowledge teacher extrapolation uncertainty.
-
-\textbf{Composite loss.}  The training objective is
-\[
-\mathcal{L} = \mathcal{L}_{\mathrm{raw}} + \mathcal{L}_{\mathrm{KD}} + \lambda_{\mathrm{onset}}\,\mathcal{L}_{\mathrm{onset}} + \lambda_{\mathrm{anchor}}\,\mathcal{L}_{\mathrm{anchor}} + \lambda_{d_1}\,P_{d_1} + \lambda_{d_2}\,P_{d_2},
-\]
-where $\mathcal{L}_{\mathrm{raw}}$ is the Gaussian NLL on physical $(\mu,\sigma^2)$ against raw CDF targets weighted by $w_{\mathrm{raw}}$; $\mathcal{L}_{\mathrm{KD}}$ is the forward KL divergence $D_{\mathrm{KL}}(p_{\mathrm{teacher}}\|p_{\mathrm{student}})$ in physical space weighted by $w_{\mathrm{kd}}$ and a teacher confidence factor
-\[
-w_{\mathrm{conf}}(t) = \mathrm{clamp}\!\left(\frac{\sigma_{\mathrm{ref}}}{\sigma_{\mathrm{teacher}}(t)},\;0.25,\;1.0\right),\quad\sigma_{\mathrm{ref}}=\SI{10}{mm};
-\]
-This factor reduces the effective KD weight in proportion to how far the teacher's uncertainty exceeds the reference scale: when $\sigma_{\mathrm{teacher}}\leq\sigma_{\mathrm{ref}}$ the teacher is confident and $w_{\mathrm{conf}}=1$; when $\sigma_{\mathrm{teacher}}\gg\sigma_{\mathrm{ref}}$ the teacher is expressing genuine extrapolation uncertainty, and its guidance is down-weighted to a floor of $0.25$, preventing the student from being pulled toward an increasingly speculative distribution in the censored late-time tail.
-$\mathcal{L}_{\mathrm{onset}}$ is a binary cross-entropy loss on a new onset logit output against a ramp target $\min(t/t_{\mathrm{ramp}},1)$ active only for $t\leq\SI{0.2}{ms}$ ($\lambda_{\mathrm{onset}}=0.1$); $\mathcal{L}_{\mathrm{anchor}}$ is a quadratic penalty pulling $\mu(t\approx0)$ toward zero, ramping down over the first \SI{0.15}{ms}. This anchor term is retained in the general objective and in the baseline run ($\lambda_{\mathrm{anchor}}=0.01$), but the final selected checkpoint sets $\lambda_{\mathrm{anchor}}=0$ after the ablation evidence below showed that the anchor introduced a small systematic under-prediction. $P_{d_1}=\operatorname{ReLU}(-\Delta\mu)^2$ enforces monotonicity; and $P_{d_2}=\operatorname{ReLU}(+\Delta^2\mu)^2$ enforces concavity for $t\geq\SI{0.5}{ms}$.
-
-\begin{table}[t]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.18}
-\begin{tabular}{@{}L{0.12\linewidth}L{0.24\linewidth}L{0.24\linewidth}L{0.30\linewidth}@{}}
-\toprule
-Stage & Data-fit and variance/onset terms & Shape priors & Gating and distillation parameters \\
-\midrule
-Stage~1 &
-\(\lambda_{\mathrm{var}}=10^{-3}\), \(c_0=-2\) &
-\(\lambda_1=5\times10^{-5}\), \(\lambda_2=5\times10^{-4}\) &
-\(t_c=\SI{0.9}{ms}\), \(\tau_c=\SI{0.05}{ms}\) \\
-Stage~2 &
-heteroscedastic NLL, \(\log\hat{\sigma}^2\in[-10,6]\) &
-\(\lambda_1=5\times10^{-5}\), \(\lambda_2=5\times10^{-5}\) &
-\(t_c=\SI{0.5}{ms}\), \(\tau_c=\SI{0.05}{ms}\) \\
-Stage~3 &
-\(\lambda_{\mathrm{onset}}=0.1\), final \(\lambda_{\mathrm{anchor}}=0\) &
-\(\lambda_{d_1}=5\times10^{-5}\), \(\lambda_{d_2}=5\times10^{-4}\) &
-\(t_c=\SI{0.5}{ms}\), \(\tau_c=\SI{0.05}{ms}\), \(\sigma_{\mathrm{ref}}=\SI{10}{mm}\); \(w_{\mathrm{raw}}=(1.0,0,0)\), \(w_{\mathrm{kd}}=(0.25,1.0,0.75)\) \\
-\bottomrule
-\end{tabular}
-\caption{Reproducibility-relevant hyperparameters for the three training stages. Stage~1/2 values are taken from the corresponding training-config snapshots; Stage~3 values are from the final anchor-off run. The \(w_{\mathrm{raw}}\) and \(w_{\mathrm{kd}}\) triples are ordered as (high-confidence raw regime, uncertain raw regime, teacher-only extrapolation regime).}
-\label{tab:training-hyperparameters}
-\end{table}
-
-\textbf{Student architecture.}  The student is a three-output MLP extending the teacher's two outputs $[\hat\mu,\;\log\hat\sigma^2]$ with an onset logit. All shared layers are copied from the teacher checkpoint; the final linear row for the onset head is initialised to zero (sigmoid $\to0.5$). All losses are computed in physical space by multiplying student and teacher outputs by the per-sample $A$ before evaluating $\mathcal{L}_{\mathrm{KD}}$, $\mathcal{L}_{\mathrm{raw}}$, and the shape priors.
-
-\textbf{Training and results.}  The student is optimised with the decoupled-weight-decay adaptive-moment optimiser at $\mathrm{lr}=3\times10^{-3}$ with gradient clipping at norm~1.0 and early stopping with patience~20. In the selected anchor-off configuration, the best validation composite loss is~2.230 (val raw NLL~2.185, val KD KL~0.0136, val onset BCE~0.320). On the held-out test set, the composite loss is~2.219, with raw NLL~2.173, KD KL~0.0136, onset BCE~0.320, and small derivative penalties ($P_{d_1}\approx8.9\times10^{-5}$, $P_{d_2}\approx2.5\times10^{-4}$). Figure~\ref{fig:distillation-loss} shows the training curves; the downstream screening performance of this checkpoint is reported in Table~\ref{tab:model-summary}.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{images/distillation_loss_curves.png}
-\caption{Distillation stage training curves for the selected anchor-off Stage~3 run. The composite loss reaches its best validation value of~2.230.}
-\label{fig:distillation-loss}
-\end{figure}
-
 \subsection{Prototype probabilistic collision screening}
 
 The literature-review discussion of spray--wall impingement mechanisms concluded that the appropriate downstream object for an uncertainty-aware penetration surrogate is a probabilistic screening proxy rather than a binary pass/fail rule, and that penetration should be projected onto the engine-geometry plane as a rotated two-dimensional Gaussian before being integrated against cylinder-wall and piston-crown masks. The implemented prototype operationalises that proxy by coupling the final Stage-3 student checkpoint to a parametric moving piston crown and evaluating the collision integral per frame.
@@ -514,6 +555,15 @@ Here \(\Delta x\) is the grid spacing, defaulting to \(\SI{0.25}{mm/px}\). The f
 p(x,y,t)=\mathcal{N}\!\Bigl((x,y);\,\mathbf{c}(t),\,\mathbf{R}(\theta_{\mathrm{tilt}})\,\operatorname{diag}\!\bigl(\sigma_{\parallel}^{2}(t),\sigma_{\perp}^{2}(t)\bigr)\,\mathbf{R}(\theta_{\mathrm{tilt}})^{\top}\Bigr),
 \]
 with centre $\mathbf{c}(t)=\mathbf{x}_{\mathrm{nozzle}}+\mathbf{R}(\theta_{\mathrm{tilt}})\,(\mu(t),0)^{\top}$, is evaluated on a regular canvas grid (default \SI{0.25}{mm/px} over a $125\times\SI{200}{mm}$ window); a sanity pass confirms $\iint p\,\mathrm{d}A=1$ to four decimal places per frame. The student's scaled outputs are denormalised to physical space via the Hiroyasu--Arai amplitude $A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}$ introduced for the engineered-feature architecture above, so that $\mu$ and $\sigma_{\parallel}$ enter the PDF in millimetres.
+
+\IfFileExists{../generated/current/alpha_sensitivity_figure.png}{%
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{../generated/current/alpha_sensitivity_figure.png}
+\caption{Generated sensitivity sweep for the lateral Gaussian cone-width factor. The selected \(3\sigma\) interpretation is marked against neighbouring \(\alpha\) values to show how strongly the screening probabilities depend on this modelling convention.}
+\label{fig:alpha-sensitivity-generated}
+\end{figure}
+}{}
 
 \textbf{Piston geometry dispatcher.}  The prototype exposes two interchangeable crown profiles. Design~A (a piecewise-arc construction) assembles a bowl-shaped crown from five circular-arc radii --- outer bowl, inner bowl, topland, lip, and floor --- with hard closure constraints that keep the geometry consistent when any radius is changed. The Hermite variant replaces the piecewise-arc construction with a \emph{quintic Hermite spline} defined by a small set of control points, each carrying a position, a tangent vector, and a second-derivative vector in the (radial, depth) cross-section plane. Matching position, slope, and curvature at every knot gives $C^{2}$ continuity across segment boundaries, so the crown surface has no curvature jumps --- a property relevant both for CNC machining (where curvature discontinuities translate into tool-acceleration steps) and for the collision-integral mesh (where abrupt curvature changes could alias onto the rasterised mask).
 

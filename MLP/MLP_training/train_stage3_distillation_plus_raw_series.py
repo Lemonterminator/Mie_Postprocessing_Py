@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 import time
 import warnings
@@ -56,6 +57,8 @@ else:
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MLP_ROOT = PROJECT_ROOT / "MLP"
 SYNTHETIC_ROOT = MLP_ROOT / "synthetic_data"
+if _synthetic_root_env := os.environ.get("MLP_SYNTHETIC_ROOT"):
+    SYNTHETIC_ROOT = Path(_synthetic_root_env)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -979,6 +982,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Distillation + raw CDF refinement (v2 engineered feature).")
     p.add_argument("run_dir", help="Stage-2 NLL run directory to use as teacher.")
     p.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    p.add_argument("--synthetic-root", type=Path, default=None,
+                   help="Override MLP/synthetic_data for versioned Phase-1 archives.")
     p.add_argument("--series-split", choices=("clean", "all"), default="clean")
     p.add_argument(
         "--sources",
@@ -1243,6 +1248,7 @@ def run_post_training_rmse_eval(
         refinement_run=run_dir_refine,
         split=args.eval_split,
         device=device,
+        synthetic_root=SYNTHETIC_ROOT,
         t_min_ms=float(args.eval_t_min_ms),
         t_max_ms=float(args.eval_t_max_ms),
         rel_err_floor_mm=float(args.eval_rel_err_floor_mm),
@@ -1268,7 +1274,10 @@ def run_post_training_rmse_eval(
 
 
 def main() -> None:
+    global SYNTHETIC_ROOT
     args = parse_args()
+    if args.synthetic_root is not None:
+        SYNTHETIC_ROOT = args.synthetic_root.expanduser().resolve()
     sources = normalize_sources(args.sources)
     regime_config = build_regime_config_from_args(args)
 
@@ -1401,6 +1410,7 @@ def main() -> None:
         "raw_weights": {"raw_reliable": 1.0, "raw_uncertain": 0.0, "teacher_only": 0.0},
         "kd_weights": {"raw_reliable": 0.25, "raw_uncertain": 1.0, "teacher_only": 0.75},
         "runs_root": str(MLP_ROOT / "runs_mlp"),
+        "synthetic_root": str(SYNTHETIC_ROOT),
         **regime_config,
     }
     apply_refine_config_overrides(refine_config, args)
@@ -1592,6 +1602,9 @@ def main() -> None:
     run_dir_refine.mkdir(parents=True, exist_ok=False)
     (run_dir_refine / "refine_config.json").write_text(json.dumps(refine_config, indent=2, default=str), encoding="utf-8")
     (run_dir_refine / "teacher_run_dir.txt").write_text(str(artifacts.run_dir), encoding="utf-8")
+    cdf_regime_bins_df.to_csv(run_dir_refine / "cdf_regime_bins.csv", index=False)
+    cdf_labeled_df.to_csv(run_dir_refine / "cdf_plume_audit.csv", index=False)
+    delay_report_df.to_csv(run_dir_refine / "cdf_delay_report.csv", index=False)
 
     # Save train_config_used.json and scaler_state.json so load_run_artifacts works
     student_train_config = dict(train_config)

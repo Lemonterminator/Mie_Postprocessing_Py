@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -1265,10 +1266,36 @@ def sanitize_config_for_json(config: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
-def create_run_dir(runs_root: Path | str, prefix: str, variant: str) -> Path:
+def create_run_dir(
+    runs_root: Path | str,
+    prefix: str,
+    variant: str,
+    *,
+    parent_run_id: str | None = None,
+    parent_run_ids: Mapping[str, str] | None = None,
+) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(runs_root) / f"{prefix}_{variant}_{stamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
+    parents: dict[str, str] = {}
+    if os.environ.get("MLP_PARENT_FIT_RUN_ID"):
+        parents["fit"] = str(os.environ["MLP_PARENT_FIT_RUN_ID"])
+    if os.environ.get("MLP_PARENT_AUDIT_RUN_ID"):
+        parents["audit"] = str(os.environ["MLP_PARENT_AUDIT_RUN_ID"])
+    if parent_run_id:
+        parents["parent"] = str(parent_run_id)
+    if parent_run_ids:
+        parents.update({str(k): str(v) for k, v in parent_run_ids.items() if v is not None})
+    if parents:
+        metadata = {
+            "phase": "train",
+            "run_id": run_dir.name,
+            "created_at": datetime.now().isoformat(),
+            "prefix": prefix,
+            "variant": variant,
+            "parent_run_ids": parents,
+        }
+        (run_dir / "_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return run_dir
 
 

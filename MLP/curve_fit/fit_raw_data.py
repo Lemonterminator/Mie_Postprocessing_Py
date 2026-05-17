@@ -36,6 +36,11 @@ MIN_INITIAL_VELOCITY = 1e-7
 _THIS_DIR = Path(__file__).resolve().parent
 data_root = _THIS_DIR.parent.parent / "Mie_scattering_top_view_results"
 data_out_dir = _THIS_DIR.parent / "synthetic_data"
+# Environment-variable overrides (propagated by run_fit_pipeline.py to worker subprocesses)
+if _env := os.environ.get("FIT_OUTPUT_ROOT"):
+    data_out_dir = Path(_env)
+if _env := os.environ.get("FIT_INPUT_ROOT"):
+    data_root = Path(_env)
 
 
 names = [
@@ -49,6 +54,8 @@ names = [
     "BC20241016_HZ_Nozzle8",
     "BC20220627_HZ_Nozzle0",
 ]
+if _env := os.environ.get("FIT_NOZZLE_FILTER"):
+    names = [n for n in names if n == _env or n.endswith(_env)]
 
 
 # Filtering/masking settings (from notebook prototype defaults)
@@ -70,6 +77,10 @@ LOG_K_SQRT_SENTINEL = -500.0  # Finite log-space sentinel; exp(-500) is effectiv
 K_SQRT_SENTINEL = 0.0
 ABLATION_QUARTER_ONLY = False  # q1 is now the main exported model, so no duplicate q1 overlay/report is needed.
 N_WORKERS = 0  # 0 = use all logical CPUs; 1 = single-process (easy debugging); N > 1 = explicit pool size.
+if os.environ.get("FIT_ABLATION_QUARTER_ONLY", "").lower() in ("1", "true", "yes"):
+    ABLATION_QUARTER_ONLY = True
+if _env := os.environ.get("FIT_N_WORKERS"):
+    N_WORKERS = int(_env)
 
 
 
@@ -1192,6 +1203,49 @@ def process_folder(
                 log_params = np.full(3, np.nan)
 
             log_k_quarter, log_t0, log_s = log_params
+            two_regime_extra = {}
+            if ABLATION_QUARTER_ONLY:
+                if np.all(np.isfinite(log_params)):
+                    x0_sigmoid = np.array(
+                        [
+                            np.log(max(float(fit["k_quarter_q1"]), 1e-9)),
+                            float(log_k_quarter),
+                            float(log_t0),
+                            float(log_s),
+                        ],
+                        dtype=float,
+                    )
+                else:
+                    x0_sigmoid = np.log([1.0, 1.0, max(2.0 * inj_dur_s, 1e-9), 1.0])
+                two_fit = fit_sigmoid(ts, series, MIN_TI, x0_sigmoid)
+                two_params = two_fit["log_params"]
+                if two_fit["success"] and np.all(np.isfinite(two_params)) and np.any(valid):
+                    y_hat_two = spray_penetration_model_sigmoid(two_params, ts[valid])
+                    y_true_two = series[valid]
+                    rmse_two = float(np.sqrt(np.mean((y_hat_two - y_true_two) ** 2)))
+                    ss_res_two = float(np.sum((y_true_two - y_hat_two) ** 2))
+                    ss_tot_two = float(np.sum((y_true_two - np.mean(y_true_two)) ** 2))
+                    r2_two = float(1.0 - ss_res_two / ss_tot_two) if ss_tot_two > 0 else np.nan
+                else:
+                    rmse_two = np.nan
+                    r2_two = np.nan
+                    two_params = np.full(4, np.nan)
+
+                two_regime_extra = {
+                    "success_two_regime": two_fit["success"],
+                    "n_two_regime": two_fit["n"],
+                    "rmse_two_regime": rmse_two,
+                    "r2_two_regime": r2_two,
+                    "cost_two_regime": two_fit["cost"],
+                    "k_sqrt_two_regime": two_fit["k_sqrt"],
+                    "k_quarter_two_regime": two_fit["k_quarter"],
+                    "t0_two_regime": two_fit["t0"],
+                    "s_two_regime": two_fit["s"],
+                    "log_k_sqrt_two_regime": two_params[0],
+                    "log_k_quarter_two_regime": two_params[1],
+                    "log_t0_two_regime": two_params[2],
+                    "log_s_two_regime": two_params[3],
+                }
 
             row_dict = {
                 "fit_model": FIT_MODEL_NAME,
@@ -1228,6 +1282,7 @@ def process_folder(
                 "corr_logk_logs": fit["corr_logk_logs_q1"],
                 "corr_logt0_logs": fit["corr_logt0_logs_q1"],
                 **meta,
+                **two_regime_extra,
             }
             rows.append(row_dict)
 
@@ -1379,6 +1434,36 @@ def get_dataset_settings(name):
 
 
 def main():
+    import argparse
+    global data_out_dir, data_root, ABLATION_QUARTER_ONLY, N_WORKERS, names
+    _p = argparse.ArgumentParser(add_help=False)
+    _p.add_argument("--output-root", type=Path, default=None)
+    _p.add_argument("--input-root", type=Path, default=None)
+    _p.add_argument("--ablation-quarter-only", action="store_true", default=False)
+    _p.add_argument("--n-workers", type=int, default=None)
+    _p.add_argument("--no-chain", action="store_true", default=False)
+    _p.add_argument("--nozzle-filter", type=str, default=None,
+                    help="Restrict to one nozzle name suffix (for smoke-testing).")
+    _args, _ = _p.parse_known_args()
+    if _args.output_root is not None:
+        data_out_dir = _args.output_root
+    if _args.input_root is not None:
+        data_root = _args.input_root
+    if _args.ablation_quarter_only:
+        ABLATION_QUARTER_ONLY = True
+    if _args.n_workers is not None:
+        N_WORKERS = _args.n_workers
+    if _args.nozzle_filter is not None:
+        names = [n for n in names if n == _args.nozzle_filter or n.endswith(_args.nozzle_filter)]
+    # Propagate to worker subprocess environments before spawning the pool
+    os.environ["FIT_OUTPUT_ROOT"] = str(data_out_dir)
+    os.environ["FIT_INPUT_ROOT"] = str(data_root)
+    if ABLATION_QUARTER_ONLY:
+        os.environ["FIT_ABLATION_QUARTER_ONLY"] = "1"
+    os.environ["FIT_N_WORKERS"] = str(N_WORKERS)
+    if _args.nozzle_filter is not None:
+        os.environ["FIT_NOZZLE_FILTER"] = _args.nozzle_filter
+
     enabled_sources = get_enabled_penetration_sources()
     if not enabled_sources:
         raise ValueError("At least one penetration-series switch must be enabled.")
@@ -1458,18 +1543,23 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from summarize_dataset import main as _summarize_main
-    _summarize_main()
-    try:
-        from summarize_filter_survival import main as _survival_main
-        _survival_main()
-    except Exception as _e:
-        print(f"[summarize_filter_survival] skipped: {_e}")
-    try:
-        from fit_diagnostics import main as _diagnostics_main
-        _diagnostics_main()
-    except Exception as _e:
-        print(f"[fit_diagnostics] skipped: {_e}")
+    import argparse as _ap
+    _pre = _ap.ArgumentParser(add_help=False)
+    _pre.add_argument("--no-chain", action="store_true", default=False)
+    _pre_args, _ = _pre.parse_known_args()
+    main()
+    if not _pre_args.no_chain:
+        from summarize_dataset import main as _summarize_main
+        _summarize_main()
+        try:
+            from summarize_filter_survival import main as _survival_main
+            _survival_main()
+        except Exception as _e:
+            print(f"[summarize_filter_survival] skipped: {_e}")
+        try:
+            from fit_diagnostics import main as _diagnostics_main
+            _diagnostics_main()
+        except Exception as _e:
+            print(f"[fit_diagnostics] skipped: {_e}")

@@ -168,6 +168,7 @@ def run_rmse_evaluation(
     split: str = "clean",
     filter_experiment: str | None = None,
     device: torch.device | str | None = None,
+    synthetic_root: Path | str | None = None,
     t_min_ms: float = 0.0,
     t_max_ms: float = 5.0,
     rel_err_floor_mm: float = 5.0,
@@ -182,6 +183,8 @@ def run_rmse_evaluation(
     run_path = Path(refinement_run).expanduser().resolve()
     artifacts = load_run_artifacts(run_path, device=device)
     registry = build_dataset_registry()
+    if synthetic_root is not None:
+        load_source_table.__globals__["SYNTHETIC_ROOT"] = Path(synthetic_root).expanduser().resolve()
     cdf_wide_df = load_source_table("cdf", split=split)
     if filter_experiment is not None:
         if "experiment_name" not in cdf_wide_df.columns:
@@ -390,6 +393,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--filter-experiment", default=None,
                         help="If set, evaluate only CDF rows with experiment_name equal to this value.")
     parser.add_argument("--device", default=None)
+    parser.add_argument("--synthetic-root", type=Path, default=None)
     parser.add_argument("--t-min-ms", type=float, default=0.0)
     parser.add_argument("--t-max-ms", type=float, default=5.0)
     parser.add_argument("--rel-err-floor-mm", type=float, default=5.0)
@@ -410,6 +414,7 @@ def main() -> None:
         split=args.split,
         filter_experiment=args.filter_experiment,
         device=None if args.device is None or str(args.device).lower() == "auto" else args.device,
+        synthetic_root=args.synthetic_root,
         t_min_ms=args.t_min_ms,
         t_max_ms=args.t_max_ms,
         rel_err_floor_mm=args.rel_err_floor_mm,

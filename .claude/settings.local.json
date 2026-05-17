@@ -51,7 +51,11 @@
       "Bash(pdflatex -interaction=nonstopmode -draftmode thesis.tex 2>&1 > /tmp/tex_out.log; grep -iE \"^!|Emergency|Fatal|Runaway|file not found\" /tmp/tex_out.log | head -30; echo \"---missing graphics---\"; grep -iE \"graphic|cannot find|unable to find\" /tmp/tex_out.log | head -20)",
       "Read(//tmp/**)",
       "Bash(find .. -maxdepth 4 -iname \"*mie_multi_hole*\" 2>&1 | head -10)",
-      "Read(//c/Users/LJI008/**)"
+      "Read(//c/Users/LJI008/**)",
+      "Bash(grep -n \"S_{\\\\\\\\\\\\mathrm{CDF}}\\\\|Section~3\\\\\\\\.3\\\\|processing_checkpoint\\\\|FrameRate\\\\|Boundary extraction\\\\|Appendix~\\\\\\\\\\\\\\\\ref{app:implementation\\\\|three-worker\\\\|thread-affine\\\\|In implementation terms\" \"c:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Thesis/latex/sections_en/03_data_workflow.tex\")",
+      "Bash(grep -n \"S_{\\\\\\\\\\\\mathrm{CDF}}\\\\|implementation_mapping\\\\|Chapter~5\" \"c:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Thesis/latex/sections_en/03_data_workflow.tex\")",
+      "Bash(grep -n \"S_\\\\\\\\\\\\\\\\mathrm{CDF}\" \"c:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Thesis/latex/sections_en/03_data_workflow.tex\")",
+      "PowerShell(head -40)"
     ]
   }
 }

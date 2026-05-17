@@ -50,6 +50,7 @@ COMMON_OPTION_KEYS = {
     "eval_save_points",
     "eval_save_plots",
     "eval_max_traj_plots",
+    "synthetic_root",
 }
 
 BOOLEAN_FALSE_FLAGS = {
@@ -230,6 +231,9 @@ def build_winner_eval_command(
     output_root = winner_eval.get("output_root", common.get("eval_output_root"))
     if output_root:
         cmd.extend(["--output-root", path_for_child(output_root)])
+    synthetic_root = winner_eval.get("synthetic_root", common.get("synthetic_root"))
+    if synthetic_root:
+        cmd.extend(["--synthetic-root", path_for_child(synthetic_root)])
     tag = winner_eval.get("tag", f"winner_full_{run_dir.name}")
     if tag:
         cmd.extend(["--tag", str(tag)])
@@ -251,6 +255,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--teacher-run", type=Path, default=None, help="Override config common.teacher_run.")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default=None, help="Override config device.")
+    parser.add_argument("--synthetic-root", type=Path, default=None,
+                        help="Override synthetic data root passed to Stage-3 training and winner evaluation.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Override config common.seed (passed to every ablation training run).")
     parser.add_argument("--only", nargs="+", default=None, help="Run only these ablation names.")
@@ -282,6 +288,8 @@ def main() -> None:
         common["teacher_run"] = str(args.teacher_run)
     if args.device is not None:
         common["device"] = args.device
+    if args.synthetic_root is not None:
+        common["synthetic_root"] = str(args.synthetic_root)
     if args.seed is not None:
         common["seed"] = int(args.seed)
 
