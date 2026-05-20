@@ -1,0 +1,99 @@
+{
+  "_comment": "Stage-3 near-cap diagnostic suite. Holds Stage 2 a_plus_pressures teacher fixed; varies one Stage-3 mechanism per run to localize the cause of the -2.7 mm near-cap drift.",
+  "common": {
+    "teacher_run": "latest_stage2",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_fast": false,
+    "eval_save_points": true,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false,
+    "synthetic_root": "MLP/synthetic_data_20260509"
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "diag_raw_off",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_raw_off",
+      "args": {
+        "lambda_anchor": 0.0,
+        "raw_reliable_raw_weight": 0.0
+      }
+    },
+    {
+      "name": "diag_shape_off",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_shape_off",
+      "args": {
+        "lambda_anchor": 0.0,
+        "d1_positive_weight": 0.0,
+        "d2_concave_weight": 0.0
+      }
+    },
+    {
+      "name": "diag_kd_uniform_conf",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_kd_uniform_conf",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "forward_kl_uniform_conf"
+      }
+    },
+    {
+      "name": "diag_kd_mse_mu",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_kd_mse_mu",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "mse_mu"
+      }
+    },
+    {
+      "name": "diag_kd_reverse",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_kd_reverse",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "reverse_kl"
+      }
+    },
+    {
+      "name": "diag_short_epochs",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_short_epochs",
+      "args": {
+        "lambda_anchor": 0.0,
+        "epochs": 10,
+        "patience": 100
+      }
+    },
+    {
+      "name": "diag_teacher_only_kd_boost",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_teacher_only_kd_boost",
+      "args": {
+        "lambda_anchor": 0.0,
+        "teacher_only_kd_weight": 2.0,
+        "raw_uncertain_kd_weight": 2.0
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

@@ -31,7 +31,7 @@ from engineered_feature_common import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Stage-1 MSE on A-scaled penetration.")
-    parser.add_argument("--variant", choices=("a_only", "a_plus_log_a"), default="a_only")
+    parser.add_argument("--variant", choices=("a_only", "a_plus_log_a", "a_plus_pressures"), default="a_only")
     parser.add_argument("--data-dir", type=str, default=DEFAULT_STAGE1_CONFIG["data_dir"])
     parser.add_argument("--runs-root", type=str, default=DEFAULT_STAGE1_CONFIG["runs_root"])
     parser.add_argument("--test-matrix-root", type=str, default=None)

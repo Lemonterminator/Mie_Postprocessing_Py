@@ -34,7 +34,6 @@ from OSCC_postprocessing.analysis.mie_multihole import (
     mie_multihole_preprocessing,
     mie_multihole_postprocessing,
     penetration_cdf_all_plumes,
-    triangle_binarize_gpu,
 )
 
 # ---- Experiment config utilities (library module) ----
@@ -807,15 +806,7 @@ def _process_cine_file(
             segment_bw_q_max=segment_bw_q_max
         )
         state["hp_segments"] = state["postprocess"]["segments_fg"]
-        # Need to ignore zeros in the histogram for large number of zeros made by masking.
-        
-        '''
-        state["hp_segments_bw"] = triangle_binarize_gpu(
-            state["hp_segments"],
-            ignore_zero=True,
-        )
-        '''
-        # use a hard coded threshold after plume-wise percentile scaling, which should be stable
+        # Use a fixed threshold after plume-wise percentile scaling.
         state["hp_segments_bw"] = state["hp_segments"] > global_bw_threshold
         if repair_bw:
             state["hp_segments_bw"] = repair_binary_plume_video(state["hp_segments_bw"])

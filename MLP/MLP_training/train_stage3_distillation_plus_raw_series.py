@@ -605,6 +605,9 @@ class CDFRefinementSequenceDataset(Dataset):
         if len(self.time_cols) != len(self.pen_cols):
             raise ValueError("CDF wide table time/penetration columns do not match.")
 
+        self.drop_above_cap_fraction = float(config.get("drop_above_cap_fraction", 0.0))
+        self.cap_per_experiment = dict(config.get("cap_per_experiment", {}) or {})
+
         self._raw_weight_lut, self._kd_weight_lut = self._build_regime_weight_lookup(regime_bins_df)
         self.onset_bins = self._build_onset_bins()
         self.precompute = bool(config.get("precompute_dataset", True))
@@ -660,6 +663,10 @@ class CDFRefinementSequenceDataset(Dataset):
         observed_time = row[self.time_cols].to_numpy(dtype=float)
         observed_pen = row[self.pen_cols].to_numpy(dtype=float)
         finite = np.isfinite(observed_time) & np.isfinite(observed_pen)
+        if self.drop_above_cap_fraction > 0:
+            cap_mm = self.cap_per_experiment.get(str(row["experiment_name"]), float("inf"))
+            threshold = self.drop_above_cap_fraction * cap_mm
+            finite = finite & (observed_pen <= threshold)
         if np.any(finite):
             obs_time = observed_time[finite]
             obs_pen = observed_pen[finite]
@@ -862,15 +869,45 @@ def refinement_loss(
     raw_nll_point = 0.5 * (log_var_phys + (mu_phys - raw_target).pow(2) / var_phys)
     raw_loss = weighted_mean(raw_nll_point.squeeze(-1), raw_weight)
 
-    # KD KL in physical space
+    # KD loss in physical space (mode-selectable)
+    kd_mode = str(config.get("kd_mode", "forward_kl"))
     teacher_std_phys = torch.sqrt(teacher_var_phys)
-    kl_point = 0.5 * (torch.log(var_phys / teacher_var_phys) + (teacher_var_phys + (teacher_mu_phys - mu_phys).pow(2)) / var_phys - 1.0)
-    conf_weight = torch.clamp(
-        float(config["sigma_conf_ref_mm"]) / teacher_std_phys,
-        min=float(config.get("teacher_conf_weight_min", TEACHER_CONF_WEIGHT_MIN)),
-        max=float(config.get("teacher_conf_weight_max", TEACHER_CONF_WEIGHT_MAX)),
-    ).squeeze(-1)
-    kd_loss = weighted_mean(kl_point.squeeze(-1), kd_weight * conf_weight)
+    if kd_mode == "mse_mu":
+        kd_point = (mu_phys - teacher_mu_phys).pow(2)
+        conf_weight = torch.ones_like(teacher_std_phys).squeeze(-1)
+        kd_loss = weighted_mean(kd_point.squeeze(-1), kd_weight)
+    elif kd_mode == "mse_mu_plus_sigma":
+        teacher_log_var_phys = torch.log(teacher_var_phys)
+        mu_term = (mu_phys - teacher_mu_phys).pow(2)
+        sigma_term = (log_var_phys - teacher_log_var_phys).pow(2)
+        lambda_sigma = float(config.get("kd_sigma_weight", 1.0))
+        kd_point = mu_term + lambda_sigma * sigma_term
+        conf_weight = torch.ones_like(teacher_std_phys).squeeze(-1)
+        kd_loss = weighted_mean(kd_point.squeeze(-1), kd_weight)
+    else:
+        if kd_mode == "reverse_kl":
+            # KL(student || teacher)
+            kl_point = 0.5 * (
+                torch.log(teacher_var_phys / var_phys)
+                + (var_phys + (mu_phys - teacher_mu_phys).pow(2)) / teacher_var_phys
+                - 1.0
+            )
+        else:
+            # forward_kl (default) and forward_kl_uniform_conf both use KL(teacher || student)
+            kl_point = 0.5 * (
+                torch.log(var_phys / teacher_var_phys)
+                + (teacher_var_phys + (teacher_mu_phys - mu_phys).pow(2)) / var_phys
+                - 1.0
+            )
+        if kd_mode == "forward_kl_uniform_conf":
+            conf_weight = torch.ones_like(teacher_std_phys).squeeze(-1)
+        else:
+            conf_weight = torch.clamp(
+                float(config["sigma_conf_ref_mm"]) / teacher_std_phys,
+                min=float(config.get("teacher_conf_weight_min", TEACHER_CONF_WEIGHT_MIN)),
+                max=float(config.get("teacher_conf_weight_max", TEACHER_CONF_WEIGHT_MAX)),
+            ).squeeze(-1)
+        kd_loss = weighted_mean(kl_point.squeeze(-1), kd_weight * conf_weight)
 
     # Onset BCE
     onset_bce = F.binary_cross_entropy_with_logits(onset_logit.squeeze(-1), onset_target, reduction="none")
@@ -1074,6 +1111,22 @@ def parse_args() -> argparse.Namespace:
                             help="Override teacher-only minimum raw count threshold. Default: 4.")
     loss_group.add_argument("--consecutive-bins", type=int, default=None,
                             help="Override consecutive bins required for a regime transition. Default: 2.")
+    loss_group.add_argument("--kd-mode",
+                            choices=("forward_kl", "reverse_kl", "mse_mu",
+                                     "mse_mu_plus_sigma", "forward_kl_uniform_conf"),
+                            default=None,
+                            help="KD loss form. forward_kl=KL(teacher||student) (default); "
+                                 "reverse_kl=KL(student||teacher); mse_mu uses MSE on means and "
+                                 "ignores variances; mse_mu_plus_sigma adds an MSE term on log-var "
+                                 "weighted by --kd-sigma-weight; forward_kl_uniform_conf forces "
+                                 "conf_weight=1.0 (disables sigma-based reweighting).")
+    loss_group.add_argument("--kd-sigma-weight", type=float, default=None,
+                            help="Lambda for the log-var MSE term when --kd-mode=mse_mu_plus_sigma. "
+                                 "Default 1.0.")
+    loss_group.add_argument("--drop-above-cap-fraction", type=float, default=None,
+                            help="If > 0, drop discrete raw points with pen_mm > fraction * "
+                                 "cap_per_experiment from supervised training (eval still uses "
+                                 "full range). 0 or omitted = off.")
     loss_group.add_argument("--time-bin-weight-min", type=float, default=None,
                             help="Override lower clamp for global time-bin reweighting. Default: 0.5.")
     loss_group.add_argument("--time-bin-weight-max", type=float, default=None,
@@ -1140,6 +1193,8 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
         "teacher_ratio": args.teacher_ratio,
         "time_bin_weight_min": args.time_bin_weight_min,
         "time_bin_weight_max": args.time_bin_weight_max,
+        "drop_above_cap_fraction": args.drop_above_cap_fraction,
+        "kd_sigma_weight": args.kd_sigma_weight,
     }
     for key, value in scalar_map.items():
         if value is not None:
@@ -1196,6 +1251,10 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
         if value is not None:
             refine_config[weight_group][regime] = float(value)
             overrides.setdefault(weight_group, {})[regime] = float(value)
+
+    if getattr(args, "kd_mode", None) is not None:
+        refine_config["kd_mode"] = str(args.kd_mode)
+        overrides["kd_mode"] = str(args.kd_mode)
 
     refine_config["run_name_prefix"] = sanitize_run_name(args.run_name_prefix)
     if args.ablation_name:
@@ -1409,6 +1468,9 @@ def main() -> None:
         "teacher_conf_weight_max": TEACHER_CONF_WEIGHT_MAX,
         "raw_weights": {"raw_reliable": 1.0, "raw_uncertain": 0.0, "teacher_only": 0.0},
         "kd_weights": {"raw_reliable": 0.25, "raw_uncertain": 1.0, "teacher_only": 0.75},
+        "drop_above_cap_fraction": 0.0,
+        "kd_mode": "forward_kl",
+        "kd_sigma_weight": 1.0,
         "runs_root": str(MLP_ROOT / "runs_mlp"),
         "synthetic_root": str(SYNTHETIC_ROOT),
         **regime_config,
@@ -1465,6 +1527,23 @@ def main() -> None:
             val_frac=refine_config["val_frac"],
             test_frac=refine_config["test_frac"],
         )
+
+    drop_frac = float(refine_config.get("drop_above_cap_fraction", 0.0))
+    if drop_frac > 0:
+        pen_cols_all = [c for c in cdf_wide_df.columns if c.startswith("penetration_mm_")]
+        row_max_pen = cdf_wide_df[pen_cols_all].max(axis=1, skipna=True)
+        cap_per_experiment = (
+            pd.Series(row_max_pen.values, index=cdf_wide_df["experiment_name"].values)
+            .groupby(level=0)
+            .quantile(0.99)
+            .to_dict()
+        )
+        refine_config["cap_per_experiment"] = {str(k): float(v) for k, v in cap_per_experiment.items()}
+        print(f"\nStage-3 supervised filter enabled: dropping pen > {drop_frac:g} * cap_p99 per experiment.")
+        for k, v in sorted(refine_config["cap_per_experiment"].items()):
+            print(f"  {k}: cap={v:.2f} mm  ->  threshold={drop_frac * v:.2f} mm")
+    else:
+        refine_config["cap_per_experiment"] = {}
 
     ds_kwargs = dict(
         regime_bins_df=cdf_regime_bins_df,

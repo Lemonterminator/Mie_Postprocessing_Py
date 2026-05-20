@@ -55,7 +55,8 @@
       "Bash(grep -n \"S_{\\\\\\\\\\\\mathrm{CDF}}\\\\|Section~3\\\\\\\\.3\\\\|processing_checkpoint\\\\|FrameRate\\\\|Boundary extraction\\\\|Appendix~\\\\\\\\\\\\\\\\ref{app:implementation\\\\|three-worker\\\\|thread-affine\\\\|In implementation terms\" \"c:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Thesis/latex/sections_en/03_data_workflow.tex\")",
       "Bash(grep -n \"S_{\\\\\\\\\\\\mathrm{CDF}}\\\\|implementation_mapping\\\\|Chapter~5\" \"c:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Thesis/latex/sections_en/03_data_workflow.tex\")",
       "Bash(grep -n \"S_\\\\\\\\\\\\\\\\mathrm{CDF}\" \"c:/Users/Jiang/Documents/Mie_Py/Mie_Postprocessing_Py/Thesis/latex/sections_en/03_data_workflow.tex\")",
-      "PowerShell(head -40)"
+      "PowerShell(head -40)",
+      "Bash(python MLP/curve_fit/plot_stage2_vs_stage3_bias.py --s2-points MLP/eval/rmse_eval_clean_20260519_004049_distill_cdf_onset_v2_ablate_anchor_off_20260519_003814/points.csv --s3-points MLP/eval/rmse_eval_clean_20260519_004049_distill_cdf_onset_v2_ablate_anchor_off_20260519_003814/points.csv --s3-new-points MLP/eval/rmse_eval_clean_20260519_132414_distill_cdf_onset_v2_ablate_anchor_off_drop_cap_0p85_20260519_132134/points.csv --out Thesis/images/neural_network_fit_results/drop_cap_0p85_vs_no_filter.png)"
     ]
   }
 }

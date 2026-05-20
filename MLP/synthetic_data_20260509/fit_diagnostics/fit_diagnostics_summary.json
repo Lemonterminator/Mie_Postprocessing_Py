@@ -1,11 +1,11 @@
 {
   "pen_key": "cdf",
   "out_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics",
-  "n_clean_rows": 20761,
-  "n_series_rows": 500928,
+  "n_clean_rows": 24316,
+  "n_series_rows": 703592,
   "sections": {
     "error_by_condition": {
-      "n_rows": 20761,
+      "n_rows": 24316,
       "outputs": {
         "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\error_by_condition\\rmse_by_condition.csv",
         "boxplot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\error_by_condition\\rmse_by_nozzle.png",
@@ -13,7 +13,7 @@
       }
     },
     "param_distributions": {
-      "n_rows": 20761,
+      "n_rows": 24316,
       "outputs": {
         "regression_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\param_distributions\\scaling_regression.csv",
         "scatter_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\param_distributions\\param_vs_conditions.png",
@@ -22,57 +22,57 @@
       "regression": [
         {
           "target": "k_quarter",
-          "n": 20761,
-          "exp_delta_p": 0.5107439527858997,
-          "exp_rho_air": -0.25156686944955353,
-          "exp_diameter": 0.42711240519746435,
-          "intercept": 3.2216420565049178,
-          "r2": 0.34529069195576545
+          "n": 24316,
+          "exp_delta_p": 0.5209112133555901,
+          "exp_rho_air": -0.22997606355255928,
+          "exp_diameter": 0.2554469964138318,
+          "intercept": 2.9076778899271707,
+          "r2": 0.2683385248740515
         },
         {
           "target": "t0_ms",
-          "n": 20761,
-          "exp_delta_p": -0.14464730344152527,
-          "exp_rho_air": -0.00479173359541319,
-          "exp_diameter": -4.819210170530622,
-          "intercept": -4.879399367649933,
-          "r2": 0.178998598423057
+          "n": 24316,
+          "exp_delta_p": -0.18798244155764143,
+          "exp_rho_air": 4.0208029414130764e-05,
+          "exp_diameter": -5.1742129157454935,
+          "intercept": -4.8887214481877015,
+          "r2": 0.16583336041703556
         },
         {
           "target": "s_ms",
-          "n": 20761,
-          "exp_delta_p": 0.06166768259722224,
-          "exp_rho_air": 0.17063344261311109,
-          "exp_diameter": -3.6115691433996036,
-          "intercept": -6.4366099226572295,
-          "r2": 0.13072471733821434
+          "n": 24316,
+          "exp_delta_p": 0.007357921469437051,
+          "exp_rho_air": 0.20226617719266227,
+          "exp_diameter": -3.5595931803123997,
+          "intercept": -6.033426604536611,
+          "r2": 0.13687105104128572
         }
       ]
     },
     "residual_structure": {
-      "n_rows": 500928,
+      "n_rows": 703592,
       "outputs": {
         "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\residual_structure\\residual_vs_time.csv",
         "plot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\residual_structure\\residual_vs_time.png"
       }
     },
     "convergence": {
-      "n_rows": 20761,
+      "n_rows": 24316,
       "outputs": {
         "status_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\convergence\\convergence_by_status.csv",
         "plot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\convergence\\convergence_diagnostics.png"
       }
     },
     "identifiability": {
-      "n_rows": 20761,
+      "n_rows": 24315,
       "outputs": {
         "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\identifiability\\identifiability_summary.csv",
         "plot_png": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\fit_diagnostics\\identifiability\\identifiability.png"
       },
       "median_correlations": {
-        "logk_logt0": 0.7476045612051614,
-        "logk_logs": 0.8311092224209481,
-        "logt0_logs": 0.4688913044006342
+        "logk_logt0": 0.5589547312462402,
+        "logk_logs": 0.7647180129876638,
+        "logt0_logs": 0.2148577143784382
       }
     }
   },

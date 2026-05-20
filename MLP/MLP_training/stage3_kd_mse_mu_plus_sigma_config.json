@@ -1,0 +1,43 @@
+{
+  "_comment": "Test mse_mu + sigma-MSE KD: keeps the no-sigma-arbitrage benefit of mse_mu while restoring sigma supervision in raw_uncertain/teacher_only regions.",
+  "common": {
+    "teacher_run": "latest_stage2",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_fast": false,
+    "eval_save_points": true,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false,
+    "synthetic_root": "MLP/synthetic_data_20260509"
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "diag_kd_mse_mu_plus_sigma",
+      "enabled": true,
+      "run_name_prefix": "stage3_diag_kd_mse_mu_plus_sigma",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 1.0
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

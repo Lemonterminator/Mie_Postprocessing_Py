@@ -81,7 +81,7 @@ Sparse heteroscedastic Gaussian process, mean over five repeats & 6.898 & 5.206 
 \label{fig:metric-bars-current}
 \end{figure}
 
-Across the four repeated anchor-off runs (seeds 7/17/42/99), the RMSE standard deviation is \SI{0.120}{mm}, with a range of \SIrange{5.948}{6.231}{mm}. This range lies entirely below the previous quarter-power scaling reference result of \(\SI{6.696}{mm}\), indicating that the transition-region scaling improvement is not a single-run accident. The raw-reliable-no-kd row in the table (seed 2024, RMSE \SI{6.682}{mm}) is an ablation-control variant; it quantifies the performance loss after removing distillation regularisation from the reliable raw regime and is not included in the anchor-off repeatability statistic.
+Across the four repeated anchor-off runs (seeds 7/17/42/99), the RMSE standard deviation is \SI{0.120}{mm}, with a range of \SIrange{5.948}{6.231}{mm}. This range lies entirely below the previous quarter-power scaling reference result of \(\SI{6.696}{mm}\), indicating that the transition-region scaling improvement is not a single-run accident. The label \emph{quarter-power} refers specifically to the Hiroyasu--Arai exponent $\Delta P^{1/4}$ embedded in the previous amplitude scale $A = \Delta P^{1/4}\cdot\rho_a^{-1/4}\cdot d_n^{1/2}$. Time-binned log--log regression on the same dataset estimates an empirical $\Delta P$ exponent of approximately $0.5$ over the mid-injection window, well above the H--A value of $0.25$; the current model therefore adopts $A = \Delta P^{0.5}\cdot\rho_a^{-0.25}\cdot d_n^{0.5}$, and the RMSE reduction from \SI{6.696}{mm} to \SI{6.094}{mm} confirms that the empirically grounded exponent improves predictions consistently across all four seeds. The raw-reliable-no-kd row in the table (seed 2024, RMSE \SI{6.682}{mm}) is an ablation-control variant; it quantifies the performance loss after removing distillation regularisation from the reliable raw regime and is not included in the anchor-off repeatability statistic.
 
 \begin{figure}[t]
 \centering
@@ -249,6 +249,72 @@ The ablation trend also clarifies why Stage~3 is more credible than Stage~1 or S
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/ablation_comparison_best.png}
 \caption{Ablation summary for Stage~3 tuning. Disabling the early anchor gives the lowest RMSE, the lowest MAE, and nearly zero residual bias.}
 \label{fig:ablation-best}
+\end{figure}
+
+\subsection{Distillation loss form: diagnosis and near-FOV bias fix}
+\label{sec:kd-form-fix}
+
+After switching to the \texttt{a\_plus\_pressures} feature variant, slicing the Stage~3 residuals by the near-FOV indicator \(\mathrm{pen}\ge 0.9\,\mathrm{cap}_\mathrm{nozzle}\) exposed a systematic degradation in the upper-penetration regime: even though the Stage~2 teacher was nearly unbiased near the FOV cap (bias \SI{-0.59}{mm}, RMSE \SI{4.82}{mm}), the distilled anchor-off student deteriorated on the same slice to a bias of \SI{-2.70}{mm} and an RMSE of \SI{6.11}{mm}. This drift could not be attributed to the Stage~1/2 fits---the Hampel + DIFF\_LOWER cleaning pipeline does not undershoot the teacher near the cap---so the loss must have been introduced inside the Stage~3 distillation step itself.
+
+To localise the mechanism we ran seven single-variable ablations on top of the unchanged \texttt{a\_plus\_pressures} teacher: turning off raw NLL, turning off the first/second-order shape penalties, forcing the forward-KL confidence weight \(\sigma_{\mathrm{ref}}/\sigma_{\mathrm{teacher}}\) to unity, swapping forward KL for reverse KL, replacing the full KL with an MSE on \(\mu\) only, shortening training to 10 epochs, and doubling the KD weight in the \texttt{raw\_uncertain} and \texttt{teacher\_only} regimes. Two variants stood out: \texttt{diag\_raw\_off} reproduced the teacher's near-cap behaviour almost exactly (bias \SI{-0.53}{mm}), and \texttt{diag\_kd\_mse\_mu} pulled the near-cap bias back to \SI{-0.91}{mm} and attained the lowest overall RMSE among all variants. Together they point at two causes: (i) the raw NLL drags the student \(\mu\) toward DIFF\_LOWER-truncated observations sitting one frame below the FOV plateau, and (ii) the forward-KL term \((\mu_t-\mu_s)^{2}/\sigma_s^{2}\) lets the student escape matching the teacher \(\mu\) by simply inflating its own \(\sigma\). The other five variants left the near-cap bias in the \([-2.7,-2.0]\) mm range, ruling them out as the dominant mechanism.
+
+\texttt{diag\_kd\_mse\_mu} alone severs the \(\sigma\)-arbitrage path but also loses the KL's implicit supervision on student \(\sigma\), leaving the KD-only regions (\texttt{raw\_uncertain} and \texttt{teacher\_only}) with drifting \(\sigma\) calibration. We therefore propose the hybrid \texttt{kd\_mse\_mu\_plus\_sigma} loss
+\begin{equation}
+\mathcal{L}_{\mathrm{KD}} \;=\; (\mu_s-\mu_t)^{2} \;+\; \lambda_\sigma\,\bigl(\log\sigma_s^{2} - \log\sigma_t^{2}\bigr)^{2},
+\label{eq:kd-mse-mu-plus-sigma}
+\end{equation}
+which adds an explicit log-variance MSE on top of the mean MSE so that \(\sigma\) is supervised again, but without reintroducing the \(\sigma\)-arbitrage that the KL form allowed. A single-variable sweep over \(\lambda_\sigma\in\{0.5,1,2,5\}\) selected \(\lambda_\sigma=5.0\) as the new Stage~3 default: near-cap RMSE and bias reached their joint best (\SI{4.89}{mm} and \SI{-0.66}{mm}), statistically indistinguishable from the teacher's \(\SI{-0.59}{mm}\), and the median pointwise \(|\sigma_s-\sigma_t|\) on the \texttt{teacher\_only} slice dropped to \SI{0.27}{mm}. Figure~\ref{fig:kd-overlay} overlays the bias-versus-truth curves for the teacher, the baseline forward-KL student, and the new \texttt{kd\_mse\_mu\_plus\_sigma} student; the gain is concentrated in the upper half of the penetration range while the lower half is left intact.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_overlay_baseline.png}
+\caption{Effect of the Stage~3 distillation loss form on the bias-versus-truth curve. The Stage~2 teacher is near-zero biased close to the FOV cap; the baseline forward-KL distillation introduces an additional \(\approx -2.7\,\mathrm{mm}\) downward bias in the near-cap region; \texttt{kd\_mse\_mu\_plus\_sigma} (\(\lambda_\sigma=5\)) pulls this curve back onto the teacher. Curves are mean residuals in \SI{5}{mm} truth bins.}
+\label{fig:kd-overlay}
+\end{figure}
+
+Because Stage~3 trains on three distinct supervision regimes, the held-out evaluation is best reported on those regimes separately rather than only as a single aggregate. Holding Stage~1 and Stage~2 fixed and re-training Stage~3 under five random seeds \(\{7,17,42,99,2024\}\) (Mode~A protocol), the final \texttt{kd\_mse\_mu\_plus\_sigma} model (\(\lambda_\sigma=5.0\)) achieves an overall RMSE of \(\SI{4.803}{mm}\pm\SI{0.032}{mm}\), MAE of \(\SI{3.282}{mm}\pm\SI{0.036}{mm}\), and bias of \(\SI{+0.908}{mm}\pm\SI{0.179}{mm}\) on each seed's 692{,}942 held-out time points. Restricting the same five-seed evaluation to the non-right-censored subset reported in the abstract---traces whose entire CDF lies inside the FOV, comprising 14{,}686 trajectories and 393{,}912 prediction points---yields RMSE \(\SI{4.884}{mm}\pm\SI{0.031}{mm}\), MAE \(\SI{3.152}{mm}\pm\SI{0.038}{mm}\), and 1\(\sigma\)/2\(\sigma\) uncertainty coverage of \(85.53\,\%\pm 0.30\,\%\) / \(97.70\,\%\pm 0.08\,\%\) (per-seed values in \codepath{Thesis/generated/current/stage3\_mse\_mu\_plus\_sigma\_modeA\_trace\_not\_censored.csv}). Table~\ref{tab:stage3-kd-regimes} breaks this down by training-time supervision regime and by FOV-censoring flag (numbers for the representative seed \(s=99\)). The \texttt{raw\_reliable} slice (79\% of points), where raw NLL dominates the supervision, has RMSE \SI{4.68}{mm} and bias \SI{+0.67}{mm}; the KD-only slice (\texttt{raw\_uncertain} and \texttt{teacher\_only} combined, 21\% of points) has RMSE \SI{5.08}{mm} and bias \SI{+0.93}{mm}, slightly higher but still below the previous baseline's aggregate. Viewed through the FOV-censoring lens, traces that stay fully inside the FOV (n=393{,}912) yield RMSE \SI{4.85}{mm} and bias \SI{+0.99}{mm}; traces that hit the FOV cap (n=299{,}030) yield RMSE \SI{4.65}{mm} and bias \SI{+0.37}{mm}; the intersection---the near-cap points of right-censored traces (n=47{,}676)---reaches RMSE \SI{4.95}{mm} and bias \SI{-0.69}{mm}, essentially matching the teacher on the same slice. Across all five seeds the full near-cap slice (\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)) reaches RMSE \(\SI{4.881}{mm}\pm\SI{0.024}{mm}\) and bias \(\SI{-0.566}{mm}\pm\SI{0.079}{mm}\), and the right-censored near-cap subset reaches RMSE \(\SI{4.939}{mm}\pm\SI{0.023}{mm}\) and bias \(\SI{-0.590}{mm}\pm\SI{0.077}{mm}\). The latter is within one seed-level standard deviation of the teacher's \(\SI{-0.59}{mm}\), confirming that the distillation-induced loss in this band has been removed and that the fix is stable under random reinitialisation.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_modeA_per_seed.png}
+\caption{Per-seed Stage~3 performance under the Mode~A protocol (shared Stage~1+2, five seeds \(\{7,17,42,99,2024\}\)). Left: held-out RMSE, with overall and near-cap (\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)) shown side-by-side; dashed lines mark the five-seed means. Right: matching bias values; the grey dotted line is the Stage~2 teacher near-cap bias of \SI{-0.59}{mm}. The RMSE standard deviation is \SI{0.032}{mm} (0.7\% relative) and the near-cap bias standard deviation is \SI{0.079}{mm}, confirming that the distillation outcome is robust to random initialisation.}
+\label{fig:kd-modeA-per-seed}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Slice & n & RMSE [mm] & Bias [mm] & median \(|\sigma_s-\sigma_t|\) [mm] \\
+\midrule
+all & 692{,}942 & 4.76 & +0.72 & 0.82 \\
+\texttt{raw\_reliable} & 549{,}299 & 4.68 & +0.67 & 1.00 \\
+\texttt{raw\_uncertain} & 64{,}487 & 5.88 & +1.27 & 0.40 \\
+\texttt{teacher\_only} & 79{,}156 & 4.33 & +0.65 & \textbf{0.27} \\
+KD-only (combined) & 143{,}643 & 5.08 & +0.93 & 0.32 \\
+near-cap (\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)) & 54{,}704 & 4.89 & \(-\)0.66 & 0.27 \\
+trace not censored & 393{,}912 & 4.85 & +0.99 & 0.81 \\
+trace censored & 299{,}030 & 4.65 & +0.37 & 0.84 \\
+trace censored \& near-cap & 47{,}676 & 4.95 & \(-\)0.69 & 0.28 \\
+\bottomrule
+\end{tabular}
+\caption{Sliced held-out metrics for \texttt{kd\_mse\_mu\_plus\_sigma} (\(\lambda_\sigma=5.0\)). "raw\_reliable" denotes the regime where raw NLL is the dominant supervision; "KD-only" merges \texttt{raw\_uncertain} and \texttt{teacher\_only}, both supervised solely by Eq.~\eqref{eq:kd-mse-mu-plus-sigma}. The median \(|\sigma_s-\sigma_t|\) is computed pointwise against the Stage~2 teacher \(\sigma\) and quantifies the calibration drift.}
+\label{tab:stage3-kd-regimes}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_residual_vs_truth.png}
+\caption{Residual structure for \texttt{kd\_mse\_mu\_plus\_sigma} (\(\lambda_\sigma=5\)). Left: split by training supervision regime (\texttt{raw\_reliable} / \texttt{raw\_uncertain} / \texttt{teacher\_only}); right: split by trace-level FOV-censoring flag. Shaded bands show the P10--P90 residual range.}
+\label{fig:kd-residual-by-regime}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_sigma_calibration.png}
+\caption{Uncertainty calibration for \texttt{kd\_mse\_mu\_plus\_sigma} (\(\lambda_\sigma=5\)). Left: pointwise hexbin of student \(\sigma\) against teacher \(\sigma\); right: histogram of the residual \(\sigma_s-\sigma_t\) grouped by supervision regime.}
+\label{fig:kd-sigma-calibration}
 \end{figure}
 
 \subsection{Prototype screening output and evidence boundary}

@@ -69,6 +69,16 @@ def _resolve_fit_run(fit_run_dir: Path | None) -> Path:
     return fit_run_dir or resolve_latest(SYNTHETIC_DATA_RUNS)
 
 
+def _normalize_keys(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    for col in ["dataset", "folder", "file_stem"]:
+        if col in out.columns:
+            out[col] = out[col].astype(str)
+    if "plume_idx" in out.columns:
+        out["plume_idx"] = pd.to_numeric(out["plume_idx"], errors="coerce").astype("Int64")
+    return out
+
+
 def enumerate_raw_population(raw_root: Path) -> pd.DataFrame:
     _data_deps()
     raw_metrics, _, _ = _collect_raw_inventory(
@@ -80,7 +90,7 @@ def enumerate_raw_population(raw_root: Path) -> pd.DataFrame:
     rows = [dict(value) for value in raw_metrics.values()]
     if not rows:
         raise FileNotFoundError(f"No raw CDF plume rows found under {raw_root}")
-    return pd.DataFrame(rows).loc[:, KEY_COLS + ["file_name", "raw_n_finite", "raw_n_positive"]]
+    return _normalize_keys(pd.DataFrame(rows).loc[:, KEY_COLS + ["file_name", "raw_n_finite", "raw_n_positive"]])
 
 
 def read_scr(fit_run_dir: Path) -> pd.DataFrame:
@@ -93,13 +103,15 @@ def read_scr(fit_run_dir: Path) -> pd.DataFrame:
         path = nested[0]
     df = pd.read_csv(path, low_memory=False)
     keep = KEY_COLS + [c for c in ["is_spatial_right_censored", "naive_hold_underestimate_if_censored_mm"] if c in df.columns]
-    return df.loc[:, [c for c in keep if c in df.columns]].drop_duplicates(KEY_COLS)
+    return _normalize_keys(df.loc[:, [c for c in keep if c in df.columns]]).drop_duplicates(KEY_COLS)
 
 
 def read_fit_rows(fit_run_dir: Path) -> pd.DataFrame:
     _data_deps()
     frames = []
     for path in sorted(fit_run_dir.glob("*/cdf/all/*.csv")):
+        if path.stem.endswith("_flagged"):
+            continue
         df = pd.read_csv(path, low_memory=False)
         df.insert(0, "folder", path.stem)
         df.insert(0, "dataset", path.parents[2].name)
@@ -120,7 +132,7 @@ def read_fit_rows(fit_run_dir: Path) -> pd.DataFrame:
         ]
         if c in df.columns
     ]
-    return df.loc[:, cols].drop_duplicates(KEY_COLS)
+    return _normalize_keys(df.loc[:, cols]).drop_duplicates(KEY_COLS)
 
 
 def read_stage2_manifest(path: Path | None) -> pd.DataFrame:
@@ -128,6 +140,8 @@ def read_stage2_manifest(path: Path | None) -> pd.DataFrame:
     if path is None or not path.exists():
         return pd.DataFrame(columns=KEY_COLS)
     df = pd.read_csv(path, low_memory=False)
+    if "penetration_source" in df.columns:
+        df = df.loc[df["penetration_source"].astype(str).eq("cdf")].copy()
     rename = {}
     if "source_dataset_name" in df.columns and "dataset" not in df.columns:
         rename["source_dataset_name"] = "dataset"
@@ -138,7 +152,7 @@ def read_stage2_manifest(path: Path | None) -> pd.DataFrame:
     keep = [c for c in KEY_COLS if c in df.columns]
     if len(keep) < len(KEY_COLS):
         return pd.DataFrame(columns=KEY_COLS)
-    return df.loc[:, KEY_COLS].drop_duplicates()
+    return _normalize_keys(df.loc[:, KEY_COLS]).drop_duplicates()
 
 
 def synthetic_population(scr_df: pd.DataFrame, fit_df: pd.DataFrame) -> pd.DataFrame:
@@ -146,7 +160,7 @@ def synthetic_population(scr_df: pd.DataFrame, fit_df: pd.DataFrame) -> pd.DataF
     frames = [df.loc[:, KEY_COLS] for df in (scr_df, fit_df) if all(c in df.columns for c in KEY_COLS) and not df.empty]
     if not frames:
         raise FileNotFoundError("Cannot build synthetic fallback population; SCR and fit rows are empty.")
-    return pd.concat(frames, ignore_index=True).drop_duplicates(KEY_COLS)
+    return _normalize_keys(pd.concat(frames, ignore_index=True)).drop_duplicates(KEY_COLS)
 
 
 def build_wide(pop: pd.DataFrame, scr_df: pd.DataFrame, fit_df: pd.DataFrame, stage2_df: pd.DataFrame) -> pd.DataFrame:
@@ -164,15 +178,18 @@ def build_wide(pop: pd.DataFrame, scr_df: pd.DataFrame, fit_df: pd.DataFrame, st
     wide["pass_spatial_cap"] = ~wide["is_spatial_right_censored"]
     for col in ["mask_basic", "mask_penetration_far"]:
         if col in wide.columns:
-            wide[f"pass_{col}"] = _bool_series(wide[col])
+            known = wide[col].notna()
+            wide[f"pass_{col}"] = _bool_series(wide[col]).where(known, np.nan)
         else:
             wide[f"pass_{col}"] = np.nan
     if "mask_outlier" in wide.columns:
-        wide["pass_robust_outlier"] = ~_bool_series(wide["mask_outlier"])
+        known = wide["mask_outlier"].notna()
+        wide["pass_robust_outlier"] = (~_bool_series(wide["mask_outlier"])).where(known, np.nan)
     else:
         wide["pass_robust_outlier"] = np.nan
     if "flag_bad_fit" in wide.columns:
-        wide["pass_fit_filter"] = ~_bool_series(wide["flag_bad_fit"])
+        known = wide["flag_bad_fit"].notna()
+        wide["pass_fit_filter"] = (~_bool_series(wide["flag_bad_fit"])).where(known, np.nan)
     else:
         wide["pass_fit_filter"] = np.nan
     wide["included_in_stage2_training"] = wide["included_in_stage2_training"].fillna(False).astype(bool)

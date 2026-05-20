@@ -38,6 +38,12 @@ BASE_STATIC_FEATURE_COLUMNS = [
 FEATURE_COLUMNS_BY_VARIANT = {
     "a_only": [TIME_FEATURE, *BASE_STATIC_FEATURE_COLUMNS],
     "a_plus_log_a": [TIME_FEATURE, *BASE_STATIC_FEATURE_COLUMNS, "log_A_z"],
+    "a_plus_pressures": [
+        TIME_FEATURE,
+        *BASE_STATIC_FEATURE_COLUMNS,
+        "log_injection_pressure_bar_z",
+        "log_chamber_pressure_bar_z",
+    ],
 }
 ZSCORE_BASE_COLUMNS_BY_VARIANT = {
     "a_only": [
@@ -52,6 +58,14 @@ ZSCORE_BASE_COLUMNS_BY_VARIANT = {
         "injection_duration_us",
         "control_backpressure_bar",
         "log_A",
+    ],
+    "a_plus_pressures": [
+        "tilt_angle_radian",
+        "plumes",
+        "injection_duration_us",
+        "control_backpressure_bar",
+        "log_injection_pressure_bar",
+        "log_chamber_pressure_bar",
     ],
 }
 LEGACY_FEATURE_COLUMNS = {
@@ -589,6 +603,11 @@ def build_canonical_feature_table(
     df["delta_pressure_bar_phys"] = delta_pressure.astype(float)
     df["A_scale"] = np.power(df["delta_pressure_bar_phys"], 0.5) * np.power(df["ambient_density_kg_m3"], -0.25) * np.sqrt(df["diameter_mm"])
     df["log_A"] = np.log(df["A_scale"])
+    df["log_injection_pressure_bar"] = np.log(df["injection_pressure_bar"].astype(float))
+    df["log_chamber_pressure_bar"] = np.log(
+        np.maximum(df["ambient_pressure_bar_phys"].astype(float), 1e-6)
+    )
+    df["log_delta_pressure_bar"] = np.log(df["delta_pressure_bar_phys"])
     return df
 
 
@@ -1711,6 +1730,36 @@ def build_feature_matrix_np(
                 zscore_from_state(canonical["log_A"], "log_A_z", scaler_state),
                 dtype=np.float32,
             )
+        if "log_injection_pressure_bar_z" in feature_columns:
+            feature_series["log_injection_pressure_bar_z"] = np.full_like(
+                time_norm,
+                zscore_from_state(
+                    float(np.log(max(float(canonical["injection_pressure_bar"]), 1e-6))),
+                    "log_injection_pressure_bar_z",
+                    scaler_state,
+                ),
+                dtype=np.float32,
+            )
+        if "log_chamber_pressure_bar_z" in feature_columns:
+            feature_series["log_chamber_pressure_bar_z"] = np.full_like(
+                time_norm,
+                zscore_from_state(
+                    float(np.log(max(float(canonical["ambient_pressure_bar_phys"]), 1e-6))),
+                    "log_chamber_pressure_bar_z",
+                    scaler_state,
+                ),
+                dtype=np.float32,
+            )
+        if "log_delta_pressure_bar_z" in feature_columns:
+            feature_series["log_delta_pressure_bar_z"] = np.full_like(
+                time_norm,
+                zscore_from_state(
+                    float(np.log(max(float(canonical["delta_pressure_bar_phys"]), 1e-6))),
+                    "log_delta_pressure_bar_z",
+                    scaler_state,
+                ),
+                dtype=np.float32,
+            )
     else:
         raw_chamber_for_legacy = float(raw.get("chamber_pressure_bar", raw.get("chamber_state_raw", canonical["ambient_pressure_bar_phys"])))
         feature_series.update(
@@ -1853,6 +1902,27 @@ def build_feature_tensor_torch(
         }
         if "log_A_z" in feature_columns:
             feature_series["log_A_z"] = _torch_zscore(artifacts.scaler_state, log_a, "log_A_z", device)
+        if "log_injection_pressure_bar_z" in feature_columns:
+            feature_series["log_injection_pressure_bar_z"] = _torch_zscore(
+                artifacts.scaler_state,
+                torch.log(torch.clamp(injection_pressure, min=1e-6)),
+                "log_injection_pressure_bar_z",
+                device,
+            )
+        if "log_chamber_pressure_bar_z" in feature_columns:
+            feature_series["log_chamber_pressure_bar_z"] = _torch_zscore(
+                artifacts.scaler_state,
+                torch.log(torch.clamp(ambient_pressure, min=1e-6)),
+                "log_chamber_pressure_bar_z",
+                device,
+            )
+        if "log_delta_pressure_bar_z" in feature_columns:
+            feature_series["log_delta_pressure_bar_z"] = _torch_zscore(
+                artifacts.scaler_state,
+                torch.log(torch.clamp(delta_pressure, min=1e-6)),
+                "log_delta_pressure_bar_z",
+                device,
+            )
     else:
         injection_pressure = tensors["injection_pressure_bar"]
         chamber_pressure = tensors.get("chamber_pressure_bar", tensors.get("chamber_state_raw"))

@@ -51,7 +51,7 @@ Prototype probabilistic screening & Project the predicted penetration distributi
 
 The input data come from a pressurised spray chamber (OSCC) operated at Wärtsilä's test facility.
 Nine nozzle families were tested: eight prototype nozzles (Nozzle1--Nozzle8) recorded in October--November 2024,
-and one reference injector (Nozzle0, Heinzman) recorded in June 2022.
+and one reference injector (Nozzle0) recorded in June 2022.
 Table~\ref{tab:nozzle-overview} summarises the nozzle geometry and the range of operating conditions covered by each family.
 
 \begin{table}[t]
@@ -89,9 +89,15 @@ while the full unclipped recordings represent a terabyte-scale raw input.
 An up-to-date breakdown is regenerated automatically by \textbf{the dataset summarisation script}
 at the end of each run of \textbf{the data cleaning and fitting routine}.
 
-\subsection{Manual calibration of nozzle geometry}
+\subsection{Manual calibration of nozzle geometry}\label{subsec:nozzle-calibration}
 
-The manual calibration workflow in \textbf{the interactive calibration interface} consists of three user-facing stages. First, the operator opens a representative frame in the main annotation interface, adjusts the display settings, and prepares the nozzle-centred view that will be used for the batch anchor. Second, the dedicated calibration dialog is launched, where the user clicks nozzle-rim points on the selected frame. Third, the fitted centre and radius are returned to the main interface, where the recovered geometry can be inspected together with the plume guides and ring overlay before the configuration is saved for later batch processing.
+The manual calibration workflow in \textbf{the interactive calibration interface} consists of three user-facing stages.
+
+First, the operator opens a representative frame in the main annotation interface, adjusts the display settings, and prepares the nozzle-centred view that will be used for the batch anchor.
+
+Second, the dedicated calibration dialog is launched, where the user clicks nozzle-rim points on the selected frame.
+
+Third, the fitted centre and radius are returned to the main interface, where the recovered geometry can be inspected together with the plume guides and ring overlay before the configuration is saved for later batch processing.
 
 The point-selection dialog enforces at least three clicks and computes the circle through \textbf{the algebraic circle fitting function} once the required number of points has been entered. The fitted circle provides the nozzle centre, calibration radius, and angular offset for the full recording.
 
@@ -102,7 +108,7 @@ The point-selection dialog enforces at least three clicks and computes the circl
 \label{fig:gui-calibration-workflow}
 \end{figure}
 
-This design is appropriate for the current datasets because the camera and injector geometry stay fixed within a recording. Calibrating once and reusing the same centre for all frames avoids frame-to-frame jitter in the downstream plume-angle analysis.
+This design is appropriate for the current datasets because the camera and injector geometry stay fixed within a recording, and several workpieces concentric with the nozzle are visible in the background and can serve as auxiliary references. Calibrating once and reusing the same centre for all frames avoids frame-to-frame jitter in the downstream plume-angle analysis.
 
 \subsection{Batch video processing and plume extraction}
 
@@ -140,7 +146,7 @@ The clipping bounds described in Section~3.2 set a physical time window of appro
 
 \subsubsection{Calibration hand-off and batch anchoring}
 
-The batch stage starts from the calibration produced in Section~3.3. In the algebraic circle fitting function, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
+The batch stage starts from the calibration produced in Section~\ref{subsec:nozzle-calibration}. In the algebraic circle fitting function, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
 \[
 x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \]
@@ -216,18 +222,22 @@ The output is then robust-scaled again and masked by the ring geometry, converti
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_preproc_sobel.pdf}
-\caption{Representative-frame visualisation of the edge-enhancing high-pass stage. (a) Background-subtracted foreground; (b) Sobel gradient magnitude; (c) robust-rescaled high-pass representation used for downstream binary support and multi-hole registration.}
+\caption{Representative-frame visualisation of the edge-enhancing high-pass stage. (a) Background-subtracted foreground; (b) Sobel gradient magnitude.}
 \label{fig:mie-preproc-sobel}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_threshold_mask_repair_summary.pdf}
-\caption{Compact illustration of the path from high-pass representation to binary spray support. (a) High-pass intensity distribution within the annular region across the full video, with the triangle threshold marked; (b) single-plume high-pass strip on a representative frame; (c) raw binary support from direct thresholding; (d) binary support after morphological repair, with added and removed pixels highlighted.}
+\caption{Compact illustration of the path from high-pass representation to binary spray support. (a) High-pass intensity distribution within the annular region across the full video, with the fixed support threshold marked; (b) single-plume high-pass strip on a representative frame; (c) raw binary support from fixed thresholding; (d) binary support after morphological repair, with added and removed pixels highlighted.}
 \label{fig:threshold-mask-repair-summary}
 \end{figure}
 
-The high-pass strips are binarized with a triangle threshold rather than a manually fixed intensity threshold. The implementation first excludes the zero-valued pixels introduced by the annular mask and then searches the non-zero high-pass intensity histogram. The triangle rule connects the histogram mode to the low-count tail endpoint and selects the bin with the maximum perpendicular distance to that line. Geometrically, this is suited to unimodal, long-tailed distributions; in the present data, the mode corresponds to background and weak edges, while the tail corresponds to strong spray boundaries. The resulting support threshold therefore adapts to the contrast of each video \cite{ZackRogersLatt1977}. The threshold marked in Figure~\ref{fig:threshold-mask-repair-summary}(a) is the direct result of that geometric rule.
+The high-pass strips are no longer binarized with a triangle threshold, because that rule was sensitive to the near-zero peak, the long-tailed intensity distribution, and the fraction of zeros introduced by masking. The current implementation first applies percentile-based min--max normalization to each plume's \((t,y,x)\) high-pass strip volume, mapping the \(q_{\min}\) and \(q_{\max}\) percentiles to 0 and 1 and clipping values outside this range. It then applies a single fixed threshold \(T_{\mathrm{BW}}=0.01\) on the normalized strip:
+\[
+B_p(t,y,x)=\mathbf{1}\!\left[\tilde{H}_p(t,y,x)>T_{\mathrm{BW}}\right].
+\]
+This makes the percentile normalization absorb video-to-video brightness and local-contrast differences, while the threshold only expresses whether the normalized edge response is strong enough. The threshold marked in Figure~\ref{fig:threshold-mask-repair-summary}(a) is this fixed support threshold on the normalized intensity scale.
 
 When the binary support needs further repair, \textbf{the binary plume-video repair function} applies a time-volume-first, frame-second sequence. For each plume's \((t,y,x)\) binary volume, the routine first applies closing with a \(3\times3\times3\) structuring element, fills holes, and retains the largest 3-D connected component; it then keeps the largest 2-D connected component in each individual frame. The first step uses temporal adjacency to bridge short breaks, while the second ensures that each frame is free of detached fragments. Figure~\ref{fig:threshold-mask-repair-summary}(d) visualizes the effect of this repair path on a single-frame support mask; it should be read as a robustness step for binary geometric metrics, not as a physical recovery of the raw Mie intensity field.
 
@@ -267,7 +277,7 @@ The same occupied-angle mask also suggests a simple cone-angle proxy. Treat the 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_angular_occupancy.pdf}
-\caption{Polar angular-occupancy analysis. (a) Per-frame angular-signal heat map; (b) time-summed angular profile with light vertical lines marking the estimated plume guide angles, with an inset in the top right showing the dominant FFT harmonic; (c) occupied-angle mask obtained by thresholding the angular profile and short-gap filling.}
+\caption{Polar angular-occupancy analysis. (a) Per-frame angular-signal heat map; (b) time-summed angular profile with light vertical lines marking the estimated plume guide angles; (c) occupied-angle mask obtained by thresholding the angular profile and short-gap filling; (d) FFT harmonic spectrum with the plume count marked as a dashed vertical line and the computed angular offset annotated.}
 \label{fig:angular-occupancy}
 \end{figure}
 
@@ -368,7 +378,7 @@ Quantitative evidence supporting the reliability of the extracted observables --
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{images/fig_mie_segmentation_boundary_overlay.png}
+\includegraphics[width=0.92\linewidth]{../images/fig_mie_segmentation_boundary_overlay.png}
 \caption{Visual inspection of the spray-boundary extraction result. The grey foreground is obtained from the raw Mie image by logarithmic background division, Sobel gradient enhancement, and nearest-neighbour rotational remapping; the red contour is the BW boundary exported from the binary support image. The overlay shows that the boundary proxy follows the effective liquid envelope formed by local contrast changes rather than relying on a single foremost bright pixel.}
 \label{fig:mie-segmentation-boundary-overlay}
 \end{figure}
