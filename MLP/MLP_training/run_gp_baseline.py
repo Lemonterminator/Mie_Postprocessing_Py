@@ -296,20 +296,30 @@ def cuda_synchronize(device: torch.device) -> None:
         torch.cuda.synchronize(device)
 
 
-def validate_a_scale(df: pd.DataFrame, *, rel_tol: float = 5e-5) -> dict[str, float | bool]:
+def validate_a_scale(
+    df: pd.DataFrame,
+    *,
+    delta_pressure_exp: float = 0.5,
+    rel_tol: float = 5e-5,
+) -> dict[str, float | bool]:
     required = ["delta_pressure_bar_phys", "ambient_density_kg_m3", "diameter_mm", "A_scale"]
     missing = [col for col in required if col not in df.columns]
     if missing:
         return {"checked": False, "max_relative_error": float("nan")}
     expected = (
-        np.power(pd.to_numeric(df["delta_pressure_bar_phys"], errors="coerce").to_numpy(dtype=float), 0.5)
+        np.power(pd.to_numeric(df["delta_pressure_bar_phys"], errors="coerce").to_numpy(dtype=float), float(delta_pressure_exp))
         * np.power(pd.to_numeric(df["ambient_density_kg_m3"], errors="coerce").to_numpy(dtype=float), -0.25)
         * np.sqrt(pd.to_numeric(df["diameter_mm"], errors="coerce").to_numpy(dtype=float))
     )
     actual = pd.to_numeric(df["A_scale"], errors="coerce").to_numpy(dtype=float)
     rel = np.abs(actual - expected) / np.maximum(np.abs(expected), 1e-12)
     max_rel = float(np.nanmax(rel))
-    return {"checked": True, "max_relative_error": max_rel, "passed": bool(max_rel <= rel_tol)}
+    return {
+        "checked": True,
+        "delta_pressure_exp": float(delta_pressure_exp),
+        "max_relative_error": max_rel,
+        "passed": bool(max_rel <= rel_tol),
+    }
 
 
 def maybe_limit_curves(df: pd.DataFrame, *, max_curves_per_split: int | None, seed: int) -> pd.DataFrame:
@@ -837,16 +847,6 @@ def run_seed(
         raise FileNotFoundError(f"Missing row_table.csv for seed {seed}: {row_table_path}")
     seed_dir = run_dir / "per_seed" / f"seed_{seed}"
     seed_dir.mkdir(parents=True, exist_ok=True)
-
-    df = pd.read_csv(row_table_path)
-    df = maybe_limit_curves(df, max_curves_per_split=base_config.get("max_curves_per_split"), seed=seed)
-    a_scale_check = validate_a_scale(df)
-    if a_scale_check.get("checked") and not a_scale_check.get("passed") and not base_config.get("allow_a_scale_mismatch", False):
-        raise ValueError(
-            f"A_scale mismatch in {row_table_path}; max relative error "
-            f"{a_scale_check['max_relative_error']:.3e}. Pass --allow-a-scale-mismatch to override."
-        )
-
     scaler_state_path = stage1_run / "scaler_state.json"
     stage1_config = load_stage1_config(stage1_run)
     if not scaler_state_path.exists():
@@ -854,6 +854,22 @@ def run_seed(
             f"Missing scaler_state.json for feature alignment/inference: {scaler_state_path}."
         )
     scaler_state = read_json(scaler_state_path)
+    a_scale_delta_pressure_exp = float(
+        (scaler_state.get("target", {}) if isinstance(scaler_state, Mapping) else {}).get(
+            "a_scale_delta_pressure_exp",
+            stage1_config.get("a_scale_delta_pressure_exp", 0.5),
+        )
+    )
+
+    df = pd.read_csv(row_table_path)
+    df = maybe_limit_curves(df, max_curves_per_split=base_config.get("max_curves_per_split"), seed=seed)
+    a_scale_check = validate_a_scale(df, delta_pressure_exp=a_scale_delta_pressure_exp)
+    if a_scale_check.get("checked") and not a_scale_check.get("passed") and not base_config.get("allow_a_scale_mismatch", False):
+        raise ValueError(
+            f"A_scale mismatch in {row_table_path}; max relative error "
+            f"{a_scale_check['max_relative_error']:.3e}. Pass --allow-a-scale-mismatch to override."
+        )
+
     feature_spec = resolve_feature_spec(
         stage1_config=stage1_config,
         requested_variant=base_config.get("requested_variant"),

@@ -37,7 +37,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -117,6 +117,30 @@ def resolve_device(requested: str) -> str:
 
 def fmt_cmd(cmd: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in cmd)
+
+
+def slugify(text: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(text).strip())
+    slug = slug.strip("._-")
+    return slug or "unnamed"
+
+
+def cli_flag(key: str) -> str:
+    return f"--{str(key).replace('_', '-')}"
+
+
+def append_cli_option(cmd: list[str], key: str, value: Any) -> None:
+    if value is None or value is False:
+        return
+    flag = cli_flag(key)
+    if value is True:
+        cmd.append(flag)
+        return
+    if isinstance(value, (list, tuple)):
+        cmd.append(flag)
+        cmd.extend(str(item) for item in value)
+        return
+    cmd.extend([flag, str(value)])
 
 
 def run_subprocess(
@@ -296,6 +320,7 @@ def run_stage1(
     dry_run: bool,
     data_dir: Path | None = None,
     parent_env: dict[str, str] | None = None,
+    stage1_args: Mapping[str, Any] | None = None,
 ) -> Path:
     cmd = [
         python_exe(),
@@ -306,6 +331,8 @@ def run_stage1(
     ]
     if data_dir is not None:
         cmd.extend(["--data-dir", str(data_dir)])
+    for key, value in (stage1_args or {}).items():
+        append_cli_option(cmd, key, value)
     rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run, env_extra=parent_env)
     if rc != 0:
         raise RuntimeError(f"Stage 1 failed (rc={rc}). See {log_path}.")
@@ -326,6 +353,7 @@ def run_stage2(
     dry_run: bool,
     data_dir: Path | None = None,
     parent_env: dict[str, str] | None = None,
+    stage2_args: Mapping[str, Any] | None = None,
 ) -> Path:
     cmd = [
         python_exe(),
@@ -336,6 +364,8 @@ def run_stage2(
     ]
     if data_dir is not None:
         cmd.extend(["--data-dir", str(data_dir)])
+    for key, value in (stage2_args or {}).items():
+        append_cli_option(cmd, key, value)
     rc, stdout = run_subprocess(cmd, log_path=log_path, dry_run=dry_run, env_extra=parent_env)
     if rc != 0:
         raise RuntimeError(f"Stage 2 failed (rc={rc}). See {log_path}.")
@@ -399,6 +429,8 @@ def run_one_seed(
     parent_run_ids: dict[str, str],
     parent_env: dict[str, str],
     orchestrator_dir: Path,
+    stage1_args: Mapping[str, Any] | None = None,
+    stage2_args: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Train (or reuse) Stage 1, 2 and run Stage 3 ablation suite for one seed."""
     seed_dir.mkdir(parents=True, exist_ok=True)
@@ -415,6 +447,7 @@ def run_one_seed(
                 log_path=seed_dir / "stage1.log", dry_run=dry_run,
                 data_dir=data_dir,
                 parent_env=parent_env,
+                stage1_args=stage1_args,
             )
             if not dry_run:
                 write_flag(seed_dir, "stage1", {"run_dir": str(stage1_run), "seed": seed})
@@ -436,6 +469,7 @@ def run_one_seed(
                 log_path=seed_dir / "stage2.log", dry_run=dry_run,
                 data_dir=data_dir,
                 parent_env=parent_env,
+                stage2_args=stage2_args,
             )
             if not dry_run:
                 write_flag(seed_dir, "stage2", {"run_dir": str(stage2_run), "seed": seed})
@@ -517,6 +551,231 @@ def aggregate_seeds(records: list[dict[str, Any]]) -> dict[str, Any]:
         "winner_names": [rec.get("winner_name") for rec in records],
         "metrics": {k: bootstrap_ci(vals) for k, vals in metric_table.items()},
     }
+
+
+def aggregate_by_branch(records: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        key = str(record.get("branch_key") or "default")
+        grouped.setdefault(key, []).append(record)
+    return {key: aggregate_seeds(items) for key, items in sorted(grouped.items())}
+
+
+def normalize_feature_ablations(config: Mapping[str, Any], cli_variant: str | None) -> list[dict[str, Any]]:
+    if cli_variant:
+        return [{"name": cli_variant, "variant": cli_variant, "args": {}}]
+    raw_items = config.get("feature_ablations")
+    if not raw_items:
+        variant = str(config.get("variant", "a_only"))
+        return [{"name": variant, "variant": variant, "args": {}}]
+    items: list[dict[str, Any]] = []
+    for raw in raw_items:
+        if isinstance(raw, str):
+            item = {"name": raw, "variant": raw, "args": {}}
+        elif isinstance(raw, Mapping):
+            item = {
+                "name": str(raw.get("name") or raw.get("variant")),
+                "variant": str(raw.get("variant") or raw.get("name")),
+                "args": dict(raw.get("args", {})),
+            }
+        else:
+            raise TypeError(f"Unsupported feature ablation entry: {raw!r}")
+        if item["name"] in {"", "None"} or item["variant"] in {"", "None"}:
+            raise ValueError(f"Feature ablation entry must define name/variant: {raw!r}")
+        items.append(item)
+    return items
+
+
+def normalize_stage2_ablations(config: Mapping[str, Any]) -> list[dict[str, Any]]:
+    raw_items = config.get("stage2_ablations")
+    if not raw_items:
+        return [{"name": "no_anchor", "args": {"stage2_ablation": "no_anchor"}}]
+    items: list[dict[str, Any]] = []
+    for raw in raw_items:
+        if isinstance(raw, str):
+            item = {"name": raw, "args": {"stage2_ablation": raw}}
+        elif isinstance(raw, Mapping):
+            args = dict(raw.get("args", {}))
+            name = str(raw.get("name") or args.get("stage2_ablation"))
+            args.setdefault("stage2_ablation", name)
+            item = {"name": name, "args": args}
+        else:
+            raise TypeError(f"Unsupported Stage-2 ablation entry: {raw!r}")
+        if item["name"] in {"", "None"}:
+            raise ValueError(f"Stage-2 ablation entry must define name: {raw!r}")
+        items.append(item)
+    return items
+
+
+def is_multilayer_ablation_config(config: Mapping[str, Any]) -> bool:
+    return bool(config.get("feature_ablations") or config.get("stage2_ablations"))
+
+
+def run_multilayer_ablation_pipeline(
+    *,
+    config: Mapping[str, Any],
+    args: argparse.Namespace,
+    mode_spec: Mapping[str, Any],
+    seeds: list[int],
+    pipeline_dir: Path,
+    device: str,
+    requested_device: str,
+    suite_config_path: Path,
+    include_sensitivity: bool,
+    data_dir: Path | None,
+    parent_run_ids: dict[str, str],
+    parent_env: dict[str, str],
+) -> list[dict[str, Any]]:
+    feature_ablations = normalize_feature_ablations(config, args.variant)
+    stage2_ablations = normalize_stage2_ablations(config)
+    rerun_s1 = bool(mode_spec["rerun_stage1_per_seed"])
+    rerun_s2 = bool(mode_spec["rerun_stage2_per_seed"])
+    shared_stage1: dict[str, Path] = {}
+    shared_stage2: dict[tuple[str, str], Path] = {}
+    records: list[dict[str, Any]] = []
+
+    print("Feature ablations:", ", ".join(item["name"] for item in feature_ablations))
+    print("Stage-2 ablations:", ", ".join(item["name"] for item in stage2_ablations))
+
+    for seed_index, seed in enumerate(seeds, start=1):
+        print()
+        print(f"==== seed {seed} ({seed_index}/{len(seeds)}) ====")
+        for feature in feature_ablations:
+            feature_name = slugify(str(feature["name"]))
+            variant = str(feature["variant"])
+            feature_args = dict(feature.get("args", {}))
+
+            if rerun_s1:
+                stage1_dir = pipeline_dir / f"seed_{seed}" / feature_name / "stage1"
+                cached = read_flag(stage1_dir, "stage1")
+                if cached and Path(cached["run_dir"]).exists() and not args.dry_run:
+                    stage1_run = Path(cached["run_dir"])
+                    print(f"[seed {seed}][{feature_name}] Stage 1 already done -> {stage1_run}")
+                else:
+                    stage1_run = run_stage1(
+                        seed=seed,
+                        variant=variant,
+                        device=device,
+                        log_path=stage1_dir / "stage1.log",
+                        dry_run=args.dry_run,
+                        data_dir=data_dir,
+                        parent_env=parent_env,
+                        stage1_args=feature_args,
+                    )
+                    if not args.dry_run:
+                        write_flag(stage1_dir, "stage1", {"run_dir": str(stage1_run), "seed": seed, "feature": feature})
+            else:
+                if feature_name not in shared_stage1:
+                    shared_dir = pipeline_dir / "shared_stage1" / feature_name
+                    stage1_run = run_stage1(
+                        seed=int(config["default_seed"]),
+                        variant=variant,
+                        device=device,
+                        log_path=shared_dir / "stage1.log",
+                        dry_run=args.dry_run,
+                        data_dir=data_dir,
+                        parent_env=parent_env,
+                        stage1_args=feature_args,
+                    )
+                    shared_stage1[feature_name] = stage1_run
+                    write_flag(shared_dir, "stage1_shared", {"run_dir": str(stage1_run), "feature": feature})
+                stage1_run = shared_stage1[feature_name]
+                print(f"[seed {seed}][{feature_name}] Reusing shared Stage 1 -> {stage1_run}")
+            stamp_run_metadata(stage1_run, phase="stage1", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
+            write_thesis_metrics(stage1_run, stage="stage1", parent_run_ids=parent_run_ids)
+
+            for stage2 in stage2_ablations:
+                stage2_name = slugify(str(stage2["name"]))
+                stage2_args = dict(stage2.get("args", {}))
+                branch_key = f"{feature_name}__{stage2_name}"
+                if rerun_s2:
+                    stage2_dir = pipeline_dir / f"seed_{seed}" / feature_name / stage2_name / "stage2"
+                    cached = read_flag(stage2_dir, "stage2")
+                    if cached and Path(cached["run_dir"]).exists() and not args.dry_run:
+                        stage2_run = Path(cached["run_dir"])
+                        print(f"[seed {seed}][{branch_key}] Stage 2 already done -> {stage2_run}")
+                    else:
+                        stage2_run = run_stage2(
+                            stage1_run_dir=stage1_run,
+                            seed=seed,
+                            device=device,
+                            log_path=stage2_dir / "stage2.log",
+                            dry_run=args.dry_run,
+                            data_dir=data_dir,
+                            parent_env=parent_env,
+                            stage2_args=stage2_args,
+                        )
+                        if not args.dry_run:
+                            write_flag(stage2_dir, "stage2", {"run_dir": str(stage2_run), "seed": seed, "stage2": stage2})
+                else:
+                    shared_key = (feature_name, stage2_name)
+                    if shared_key not in shared_stage2:
+                        shared_dir = pipeline_dir / "shared_stage2" / feature_name / stage2_name
+                        stage2_run = run_stage2(
+                            stage1_run_dir=stage1_run,
+                            seed=int(config["default_seed"]),
+                            device=device,
+                            log_path=shared_dir / "stage2.log",
+                            dry_run=args.dry_run,
+                            data_dir=data_dir,
+                            parent_env=parent_env,
+                            stage2_args=stage2_args,
+                        )
+                        shared_stage2[shared_key] = stage2_run
+                        write_flag(shared_dir, "stage2_shared", {"run_dir": str(stage2_run), "stage2": stage2})
+                    stage2_run = shared_stage2[shared_key]
+                    print(f"[seed {seed}][{branch_key}] Reusing shared Stage 2 -> {stage2_run}")
+                stamp_run_metadata(stage2_run, phase="stage2", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
+                write_thesis_metrics(stage2_run, stage="stage2", parent_run_ids=parent_run_ids)
+
+                stage3_dir = pipeline_dir / f"seed_{seed}" / feature_name / stage2_name / "stage3"
+                cached = read_flag(stage3_dir, "stage3")
+                if cached and Path(cached["summary"]).exists() and not args.dry_run:
+                    suite_summary = Path(cached["summary"])
+                    print(f"[seed {seed}][{branch_key}] Stage 3 already done -> {suite_summary}")
+                else:
+                    suite_summary = run_stage3_suite(
+                        stage2_run_dir=stage2_run,
+                        seed=seed,
+                        device=device,
+                        suite_config_path=suite_config_path,
+                        include_sensitivity=include_sensitivity,
+                        log_path=stage3_dir / "stage3.log",
+                        dry_run=args.dry_run,
+                        synthetic_root=data_dir,
+                        parent_env=parent_env,
+                    )
+                    if not args.dry_run and suite_summary is not None:
+                        write_flag(stage3_dir, "stage3", {"summary": str(suite_summary), "seed": seed})
+
+                record = {
+                    "seed": seed,
+                    "feature_name": feature_name,
+                    "variant": variant,
+                    "stage2_name": stage2_name,
+                    "stage2_args": stage2_args,
+                    "branch_key": branch_key,
+                    "stage1_run": str(stage1_run),
+                    "stage2_run": str(stage2_run),
+                    "stage3_suite_summary": str(suite_summary) if suite_summary else None,
+                }
+                if not args.dry_run and suite_summary and suite_summary.exists():
+                    suite = json.loads(suite_summary.read_text(encoding="utf-8"))
+                    best = suite.get("selection", {}).get("best") or {}
+                    overall = (best.get("post_eval") or {}).get("overall") or {}
+                    record["winner_name"] = best.get("name")
+                    record["winner_run_dir"] = best.get("run_dir")
+                    record["winner_metrics"] = {k: overall.get(k) for k in WINNER_METRIC_KEYS}
+                    if best.get("run_dir"):
+                        winner_dir = Path(best["run_dir"])
+                        stamp_run_metadata(winner_dir, phase="stage3", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
+                        write_thesis_metrics(winner_dir, stage="stage3", parent_run_ids=parent_run_ids)
+                records.append(record)
+                branch_summary_dir = pipeline_dir / f"seed_{seed}" / feature_name / stage2_name
+                branch_summary_dir.mkdir(parents=True, exist_ok=True)
+                (branch_summary_dir / "branch_summary.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+    return records
 
 
 # ----------------------------- main -----------------------------
@@ -606,6 +865,8 @@ def main() -> None:
             "device": device,
             "suite_config": str(suite_config_path),
             "include_sensitivity": include_sensitivity,
+            "feature_ablations": config.get("feature_ablations"),
+            "stage2_ablations": config.get("stage2_ablations"),
             "config_source": str(config_path),
             "dry_run": bool(args.dry_run),
             "fit_run_dir": None if fit_run_dir is None else str(fit_run_dir),
@@ -628,6 +889,47 @@ def main() -> None:
     print(f"Parent audit:    {parent_run_ids['audit'] or '(none)'}")
     print(f"Dry-run:         {args.dry_run}")
     print()
+
+    if is_multilayer_ablation_config(config):
+        seed_records = run_multilayer_ablation_pipeline(
+            config=config,
+            args=args,
+            mode_spec=mode_spec,
+            seeds=seeds,
+            pipeline_dir=pipeline_dir,
+            device=device,
+            requested_device=requested_device,
+            suite_config_path=suite_config_path,
+            include_sensitivity=include_sensitivity,
+            data_dir=data_dir,
+            parent_run_ids=parent_run_ids,
+            parent_env=parent_env,
+        )
+        summary = {
+            "mode": args.mode,
+            "seeds": seeds,
+            "parent_run_ids": parent_run_ids,
+            "data_dir": None if data_dir is None else str(data_dir),
+            "feature_ablations": normalize_feature_ablations(config, args.variant),
+            "stage2_ablations": normalize_stage2_ablations(config),
+            "per_seed": seed_records,
+            "bootstrap_by_branch": aggregate_by_branch(seed_records) if not args.dry_run else None,
+        }
+        summary_path = pipeline_dir / "bootstrap_summary.json"
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        print()
+        print(f"Summary written: {summary_path}")
+        if not args.dry_run and summary["bootstrap_by_branch"]:
+            print()
+            print("Branch winner-metric bootstrap:")
+            for branch_key, branch_stats in summary["bootstrap_by_branch"].items():
+                rmse = branch_stats.get("metrics", {}).get("rmse_mm", {})
+                if rmse.get("n", 0):
+                    print(
+                        f"  {branch_key}: rmse={rmse['mean']:.4f} +/- {rmse['std']:.4f} "
+                        f"[{rmse['ci_lo']:.4f}, {rmse['ci_hi']:.4f}]"
+                    )
+        return
 
     rerun_s1 = bool(mode_spec["rerun_stage1_per_seed"])
     rerun_s2 = bool(mode_spec["rerun_stage2_per_seed"])

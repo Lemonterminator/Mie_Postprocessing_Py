@@ -14,6 +14,7 @@ if __package__ in {None, ""}:
 
 from engineered_feature_common import (
     DEFAULT_STAGE1_CONFIG,
+    FEATURE_COLUMNS_BY_VARIANT,
     build_all_stage_tables,
     build_dataset_registry,
     build_model,
@@ -26,12 +27,14 @@ from engineered_feature_common import (
     assign_splits_by_group,
     assign_splits_leave_one_out,
     train_with_early_stopping,
+    variant_a_scale_dp_exp,
+    variant_target_scale_mode,
 )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train Stage-1 MSE on A-scaled penetration.")
-    parser.add_argument("--variant", choices=("a_only", "a_plus_log_a", "a_plus_pressures"), default="a_only")
+    parser.add_argument("--variant", choices=tuple(FEATURE_COLUMNS_BY_VARIANT.keys()), default="a_only")
     parser.add_argument("--data-dir", type=str, default=DEFAULT_STAGE1_CONFIG["data_dir"])
     parser.add_argument("--runs-root", type=str, default=DEFAULT_STAGE1_CONFIG["runs_root"])
     parser.add_argument("--test-matrix-root", type=str, default=None)
@@ -88,6 +91,8 @@ def main() -> None:
     device = torch.device(config["device"])
     registry = build_dataset_registry(Path(args.test_matrix_root).expanduser().resolve() if args.test_matrix_root else None)
     run_dir = create_run_dir(config["runs_root"], "stage1_engineered_mse", config["variant"])
+    a_scale_dp_exp = variant_a_scale_dp_exp(config["variant"])
+    target_scale_mode = variant_target_scale_mode(config["variant"])
 
     stage_tables = build_all_stage_tables(
         config["data_dir"],
@@ -95,8 +100,13 @@ def main() -> None:
         comparison_time_s=float(config["comparison_time_s"]),
         max_curves=config.get("max_curves"),
         output_dir=run_dir,
+        a_scale_delta_pressure_exp=a_scale_dp_exp,
     )
-    if not stage_tables.representative_precheck["passed"] and not bool(config.get("allow_failed_precheck", False)):
+    if (
+        target_scale_mode != "none"
+        and not stage_tables.representative_precheck["passed"]
+        and not bool(config.get("allow_failed_precheck", False))
+    ):
         raise RuntimeError(
             "Pretrain collapse check failed. Re-run with --allow-failed-precheck to override."
         )
@@ -127,6 +137,8 @@ def main() -> None:
     config["input_dim"] = len(feature_columns)
     config["output_dim"] = 2
     config["row_selection_mode"] = "representative"
+    config["target_scale_mode"] = target_scale_mode
+    config["a_scale_delta_pressure_exp"] = float(a_scale_dp_exp)
 
     datasets, dataloaders = make_dataloaders(
         row_table,

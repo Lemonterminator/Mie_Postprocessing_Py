@@ -1,0 +1,127 @@
+{
+  "_comment": "Full tree ablation: Stage-1 feature/target protocol x Stage-2 anchor protocol x existing Stage-3 suite. Use --mode single for development; --mode C only after locking the tree.",
+  "seeds": [42, 17, 99, 7, 2024],
+  "default_seed": 42,
+  "variant": "a_dp050_plus_pressures",
+  "device": "auto",
+  "stage3_ablation_config": "MLP/MLP_training/stage3_ablation_suite_config.json",
+  "include_sensitivity": false,
+  "feature_ablations": [
+    {
+      "name": "legacy_9_no_scale",
+      "variant": "legacy_9_no_scale",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp025",
+      "variant": "a_dp025",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp025_plus_pressures",
+      "variant": "a_dp025_plus_pressures",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp025_plus_diameter",
+      "variant": "a_dp025_plus_diameter",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp025_plus_pressures_diameter",
+      "variant": "a_dp025_plus_pressures_diameter",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp050",
+      "variant": "a_dp050",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp050_plus_pressures",
+      "variant": "a_dp050_plus_pressures",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp050_plus_diameter",
+      "variant": "a_dp050_plus_diameter",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "a_dp050_plus_pressures_diameter",
+      "variant": "a_dp050_plus_pressures_diameter",
+      "args": {
+        "allow_failed_precheck": true
+      }
+    }
+  ],
+  "stage2_ablations": [
+    {
+      "name": "no_anchor",
+      "args": {
+        "stage2_ablation": "no_anchor",
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "mu_anchor",
+      "args": {
+        "stage2_ablation": "mu_anchor",
+        "allow_failed_precheck": true
+      }
+    },
+    {
+      "name": "mu_sigma_anchor",
+      "args": {
+        "stage2_ablation": "mu_sigma_anchor",
+        "allow_failed_precheck": true
+      }
+    }
+  ],
+  "modes": {
+    "single": {
+      "description": "One seed, full feature x Stage-2 x Stage-3 ablation tree.",
+      "rerun_stage1_per_seed": true,
+      "rerun_stage2_per_seed": true,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": true
+    },
+    "A": {
+      "description": "Share each feature/Stage-2 parent, reseed Stage-3 per seed.",
+      "rerun_stage1_per_seed": false,
+      "rerun_stage2_per_seed": false,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": false
+    },
+    "B": {
+      "description": "Share each Stage-1 feature parent, reseed Stage-2 and Stage-3 per seed.",
+      "rerun_stage1_per_seed": false,
+      "rerun_stage2_per_seed": true,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": false
+    },
+    "C": {
+      "description": "Full tree per seed. Expensive; use only after the tree is frozen.",
+      "rerun_stage1_per_seed": true,
+      "rerun_stage2_per_seed": true,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": false
+    }
+  }
+}

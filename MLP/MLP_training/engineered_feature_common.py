@@ -35,39 +35,149 @@ BASE_STATIC_FEATURE_COLUMNS = [
     "injection_duration_us_z",
     "control_backpressure_bar_z",
 ]
-FEATURE_COLUMNS_BY_VARIANT = {
-    "a_only": [TIME_FEATURE, *BASE_STATIC_FEATURE_COLUMNS],
-    "a_plus_log_a": [TIME_FEATURE, *BASE_STATIC_FEATURE_COLUMNS, "log_A_z"],
-    "a_plus_pressures": [
-        TIME_FEATURE,
-        *BASE_STATIC_FEATURE_COLUMNS,
-        "log_injection_pressure_bar_z",
-        "log_chamber_pressure_bar_z",
-    ],
-}
-ZSCORE_BASE_COLUMNS_BY_VARIANT = {
-    "a_only": [
+BASE_STATIC_ZSCORE_COLUMNS = [
+    "tilt_angle_radian",
+    "plumes",
+    "injection_duration_us",
+    "control_backpressure_bar",
+]
+PRESSURE_FEATURE_COLUMNS = [
+    "log_injection_pressure_bar_z",
+    "log_chamber_pressure_bar_z",
+]
+PRESSURE_ZSCORE_COLUMNS = [
+    "log_injection_pressure_bar",
+    "log_chamber_pressure_bar",
+]
+DIAMETER_FEATURE_COLUMNS = ["diameter_mm_z"]
+DIAMETER_ZSCORE_COLUMNS = ["diameter_mm"]
+LEGACY_9_FEATURE_COLUMNS = [
+    TIME_FEATURE,
+    "tilt_angle_radian_z",
+    "plumes_z",
+    "diameter_mm_z",
+    "injection_duration_us_z",
+    "log_injection_pressure_bar_z",
+    "log_chamber_pressure_bar_z",
+    "log_delta_pressure_bar_z",
+    "control_backpressure_bar_z",
+]
+DEFAULT_A_SCALE_DP_EXP = 0.5
+DEFAULT_A_SCALE_DENSITY_EXP = -0.25
+DEFAULT_A_SCALE_DIAMETER_EXP = 0.5
+
+FEATURE_COLUMNS_BY_VARIANT: dict[str, list[str]] = {}
+ZSCORE_BASE_COLUMNS_BY_VARIANT: dict[str, list[str]] = {}
+A_SCALE_DP_EXP_BY_VARIANT: dict[str, float] = {}
+TARGET_SCALE_MODE_BY_VARIANT: dict[str, str] = {}
+
+
+def _register_feature_variant(
+    name: str,
+    feature_columns: Sequence[str],
+    zscore_base_columns: Sequence[str],
+    *,
+    a_scale_dp_exp: float = DEFAULT_A_SCALE_DP_EXP,
+    target_scale_mode: str = "a_scale",
+) -> None:
+    token = str(name).lower()
+    FEATURE_COLUMNS_BY_VARIANT[token] = list(feature_columns)
+    ZSCORE_BASE_COLUMNS_BY_VARIANT[token] = list(zscore_base_columns)
+    A_SCALE_DP_EXP_BY_VARIANT[token] = float(a_scale_dp_exp)
+    TARGET_SCALE_MODE_BY_VARIANT[token] = str(target_scale_mode)
+
+
+_register_feature_variant(
+    "legacy_9_no_scale",
+    LEGACY_9_FEATURE_COLUMNS,
+    [
         "tilt_angle_radian",
         "plumes",
+        "diameter_mm",
         "injection_duration_us",
-        "control_backpressure_bar",
-    ],
-    "a_plus_log_a": [
-        "tilt_angle_radian",
-        "plumes",
-        "injection_duration_us",
-        "control_backpressure_bar",
-        "log_A",
-    ],
-    "a_plus_pressures": [
-        "tilt_angle_radian",
-        "plumes",
-        "injection_duration_us",
-        "control_backpressure_bar",
         "log_injection_pressure_bar",
         "log_chamber_pressure_bar",
+        "log_delta_pressure_bar",
+        "control_backpressure_bar",
     ],
-}
+    target_scale_mode="none",
+)
+
+
+def _a_feature_columns(*, include_pressures: bool = False, include_diameter: bool = False, include_log_a: bool = False) -> list[str]:
+    columns = [TIME_FEATURE, *BASE_STATIC_FEATURE_COLUMNS]
+    if include_pressures:
+        columns.extend(PRESSURE_FEATURE_COLUMNS)
+    if include_diameter:
+        columns.extend(DIAMETER_FEATURE_COLUMNS)
+    if include_log_a:
+        columns.append("log_A_z")
+    return columns
+
+
+def _a_zscore_columns(*, include_pressures: bool = False, include_diameter: bool = False, include_log_a: bool = False) -> list[str]:
+    columns = list(BASE_STATIC_ZSCORE_COLUMNS)
+    if include_pressures:
+        columns.extend(PRESSURE_ZSCORE_COLUMNS)
+    if include_diameter:
+        columns.extend(DIAMETER_ZSCORE_COLUMNS)
+    if include_log_a:
+        columns.append("log_A")
+    return columns
+
+
+for _label, _dp_exp in (("dp025", 0.25), ("dp050", 0.50)):
+    _register_feature_variant(
+        f"a_{_label}",
+        _a_feature_columns(),
+        _a_zscore_columns(),
+        a_scale_dp_exp=_dp_exp,
+    )
+    _register_feature_variant(
+        f"a_{_label}_plus_pressures",
+        _a_feature_columns(include_pressures=True),
+        _a_zscore_columns(include_pressures=True),
+        a_scale_dp_exp=_dp_exp,
+    )
+    _register_feature_variant(
+        f"a_{_label}_plus_diameter",
+        _a_feature_columns(include_diameter=True),
+        _a_zscore_columns(include_diameter=True),
+        a_scale_dp_exp=_dp_exp,
+    )
+    _register_feature_variant(
+        f"a_{_label}_plus_pressures_diameter",
+        _a_feature_columns(include_pressures=True, include_diameter=True),
+        _a_zscore_columns(include_pressures=True, include_diameter=True),
+        a_scale_dp_exp=_dp_exp,
+    )
+
+# Backward-compatible aliases used by existing configs and saved manifests.
+_register_feature_variant("a_only", FEATURE_COLUMNS_BY_VARIANT["a_dp050"], ZSCORE_BASE_COLUMNS_BY_VARIANT["a_dp050"], a_scale_dp_exp=0.50)
+_register_feature_variant(
+    "a_plus_pressures",
+    FEATURE_COLUMNS_BY_VARIANT["a_dp050_plus_pressures"],
+    ZSCORE_BASE_COLUMNS_BY_VARIANT["a_dp050_plus_pressures"],
+    a_scale_dp_exp=0.50,
+)
+_register_feature_variant(
+    "a_plus_log_a",
+    _a_feature_columns(include_log_a=True),
+    _a_zscore_columns(include_log_a=True),
+    a_scale_dp_exp=0.50,
+)
+_register_feature_variant(
+    "a_plus_diameter",
+    FEATURE_COLUMNS_BY_VARIANT["a_dp050_plus_diameter"],
+    ZSCORE_BASE_COLUMNS_BY_VARIANT["a_dp050_plus_diameter"],
+    a_scale_dp_exp=0.50,
+)
+_register_feature_variant(
+    "a_plus_pressures_diameter",
+    FEATURE_COLUMNS_BY_VARIANT["a_dp050_plus_pressures_diameter"],
+    ZSCORE_BASE_COLUMNS_BY_VARIANT["a_dp050_plus_pressures_diameter"],
+    a_scale_dp_exp=0.50,
+)
 LEGACY_FEATURE_COLUMNS = {
     "diameter_mm_z",
     "log_injection_pressure_bar_z",
@@ -164,6 +274,11 @@ DEFAULT_STAGE2_CONFIG = {
     "d2_start_ms": 0.5,
     "d2_transition_ms": 0.05,
     "std_clamp_min": 1e-3,
+    "stage2_ablation": "no_anchor",
+    "lambda_mu_anchor": 0.0,
+    "lambda_sigma_anchor": 0.0,
+    "anchor_window_ms": 0.15,
+    "sigma_anchor_floor_mm": 0.0,
     "row_selection_mode": "filtered",
     "allow_failed_precheck": False,
     "max_curves": None,
@@ -521,6 +636,59 @@ def linear_pressure_from_density(density_kg_m3: float) -> float:
     return REFERENCE_PRESSURE_BAR * float(density_kg_m3) / REFERENCE_DENSITY_KG_M3
 
 
+def compute_a_scale(
+    delta_pressure_bar: Any,
+    ambient_density_kg_m3: Any,
+    diameter_mm: Any,
+    *,
+    delta_pressure_exp: float = DEFAULT_A_SCALE_DP_EXP,
+) -> Any:
+    return (
+        np.power(delta_pressure_bar, float(delta_pressure_exp))
+        * np.power(ambient_density_kg_m3, DEFAULT_A_SCALE_DENSITY_EXP)
+        * np.power(diameter_mm, DEFAULT_A_SCALE_DIAMETER_EXP)
+    )
+
+
+def apply_a_scale_transform(df_in: pd.DataFrame, *, delta_pressure_exp: float) -> pd.DataFrame:
+    df = df_in.copy()
+    required = ["delta_pressure_bar_phys", "ambient_density_kg_m3", "diameter_mm"]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise KeyError(f"Cannot compute A_scale; missing columns: {missing}")
+    df["A_scale"] = compute_a_scale(
+        pd.to_numeric(df["delta_pressure_bar_phys"], errors="coerce").astype(float),
+        pd.to_numeric(df["ambient_density_kg_m3"], errors="coerce").astype(float),
+        pd.to_numeric(df["diameter_mm"], errors="coerce").astype(float),
+        delta_pressure_exp=float(delta_pressure_exp),
+    )
+    df["log_A"] = np.log(df["A_scale"])
+    df["a_scale_delta_pressure_exp"] = float(delta_pressure_exp)
+    return df
+
+
+def variant_a_scale_dp_exp(variant: str) -> float:
+    return float(A_SCALE_DP_EXP_BY_VARIANT.get(str(variant).lower(), DEFAULT_A_SCALE_DP_EXP))
+
+
+def variant_target_scale_mode(variant: str) -> str:
+    return str(TARGET_SCALE_MODE_BY_VARIANT.get(str(variant).lower(), "a_scale"))
+
+
+def scaler_a_scale_dp_exp(scaler_state: Mapping[str, Any]) -> float:
+    target = scaler_state.get("target", {}) if isinstance(scaler_state, Mapping) else {}
+    return float(target.get("a_scale_delta_pressure_exp", DEFAULT_A_SCALE_DP_EXP))
+
+
+def scaler_target_scale_mode(scaler_state: Mapping[str, Any], feature_columns: Sequence[str] | None = None) -> str:
+    target = scaler_state.get("target", {}) if isinstance(scaler_state, Mapping) else {}
+    if "scale_mode" in target:
+        return str(target["scale_mode"])
+    if feature_columns is not None and infer_feature_family(feature_columns) == "legacy_raw":
+        return "none"
+    return "a_scale"
+
+
 def canonicalize_chamber_state(
     dataset_key: str,
     chamber_state_raw: float,
@@ -562,6 +730,7 @@ def build_canonical_feature_table(
     registry: Mapping[str, DatasetMeta],
     *,
     fill_defaults: Mapping[str, float] | None = None,
+    a_scale_delta_pressure_exp: float = DEFAULT_A_SCALE_DP_EXP,
 ) -> pd.DataFrame:
     if df_in.empty:
         raise ValueError("Input row table is empty.")
@@ -601,8 +770,7 @@ def build_canonical_feature_table(
         bad = df.loc[delta_pressure <= 0, ["dataset_key", "injection_pressure_bar", "ambient_pressure_bar_phys"]].head()
         raise ValueError(f"Found non-positive delta_pressure_bar_phys rows:\n{bad}")
     df["delta_pressure_bar_phys"] = delta_pressure.astype(float)
-    df["A_scale"] = np.power(df["delta_pressure_bar_phys"], 0.5) * np.power(df["ambient_density_kg_m3"], -0.25) * np.sqrt(df["diameter_mm"])
-    df["log_A"] = np.log(df["A_scale"])
+    df = apply_a_scale_transform(df, delta_pressure_exp=float(a_scale_delta_pressure_exp))
     df["log_injection_pressure_bar"] = np.log(df["injection_pressure_bar"].astype(float))
     df["log_chamber_pressure_bar"] = np.log(
         np.maximum(df["ambient_pressure_bar_phys"].astype(float), 1e-6)
@@ -714,7 +882,8 @@ def apply_zscore(df_in: pd.DataFrame, zscore_params: Mapping[str, Mapping[str, f
 def apply_saved_scaler_state(df_in: pd.DataFrame, scaler_state: Mapping[str, Any]) -> pd.DataFrame:
     if "zscore" not in scaler_state:
         raise KeyError("scaler_state is missing the 'zscore' block.")
-    return apply_zscore(df_in, scaler_state["zscore"])
+    df = apply_a_scale_transform(df_in, delta_pressure_exp=scaler_a_scale_dp_exp(scaler_state))
+    return apply_zscore(df, scaler_state["zscore"])
 
 
 def build_variant_feature_table(
@@ -728,7 +897,9 @@ def build_variant_feature_table(
     if token not in FEATURE_COLUMNS_BY_VARIANT:
         raise KeyError(f"Unsupported variant '{variant}'.")
 
-    df = df_in.copy()
+    a_scale_dp_exp = variant_a_scale_dp_exp(token)
+    target_scale_mode = variant_target_scale_mode(token)
+    df = apply_a_scale_transform(df_in, delta_pressure_exp=a_scale_dp_exp)
     train_df = df.loc[df["sample_split"] == "train"].reset_index(drop=True)
     zscore_params = fit_zscore_params(train_df, ZSCORE_BASE_COLUMNS_BY_VARIANT[token])
     df = apply_zscore(df, zscore_params)
@@ -744,6 +915,12 @@ def build_variant_feature_table(
             "reference_pressure_bar": REFERENCE_PRESSURE_BAR,
             "reference_density_kg_m3": REFERENCE_DENSITY_KG_M3,
         },
+        "target": {
+            "scale_mode": target_scale_mode,
+            "a_scale_delta_pressure_exp": float(a_scale_dp_exp),
+            "a_scale_density_exp": DEFAULT_A_SCALE_DENSITY_EXP,
+            "a_scale_diameter_exp": DEFAULT_A_SCALE_DIAMETER_EXP,
+        },
         "feature_variant": token,
     }
     return df, scaler_state, list(FEATURE_COLUMNS_BY_VARIANT[token])
@@ -756,6 +933,7 @@ def build_all_stage_tables(
     comparison_time_s: float,
     max_curves: int | None = None,
     output_dir: Path | None = None,
+    a_scale_delta_pressure_exp: float = DEFAULT_A_SCALE_DP_EXP,
 ) -> StageTables:
     representative_raw = collect_selected_rows(
         data_root,
@@ -772,8 +950,16 @@ def build_all_stage_tables(
         max_curves=max_curves,
     )
 
-    representative = build_canonical_feature_table(representative_raw, registry)
-    filtered = build_canonical_feature_table(filtered_raw, registry)
+    representative = build_canonical_feature_table(
+        representative_raw,
+        registry,
+        a_scale_delta_pressure_exp=float(a_scale_delta_pressure_exp),
+    )
+    filtered = build_canonical_feature_table(
+        filtered_raw,
+        registry,
+        a_scale_delta_pressure_exp=float(a_scale_delta_pressure_exp),
+    )
     precheck = run_pretrain_collapse_check(representative, output_dir=output_dir)
     return StageTables(representative=representative, filtered=filtered, representative_precheck=precheck)
 
@@ -922,6 +1108,7 @@ class PointwisePenetrationDataset(Dataset):
         self.time_grid_ms = np.linspace(self.time_min_ms, self.time_max_ms, self.n_points, dtype=np.float32)
         self.time_grid_s = self.time_grid_ms * 1e-3
         self.time_norm = ((self.time_grid_ms - self.time_min_ms) / self.time_span_ms).astype(np.float32)
+        self.target_scale_mode = "none" if infer_feature_family(self.feature_columns) == "legacy_raw" else "a_scale"
         self._cached_features: torch.Tensor | None = None
         self._cached_target_scaled: torch.Tensor | None = None
         self._cached_target_physical: torch.Tensor | None = None
@@ -966,7 +1153,10 @@ class PointwisePenetrationDataset(Dataset):
         blend = sigmoid((time_s - t0) / np.maximum(sharpness, 1e-12))
         penetration = ((1.0 - blend) * sqrt_segment + blend * quarter_segment).astype(np.float32)
 
-        a_scale = self.df["A_scale"].to_numpy(dtype=np.float32)[:, None]
+        if self.target_scale_mode == "none":
+            a_scale = np.ones((n_samples, 1), dtype=np.float32)
+        else:
+            a_scale = self.df["A_scale"].to_numpy(dtype=np.float32)[:, None]
         a_scale_block = np.broadcast_to(a_scale[:, None, :], (n_samples, self.n_points, 1))
         target_physical = penetration[..., None]
         target_scaled = (penetration / a_scale).astype(np.float32)[..., None]
@@ -994,7 +1184,7 @@ class PointwisePenetrationDataset(Dataset):
             float(row["log_s"]),
             self.time_grid_s,
         ).astype(np.float32)
-        a_scale = float(row["A_scale"])
+        a_scale = 1.0 if self.target_scale_mode == "none" else float(row["A_scale"])
         target_scaled = (penetration / a_scale).reshape(-1, 1).astype(np.float32)
         target_physical = penetration.reshape(-1, 1).astype(np.float32)
         a_repeat = np.full((self.n_points, 1), a_scale, dtype=np.float32)
@@ -1108,6 +1298,29 @@ def derivative_physics_penalty(
     return d1_negative_penalty, d2_positive_penalty
 
 
+def early_time_anchor_penalties(
+    mu_physical: torch.Tensor,
+    std_physical: torch.Tensor,
+    n_points: int,
+    *,
+    time_max_ms: float,
+    anchor_window_ms: float,
+    sigma_anchor_floor_mm: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if n_points <= 0:
+        zero = mu_physical.new_tensor(0.0)
+        return zero, zero
+    mu_seq = mu_physical.reshape(-1, n_points)
+    std_seq = std_physical.reshape(-1, n_points)
+    t_ms = torch.linspace(0.0, float(time_max_ms), int(n_points), device=mu_physical.device)
+    weights = torch.clamp(1.0 - t_ms / max(float(anchor_window_ms), 1e-6), min=0.0)
+    denom = torch.clamp(weights.sum() * mu_seq.shape[0], min=1e-12)
+    mu_anchor = (mu_seq.pow(2) * weights.unsqueeze(0)).sum() / denom
+    sigma_excess = torch.relu(std_seq - float(sigma_anchor_floor_mm))
+    sigma_anchor = (sigma_excess.pow(2) * weights.unsqueeze(0)).sum() / denom
+    return mu_anchor, sigma_anchor
+
+
 def stage1_objective(
     model_output: torch.Tensor,
     batch: Mapping[str, torch.Tensor],
@@ -1168,6 +1381,10 @@ def stage2_objective(
     d2_concave_weight: float,
     d2_start_ms: float,
     d2_transition_ms: float,
+    lambda_mu_anchor: float = 0.0,
+    lambda_sigma_anchor: float = 0.0,
+    anchor_window_ms: float = 0.15,
+    sigma_anchor_floor_mm: float = 0.0,
 ) -> tuple[torch.Tensor, dict[str, float]]:
     mu_hat, log_var_hat = split_mu_logvar(model_output)
     log_var_hat = torch.clamp(log_var_hat, min=float(log_var_bounds[0]), max=float(log_var_bounds[1]))
@@ -1184,9 +1401,23 @@ def stage2_objective(
         d2_start_ms=d2_start_ms,
         d2_transition_ms=d2_transition_ms,
     )
-    loss = scaled_nll + float(d1_positive_weight) * d1_penalty + float(d2_concave_weight) * d2_penalty
-
     std_physical = a_scale * torch.exp(0.5 * log_var_hat)
+    mu_anchor, sigma_anchor = early_time_anchor_penalties(
+        mu_physical,
+        std_physical,
+        n_points=n_points,
+        time_max_ms=time_max_ms,
+        anchor_window_ms=anchor_window_ms,
+        sigma_anchor_floor_mm=sigma_anchor_floor_mm,
+    )
+    loss = (
+        scaled_nll
+        + float(d1_positive_weight) * d1_penalty
+        + float(d2_concave_weight) * d2_penalty
+        + float(lambda_mu_anchor) * mu_anchor
+        + float(lambda_sigma_anchor) * sigma_anchor
+    )
+
     physical_mae = torch.mean(torch.abs(mu_physical - batch["target_physical"]))
     metrics = {
         "loss": float(loss.detach().cpu()),
@@ -1195,6 +1426,8 @@ def stage2_objective(
         "std_physical_mean": float(std_physical.mean().detach().cpu()),
         "d1_penalty": float(d1_penalty.detach().cpu()),
         "d2_penalty": float(d2_penalty.detach().cpu()),
+        "mu_anchor": float(mu_anchor.detach().cpu()),
+        "sigma_anchor": float(sigma_anchor.detach().cpu()),
     }
     return loss, metrics
 
@@ -1652,6 +1885,7 @@ def canonicalize_raw_input(
     registry: Mapping[str, DatasetMeta],
     *,
     for_engineered_v2: bool,
+    a_scale_delta_pressure_exp: float = DEFAULT_A_SCALE_DP_EXP,
 ) -> dict[str, float]:
     tilt_angle_radian = resolve_tilt_angle_radian(raw)
     umbrella_angle_deg = float(raw["umbrella_angle_deg"]) if "umbrella_angle_deg" in raw else float(180.0 - np.rad2deg(2.0 * tilt_angle_radian))
@@ -1692,7 +1926,11 @@ def canonicalize_raw_input(
     if delta_pressure <= 0:
         raise ValueError("delta_pressure_bar_phys must stay positive during inference.")
     out["delta_pressure_bar_phys"] = delta_pressure
-    out["A_scale"] = math.pow(delta_pressure, 0.5) * math.pow(density, -0.25) * math.sqrt(out["diameter_mm"])
+    out["A_scale"] = (
+        math.pow(delta_pressure, float(a_scale_delta_pressure_exp))
+        * math.pow(density, DEFAULT_A_SCALE_DENSITY_EXP)
+        * math.pow(out["diameter_mm"], DEFAULT_A_SCALE_DIAMETER_EXP)
+    )
     out["log_A"] = math.log(out["A_scale"])
     return out
 
@@ -1707,7 +1945,13 @@ def build_feature_matrix_np(
     time_feature: str = TIME_FEATURE,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
     family = infer_feature_family(feature_columns)
-    canonical = canonicalize_raw_input(raw, registry, for_engineered_v2=(family == "engineered_v2"))
+    target_scale_mode = scaler_target_scale_mode(scaler_state, feature_columns)
+    canonical = canonicalize_raw_input(
+        raw,
+        registry,
+        for_engineered_v2=(family == "engineered_v2"),
+        a_scale_delta_pressure_exp=scaler_a_scale_dp_exp(scaler_state),
+    )
 
     time_min_ms = float(scaler_state["time"]["min_ms"])
     time_max_ms = float(scaler_state["time"]["max_ms"])
@@ -1760,6 +2004,12 @@ def build_feature_matrix_np(
                 ),
                 dtype=np.float32,
             )
+        if "diameter_mm_z" in feature_columns:
+            feature_series["diameter_mm_z"] = np.full_like(
+                time_norm,
+                zscore_from_state(canonical["diameter_mm"], "diameter_mm_z", scaler_state),
+                dtype=np.float32,
+            )
     else:
         raw_chamber_for_legacy = float(raw.get("chamber_pressure_bar", raw.get("chamber_state_raw", canonical["ambient_pressure_bar_phys"])))
         feature_series.update(
@@ -1776,7 +2026,8 @@ def build_feature_matrix_np(
         )
 
     matrix = np.column_stack([feature_series[name] for name in feature_columns]).astype(np.float32)
-    a_scale = np.full((len(time_norm), 1), canonical["A_scale"], dtype=np.float32)
+    a_scale_value = 1.0 if target_scale_mode == "none" else canonical["A_scale"]
+    a_scale = np.full((len(time_norm), 1), a_scale_value, dtype=np.float32)
     return matrix, a_scale, canonical
 
 
@@ -1852,6 +2103,7 @@ def build_feature_tensor_torch(
     device = next(artifacts.model.parameters()).device
     feature_columns = list(artifacts.train_config["feature_columns"])
     family = infer_feature_family(feature_columns)
+    a_scale_dp_exp = scaler_a_scale_dp_exp(artifacts.scaler_state)
 
     tensors: dict[str, Any] = {}
     for key, value in raw_values.items():
@@ -1886,7 +2138,11 @@ def build_feature_tensor_torch(
         injection_pressure = tensors["injection_pressure_bar"]
         delta_pressure = torch.clamp(injection_pressure - ambient_pressure, min=1e-6)
         diameter = tensors["diameter_mm"]
-        a_scale = torch.pow(delta_pressure, 0.5) * torch.pow(ambient_density, -0.25) * torch.sqrt(torch.clamp(diameter, min=1e-9))
+        a_scale = (
+            torch.pow(delta_pressure, float(a_scale_dp_exp))
+            * torch.pow(ambient_density, DEFAULT_A_SCALE_DENSITY_EXP)
+            * torch.pow(torch.clamp(diameter, min=1e-9), DEFAULT_A_SCALE_DIAMETER_EXP)
+        )
         log_a = torch.log(torch.clamp(a_scale, min=1e-9))
         feature_series = {
             str(artifacts.train_config.get("time_feature", TIME_FEATURE)): time_norm,
@@ -1921,6 +2177,13 @@ def build_feature_tensor_torch(
                 artifacts.scaler_state,
                 torch.log(torch.clamp(delta_pressure, min=1e-6)),
                 "log_delta_pressure_bar_z",
+                device,
+            )
+        if "diameter_mm_z" in feature_columns:
+            feature_series["diameter_mm_z"] = _torch_zscore(
+                artifacts.scaler_state,
+                diameter,
+                "diameter_mm_z",
                 device,
             )
     else:

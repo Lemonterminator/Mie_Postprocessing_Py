@@ -26,6 +26,7 @@ from engineered_feature_common import (
     merge_config,
     plot_loss_curves,
     save_training_outputs,
+    scaler_a_scale_dp_exp,
     train_with_early_stopping,
 )
 
@@ -59,6 +60,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--persistent-workers", action="store_true")
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--weight-decay", type=float, default=None)
+    parser.add_argument(
+        "--stage2-ablation",
+        choices=("no_anchor", "mu_anchor", "mu_sigma_anchor"),
+        default=None,
+        help="Stage-2 loss ablation. Defaults to no_anchor unless overridden by config.",
+    )
+    parser.add_argument("--lambda-mu-anchor", type=float, default=None)
+    parser.add_argument("--lambda-sigma-anchor", type=float, default=None)
+    parser.add_argument("--anchor-window-ms", type=float, default=None)
+    parser.add_argument("--sigma-anchor-floor-mm", type=float, default=None)
     parser.add_argument("--max-curves", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None,
                         help="Override config seed (controls split assignment and torch RNG).")
@@ -120,6 +131,16 @@ def main() -> None:
         overrides["learning_rate"] = float(args.learning_rate)
     if args.weight_decay is not None:
         overrides["weight_decay"] = float(args.weight_decay)
+    if args.stage2_ablation is not None:
+        overrides["stage2_ablation"] = str(args.stage2_ablation)
+    if args.lambda_mu_anchor is not None:
+        overrides["lambda_mu_anchor"] = float(args.lambda_mu_anchor)
+    if args.lambda_sigma_anchor is not None:
+        overrides["lambda_sigma_anchor"] = float(args.lambda_sigma_anchor)
+    if args.anchor_window_ms is not None:
+        overrides["anchor_window_ms"] = float(args.anchor_window_ms)
+    if args.sigma_anchor_floor_mm is not None:
+        overrides["sigma_anchor_floor_mm"] = float(args.sigma_anchor_floor_mm)
     if args.seed is not None:
         overrides["seed"] = int(args.seed)
     if args.allow_failed_precheck:
@@ -128,6 +149,19 @@ def main() -> None:
         overrides["shuffle_train"] = False
 
     config = merge_config(DEFAULT_STAGE2_CONFIG, overrides)
+    if config["stage2_ablation"] == "mu_anchor" and args.lambda_mu_anchor is None:
+        config["lambda_mu_anchor"] = 1e-2
+        config["lambda_sigma_anchor"] = 0.0 if args.lambda_sigma_anchor is None else float(config["lambda_sigma_anchor"])
+    elif config["stage2_ablation"] == "mu_sigma_anchor":
+        if args.lambda_mu_anchor is None:
+            config["lambda_mu_anchor"] = 1e-2
+        if args.lambda_sigma_anchor is None:
+            config["lambda_sigma_anchor"] = 1e-3
+    elif config["stage2_ablation"] == "no_anchor":
+        if args.lambda_mu_anchor is None:
+            config["lambda_mu_anchor"] = 0.0
+        if args.lambda_sigma_anchor is None:
+            config["lambda_sigma_anchor"] = 0.0
     seed = int(config["seed"])
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -135,7 +169,7 @@ def main() -> None:
         torch.cuda.manual_seed_all(seed)
     device = torch.device(config["device"])
     registry = build_dataset_registry(Path(args.test_matrix_root).expanduser().resolve() if args.test_matrix_root else None)
-    run_dir = create_run_dir(config["runs_root"], "stage2_engineered_nll", config["variant"])
+    run_dir = create_run_dir(config["runs_root"], f"stage2_engineered_nll_{config['stage2_ablation']}", config["variant"])
 
     stage_tables = build_all_stage_tables(
         config["data_dir"],
@@ -143,6 +177,7 @@ def main() -> None:
         comparison_time_s=float(config["comparison_time_s"]),
         max_curves=config.get("max_curves"),
         output_dir=run_dir,
+        a_scale_delta_pressure_exp=scaler_a_scale_dp_exp(stage1_artifacts.scaler_state),
     )
     if not stage_tables.representative_precheck["passed"] and not bool(config.get("allow_failed_precheck", False)):
         raise RuntimeError(
@@ -222,6 +257,10 @@ def main() -> None:
         "d2_concave_weight": float(config["d2_concave_weight"]),
         "d2_start_ms": float(config["d2_start_ms"]),
         "d2_transition_ms": float(config["d2_transition_ms"]),
+        "lambda_mu_anchor": float(config["lambda_mu_anchor"]),
+        "lambda_sigma_anchor": float(config["lambda_sigma_anchor"]),
+        "anchor_window_ms": float(config["anchor_window_ms"]),
+        "sigma_anchor_floor_mm": float(config["sigma_anchor_floor_mm"]),
         "grad_clip_norm": float(config["grad_clip_norm"]) if config.get("grad_clip_norm") is not None else None,
     }
     model, iter_history, epoch_history = train_with_early_stopping(
