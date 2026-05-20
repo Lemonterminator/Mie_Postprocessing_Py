@@ -135,6 +135,128 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
         json.dump(to_jsonable(payload), f, indent=2)
 
 
+def normalize_feature_columns(raw: Any, *, context: str) -> list[str]:
+    if raw is None:
+        raise KeyError(f"{context} is missing feature_columns.")
+    if isinstance(raw, str):
+        raise TypeError(f"{context} feature_columns must be a sequence, not a string.")
+    columns = [str(col) for col in raw]
+    if not columns:
+        raise ValueError(f"{context} feature_columns is empty.")
+    return columns
+
+
+def infer_variant_from_feature_columns(feature_columns: Sequence[str]) -> str:
+    columns = list(feature_columns)
+    for variant, variant_columns in FEATURE_COLUMNS_BY_VARIANT.items():
+        if columns == list(variant_columns):
+            return str(variant)
+    return "custom"
+
+
+def load_stage1_config(stage1_run: Path) -> dict[str, Any]:
+    config_path = stage1_run / "train_config_used.json"
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"Missing train_config_used.json for feature alignment: {config_path}. "
+            "The GP baseline must inherit the MLP Stage-1 feature protocol."
+        )
+    config = read_json(config_path)
+    if not isinstance(config, Mapping):
+        raise TypeError(f"Stage-1 config must be a JSON object: {config_path}")
+    return dict(config)
+
+
+def stage1_feature_columns(stage1_config: Mapping[str, Any], *, stage1_run: Path) -> list[str]:
+    if "feature_columns" in stage1_config:
+        columns = normalize_feature_columns(
+            stage1_config["feature_columns"],
+            context=f"Stage-1 config {stage1_run}",
+        )
+    else:
+        variant = str(stage1_config.get("variant", ""))
+        if variant not in FEATURE_COLUMNS_BY_VARIANT:
+            raise KeyError(
+                f"Stage-1 config {stage1_run} has no feature_columns and unsupported variant {variant!r}."
+            )
+        columns = list(FEATURE_COLUMNS_BY_VARIANT[variant])
+
+    variant = stage1_config.get("variant")
+    if variant in FEATURE_COLUMNS_BY_VARIANT and list(FEATURE_COLUMNS_BY_VARIANT[str(variant)]) != columns:
+        raise ValueError(
+            f"Stage-1 config {stage1_run} is internally inconsistent: variant {variant!r} "
+            f"maps to {list(FEATURE_COLUMNS_BY_VARIANT[str(variant)])}, but feature_columns is {columns}."
+        )
+    return columns
+
+
+def resolve_feature_spec(
+    *,
+    stage1_config: Mapping[str, Any],
+    requested_variant: str | None,
+    stage1_run: Path,
+    seed: int,
+) -> dict[str, Any]:
+    columns = stage1_feature_columns(stage1_config, stage1_run=stage1_run)
+    stage1_variant = str(stage1_config.get("variant") or infer_variant_from_feature_columns(columns))
+
+    if requested_variant is not None:
+        requested_columns = list(FEATURE_COLUMNS_BY_VARIANT[str(requested_variant)])
+        if requested_columns != columns:
+            raise ValueError(
+                f"Feature mismatch for seed {seed} ({stage1_run}). "
+                f"--variant {requested_variant!r} resolves to {requested_columns}, "
+                f"but Stage-1 trained with {columns}. "
+                "Omit --variant to inherit Stage-1 features, or retrain/select a matching MLP bootstrap."
+            )
+        return {
+            "seed": int(seed),
+            "stage1_run": str(stage1_run),
+            "variant": str(requested_variant),
+            "stage1_variant": stage1_variant,
+            "feature_columns": requested_columns,
+            "feature_source": "explicit_variant_validated_against_stage1",
+        }
+
+    return {
+        "seed": int(seed),
+        "stage1_run": str(stage1_run),
+        "variant": stage1_variant,
+        "stage1_variant": stage1_variant,
+        "feature_columns": columns,
+        "feature_source": "stage1_train_config",
+    }
+
+
+def build_feature_specs(
+    per_seed_manifest: Sequence[Mapping[str, Any]],
+    *,
+    requested_variant: str | None,
+) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    for seed_info in per_seed_manifest:
+        seed = int(seed_info["seed"])
+        stage1_run = resolve_path(seed_info["stage1_run"])
+        stage1_config = load_stage1_config(stage1_run)
+        specs.append(
+            resolve_feature_spec(
+                stage1_config=stage1_config,
+                requested_variant=requested_variant,
+                stage1_run=stage1_run,
+                seed=seed,
+            )
+        )
+    return specs
+
+
+def common_feature_value(specs: Sequence[Mapping[str, Any]], key: str) -> Any:
+    values = [spec[key] for spec in specs]
+    if not values:
+        return None
+    first = values[0]
+    return first if all(value == first for value in values) else "mixed"
+
+
 def to_jsonable(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
@@ -725,11 +847,20 @@ def run_seed(
             f"{a_scale_check['max_relative_error']:.3e}. Pass --allow-a-scale-mismatch to override."
         )
 
-    stage1_config_path = stage1_run / "train_config_used.json"
     scaler_state_path = stage1_run / "scaler_state.json"
-    stage1_config = read_json(stage1_config_path) if stage1_config_path.exists() else {}
-    scaler_state = read_json(scaler_state_path) if scaler_state_path.exists() else {}
-    feature_columns = list(base_config["feature_columns"])
+    stage1_config = load_stage1_config(stage1_run)
+    if not scaler_state_path.exists():
+        raise FileNotFoundError(
+            f"Missing scaler_state.json for feature alignment/inference: {scaler_state_path}."
+        )
+    scaler_state = read_json(scaler_state_path)
+    feature_spec = resolve_feature_spec(
+        stage1_config=stage1_config,
+        requested_variant=base_config.get("requested_variant"),
+        stage1_run=stage1_run,
+        seed=seed,
+    )
+    feature_columns = list(feature_spec["feature_columns"])
     n_points = int(base_config["n_points"])
     time_min_ms = float(base_config["time_min_ms"])
     time_max_ms = float(base_config["time_max_ms"])
@@ -737,6 +868,9 @@ def run_seed(
     split_counts = df["sample_split"].value_counts().to_dict()
     print(f"\n--- GP seed {seed} ---")
     print("Stage-1 run:", stage1_run)
+    print("Feature source:", feature_spec["feature_source"])
+    print("Feature variant:", feature_spec["variant"])
+    print("Feature columns:", feature_columns)
     print("Curve split counts:", split_counts)
     print("A_scale check:", a_scale_check)
 
@@ -871,6 +1005,11 @@ def run_seed(
         **dict(base_config),
         "seed": seed,
         "stage1_run": str(stage1_run),
+        "variant": feature_spec["variant"],
+        "feature_columns": feature_columns,
+        "feature_source": feature_spec["feature_source"],
+        "input_dim": len(feature_columns),
+        "stage1_variant": feature_spec["stage1_variant"],
         "stage1_feature_columns": stage1_config.get("feature_columns"),
         "split_curve_counts": split_counts,
         "a_scale_check": a_scale_check,
@@ -1201,7 +1340,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--seeds", type=int, nargs="+", default=None, help="Subset/override seeds from the MLP bootstrap manifest.")
-    parser.add_argument("--variant", choices=tuple(FEATURE_COLUMNS_BY_VARIANT.keys()), default="a_only")
+    parser.add_argument(
+        "--variant",
+        choices=tuple(FEATURE_COLUMNS_BY_VARIANT.keys()),
+        default=None,
+        help=(
+            "Optional feature override. By default the GP inherits feature_columns "
+            "from each seed's Stage-1 train_config_used.json. If provided, the "
+            "variant must exactly match the Stage-1 feature columns."
+        ),
+    )
     parser.add_argument("--n-points", type=int, default=512)
     parser.add_argument("--batch-points", type=int, default=1024)
     parser.add_argument("--eval-batch-points", type=int, default=65536)
@@ -1251,7 +1399,9 @@ def main() -> None:
         if missing:
             raise ValueError(f"Requested seeds not found in bootstrap manifest: {sorted(missing)}")
 
-    feature_columns = FEATURE_COLUMNS_BY_VARIANT[args.variant]
+    feature_specs = build_feature_specs(per_seed_manifest, requested_variant=args.variant)
+    common_variant = common_feature_value(feature_specs, "variant")
+    common_feature_columns = common_feature_value(feature_specs, "feature_columns")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     runs_root = resolve_path(args.runs_root)
     out_dir = runs_root / f"gp_baseline_{timestamp}"
@@ -1260,8 +1410,15 @@ def main() -> None:
     base_config = {
         "method": "svgp_heteroscedastic_two_stage",
         "mlp_bootstrap": str(mlp_bootstrap),
-        "variant": args.variant,
-        "feature_columns": feature_columns,
+        "requested_variant": args.variant,
+        "feature_source": (
+            "explicit_variant_validated_against_stage1"
+            if args.variant is not None
+            else "stage1_train_config"
+        ),
+        "variant": common_variant,
+        "feature_columns": common_feature_columns,
+        "feature_spec_by_seed": feature_specs,
         "time_feature": TIME_FEATURE,
         "n_points": int(args.n_points),
         "batch_points": int(args.batch_points),
@@ -1295,11 +1452,20 @@ def main() -> None:
     print("Output dir:", out_dir)
     print("Device:", device)
     print("Seeds:", [int(rec["seed"]) for rec in per_seed_manifest])
-    print("Feature columns:", feature_columns)
+    print("Requested variant:", args.variant or "(inherit from Stage-1)")
+    print("Resolved feature variant:", common_variant)
+    print("Resolved feature columns:", common_feature_columns)
     if args.dry_run:
+        spec_by_seed = {int(spec["seed"]): spec for spec in feature_specs}
         for rec in per_seed_manifest:
             stage1_run = resolve_path(rec["stage1_run"])
-            print(f"[dry-run] seed {rec['seed']} row_table={stage1_run / 'row_table.csv'}")
+            spec = spec_by_seed[int(rec["seed"])]
+            print(
+                f"[dry-run] seed {rec['seed']} "
+                f"variant={spec['variant']} "
+                f"feature_columns={spec['feature_columns']} "
+                f"row_table={stage1_run / 'row_table.csv'}"
+            )
         return
 
     seed_results: list[dict[str, Any]] = []
