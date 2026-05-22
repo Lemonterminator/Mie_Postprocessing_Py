@@ -1,0 +1,68 @@
+[
+  {
+    "kind": "mlp",
+    "group": "production_mlp",
+    "label": "seed7",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_122435"
+  },
+  {
+    "kind": "mlp",
+    "group": "production_mlp",
+    "label": "seed17",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_122708"
+  },
+  {
+    "kind": "mlp",
+    "group": "production_mlp",
+    "label": "seed42",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_123126"
+  },
+  {
+    "kind": "mlp",
+    "group": "production_mlp",
+    "label": "seed99",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_123626"
+  },
+  {
+    "kind": "mlp",
+    "group": "production_mlp",
+    "label": "seed2024",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_124004"
+  },
+  {
+    "kind": "mlp",
+    "group": "mu_anchor_raw_uncertain_prodKD",
+    "label": "seed7",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_mu_anchor_raw_uncertain_raw05_kd025_prod_kd_20260521_124745"
+  },
+  {
+    "kind": "mlp",
+    "group": "mu_anchor_raw_uncertain_prodKD",
+    "label": "seed17",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_mu_anchor_raw_uncertain_raw05_kd025_prod_kd_20260521_125006"
+  },
+  {
+    "kind": "mlp",
+    "group": "mu_anchor_raw_uncertain_prodKD",
+    "label": "seed42",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_mu_anchor_raw_uncertain_raw05_kd025_prod_kd_20260521_125248"
+  },
+  {
+    "kind": "mlp",
+    "group": "mu_anchor_raw_uncertain_prodKD",
+    "label": "seed99",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_mu_anchor_raw_uncertain_raw05_kd025_prod_kd_20260521_125529"
+  },
+  {
+    "kind": "mlp",
+    "group": "mu_anchor_raw_uncertain_prodKD",
+    "label": "seed2024",
+    "path": "MLP\\runs_mlp\\distill_cdf_onset_v2_mu_anchor_raw_uncertain_raw05_kd025_prod_kd_20260521_125816"
+  },
+  {
+    "kind": "gp",
+    "group": "svgp_stage3",
+    "label": "seed42",
+    "path": "MLP\\runs_mlp\\gp_baseline_stage3_20260521_112229\\per_seed\\seed_42\\model.pt"
+  }
+]

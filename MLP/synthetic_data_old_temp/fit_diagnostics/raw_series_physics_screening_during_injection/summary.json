@@ -1,0 +1,32 @@
+{
+  "source": "cdf",
+  "split_dir": "series_wide_all",
+  "files": 266,
+  "wide_rows": 28293,
+  "candidate_points": 1365822,
+  "valid_points": 504765,
+  "time_min_ms": 0.0,
+  "time_max_ms": 1.6,
+  "during_injection_only": true,
+  "all_valid_bins_bins": 12,
+  "all_valid_bins_median_r2_log": 0.5413660821296336,
+  "all_valid_bins_weighted_mean_r2_log": 0.37815091924564237,
+  "all_valid_bins_median_raw_var_reduction_pct_fit": 63.82975398524565,
+  "all_valid_bins_median_raw_var_reduction_pct_ha_fixed": 48.641837756211316,
+  "all_valid_bins_median_raw_var_collapse_ratio_fit": 0.3617024601475435,
+  "all_valid_bins_median_raw_var_collapse_ratio_ha_fixed": 0.5135816224378869,
+  "post_0p5ms_bins": 7,
+  "post_0p5ms_median_r2_log": 0.7466652480304443,
+  "post_0p5ms_weighted_mean_r2_log": 0.5902564379630311,
+  "post_0p5ms_median_raw_var_reduction_pct_fit": 76.21104992378245,
+  "post_0p5ms_median_raw_var_reduction_pct_ha_fixed": 61.15914768735402,
+  "post_0p5ms_median_raw_var_collapse_ratio_fit": 0.23788950076217552,
+  "post_0p5ms_median_raw_var_collapse_ratio_ha_fixed": 0.3884085231264598,
+  "best_r2_bin": {
+    "t_center_ms": 0.95,
+    "n_points": 5669,
+    "r2_log": 0.8645875410630631,
+    "raw_var_reduction_pct_fit": 86.97341179188714,
+    "raw_var_reduction_pct_ha_fixed": 65.67876343816036
+  }
+}

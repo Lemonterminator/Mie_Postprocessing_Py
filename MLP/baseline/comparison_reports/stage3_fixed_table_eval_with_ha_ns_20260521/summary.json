@@ -1,0 +1,32 @@
+{
+  "created_at": "2026-05-21T15:01:40",
+  "reference_report": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\baseline\\comparison_reports\\stage3_fixed_table_eval_20260521",
+  "tables": {
+    "cdf_uncensored": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\cdf_right_censoring_points\\cdf_points_uncensored.csv",
+      "n_rows": 542565
+    },
+    "p50_observed": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\p50_q1_oracle\\p50_q1_observed_fit_points.csv",
+      "n_rows": 4213
+    },
+    "q1_grid": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\p50_q1_oracle\\p50_q1_predictions.csv",
+      "n_rows": 25245
+    }
+  },
+  "physics_specs": [
+    {
+      "kind": "ha",
+      "group": "hiroyasu_arai_calibrated",
+      "label": "ha_calibrated",
+      "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\baseline\\Hiroyasu_Arai\\outputs\\20260521_145756_ha_calibrated_grouped_condition_all_thesis_refresh_20260521"
+    },
+    {
+      "kind": "ns",
+      "group": "naber_siebers_delay",
+      "label": "ns_delay",
+      "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\baseline\\Naber_Siebers\\outputs\\20260521_145724_ns_delay_grouped_condition_thesis_refresh_20260521"
+    }
+  ]
+}

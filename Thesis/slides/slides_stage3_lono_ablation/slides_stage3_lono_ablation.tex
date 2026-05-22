@@ -1,0 +1,327 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage{colortbl}
+\usepackage{bm}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\bluenote}[1]{\textcolor{blue!65!black}{#1}}
+\newcommand{\src}[1]{\vfill{\tiny\textcolor{gray!75!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\definecolor{winrow}{RGB}{220,240,220}
+\definecolor{softrow}{RGB}{232,242,255}
+\definecolor{warnrow}{RGB}{255,235,230}
+
+\title[Stage-3 LONO Ablation]{Stage-3 LONO Ablation\\Regime Weighting After the Stage-2 \(\mu\)-Anchor Winner}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Message}
+\small
+\textbf{Claim:} after locking Stage~2 to the LONO winner \texttt{mu\_anchor},
+the Stage~3 regime/anchor ablation does \emph{not} produce a large separation.
+The blended uncertain-regime variant gives the best mean RMSE/MAE, while
+\texttt{anchor\_off} gives the best 2\(\sigma\) coverage.
+
+\vspace{0.6em}
+\textbf{This deck:}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item fixes Stage~1 to \texttt{a\_dp050\_plus\_pressures};
+  \item fixes Stage~2 to \texttt{mu\_anchor} (\(\lambda_\mu=10^{-2}\), \(\lambda_\sigma=0\));
+  \item compares four Stage~3 variants under the same five LONO folds;
+  \item reports held-out metrics on each nozzle family's uncensored CDF P50 points;
+  \item separates the small Stage~3 tuning effect from the much larger Nozzle0 OOD failure.
+\end{itemize}
+
+\vspace{0.6em}
+\textbf{Validated run:} \texttt{run\_stage3\_lono\_ablation.py}, seed 42,
+5 folds \(\times\) 4 Stage~3 ablations.\\
+\textbf{Output:} \texttt{MLP/runs\_mlp/stage3\_lono\_ablation\_20260521\_092405/}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Experimental Contract}
+\small
+\begin{block}{Fixed upstream choices}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Stage~1 feature family: \texttt{a\_dp050\_plus\_pressures}
+  \item Stage~2 teacher: \texttt{mu\_anchor}, selected by the Stage~2 LONO ablation
+  \item Seed: 42
+  \item LONO folds: Nozzle0, Nozzle2, Nozzle1, Nozzle5, Nozzle4
+  \item Evaluation: held-out nozzle's uncensored CDF P50 points
+\end{itemize}
+\end{block}
+
+\vspace{0.35em}
+\begin{center}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}L{4.2cm}L{7.7cm}@{}}
+\toprule
+\textbf{Stage-3 variant} & \textbf{Design change} \\
+\midrule
+\texttt{baseline} & baseline regime weighting with early anchor enabled \\
+\texttt{raw\_reliable\_no\_kd} & remove KD blending from reliable raw-CDF bins \\
+\texttt{raw\_uncertain\_raw05\_kd025} & blend raw supervision back into uncertain bins \\
+\texttt{anchor\_off} & remove the explicit Stage~3 early-time anchor \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+\footnotesize
+This is a downstream Stage~3 tuning test. It is not a cross-architecture SVGP comparison
+and it is not the later KD-MSE production-loss fix.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{LONO Results: Summary (Mean \(\pm\) Std Across 5 Folds)}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Ablation} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{cov$_{1\sigma}$} & \textbf{cov$_{2\sigma}$} \\
+ & \textbf{[mm]} & \textbf{[mm]} & \textbf{[mm]} & & \\
+\midrule
+\texttt{baseline} & 12.68 \(\pm\) 12.74 & 9.97 \(\pm\) 10.55 & -7.86 \(\pm\) 11.28 & 0.565 & 0.759 \\
+\texttt{raw\_reliable\_no\_kd} & 12.76 \(\pm\) 12.48 & 10.01 \(\pm\) 10.22 & -7.45 \(\pm\) 11.35 & 0.556 & 0.761 \\
+\rowcolor{winrow}
+\texttt{raw\_uncertain\_raw05\_kd025} & \textbf{12.55 \(\pm\) 12.46} & \textbf{9.80 \(\pm\) 10.18} & \textbf{-6.87 \(\pm\) 11.53} & \textbf{0.575} & 0.770 \\
+\rowcolor{softrow}
+\texttt{anchor\_off} & 12.73 \(\pm\) 12.44 & 9.86 \(\pm\) 10.22 & -7.11 \(\pm\) 11.51 & 0.570 & \textbf{0.775} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\begin{block}{Reading the table}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Best mean RMSE/MAE: \good{\texttt{raw\_uncertain\_raw05\_kd025}}.
+  \item Best 2\(\sigma\) coverage: \bluenote{\texttt{anchor\_off}}.
+  \item The spread across Stage~3 variants is only \(0.21\) mm RMSE, much smaller than the cross-fold standard deviation.
+\end{itemize}
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Per-Fold RMSE: Where the Ranking Comes From}
+\footnotesize
+\begin{center}
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrr|r@{}}
+\toprule
+\textbf{Ablation} &
+\textbf{Nozzle0} & \textbf{Nozzle2} & \textbf{Nozzle1} & \textbf{Nozzle5} & \textbf{Nozzle4} &
+\textbf{Mean} \\
+& \scriptsize(311149) & \scriptsize(60369) & \scriptsize(25705) & \scriptsize(33017) & \scriptsize(28139) & \\
+\midrule
+\texttt{baseline} & 35.31 & 8.57 & 7.20 & \good{4.61} & \good{7.72} & 12.68 \\
+\texttt{raw\_reliable\_no\_kd} & 34.99 & 8.24 & 7.37 & 5.20 & 7.99 & 12.76 \\
+\rowcolor{winrow}
+\texttt{raw\_uncertain\_raw05\_kd025} & 34.76 & \good{7.74} & \good{6.61} & 5.52 & 8.13 & \textbf{12.55} \\
+\rowcolor{softrow}
+\texttt{anchor\_off} & 34.92 & 7.76 & 7.16 & 5.60 & 8.20 & 12.73 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.4em}
+\small
+\begin{itemize}\setlength\itemsep{2pt}
+  \item \texttt{raw\_uncertain\_raw05\_kd025} wins the two most informative modern-OOD folds
+        outside Nozzle0: Nozzle2 and Nozzle1.
+  \item \texttt{baseline} wins Nozzle5 and Nozzle4, so the Stage~3 effect is not monotonic.
+  \item Nozzle0 remains a design-family extrapolation failure for every Stage~3 variant.
+\end{itemize}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Nozzle0 Dominates the Variance}
+\small
+\begin{columns}[T]
+\column{0.56\textwidth}
+Nozzle0 carries \textbf{311{,}149} uncensored evaluation points and is the only first-generation
+nozzle family in the five-fold set. Every Stage~3 variant lands in the same failure band:
+\begin{itemize}\setlength\itemsep{3pt}
+  \item RMSE \(34.76\)--\(35.31\) mm
+  \item bias \(-26.78\)--\(-27.62\) mm
+  \item 2\(\sigma\) coverage \(0.140\)--\(0.171\)
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Implication:} Stage~3 regime weighting cannot repair a missing design family. The
+Nozzle0 fold is evidence about OOD geometry, not about the fine details of raw/KD mixing.
+
+\column{0.41\textwidth}
+\begin{center}
+\renewcommand{\arraystretch}{1.18}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Fold} & \textbf{Points} & \textbf{Best RMSE} \\
+\midrule
+Nozzle0 & 311{,}149 & 34.76 \\
+Nozzle2 & 60{,}369 & 7.74 \\
+Nozzle5 & 33{,}017 & 4.61 \\
+Nozzle4 & 28{,}139 & 7.72 \\
+Nozzle1 & 25{,}705 & 6.61 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.5em}
+\footnotesize
+Best RMSE = minimum across Stage~3 ablations for that fold. Once Nozzle0 is excluded,
+the per-variant four-fold means sit in a narrow \(7.00\)--\(7.20\) mm band.
+\end{columns}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Interpretation}
+\small
+\begin{block}{What changed relative to the older Stage-3 ranking?}
+The older in-distribution automatic ranking selected \texttt{anchor\_off}. Under the stricter
+five-fold LONO protocol with the Stage~2 teacher locked to \texttt{mu\_anchor}, the best RMSE
+shifts slightly to \texttt{raw\_uncertain\_raw05\_kd025}.
+\end{block}
+
+\begin{block}{What is robust?}
+All four Stage~3 variants remain close. The largest design decision is not which Stage~3
+variant wins by \(0.18\) mm; it is that Stage~2 should use the \(\mu\)-anchor, and that Nozzle0
+requires explicit discussion as an out-of-design-family fold.
+\end{block}
+
+\begin{block}{How to use this result in the thesis}
+Report \texttt{raw\_uncertain\_raw05\_kd025} as the LONO RMSE/MAE winner, but describe the
+choice as a \emph{weak} Stage~3 preference rather than a decisive dominance claim. Keep
+\texttt{anchor\_off} as the coverage-friendly alternative.
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Cross-Architecture LONO: Same Protocol, Different Regressor}
+\small
+The Stage-3 LONO ablation above varies only the \emph{regime weighting} inside the MLP family.
+The same five-fold LONO split is now replayed with a sparse heteroscedastic GP (SVGP) replacing
+the MLP, with all other axes held fixed.
+
+\vspace{0.4em}
+\begin{block}{Held fixed across architectures}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Five held-out families (Nozzle0/1/2/4/5); feature variant \texttt{a\_plus\_pressures}
+  \item \texttt{--mode stage3} supervision (q1 synthetic + raw CDF concat); seed 42
+  \item Evaluation: held-out family's uncensored CDF P50 points
+        --- point counts match MLP LONO exactly per fold
+\end{itemize}
+\end{block}
+
+\vspace{0.3em}
+\textbf{Protocol alignment.} GP's built-in external eval uses the clean CDF wide table
+(keeps right-censored cap-hit frames). The separate evaluator
+\texttt{eval\_gp\_on\_uncensored\_cdf.py} reuses the MLP LONO point set so RMSEs are directly
+comparable. MLP row plotted: the Stage-3 LONO winner \texttt{raw\_uncertain\_raw05\_kd025}.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{SVGP vs MLP: Per-Fold (Uncensored CDF P50)}
+\footnotesize
+\begin{center}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Fold (n\_pts)} & \multicolumn{3}{c}{\textbf{SVGP-Stage3}} & \multicolumn{3}{c}{\textbf{MLP \texttt{raw\_uncertain\_raw05\_kd025}}} \\
+ & RMSE & MAE & bias & RMSE & MAE & bias \\
+\midrule
+\rowcolor{warnrow}
+Nozzle0 (311{,}149) & \warn{26.99} & 21.16 & -18.92 & 34.76 & 27.96 & -26.78 \\
+Nozzle1 (25{,}705)  & \good{4.88}  & 3.72  & -0.51  & 6.61  & 5.03  & -4.28  \\
+Nozzle2 (60{,}369)  & 8.87         & 6.83  & +3.50  & \good{7.74}  & 5.73  & -1.00 \\
+Nozzle4 (28{,}139)  & \good{5.45}  & 4.21  & -1.60  & 8.13  & 6.04  & -4.91  \\
+Nozzle5 (33{,}017)  & \good{4.59}  & 3.43  & +1.64  & 5.52  & 4.21  & +2.63  \\
+\midrule
+\textbf{5-fold mean} & \good{\textbf{10.16}} \(\pm\) 9.57 & 7.87 & -3.18 & 12.55 \(\pm\) 12.46 & 9.80 & -6.87 \\
+\textbf{4-fold (no Nozzle0)} & \good{\textbf{5.95}} \(\pm\) 1.98 & 4.55 & +0.76 & 7.00 \(\pm\) 1.18 & 5.25 & -1.89 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.4em}
+\small
+SVGP wins point RMSE on 4 of 5 folds (all but Nozzle2). Both architectures collapse on
+Nozzle0 (the only first-generation injector geometry); SVGP collapses less catastrophically
+(\(-19\) mm bias vs MLP's \(-27\) mm).
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Reading the SVGP--MLP Comparison}
+\small
+\begin{block}{What the numbers say}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item Point accuracy: SVGP wins 4 of 5 folds. 4-fold mean RMSE gap \(\Delta = 1.05\) mm
+        (\(5.95\) vs \(7.00\)); 5-fold gap \(\Delta = 2.39\) mm carried by Nozzle0.
+  \item Coverage: 5-fold 1\(\sigma\)/2\(\sigma\) GP \good{0.628}/0.821 vs MLP 0.575/0.770;
+        4-fold-ex-Nozzle0 GP 0.697/0.890 vs MLP 0.696/\good{0.923}. MLP keeps only a small
+        4-fold 2\(\sigma\) edge.
+  \item MLP's systematic negative bias (Nozzle0 \(-26.8\), Nozzle1 \(-4.3\), Nozzle4 \(-4.9\))
+        is consistently larger than the corresponding SVGP biases.
+\end{itemize}
+\end{block}
+
+\begin{block}{Why this is plausible}
+SVGP's Matern-5/2 ARD kernel and inducing-point variational posterior encode an implicit
+smoothness prior: once features move outside the training support, the posterior mean
+degrades toward the prior mean rather than extrapolating a learned nonlinear surface. The
+staged MLP, by contrast, applies \texttt{mu\_anchor} on the held-out training distribution
+and inherits its biases into the held-out fold. The OOD ranking reversal is therefore a
+prior-vs-likelihood effect, not a calibration accident.
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Conclusion}
+\small
+\begin{enumerate}\setlength\itemsep{4pt}
+  \item Stage~3 LONO ablation with Stage~2 \texttt{mu\_anchor} is complete:
+        \(5\) folds \(\times\) \(4\) ablations.
+  \item Within the MLP family, \texttt{raw\_uncertain\_raw05\_kd025} is the mean RMSE/MAE winner
+        (12.55 mm / 9.80 mm); \texttt{anchor\_off} gives the highest 2\(\sigma\) coverage (0.775).
+        The Stage-3 spread is small (\(<0.2\) mm RMSE) compared with the cross-fold std.
+  \item Cross-architecture: SVGP-Stage3 wins 4 of 5 folds and the aggregate (5-fold mean
+        10.16 vs 12.55 mm; 4-fold-ex-Nozzle0 5.95 vs 7.00 mm). 1\(\sigma\) coverage is similar;
+        MLP keeps only a small 4-fold 2\(\sigma\) edge.
+  \item Nozzle0 remains a design-family extrapolation failure for both architectures, but SVGP
+        collapses less catastrophically there (RMSE 27.0 vs 34.8 mm, bias \(-19\) vs \(-27\) mm).
+  \item Thesis framing: SVGP is the stronger point predictor on both in-distribution and OOD.
+        MLP's remaining structural value is onset-CDF supervision, the regime-aware KD
+        chain, and ablation affordability --- the staged surrogate is a regressor-agnostic
+        instantiation of the censoring-aware learning protocol.
+\end{enumerate}
+
+\vspace{0.3em}
+\textbf{Artifacts:}\\
+\scriptsize
+\texttt{MLP/runs\_mlp/stage3\_lono\_ablation\_20260521\_092405/per\_fold.csv}\\
+\texttt{MLP/runs\_mlp/gp\_baseline\_stage3\_lono\_*/external\_eval\_uncensored/metrics\_summary.json}
+\end{frame}
+
+\end{document}

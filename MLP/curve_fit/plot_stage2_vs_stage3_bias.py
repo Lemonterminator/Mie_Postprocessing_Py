@@ -3,6 +3,9 @@
 Both eval runs must already have ``points.csv`` plus the join key plumbing of
 ``pred_vs_actual_by_censoring.py``. This script reads the two points files,
 attaches the censoring flag, and produces a single overlay figure.
+
+Use this when comparing whether a Stage-3 run reduced high-penetration bias
+relative to its Stage-2 teacher or another Stage-3 variant.
 """
 from __future__ import annotations
 
@@ -36,6 +39,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def join_with_audit(points_path: Path, audit_path: Path) -> pd.DataFrame:
+    """Attach trace-level and near-cap flags to an evaluation ``points.csv``."""
     pts = pd.read_csv(points_path)
     audit = pd.read_csv(audit_path, low_memory=False)
     audit_sub = audit[[
@@ -61,6 +65,7 @@ def join_with_audit(points_path: Path, audit_path: Path) -> pd.DataFrame:
 
 
 def bin_stats(df: pd.DataFrame, mask: np.ndarray, edges: np.ndarray):
+    """Return mean and 10-90% residual bands in true-penetration bins."""
     resid = (df["pen_pred_mm"] - df["pen_true_mm"]).to_numpy()
     truth = df["pen_true_mm"].to_numpy()
     centers = 0.5 * (edges[:-1] + edges[1:])

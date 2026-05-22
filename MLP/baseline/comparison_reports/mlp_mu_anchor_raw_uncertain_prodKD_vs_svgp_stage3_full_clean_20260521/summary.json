@@ -1,0 +1,64 @@
+{
+  "new_combo": {
+    "teacher": "MLP/runs_mlp/stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260521_104519",
+    "stage3": "raw_uncertain_raw05_kd025 + mse_mu_plus_sigma kd_sigma_weight=5.0, stage3 anchor on",
+    "mean": {
+      "rmse_mm": 5.200085735321045,
+      "mae_mm": 3.6539376735687257,
+      "bias_mm": -0.5851698458194733,
+      "p95_abs_err_mm": 10.525272369384766,
+      "coverage_1sigma": 0.8338302484190596,
+      "coverage_2sigma": 0.9847791012812038,
+      "mean_pred_std_mm": 6.140207290649414
+    },
+    "std": {
+      "rmse_mm": 0.048250269461658675,
+      "mae_mm": 0.04711309333396939,
+      "bias_mm": 0.33345603735086415,
+      "p95_abs_err_mm": 0.10691993001765039,
+      "coverage_1sigma": 0.008046067876975477,
+      "coverage_2sigma": 0.0009239552142419402,
+      "mean_pred_std_mm": 0.09802151458799645
+    },
+    "best": {
+      "seed": 17,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_mu_anchor_raw_uncertain_raw05_kd025_prod_kd_20260521_125006",
+      "rmse_mm": 5.14753532409668,
+      "mae_mm": 3.6207478046417236,
+      "p95_abs_err_mm": 10.417268753051758
+    }
+  },
+  "previous_mlp_combo": {
+    "mean": {
+      "rmse_mm": 4.734599494934082,
+      "mae_mm": 3.2927133560180666,
+      "bias_mm": 0.6259767889976502,
+      "p95_abs_err_mm": 9.166942977905274,
+      "coverage_1sigma": 0.8665715168080445,
+      "coverage_2sigma": 0.9853335488395855,
+      "mean_pred_std_mm": 6.048862361907959
+    },
+    "best": {
+      "seed": 42,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_123126",
+      "rmse_mm": 4.689184188842773,
+      "mae_mm": 3.2514305114746094,
+      "p95_abs_err_mm": 9.091787338256836
+    }
+  },
+  "svgp_stage3": {
+    "rmse_mm": 4.628069877624512,
+    "mae_mm": 3.172598123550415,
+    "bias_mm": -0.07034408301115036,
+    "p95_abs_err_mm": 9.242124557495117,
+    "coverage_1sigma": 0.7033806581214589,
+    "coverage_2sigma": 0.9394451483673958,
+    "mean_pred_std_mm": 3.9995579719543457
+  },
+  "deltas": {
+    "new_mean_minus_svgp_rmse_mm": 0.5720158576965328,
+    "new_best_minus_svgp_rmse_mm": 0.519465446472168,
+    "new_mean_minus_previous_mlp_mean_rmse_mm": 0.4654862403869622,
+    "new_best_minus_previous_mlp_best_rmse_mm": 0.45835113525390625
+  }
+}

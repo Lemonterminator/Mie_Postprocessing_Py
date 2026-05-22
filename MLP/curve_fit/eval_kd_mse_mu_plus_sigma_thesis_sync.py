@@ -23,6 +23,9 @@ Figures saved:
 Outputs go to:
   - Thesis/images/neural_network_fit_results/*.png
   - Thesis/generated/current/stage3_kd_mse_mu_plus_sigma_metrics.csv
+
+This is a reporting/synchronization script, not a training script: it assumes
+the named Stage-3, Stage-2, and baseline evaluation runs already exist.
 """
 from __future__ import annotations
 
@@ -81,6 +84,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def prep_points(pts_path: Path, audit_sub: pd.DataFrame) -> pd.DataFrame:
+    """Load eval points and attach trace-level spatial-censoring labels."""
     pts = pd.read_csv(pts_path)
     pts["file_name"] = pts["traj_key"].str.extract(r"\|([^|]+\.csv)\|", expand=False)
     pts["plume_idx"] = pts["plume_idx"].astype(int)
@@ -101,6 +105,7 @@ def prep_points(pts_path: Path, audit_sub: pd.DataFrame) -> pd.DataFrame:
 
 
 def attach_regime(points: pd.DataFrame, plume_audit_path: Path, regime_bin_ms: float) -> pd.DataFrame:
+    """Attach Stage-3 supervision regime labels by condition and time bin."""
     plume_audit = pd.read_csv(plume_audit_path, low_memory=False)
     plume_meta = (
         plume_audit[["experiment_name", "file_name", "plume_idx",

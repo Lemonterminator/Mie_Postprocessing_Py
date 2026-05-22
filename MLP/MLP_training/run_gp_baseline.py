@@ -26,6 +26,7 @@ from MLP.MLP_training.engineered_feature_common import (  # noqa: E402
     FEATURE_COLUMNS_BY_VARIANT,
     TIME_FEATURE,
     PointwisePenetrationDataset,
+    assign_splits_leave_one_out,
     build_dataset_registry,
     build_feature_matrix_np,
 )
@@ -34,6 +35,9 @@ from MLP.MLP_training.train_stage3_distillation_plus_raw_series import (  # noqa
     extract_prefixed_matrix,
     load_source_table,
 )
+
+SUPPORTED_MODES = ("stage2", "stage3")
+DEFAULT_MODE = "stage2"
 
 
 DEFAULT_MLP_BOOTSTRAP = PROJECT_ROOT / "MLP" / "runs_mlp" / "full_pipeline_C_20260509_110100" / "bootstrap_summary.json"
@@ -396,6 +400,126 @@ def make_point_dataset(
         precompute=True,
     )
     return flatten_curve_dataset(curve_ds)
+
+
+def concat_point_datasets(*datasets: PointTensorDataset | None) -> PointTensorDataset:
+    items = [d for d in datasets if d is not None and len(d) > 0]
+    if not items:
+        raise ValueError("concat_point_datasets requires at least one non-empty dataset.")
+    return PointTensorDataset(
+        torch.cat([d.features for d in items], dim=0),
+        torch.cat([d.target_scaled for d in items], dim=0),
+        torch.cat([d.target_physical for d in items], dim=0),
+        torch.cat([d.a_scale for d in items], dim=0),
+    )
+
+
+def build_real_cdf_point_datasets(
+    *,
+    feature_columns: Sequence[str],
+    scaler_state: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    time_min_ms: float,
+    time_max_ms: float,
+    val_ratio: float,
+    seed: int,
+    lono_holdout: str | None,
+    cdf_split: str = "clean",
+) -> tuple[PointTensorDataset, PointTensorDataset, dict[str, Any]]:
+    """Load real CDF wide series and split per-trajectory into train/val point datasets.
+
+    When `lono_holdout` is set, that experiment is entirely excluded — it
+    becomes the external (test) set, evaluated via run_external_rmse_evaluation.
+    """
+    cdf = load_source_table("cdf", split=cdf_split).reset_index(drop=True)
+    n_rows_total = len(cdf)
+    if "experiment_name" not in cdf.columns:
+        raise KeyError("Real CDF wide table missing 'experiment_name' column.")
+    if lono_holdout is not None:
+        kept = cdf["experiment_name"].astype(str) != str(lono_holdout)
+        if not kept.any():
+            raise ValueError(f"All real CDF rows match holdout {lono_holdout!r}; nothing left for training.")
+        cdf = cdf.loc[kept].reset_index(drop=True)
+
+    time_cols = [c for c in cdf.columns if c.startswith("time_ms_")]
+    time_cols.sort(key=lambda name: int(name.rsplit("_", 1)[1]))
+    frame_ids = [int(c.rsplit("_", 1)[1]) for c in time_cols]
+    if not frame_ids:
+        raise RuntimeError("Real CDF wide table has no time_ms_* columns.")
+
+    rng = np.random.default_rng(int(seed))
+    n_rows = len(cdf)
+    is_val_row = rng.random(n_rows) < float(val_ratio)
+
+    feat_train: list[np.ndarray] = []
+    feat_val: list[np.ndarray] = []
+    ts_train: list[np.ndarray] = []
+    ts_val: list[np.ndarray] = []
+    tp_train: list[np.ndarray] = []
+    tp_val: list[np.ndarray] = []
+    as_train: list[np.ndarray] = []
+    as_val: list[np.ndarray] = []
+    n_rows_used = 0
+
+    for row_idx, row in cdf.iterrows():
+        row_idx = int(row_idx)
+        time_arr = extract_prefixed_matrix(cdf.iloc[[row_idx]], "time_ms_", frame_ids).reshape(-1)
+        pen_arr = extract_prefixed_matrix(cdf.iloc[[row_idx]], "penetration_mm_", frame_ids).reshape(-1)
+        valid = (
+            np.isfinite(time_arr)
+            & np.isfinite(pen_arr)
+            & (time_arr >= time_min_ms)
+            & (time_arr <= time_max_ms)
+        )
+        if not np.any(valid):
+            continue
+        time_valid = time_arr[valid].astype(np.float32)
+        pen_valid = pen_arr[valid].astype(np.float32)
+        raw = build_teacher_raw_dict(row)
+        features_np, a_scale_np, _ = build_feature_matrix_np(
+            raw, time_valid, scaler_state, list(feature_columns), registry,
+        )
+        a_scale_flat = a_scale_np.reshape(-1).astype(np.float32)
+        target_phys = pen_valid.astype(np.float32)
+        target_scaled = (pen_valid / np.maximum(a_scale_flat, 1e-12)).astype(np.float32)
+
+        if is_val_row[row_idx]:
+            feat_val.append(features_np); ts_val.append(target_scaled)
+            tp_val.append(target_phys); as_val.append(a_scale_flat)
+        else:
+            feat_train.append(features_np); ts_train.append(target_scaled)
+            tp_train.append(target_phys); as_train.append(a_scale_flat)
+        n_rows_used += 1
+
+    def _stack(feat, ts, tp, asc) -> PointTensorDataset | None:
+        if not feat:
+            return None
+        return PointTensorDataset(
+            torch.from_numpy(np.vstack(feat).astype(np.float32)),
+            torch.from_numpy(np.concatenate(ts).astype(np.float32)),
+            torch.from_numpy(np.concatenate(tp).astype(np.float32)),
+            torch.from_numpy(np.concatenate(asc).astype(np.float32)),
+        )
+
+    train_ds = _stack(feat_train, ts_train, tp_train, as_train)
+    val_ds = _stack(feat_val, ts_val, tp_val, as_val)
+    if train_ds is None or val_ds is None:
+        raise RuntimeError(
+            "Real CDF train/val datasets ended up empty after row-level partitioning. "
+            "Increase val_ratio or check input data."
+        )
+
+    info = {
+        "cdf_split": cdf_split,
+        "lono_holdout": lono_holdout,
+        "n_rows_total": int(n_rows_total),
+        "n_rows_after_holdout": int(n_rows),
+        "n_rows_used": int(n_rows_used),
+        "n_train_points": int(len(train_ds)),
+        "n_val_points": int(len(val_ds)),
+        "val_ratio": float(val_ratio),
+    }
+    return train_ds, val_ds, info
 
 
 def make_loader(
@@ -870,6 +994,18 @@ def run_seed(
             f"{a_scale_check['max_relative_error']:.3e}. Pass --allow-a-scale-mismatch to override."
         )
 
+    mode = str(base_config.get("mode", DEFAULT_MODE))
+    if mode not in SUPPORTED_MODES:
+        raise ValueError(f"Unsupported --mode {mode!r}; expected one of {SUPPORTED_MODES}.")
+    lono_holdout = base_config.get("lono_holdout")
+    lono_holdout = str(lono_holdout) if lono_holdout else None
+    val_ratio = float(base_config.get("val_ratio", 0.15))
+
+    if lono_holdout is not None:
+        df = assign_splits_leave_one_out(
+            df, holdout_value=lono_holdout, val_ratio=val_ratio, seed=seed,
+        )
+
     feature_spec = resolve_feature_spec(
         stage1_config=stage1_config,
         requested_variant=base_config.get("requested_variant"),
@@ -883,14 +1019,16 @@ def run_seed(
 
     split_counts = df["sample_split"].value_counts().to_dict()
     print(f"\n--- GP seed {seed} ---")
+    print("Mode:", mode)
+    print("LONO holdout:", lono_holdout)
     print("Stage-1 run:", stage1_run)
     print("Feature source:", feature_spec["feature_source"])
     print("Feature variant:", feature_spec["variant"])
     print("Feature columns:", feature_columns)
-    print("Curve split counts:", split_counts)
+    print("Synthetic curve split counts:", split_counts)
     print("A_scale check:", a_scale_check)
 
-    datasets = {
+    synth_datasets = {
         split: make_point_dataset(
             df.loc[df["sample_split"] == split],
             feature_columns=feature_columns,
@@ -900,7 +1038,32 @@ def run_seed(
         )
         for split in ("train", "val", "test")
     }
-    print("Point split counts:", {split: len(ds) for split, ds in datasets.items()})
+    print("Synthetic point counts:", {split: len(ds) for split, ds in synth_datasets.items()})
+
+    real_cdf_info: dict[str, Any] | None = None
+    if mode == "stage3":
+        cdf_split = str(base_config.get("cdf_split", "clean"))
+        print(f"Loading real CDF {cdf_split} series (lono_holdout={lono_holdout})...")
+        real_train_ds, real_val_ds, real_cdf_info = build_real_cdf_point_datasets(
+            feature_columns=feature_columns,
+            scaler_state=scaler_state,
+            registry=build_dataset_registry(),
+            time_min_ms=time_min_ms,
+            time_max_ms=time_max_ms,
+            val_ratio=val_ratio,
+            seed=seed,
+            lono_holdout=lono_holdout,
+            cdf_split=cdf_split,
+        )
+        print("Real CDF stats:", real_cdf_info)
+        datasets = {
+            "train": concat_point_datasets(synth_datasets["train"], real_train_ds),
+            "val": concat_point_datasets(synth_datasets["val"], real_val_ds),
+            "test": synth_datasets["test"],
+        }
+    else:
+        datasets = synth_datasets
+    print("Combined point counts:", {split: len(ds) for split, ds in datasets.items()})
 
     loaders = {
         "train": make_loader(
@@ -1030,6 +1193,11 @@ def run_seed(
         "split_curve_counts": split_counts,
         "a_scale_check": a_scale_check,
         "logvar_bias_correction": float(logvar_bias_correction),
+        "mode": mode,
+        "lono_holdout": lono_holdout,
+        "real_cdf_info": real_cdf_info,
+        "synth_point_counts": {split: int(len(ds)) for split, ds in synth_datasets.items()},
+        "combined_point_counts": {split: int(len(ds)) for split, ds in datasets.items()},
         "method": "svgp_heteroscedastic_two_stage" if var_result is not None else "svgp_homoscedastic",
     }
     artifacts = GPArtifacts(
@@ -1125,10 +1293,19 @@ def run_external_rmse_evaluation(
     batch_points: int,
     fast: bool,
     save_points: bool,
+    lono_holdout: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     artifacts = load_gp_artifacts(checkpoint_path, device=device)
     registry = build_dataset_registry()
     cdf_wide_df = load_source_table("cdf", split=split)
+    if lono_holdout is not None:
+        if "experiment_name" not in cdf_wide_df.columns:
+            raise KeyError("Real CDF wide table missing 'experiment_name' column for LONO filtering.")
+        cdf_wide_df = cdf_wide_df.loc[
+            cdf_wide_df["experiment_name"].astype(str) == str(lono_holdout)
+        ].reset_index(drop=True)
+        if cdf_wide_df.empty:
+            raise ValueError(f"No real CDF rows match LONO holdout {lono_holdout!r}.")
 
     time_cols = [c for c in cdf_wide_df.columns if c.startswith("time_ms_")]
     time_cols.sort(key=lambda name: int(name.rsplit("_", 1)[1]))
@@ -1279,6 +1456,7 @@ def run_external_rmse_evaluation(
     summary = {
         "checkpoint": str(checkpoint_path),
         "split": split,
+        "lono_holdout": lono_holdout,
         "eval_mode": {"fast": bool(fast), "save_points": bool(save_points), "batch_points": int(batch_points)},
         "feature_columns": feature_columns,
         "overall": overall,
@@ -1351,7 +1529,33 @@ def write_external_comparison_report(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train a sparse heteroscedastic GP baseline against the Stage-2 NLL MLP.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Train a sparse heteroscedastic GP baseline. "
+            "--mode stage2 trains on Stage-1 row_table (compare vs Stage-2 NLL). "
+            "--mode stage3 also injects real CDF clean series into train+val (compare vs Stage-3)."
+        )
+    )
+    parser.add_argument(
+        "--mode",
+        choices=SUPPORTED_MODES,
+        default=DEFAULT_MODE,
+        help=(
+            "stage2 (default): train on synthetic row_table only — apples-to-apples vs Stage-2. "
+            "stage3: also concat real CDF clean series into train+val — vs Stage-3."
+        ),
+    )
+    parser.add_argument(
+        "--lono-holdout",
+        type=str,
+        default=None,
+        help=(
+            "Leave-one-nozzle-out: experiment_name held out of training in BOTH synth (re-partitioned) "
+            "and real CDF (entirely excluded). External eval is restricted to this holdout."
+        ),
+    )
+    parser.add_argument("--val-ratio", type=float, default=0.15,
+                        help="Validation fraction used by LONO repartition and real CDF row split.")
     parser.add_argument("--mlp-bootstrap", type=Path, default=DEFAULT_MLP_BOOTSTRAP)
     parser.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
@@ -1393,8 +1597,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--latency-points", type=int, default=10000)
     parser.add_argument("--latency-repeats", type=int, default=5)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--cdf-split",
+        choices=("clean", "all", "truncated"),
+        default="clean",
+        help=(
+            "Real CDF wide-table split fed into stage3 training. "
+            "'truncated' uses series_wide_truncated produced by build_truncated_series_wide.py "
+            "(per-condition density-drop + FOV-saturation cutoff)."
+        ),
+    )
     parser.add_argument("--external-eval", action="store_true", help="Run the external clean CDF diagnostic after training.")
-    parser.add_argument("--external-split", choices=("clean", "all"), default="clean")
+    parser.add_argument("--external-split", choices=("clean", "all", "truncated"), default="clean")
     parser.add_argument("--external-fast", action="store_true")
     parser.add_argument("--external-save-points", action="store_true")
     parser.add_argument("--report-source-headline", type=Path, default=DEFAULT_REPORT_SOURCE)
@@ -1420,11 +1634,16 @@ def main() -> None:
     common_feature_columns = common_feature_value(feature_specs, "feature_columns")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     runs_root = resolve_path(args.runs_root)
-    out_dir = runs_root / f"gp_baseline_{timestamp}"
+    lono_tag = f"_lono_{args.lono_holdout}" if args.lono_holdout else ""
+    out_dir = runs_root / f"gp_baseline_{args.mode}{lono_tag}_{timestamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     base_config = {
         "method": "svgp_heteroscedastic_two_stage",
+        "mode": str(args.mode),
+        "lono_holdout": args.lono_holdout,
+        "val_ratio": float(args.val_ratio),
+        "cdf_split": str(args.cdf_split),
         "mlp_bootstrap": str(mlp_bootstrap),
         "requested_variant": args.variant,
         "feature_source": (
@@ -1498,15 +1717,17 @@ def main() -> None:
 
         if args.external_eval:
             seed = int(result["seed"])
+            lono_tag_str = f"_lono_{args.lono_holdout}" if args.lono_holdout else ""
             ext_dir, ext_summary = run_external_rmse_evaluation(
                 checkpoint_path=Path(result["checkpoint"]),
                 split=args.external_split,
                 device=device,
                 output_root=out_dir / "external_eval",
-                tag=f"seed_{seed}",
+                tag=f"seed_{seed}{lono_tag_str}",
                 batch_points=int(args.eval_batch_points),
                 fast=bool(args.external_fast),
                 save_points=bool(args.external_save_points),
+                lono_holdout=args.lono_holdout,
             )
             external_results.append({"seed": seed, "out_dir": str(ext_dir), "summary": ext_summary})
             write_json(out_dir / "external_eval_summary.json", {"per_seed": external_results})
@@ -1522,7 +1743,10 @@ def main() -> None:
     write_json(out_dir / "bootstrap_summary.json", summary)
 
     if external_results:
-        report_dir = resolve_path(args.report_root) / f"gp_vs_mlp_{datetime.now():%Y%m%d}"
+        lono_part = f"_lono_{args.lono_holdout}" if args.lono_holdout else ""
+        report_dir = resolve_path(args.report_root) / (
+            f"gp_{args.mode}{lono_part}_vs_mlp_{datetime.now():%Y%m%d}"
+        )
         write_external_comparison_report(
             source_headline=resolve_path(args.report_source_headline),
             output_dir=report_dir,

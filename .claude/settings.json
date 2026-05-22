@@ -75,7 +75,9 @@
       "PowerShell(ls -n \"C:\\\\Users\\\\Jiang\\\\Documents\\\\Mie_Postprocessing_Py\\\\MLP\\\\runs_mlp\\\\stage1_engineered_mse_a_plus_pressures_20260519_161130\")",
       "Bash(awk -F',' 'NR==1 {min=$9; minepoch=$1} {if\\($9+0 < min+0\\) {min=$9; minepoch=$1}} END {print \"Min val_loss: \" min \" at epoch \" minepoch}')",
       "Bash(grep ',val$')",
-      "Bash(awk -F',' 'NR==1 {min=$3; minepoch=$1} {if\\($3+0 < min+0\\) {min=$3; minepoch=$1}} END {print \"Min val loss: \" min \" at epoch \" minepoch}')"
+      "Bash(awk -F',' 'NR==1 {min=$3; minepoch=$1} {if\\($3+0 < min+0\\) {min=$3; minepoch=$1}} END {print \"Min val loss: \" min \" at epoch \" minepoch}')",
+      "Bash(.venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\('MLP/MLP_training/run_lono_pipeline.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "PowerShell(New-Item -ItemType Directory -Path \"C:\\\\Users\\\\Jiang\\\\Documents\\\\Mie_Postprocessing_Py\\\\Thesis\\\\slides\\\\slides_stage1_lono_ablation\" -Force)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py",

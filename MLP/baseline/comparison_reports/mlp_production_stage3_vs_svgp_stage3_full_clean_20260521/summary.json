@@ -1,0 +1,70 @@
+{
+  "mlp_runs": [
+    {
+      "seed": 7,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_122435",
+      "rmse_mm": 4.766288757324219,
+      "mae_mm": 3.3426170349121094,
+      "p95_abs_err_mm": 9.195841789245605
+    },
+    {
+      "seed": 17,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_122708",
+      "rmse_mm": 4.702893257141113,
+      "mae_mm": 3.257880210876465,
+      "p95_abs_err_mm": 9.105043411254883
+    },
+    {
+      "seed": 42,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_123126",
+      "rmse_mm": 4.689184188842773,
+      "mae_mm": 3.2514305114746094,
+      "p95_abs_err_mm": 9.091787338256836
+    },
+    {
+      "seed": 99,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_123626",
+      "rmse_mm": 4.768207550048828,
+      "mae_mm": 3.321295738220215,
+      "p95_abs_err_mm": 9.243452072143555
+    },
+    {
+      "seed": 2024,
+      "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_124004",
+      "rmse_mm": 4.746423721313477,
+      "mae_mm": 3.2903432846069336,
+      "p95_abs_err_mm": 9.198590278625488
+    }
+  ],
+  "mlp_mean": {
+    "rmse_mm": 4.734599494934082,
+    "mae_mm": 3.2927133560180666,
+    "bias_mm": 0.6259767889976502,
+    "p95_abs_err_mm": 9.166942977905274,
+    "coverage_1sigma": 0.8665715168080445,
+    "coverage_2sigma": 0.9853335488395855
+  },
+  "mlp_std": {
+    "rmse_mm": 0.03654229943247088,
+    "mae_mm": 0.03946697426981967,
+    "bias_mm": 0.11154528996203666,
+    "p95_abs_err_mm": 0.06551767121050998,
+    "coverage_1sigma": 0.0037995887719085917,
+    "coverage_2sigma": 0.0006093702140152768
+  },
+  "mlp_best": {
+    "seed": 42,
+    "run_dir": "MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260521_123126",
+    "rmse_mm": 4.689184188842773
+  },
+  "svgp_stage3": {
+    "seed": 42,
+    "rmse_mm": 4.628069877624512,
+    "mae_mm": 3.172598123550415,
+    "p95_abs_err_mm": 9.242124557495117,
+    "coverage_1sigma": 0.7033806581214589,
+    "coverage_2sigma": 0.9394451483673958
+  },
+  "delta_best_mlp_minus_svgp_rmse_mm": 0.06111431121826172,
+  "delta_mean_mlp_minus_svgp_rmse_mm": 0.10652961730957067
+}

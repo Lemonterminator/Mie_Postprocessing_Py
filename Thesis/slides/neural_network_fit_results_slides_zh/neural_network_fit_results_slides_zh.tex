@@ -1,0 +1,237 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage{iftex}
+\ifXeTeX
+  \usepackage{fontspec}
+  \usepackage{xeCJK}
+  \setmainfont{Times New Roman}
+  \IfFontExistsTF{Microsoft JhengHei}{
+    \setCJKmainfont{Microsoft JhengHei}
+    \setCJKsansfont{Microsoft JhengHei}
+    \setCJKmonofont{Microsoft JhengHei}
+  }{
+    \setCJKmainfont{SimSun}
+    \setCJKsansfont{SimSun}
+    \setCJKmonofont{SimSun}
+  }
+  \IfFontExistsTF{Consolas}{\setmonofont{Consolas}}{}
+\fi
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{xurl}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\graphicspath{{assets/}}
+\urlstyle{same}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\blue}[1]{\textcolor{blue!65!black}{#1}}
+\newcommand{\pathtext}[1]{{\scriptsize\url{#1}}}
+\newcommand{\src}[1]{\vfill{\tiny\textcolor{gray!75!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\title[NN Fitting Results]{Production MLP 拟合结果}
+\subtitle{\(\Delta P^{0.5}\) Stage-3 anchor-off 五 seed 与 seed42 轨迹诊断}
+\author{Linan Jiang}
+\institute{Aalto University}
+\date{21 May 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{当前模型对象}
+\small
+\begin{block}{Production 模型}
+本 deck 更新为真正的 production MLP：Stage-3 \texttt{anchor\_off}，
+seeds 7/17/42/99/2024，Stage-2 winner 热启动，raw-CDF refinement。
+\end{block}
+
+\begin{block}{输入与缩放}
+\footnotesize
+当前 variant 为 \texttt{a\_dp050\_plus\_pressures}。输入包含 normalized time、
+tilt、plume count、injection duration、control backpressure，以及
+log injection/chamber pressure。目标仍使用
+\[
+A=(\Delta P)^{0.5}\rho_a^{-0.25}d_n^{0.5}
+\]
+做物理缩放。
+\end{block}
+
+\begin{block}{读法边界}
+\footnotesize
+五 seed mean 是论文主结果；seed42 是当前 MLP 五 seed 中 full-clean RMSE
+最低的代表性诊断，不替代五 seed 统计。
+\end{block}
+\end{frame}
+
+\begin{frame}{Full-Clean 主结果}
+\small
+\begin{tabular}{L{0.34\linewidth}R{0.14\linewidth}R{0.14\linewidth}R{0.14\linewidth}R{0.14\linewidth}}
+\toprule
+模型 & RMSE & MAE & Bias & P95 \\
+\midrule
+Production MLP mean(5) & \good{4.735 \(\pm\) 0.037} & 3.293 \(\pm\) 0.039 & +0.626 & 9.167 \\
+Production MLP seed42 & \good{4.689} & 3.251 & +0.486 & 9.092 \\
+SVGP Stage-3 seed42 & \blue{4.628} & \blue{3.173} & -0.070 & 9.242 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.7em}
+\begin{tabular}{L{0.34\linewidth}R{0.16\linewidth}R{0.16\linewidth}R{0.18\linewidth}}
+\toprule
+模型 & Cov1 & Cov2 & mean std \\
+\midrule
+Production MLP mean(5) & \good{0.867} & \good{0.985} & \SI{6.049}{mm} \\
+Production MLP seed42 & 0.870 & 0.986 & \SI{6.032}{mm} \\
+SVGP Stage-3 seed42 & 0.703 & 0.939 & \SI{4.000}{mm} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+\footnotesize
+结论保持克制：MLP 没有在 RMSE/MAE 上超过 SVGP，但它的 coverage 明显更保守。
+\src{Thesis/generated/baseline_comparison_20260521/headline_full_clean.csv}
+\end{frame}
+
+\begin{frame}{评估数据规模}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\begin{tabular}{L{0.58\linewidth}R{0.30\linewidth}}
+\toprule
+项目 & 数值 \\
+\midrule
+CSV files & 2,754 \\
+Trajectories & \num{24316} \\
+Prediction points & \num{692942} \\
+Truth range & \SIrange{0.00}{95.88}{mm} \\
+Time window & \SIrange{0}{5}{ms} \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{0.48\linewidth}
+\begin{block}{代表性 seed42}
+\footnotesize
+\begin{itemize}
+  \item RMSE = \SI{4.689}{mm}
+  \item MAE = \SI{3.251}{mm}
+  \item Bias = +\SI{0.486}{mm}
+  \item P95 absolute error = \SI{9.092}{mm}
+  \item 1\(\sigma\)/2\(\sigma\) coverage = 0.870 / 0.986
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\src{MLP/eval/rmse_eval_clean_20260521_123603_distill_cdf_onset_v2_ablate_anchor_off_20260521_123126/metrics_summary.json}
+\end{frame}
+
+\begin{frame}{Predicted vs. Measured Penetration}
+\centering
+\includegraphics[width=0.78\linewidth,height=0.76\textheight,keepaspectratio]{pred_vs_actual_seed42.png}
+\src{Thesis/images/neural_network_fit_results_20260521/pred_vs_actual_seed42.png}
+\end{frame}
+
+\begin{frame}{Residual Distribution}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.58\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{residual_histogram_seed42.png}
+\end{column}
+\begin{column}{0.38\linewidth}
+\small
+\begin{block}{残差定义}
+\[
+e=\hat y_{\mathrm{pen}}-y_{\mathrm{pen}}.
+\]
+\end{block}
+\begin{itemize}
+  \item seed42 bias 为 +\SI{0.486}{mm}，略高估但小于典型 RMSE。
+  \item P95 absolute error 为 \SI{9.092}{mm}。
+  \item 2\(\sigma\) coverage 为 0.986，高于 Gaussian nominal 0.954。
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Five-Seed Repeatability}
+\centering
+\includegraphics[width=0.86\linewidth,height=0.72\textheight,keepaspectratio]{production_mlp_per_seed_rmse.png}
+\src{Thesis/images/neural_network_fit_results_20260521/production_mlp_per_seed_rmse.png}
+\end{frame}
+
+\begin{frame}{Per-Folder RMSE}
+\centering
+\includegraphics[width=0.92\linewidth,height=0.74\textheight,keepaspectratio]{per_folder_rmse_seed42.png}
+\src{MLP/eval/rmse_eval_clean_20260521_123603_distill_cdf_onset_v2_ablate_anchor_off_20260521_123126/per_folder.csv}
+\end{frame}
+
+\begin{frame}{Per-Folder Coverage}
+\centering
+\includegraphics[width=0.92\linewidth,height=0.74\textheight,keepaspectratio]{per_folder_coverage_seed42.png}
+\src{MLP/eval/rmse_eval_clean_20260521_123603_distill_cdf_onset_v2_ablate_anchor_off_20260521_123126/per_folder.csv}
+\end{frame}
+
+\begin{frame}{代表性轨迹}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.50\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio]{best_traj_seed42.png}
+
+\footnotesize
+Nozzle0 T4 plume 0：RMSE \SI{0.382}{mm}，coverage 1.00 / 1.00。
+\end{column}
+\begin{column}{0.50\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio]{worst_traj_seed42.png}
+
+\footnotesize
+Nozzle3 T6 plume 4：RMSE \SI{42.763}{mm}，coverage 0.205 / 0.282。
+\end{column}
+\end{columns}
+\src{Thesis/generated/neural_network_fit_results_20260521/summary.json}
+\end{frame}
+
+\begin{frame}{剩余风险}
+\small
+\begin{enumerate}
+  \item \good{总体拟合已经稳定：} 五 seed full-clean RMSE \(4.735\pm0.037\) mm。
+  \item \good{不确定度偏保守：} 对 screening surrogate 是可接受方向。
+  \item \warn{Nozzle3 仍是主要 failure mode：} per-folder RMSE 明显最高，最差轨迹 coverage 也低。
+  \item \warn{不能写成 MLP 已经超过 SVGP：} SVGP 的 full-clean RMSE/MAE 仍略好。
+\end{enumerate}
+
+\begin{block}{论文用语}
+\footnotesize
+推荐写法：production MLP closes the gap to SVGP while providing more conservative
+uncertainty coverage, and it clearly outperforms HA/NS empirical curve baselines.
+\end{block}
+\end{frame}
+
+\begin{frame}{文件索引}
+\small
+\begin{tabular}{L{0.28\linewidth}L{0.62\linewidth}}
+\toprule
+内容 & 文件 \\
+\midrule
+Slides source & \pathtext{Thesis/slides/neural_network_fit_results_slides_zh/neural_network_fit_results_slides_zh.tex} \\
+Figures & \pathtext{Thesis/images/neural_network_fit_results_20260521/} \\
+Figure script & \pathtext{Thesis/generated/neural_network_fit_results_20260521/make_figures.py} \\
+Representative seed eval & \pathtext{MLP/eval/rmse_eval_clean_20260521_123603_distill_cdf_onset_v2_ablate_anchor_off_20260521_123126/} \\
+5-seed aggregate & \pathtext{Thesis/generated/baseline_comparison_20260521/production_mlp_full_clean_per_seed.csv} \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\end{document}

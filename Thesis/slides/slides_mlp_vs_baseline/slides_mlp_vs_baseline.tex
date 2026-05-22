@@ -36,9 +36,10 @@ and probabilistic calibration.
 
 \begin{block}{Current headline}
 On the common external clean diagnostic set
-(\num{795561} points, \num{33845} trajectories), the \(\Delta P^{0.5}\)
-Stage-3 MLP five-seed mean beats calibrated Hiroyasu--Arai, Naber--Siebers delay,
-and sparse heteroscedastic GP on RMSE, MAE, and P95 absolute error.
+(\num{692942} points, \num{24316} trajectories), the production Stage-3 MLP
+five-seed mean strongly beats calibrated Hiroyasu--Arai and Naber--Siebers.
+The Stage-3 SVGP remains the point-accuracy winner; the MLP is the more
+conservative screening surrogate.
 \end{block}
 \end{frame}
 
@@ -439,9 +440,9 @@ Code entry point: \texttt{MLP/MLP\_training/run\_gp\_baseline.py}
 \small
 \begin{block}{Why it is fair}
 \footnotesize
-The GP uses the same splits, the same five seeds, the same \(A_{\mathrm{scale}}\)
-target, the same controllable input features, and the same external clean
-diagnostic set as the MLP comparison.
+The Stage-3 SVGP and production MLP both consume the same full-data information
+class: synthetic Q1 supervision plus real clean CDF observations. They are then
+scored on the same full-clean and fixed-table evaluation sets.
 \end{block}
 
 \begin{block}{Where GP is strong}
@@ -456,7 +457,8 @@ It is not a weak baseline; it brings coverage close to nominal.
 The Stage-3 MLP is not just a generic regressor. It inherits the full fitted
 trajectory target structure and then refines early-time behaviour against raw
 CDF observations. The GP learns the same pointwise target family, but it does
-not include that teacher/raw staged training mechanism.
+not include that teacher/raw staged training mechanism. In the current results,
+this advantage appears mainly as conservative coverage rather than lower RMSE.
 \end{block}
 \end{frame}
 
@@ -468,10 +470,11 @@ not include that teacher/raw staged training mechanism.
 \toprule
 Model & RMSE & MAE & P95 & 1\(\sigma\) & 2\(\sigma\) \\
 \midrule
-Hiroyasu--Arai calibrated & 9.974 & 7.686 & 20.493 & 0.536 & 0.886 \\
-Naber--Siebers delay & 8.840 & 6.780 & 17.922 & 0.620 & 0.893 \\
-Sparse heteroscedastic GP, 5-seed mean & 6.898 & 5.206 & 14.365 & 0.670 & 0.950 \\
-\good{Stage-3 MLP \(\Delta P^{0.5}\), 5-seed mean} & \good{6.211} & \good{4.587} & \good{13.029} & 0.774 & 0.981 \\
+Hiroyasu--Arai calibrated & 11.268 & 8.658 & 22.891 & 0.615 & 0.912 \\
+Naber--Siebers delay & 10.545 & 8.177 & 21.253 & 0.637 & 0.919 \\
+\good{Production MLP anchor-off, 5-seed mean} & \good{4.735} & 3.293 & \good{9.167} & \good{0.867} & \good{0.985} \\
+\good{\(\mu\)-anchor raw-uncertain MLP, 5-seed mean} & 5.200 & 3.654 & 10.525 & 0.834 & 0.985 \\
+Sparse heteroscedastic GP, Stage~3 & \good{4.628} & \good{3.173} & 9.242 & 0.703 & 0.939 \\
 \bottomrule
 \end{tabular}
 }
@@ -479,10 +482,11 @@ Sparse heteroscedastic GP, 5-seed mean & 6.898 & 5.206 & 14.365 & 0.670 & 0.950 
 
 \vspace{0.35em}
 \footnotesize
-Relative RMSE reductions for MLP: 37.7\% vs HA, 29.7\% vs NS, and 10.0\% vs GP.
-The MLP is conservative on clean-set coverage; GP is closer to nominal coverage.
+Production MLP RMSE reductions: 58.0\% vs HA and 55.1\% vs NS. SVGP is still
+0.107 mm lower in RMSE than the production MLP, while the MLP gives wider,
+more conservative intervals.
 
-\src{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv}
+\src{Thesis/generated/baseline_comparison_20260521/headline_full_clean.csv}
 \end{frame}
 
 \begin{frame}{MLP vs. Empirical Correlations}

@@ -241,6 +241,8 @@ def split_dir_names(split: str) -> tuple[str, str]:
         return "series_wide_clean", "series_clean"
     if split == "all":
         return "series_wide_all", "series_all"
+    if split == "truncated":
+        return "series_wide_truncated", "series_truncated"
     raise ValueError(f"Unsupported split: {split}")
 
 
@@ -609,6 +611,11 @@ class CDFRefinementSequenceDataset(Dataset):
         self.cap_per_experiment = dict(config.get("cap_per_experiment", {}) or {})
 
         self._raw_weight_lut, self._kd_weight_lut = self._build_regime_weight_lookup(regime_bins_df)
+        # Fallback for conditions absent from regime_bins (all frames truncated → not in long format)
+        self._raw_weight_lut_default = np.full(
+            self.n_regime_bins, config["raw_weights"]["teacher_only"], dtype=np.float32)
+        self._kd_weight_lut_default = np.full(
+            self.n_regime_bins, config["kd_weights"]["teacher_only"], dtype=np.float32)
         self.onset_bins = self._build_onset_bins()
         self.precompute = bool(config.get("precompute_dataset", True))
         self._cache: dict[str, torch.Tensor] | None = None
@@ -681,8 +688,8 @@ class CDFRefinementSequenceDataset(Dataset):
                 raw_valid[grid_idx] = True
 
         group_key = self._row_group_key(row)
-        raw_regime_weights = self._raw_weight_lut[group_key][self.time_bins].copy()
-        kd_regime_weights = self._kd_weight_lut[group_key][self.time_bins].copy()
+        raw_regime_weights = self._raw_weight_lut.get(group_key, self._raw_weight_lut_default)[self.time_bins].copy()
+        kd_regime_weights = self._kd_weight_lut.get(group_key, self._kd_weight_lut_default)[self.time_bins].copy()
         time_bin_weights = self.global_time_bin_weights[self.time_bins].astype(np.float32)
         raw_weights = raw_regime_weights * raw_valid.astype(np.float32) * time_bin_weights
         kd_regime_weights = kd_regime_weights * time_bin_weights
@@ -1021,7 +1028,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     p.add_argument("--synthetic-root", type=Path, default=None,
                    help="Override MLP/synthetic_data for versioned Phase-1 archives.")
-    p.add_argument("--series-split", choices=("clean", "all"), default="clean")
+    p.add_argument("--series-split", choices=("clean", "all", "truncated"), default="clean")
     p.add_argument(
         "--sources",
         nargs="+",

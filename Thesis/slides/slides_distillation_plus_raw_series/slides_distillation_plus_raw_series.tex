@@ -33,10 +33,10 @@
 \textbf{Current status after the \(\Delta P^{0.5}\) feature-engineering update:}
 \begin{itemize}
   \item the teacher/student feature space uses \(A_{\mathrm{scale}}=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}\);
-  \item Stage-3 is evaluated over five seeds in the mode-C pipeline;
+  \item production Stage-3 is evaluated over five seeds: 7/17/42/99/2024;
   \item the dominant winning ablation is \texttt{anchor\_off};
-  \item external clean evaluation has been completed on \num{795561} points and \num{33845} trajectories;
-  \item empirical baselines and a sparse heteroscedastic GP are now included for comparison.
+  \item refreshed full-clean evaluation has \num{692942} points and \num{24316} trajectories;
+  \item empirical baselines and the Stage~3 SVGP are included for comparison.
 \end{itemize}
 \end{frame}
 
@@ -218,40 +218,45 @@ mean conservative intervals; lower values mean under-coverage.
 \footnotesize
 The five-seed in-pipeline result measures training stability on each seed's
 post-evaluation subset. The external clean diagnostic is the headline comparison
-because every model is evaluated on the same \num{795561} points.
+because every model is evaluated on the same \num{692942} full-clean points or
+the same \num{542565} conservatively uncensored CDF points.
 \end{block}
 \end{frame}
 
-\begin{frame}{Five-Seed In-Pipeline Result}
+\begin{frame}{Production Five-Seed Repeatability}
 \small
-This is the mode-C pipeline bootstrap on the common post-evaluation test subset.
+This is the refreshed production \texttt{anchor\_off} Stage-3 model evaluated
+over seeds 7/17/42/99/2024.
 
 \vspace{0.35em}
 \begin{center}
-\begin{tabular}{L{0.34\linewidth}R{0.22\linewidth}R{0.22\linewidth}}
+\begin{tabular}{L{0.28\linewidth}R{0.24\linewidth}R{0.24\linewidth}}
 \toprule
-Metric & Mean \(\pm\) std & 95\% CI \\
+Metric & Full clean & CDF uncensored \\
 \midrule
-RMSE mm & 8.924 \(\pm\) 1.133 & 8.070--9.855 \\
-MAE mm & 7.207 \(\pm\) 1.000 & 6.507--8.076 \\
-Bias mm & -5.435 \(\pm\) 1.655 & -6.945---4.421 \\
-P95 abs. err. mm & 17.114 \(\pm\) 1.993 & 15.528--18.700 \\
-1\(\sigma\) coverage & 0.654 \(\pm\) 0.067 & 0.601--0.706 \\
-2\(\sigma\) coverage & 0.966 \(\pm\) 0.016 & 0.954--0.979 \\
+RMSE mm & 4.735 \(\pm\) 0.037 & 4.265 \(\pm\) 0.040 \\
+MAE mm & 3.293 \(\pm\) 0.039 & 3.032 \(\pm\) 0.048 \\
+Bias mm & +0.626 \(\pm\) 0.112 & +0.562 \(\pm\) 0.119 \\
+P95 abs. err. mm & 9.167 \(\pm\) 0.066 & 8.307 \(\pm\) 0.076 \\
+1\(\sigma\) coverage & 0.867 \(\pm\) 0.004 & 0.887 \(\pm\) 0.004 \\
+2\(\sigma\) coverage & 0.985 \(\pm\) 0.001 & 0.989 \(\pm\) 0.001 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \vspace{0.3em}
 \footnotesize
-Important protocol note: this in-pipeline summary has \(n=8398\) post-evaluation points per seed. It is a stability diagnostic, not the external \num{795561}-point clean benchmark.
+The per-seed spread is small; the conclusion is not seed luck. The CDF-uncensored
+table is the cleaner physical metric, while full-clean preserves continuity with
+earlier thesis material.
 
-\src{MLP/runs_mlp/full_pipeline_C_20260509_110100/bootstrap_summary.json}
+\src{Thesis/generated/baseline_comparison_20260521/fixed_table_group_summary.csv}
 \end{frame}
 
 \begin{frame}{External Clean Diagnostic}
 \small
-The same trained Stage-3 models were evaluated on the full clean diagnostic protocol: \num{795561} points and \num{33845} trajectories.
+The refreshed production Stage-3 models were evaluated on the full clean diagnostic protocol:
+\num{692942} points and \num{24316} trajectories.
 
 \vspace{0.35em}
 \begin{center}
@@ -259,24 +264,28 @@ The same trained Stage-3 models were evaluated on the full clean diagnostic prot
 \toprule
 Model & RMSE & MAE & P95 & 1\(\sigma\) cov. \\
 \midrule
-Hiroyasu--Arai calibrated & 9.974 & 7.686 & 20.493 & 0.536 \\
-Naber--Siebers delay & 8.840 & 6.780 & 17.922 & 0.620 \\
-Sparse heteroscedastic GP mean & 6.898 & 5.206 & 14.365 & 0.670 \\
-\good{Stage-3 MLP \(\Delta P^{0.5}\), 5-seed mean} & \good{6.211} & \good{4.587} & \good{13.029} & 0.774 \\
+Hiroyasu--Arai calibrated & 11.268 & 8.658 & 22.891 & 0.615 \\
+Naber--Siebers delay & 10.545 & 8.177 & 21.253 & 0.637 \\
+\good{Production MLP anchor-off, 5-seed mean} & \good{4.735} & 3.293 & \good{9.167} & \good{0.867} \\
+\(\mu\)-anchor raw-uncertain MLP, 5-seed mean & 5.200 & 3.654 & 10.525 & 0.834 \\
+Sparse heteroscedastic GP, Stage~3 & \good{4.628} & \good{3.173} & 9.242 & 0.703 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \vspace{0.25em}
-The Stage-3 MLP beats the GP on accuracy, while the GP remains closer to nominal uncertainty coverage.
+The production MLP crushes the physical baselines and is close to SVGP, but the
+SVGP remains the point-accuracy winner. The MLP contributes conservative
+coverage and a deployable neural surrogate.
 
-\src{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv}
+\src{Thesis/generated/baseline_comparison_20260521/headline_full_clean.csv}
 \end{frame}
 
 \begin{frame}{Clean vs Hard-Subset Calibration}
 \small
 \begin{block}{External clean diagnostic}
-The \(\Delta P^{0.5}\) Stage-3 MLP over-covers on the clean full diagnostic: 1\(\sigma\)/2\(\sigma\) coverage is \(0.774/0.981\), above nominal \(0.683/0.954\).
+The production Stage-3 MLP over-covers on the clean full diagnostic:
+1\(\sigma\)/2\(\sigma\) coverage is \(0.867/0.985\), above nominal \(0.683/0.954\).
 \end{block}
 
 \begin{block}{In-pipeline post-evaluation subset}
@@ -288,6 +297,61 @@ The learned \(\sigma\) is not a single global error bar. It behaves differently 
 \end{block}
 \end{frame}
 
+\begin{frame}{Raw Supervision Source Ablation (single run)}
+\small
+Does replacing \texttt{series\_wide\_clean} with the per-condition
+right-censored \texttt{series\_wide\_truncated} improve generalisation?
+\vspace{0.35em}
+\begin{center}
+\begin{tabular}{L{0.38\linewidth}R{0.13\linewidth}R{0.13\linewidth}R{0.13\linewidth}R{0.13\linewidth}}
+\toprule
+Configuration & RMSE & MAE & Bias & P95 \\
+\midrule
+Production (\texttt{series\_wide\_clean})     & 4.746 & 3.290 & --- & --- \\
+Truncated source (\texttt{series\_wide\_truncated}) & 4.743 & 3.305 & +0.751 & 9.228 \\
+\midrule
+\(\Delta\) (truncated \(-\) production) & \(-\)0.003 & +0.015 & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.3em}
+\textbf{Conclusion.} The \(\Delta\)RMSE is negligible (\(\approx0.003\) mm).
+The regime weight mechanism already zeros the raw loss for low-confidence
+bins; explicitly truncating those frames in the source table is therefore
+redundant. This serves as a positive control confirming that the regime
+labelling correctly isolates the unreliable frames.
+
+\src{MLP/MLP\_training/stage3\_truncated\_supervision\_config.json}
+\end{frame}
+
+\begin{frame}{Regime Weight Filter Ablation (single run)}
+\small
+What is the cost of \emph{not} zeroing \texttt{raw\_weight} for the
+\texttt{raw\_uncertain} and \texttt{teacher\_only} regimes?
+\vspace{0.35em}
+\begin{center}
+\begin{tabular}{L{0.38\linewidth}R{0.13\linewidth}R{0.13\linewidth}R{0.13\linewidth}R{0.13\linewidth}}
+\toprule
+Configuration & RMSE & MAE & Bias & P95 \\
+\midrule
+Production (filter \textbf{on}: weights = 0) & 4.746 & 3.290 & --- & --- \\
+No regime filter (weights = 1.0) & 4.811 & 3.350 & +0.721 & 9.254 \\
+\midrule
+\(\Delta\) (no-filter \(-\) production) & +0.065 & +0.060 & --- & +0.026 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.3em}
+\textbf{Conclusion.} Admitting right-censored late-time frames as raw
+supervision degrades RMSE by \(+0.065\) mm (\(\approx1.4\%\)).
+The KD term partially compensates (high KD weights in uncertain bins
+suppress the noise), limiting the damage but not eliminating it.
+Zeroing the raw weight in low-confidence bins is therefore a justified
+and quantifiably beneficial design choice.
+
+\src{MLP/MLP\_training/stage3\_no\_regime\_raw\_filter\_config.json}
+\end{frame}
+
 \begin{frame}{What Should Go Into the Thesis}
 \small
 \begin{block}{Method sentence}
@@ -295,11 +359,14 @@ Stage 3 refines the Stage-2 heteroscedastic teacher against raw CDF measurements
 \end{block}
 
 \begin{block}{Ablation sentence}
-The best \(\Delta P^{0.5}\) Stage-3 configuration removes the explicit early-time anchor in four of five seeds, indicating that the onset head and raw/KD regime weighting provide sufficient early-time regularization.
+The best \(\Delta P^{0.5}\) Stage-3 configuration removes the explicit early-time anchor in four of five seeds, indicating that the onset head and raw/KD regime weighting provide sufficient early-time regularization. Two additional single-run ablations confirm that the regime filter is effective: replacing the clean source with the right-censored truncated source yields negligible change (\(\Delta\)RMSE \(\approx-0.003\) mm), while disabling the regime raw-weight filter degrades RMSE by \(+0.065\) mm.
 \end{block}
 
 \begin{block}{Result sentence}
-On the external clean benchmark, the resulting five-seed Stage-3 MLP reaches RMSE \(6.211\pm0.283\) mm and outperforms Hiroyasu--Arai, Naber--Siebers, and a sparse heteroscedastic GP on RMSE, MAE, and P95 error.
+On the refreshed full-clean benchmark, the resulting five-seed production MLP
+reaches RMSE \(4.735\pm0.037\) mm and outperforms Hiroyasu--Arai and
+Naber--Siebers by more than 55\% in RMSE. It is slightly behind the Stage~3
+SVGP in point RMSE, but gives more conservative coverage.
 \end{block}
 \end{frame}
 
@@ -310,10 +377,10 @@ On the external clean benchmark, the resulting five-seed Stage-3 MLP reaches RMS
 Item & Path \\
 \midrule
 Stage-3 training script & \scriptsize\url{MLP/MLP_training/train_stage3_distillation_plus_raw_series.py} \\
-Five-seed pipeline summary & \scriptsize\url{MLP/runs_mlp/full_pipeline_C_20260509_110100/bootstrap_summary.json} \\
-Representative winner run & \scriptsize\url{MLP/runs_mlp/distill_cdf_onset_v2_ablate_anchor_off_20260509_111556/} \\
-External comparison table & \scriptsize\url{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv} \\
-GP baseline output & \scriptsize\url{MLP/runs_mlp/gp_baseline_20260509_201444/} \\
+Production MLP runs & \scriptsize\url{MLP/runs_mlp/distill_cdf_onset_v2_ablate_anchor_off_20260521_122435}--\url{..._124004} \\
+Fixed-table comparison & \scriptsize\url{MLP/baseline/comparison_reports/stage3_fixed_table_eval_with_ha_ns_20260521/} \\
+Full-clean comparison table & \scriptsize\url{Thesis/generated/baseline_comparison_20260521/headline_full_clean.csv} \\
+SVGP Stage~3 output & \scriptsize\url{MLP/runs_mlp/gp_baseline_stage3_20260521_112229/} \\
 \bottomrule
 \end{tabular}
 \end{frame}

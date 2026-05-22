@@ -216,14 +216,20 @@ Changing \(A_{\mathrm{scale}}\) from \(\Delta P^{0.25}\) to \(\Delta P^{0.5}\) i
 \end{block}
 
 \begin{block}{External clean diagnostic}
-On the \num{795561}-point external clean protocol, the \(\Delta P^{0.5}\) Stage-3 MLP reached \good{RMSE \SI{6.211}{mm} \(\pm\) \SI{0.283}{mm}} over five seeds, compared with \SI{6.696}{mm} for the old \(\Delta P^{0.25}\) seed-42 model.
+On the refreshed \num{692942}-point full-clean protocol, the production
+\(\Delta P^{0.5}\) Stage-3 MLP reaches \good{RMSE \SI{4.735}{mm} \(\pm\) \SI{0.037}{mm}}
+over five seeds. On the stricter uncensored CDF table, the same five-seed mean is
+\good{\SI{4.265}{mm} \(\pm\) \SI{0.040}{mm}}.
 \end{block}
 
 \begin{block}{Baseline context}
-The same external comparison gives RMSE \SI{9.974}{mm} for calibrated Hiroyasu--Arai, \SI{8.840}{mm} for Naber--Siebers delay, and \SI{6.898}{mm} for sparse heteroscedastic GP.
+The same refreshed full-clean comparison gives RMSE \SI{11.268}{mm} for
+calibrated Hiroyasu--Arai, \SI{10.545}{mm} for Naber--Siebers delay, and
+\SI{4.628}{mm} for Stage~3 SVGP. The feature change is still central, but the
+latest architecture claim is ``competitive with SVGP'', not ``ahead of SVGP''.
 \end{block}
 
-\src{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv}
+\src{Thesis/generated/baseline_comparison_20260521/headline_full_clean.csv}
 \end{frame}
 
 \begin{frame}{Pretrain Collapse Check}
@@ -365,7 +371,7 @@ Regime-transition figure &
 Current \(A_{\mathrm{scale}}\) implementation &
 \scriptsize\url{MLP/MLP_training/engineered_feature_common.py} lines around \texttt{A\_scale} construction \\
 Baseline / GP comparison snapshot &
-\scriptsize\url{Thesis/generated/baseline_comparison_20260509/headline_comparison.csv} \\
+\scriptsize\url{Thesis/generated/baseline_comparison_20260521/headline_full_clean.csv} \\
 Collapse comparison summary &
 \scriptsize\url{MLP/synthetic_data/fit_diagnostics/delta_p_exponent_collapse/comparison_summary.csv} \\
 Slide-local frozen copies &

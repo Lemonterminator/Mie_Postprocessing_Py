@@ -13,6 +13,9 @@ reversed that hypothesis: censored / near-cap points actually exhibit
 *under*-prediction (pen_pred < pen_true). The script now simply slices
 the residuals by trace-level FOV-censoring and by the per-point near-cap rule
 and reports RMSE/MAE/bias/coverage in each slice for downstream diagnosis.
+
+This is useful after ``audit_cdf_spatial_censoring.py`` has produced plume
+labels and an NN evaluation has produced ``points.csv``.
 """
 from __future__ import annotations
 

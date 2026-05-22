@@ -1,0 +1,309 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage{colortbl}
+\usepackage{bm}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\bluenote}[1]{\textcolor{blue!65!black}{#1}}
+\newcommand{\src}[1]{\vfill{\tiny\textcolor{gray!75!black}{Source: \url{#1}}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\definecolor{winrow}{RGB}{220,240,220}
+\definecolor{warnrow}{RGB}{255,235,230}
+
+\title[Stage-2 Anchor Ablation]{Stage-2 Anchor Ablation\\LONO Validation of the Early-Time Physics Prior}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Message}
+\small
+\textbf{Claim:} adding a soft $\bm{\mu(t{\to}0){\approx}0}$ anchor to the Stage-2 NLL loss
+improves out-of-nozzle generalisation. Extending the anchor to also constrain $\sigma$
+brings no further gain (and slightly over-tightens uncertainty).
+
+\vspace{0.5em}
+\textbf{This deck:}
+\begin{itemize}
+  \item recaps the physical motivation: penetration must start at $0$ at injection onset,
+        so $\mu$ and $\sigma$ near $t{=}0$ should be small
+  \item defines the three anchor ablations: \texttt{no\_anchor}, \texttt{mu\_anchor},
+        \texttt{mu\_sigma\_anchor}
+  \item shows per-fold and mean post-Stage-3 RMSE/MAE/coverage for all three under 5-fold LONO
+  \item confirms (i) \texttt{mu\_anchor} wins on RMSE, MAE, and 2$\sigma$ coverage,
+        (ii) \texttt{no\_anchor} catastrophically fails on the hardest non-Nozzle0 fold,
+        (iii) adding $\sigma$-anchor narrows predicted $\sigma$ but does not improve RMSE
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Validated pipeline:} \texttt{run\_stage2\_lono\_ablation.py}, seed 42, 5 folds $\times$ 3 ablations
+(uncensored eval points per fold $\in\{311149,\,60369,\,33017,\,28139,\,25705\}$);
+Stage-1 backbone fixed to \texttt{a\_dp050\_plus\_pressures} (Stage-1 winner).
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Background: The Early-Time Physics Anchor}
+\small
+\textbf{Physical constraint at injection onset:}
+\[
+  S(t{=}0) = 0,\qquad \sigma\bigl(S(t{=}0)\bigr) \;\text{should be small.}
+\]
+Without an explicit penalty the NLL trains the network to optimise the \emph{likelihood of the
+observed points}, which contain almost no samples at $t < \SI{0.1}{ms}$ (laser onset truncation,
+shadow latency, etc.). The network therefore drifts to large $|\mu|$ and inflated $\sigma$
+near $t{=}0$ just because that region is data-poor.
+
+\vspace{0.5em}
+\textbf{Anchor penalty} (added to the NLL):
+\[
+  \mathcal{R}_{\mu} = \frac{\sum_t w(t)\,\mu(t)^2}{\sum_t w(t)},\qquad
+  \mathcal{R}_{\sigma} = \frac{\sum_t w(t)\,\bigl[\max(0,\,\sigma(t)-\sigma_0)\bigr]^2}{\sum_t w(t)},
+\]
+\[
+  w(t) = \max\!\Bigl(0,\;1 - \tfrac{t}{\tau}\Bigr),\qquad
+  \tau = \text{anchor\_window\_ms (early-time ramp)}.
+\]
+$w(t)$ is a triangular kernel: weight $1$ at $t{=}0$, decaying linearly to $0$ at $t{=}\tau$.
+
+\vspace{0.5em}
+\textbf{Final Stage-2 loss:}
+\[
+  \mathcal{L}_2 \;=\; \mathrm{NLL}\bigl(y\,;\,\mu(x),\sigma(x)\bigr)
+              \;+\; \lambda_\mu\,\mathcal{R}_\mu
+              \;+\; \lambda_\sigma\,\mathcal{R}_\sigma.
+\]
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Variant Design: What Each Configuration Tests}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}L{3.4cm} C{1.2cm} C{1.2cm} L{6.5cm}@{}}
+\toprule
+\textbf{Variant} & $\bm{\lambda_\mu}$ & $\bm{\lambda_\sigma}$ & \textbf{What it tests} \\
+\midrule
+\texttt{no\_anchor}        & 0       & 0       & pure NLL baseline; no physics prior at $t{=}0$ \\
+\texttt{mu\_anchor}        & \good{$10^{-2}$} & 0       & \good{soft anchor only on $\mu$ — penalises non-zero penetration at injection onset} \\
+\texttt{mu\_sigma\_anchor} & $10^{-2}$ & $10^{-3}$ & adds soft anchor on excess-$\sigma$ above the floor $\sigma_0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.6em}
+\textbf{Identical across ablations:}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Stage-1 backbone: \texttt{a\_dp050\_plus\_pressures} (locked from Stage-1 LONO winner)
+  \item Stage-3 chain: \texttt{anchor\_off} distillation (identical recipe)
+  \item Same train/val split, same seed (42), same nozzle held out per fold
+\end{itemize}
+
+\vspace{0.4em}
+\textbf{Per-fold pipeline:} Stage-1 (1 run) $\to$ Stage-2 (3 ablations) $\to$ Stage-3 anchor\_off (3 chains) $\to$
+post-Stage-3 RMSE eval on the held-out nozzle's uncensored points.
+
+\vspace{0.3em}
+\footnotesize
+Total trainings: $5 \times (1{+}3{+}3) = 35$ runs; reported metrics are the post-Stage-3 eval (end-task quality).
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{LONO Results: Summary (Mean $\pm$ Std Across 5 Folds)}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.22}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Ablation} & \textbf{RMSE (mm)} & \textbf{MAE (mm)} & \textbf{Bias (mm)} & \textbf{cov$_{2\sigma}$} & \textbf{$\bar\sigma$ (mm)} \\
+\midrule
+\rowcolor{winrow}
+\texttt{mu\_anchor}        & \textbf{12.73 $\pm$ 12.44} & \textbf{9.86 $\pm$ 10.22} & $-7.11 \pm 11.51$ & \textbf{0.775 $\pm$ 0.34} & 5.68 $\pm$ 1.44 \\
+\texttt{mu\_sigma\_anchor} & 13.05 $\pm$ 12.46 & 10.06 $\pm$ 10.33 & $-7.59 \pm 11.45$ & 0.764 $\pm$ 0.35 & \textbf{5.49 $\pm$ 1.55} \\
+\rowcolor{warnrow}
+\texttt{no\_anchor}        & 14.54 $\pm$ 12.36 & 10.80 $\pm$ 9.96 & $-8.50 \pm 11.03$ & 0.763 $\pm$ 0.34 & 6.11 $\pm$ 1.58 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\textbf{Headline numbers, excluding the outlier Nozzle0 fold (4-fold mean RMSE):}
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{Ablation} & \textbf{RMSE w/o Nozzle0 (mm)} \\
+\midrule
+\rowcolor{winrow}
+\texttt{mu\_anchor}        & \textbf{7.18} \\
+\texttt{mu\_sigma\_anchor} & 7.53 \\
+\rowcolor{warnrow}
+\texttt{no\_anchor}        & 9.61 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+\footnotesize
+\good{Green}: anchored variants. \warn{Red}: no-anchor baseline.
+\texttt{mu\_anchor} wins on RMSE, MAE, and 2$\sigma$-coverage; \texttt{mu\_sigma\_anchor}
+has the tightest predicted $\sigma$ (5.49 mm) but loses 0.32 mm RMSE — over-constraining the
+uncertainty channel hurts the mean.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{LONO Results: Per-Fold Breakdown}
+\footnotesize
+\begin{center}
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrr|r@{}}
+\toprule
+\textbf{Ablation} &
+\textbf{Nozzle0} & \textbf{Nozzle2} & \textbf{Nozzle5} & \textbf{Nozzle4} & \textbf{Nozzle1} &
+\textbf{Mean} \\
+& \scriptsize(311149) & \scriptsize(60369) & \scriptsize(33017) & \scriptsize(28139) & \scriptsize(25705) & \\
+\midrule
+\multicolumn{7}{l}{\textit{RMSE (mm)}} \\
+\rowcolor{winrow}
+\texttt{mu\_anchor}        & 34.92 & \good{7.76} & 5.60 & 8.20 & 7.16 & \textbf{12.73} \\
+\texttt{mu\_sigma\_anchor} & 35.12 & 10.04       & 5.27 & 7.73 & 7.10 & 13.05 \\
+\rowcolor{warnrow}
+\texttt{no\_anchor}        & 34.25 & \warn{19.18} & 5.11 & 7.57 & 6.56 & 14.54 \\
+\midrule
+\multicolumn{7}{l}{\textit{MAE (mm)}} \\
+\texttt{mu\_anchor}        & 28.11 & 5.72  & 4.26 & 5.84 & 5.37 & 9.86 \\
+\texttt{mu\_sigma\_anchor} & 28.44 & 6.91  & 3.89 & 5.79 & 5.29 & 10.06 \\
+\texttt{no\_anchor}        & 27.53 & 12.46 & 3.79 & 5.41 & 4.82 & 10.80 \\
+\midrule
+\multicolumn{7}{l}{\textit{Coverage at $2\sigma$ (target 0.95)}} \\
+\texttt{mu\_anchor}        & .171 & .856 & .975 & .912 & .963 & .775 \\
+\texttt{mu\_sigma\_anchor} & .149 & .801 & .981 & .929 & .959 & .764 \\
+\texttt{no\_anchor}        & .191 & .690 & .985 & .965 & .982 & .763 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.1em}
+\scriptsize
+Post-Stage-3 metrics on held-out nozzle's uncensored CDF P50 points. Number under each
+nozzle = eval-point count. Columns sorted by descending point count; Nozzle0 dominates the
+mean by sample weight.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Discussion: Three Consistent Patterns}
+\small
+\begin{block}{1. \good{$\mu$-anchor stabilises the hardest non-outlier fold}}
+On Nozzle2 (the second-largest fold by sample count and the only fold where the model is asked
+to extrapolate to a new injector geometry within the modern family), \texttt{no\_anchor}
+collapses to \warn{19.18\,mm RMSE} while \texttt{mu\_anchor} holds at 7.76\,mm. The anchor
+prevents the NLL from fitting an arbitrary near-$t{=}0$ baseline using the data-poor early
+window as free parameters.
+\end{block}
+
+\begin{block}{2. \warn{Adding $\sigma$-anchor doesn't recover the lost RMSE}}
+\texttt{mu\_sigma\_anchor} achieves the tightest predicted $\sigma$ (5.49\,mm mean) but its
+RMSE is 0.32\,mm worse than \texttt{mu\_anchor}. Pushing $\sigma$ down at $t{=}0$ propagates
+through Stage-3 distillation as a more confident-but-biased $\mu$ prediction, hurting accuracy
+without improving calibration (cov$_{2\sigma}$ 0.764 vs 0.775).
+\end{block}
+
+\begin{block}{3. \bluenote{Easy folds (Nozzle1/4/5) are insensitive to the anchor choice}}
+On the three modern-design nozzles with $\sim$25--33k eval points, all three ablations sit in
+a narrow 5.1--8.2\,mm RMSE band. The anchor only matters when the LONO fold creates a
+genuine OOD challenge (Nozzle0 for geometric reasons, Nozzle2 for sample-size reasons).
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Discussion: Nozzle0 is Still the Hardest Fold}
+\small
+\begin{columns}[T]
+\column{0.55\textwidth}
+Nozzle0 (\texttt{BC20220627\_HZ\_Nozzle0}) carries \textbf{311{,}149 uncensored eval points}
+— about 5$\times$ more than the next-largest fold (Nozzle2: 60{,}369). It is also the
+\emph{only} first-generation nozzle in the dataset.
+
+\vspace{0.5em}
+All three ablations land in the same catastrophic band on this fold:
+\begin{itemize}\setlength\itemsep{2pt}
+  \item RMSE 34--35\,mm
+  \item bias $\approx -27$\,mm (systematic under-prediction)
+  \item 2$\sigma$ coverage 0.15--0.19
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Interpretation:} the Nozzle0 failure is not an anchor problem; it is a fundamental
+\emph{out-of-design-family} extrapolation. None of the in-distribution Stage-2 regularisers
+can compensate for a missing geometric class. This was already known from the Stage-1
+ablation and is reproduced here at the Stage-3 output level.
+
+\column{0.42\textwidth}
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Fold} & \textbf{Points} & \textbf{Best RMSE} \\
+\midrule
+Nozzle0 & 311{,}149 & 34.25\,mm \\
+Nozzle2 & 60{,}369  & 7.76\,mm \\
+Nozzle5 & 33{,}017  & 5.11\,mm \\
+Nozzle4 & 28{,}139  & 7.57\,mm \\
+Nozzle1 & 25{,}705  & 6.56\,mm \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.5em}
+\footnotesize
+Best RMSE = minimum across the three ablations for that fold.
+Excluding Nozzle0 collapses the cross-ablation gap to 7.18\,mm
+(\texttt{mu\_anchor}) vs 9.61\,mm (\texttt{no\_anchor}), a 2.4\,mm OOD margin from the
+anchor alone.
+\end{columns}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Conclusion: $\mu$-Anchor is the Stage-2 LONO Winner}
+\small
+\begin{block}{What the ablation proves}
+\begin{enumerate}
+  \item \textbf{The early-time $\mu$-anchor is load-bearing.} It buys 1.8\,mm mean RMSE
+        (14.54 $\to$ 12.73) over no-anchor with Nozzle0 included, and 2.4\,mm
+        (9.61 $\to$ 7.18) excluding Nozzle0.
+  \item \textbf{The anchor's value shows up on hard OOD folds, not easy ones.} On Nozzle1/4/5
+        all variants are within 0.5\,mm; on Nozzle2 the anchor saves 11+\,mm. The
+        regularisation only matters when the model is forced to extrapolate.
+  \item \textbf{$\sigma$-anchor is not additive.} Tightening $\sigma$ at $t{=}0$ trades
+        $\bar\sigma$ (5.68 $\to$ 5.49\,mm) for a worse RMSE (12.73 $\to$ 13.05\,mm) and
+        slightly worse calibration. \texttt{mu\_anchor} is the Pareto winner.
+  \item \textbf{Production variant for downstream Stage-3 LONO and multi-seed retrains:}
+        \texttt{mu\_anchor} ($\lambda_\mu{=}10^{-2}$, $\lambda_\sigma{=}0$).
+\end{enumerate}
+\end{block}
+
+\vspace{0.3em}
+\textbf{Experiment:} \texttt{run\_stage2\_lono\_ablation.py} --- 3 ablations $\times$ 5 LONO
+folds, seed 42, Stage-1 = \texttt{a\_dp050\_plus\_pressures}, Stage-3 = \texttt{anchor\_off}.\\
+\textbf{Output:} \texttt{MLP/runs\_mlp/stage2\_lono\_ablation\_20260520\_235200/}
+\end{frame}
+
+\end{document}

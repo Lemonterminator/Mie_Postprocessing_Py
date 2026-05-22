@@ -1,7 +1,8 @@
 """Phase 1: Curve-fitting pipeline wrapper.
 
-Invokes fit_raw_data.py (with versioned OUTPUT_ROOT), then the audit and
-summary scripts. Writes a timestamped archive to MLP/synthetic_data_runs/{run_id}/
+Invokes fit_raw_data.py (with versioned OUTPUT_ROOT). The fit script now also
+generates diagnostics, CDF right-censoring point tables, and p50-q1 oracle
+baselines. Writes a timestamped archive to MLP/synthetic_data_runs/{run_id}/
 and updates MLP/synthetic_data_runs/latest.txt.
 
 Usage
@@ -43,9 +44,6 @@ from pipelines.common.archive_layout import (
 from pipelines.common.run_metadata import make_run_id, write_metadata, finalize_metadata
 
 FIT_SCRIPT = REPO_ROOT / "MLP" / "curve_fit" / "fit_raw_data.py"
-AUDIT_SCRIPT = REPO_ROOT / "MLP" / "curve_fit" / "audit_cdf_spatial_censoring.py"
-SURVIVAL_SCRIPT = REPO_ROOT / "MLP" / "curve_fit" / "summarize_filter_survival.py"
-DATASET_SCRIPT = REPO_ROOT / "MLP" / "curve_fit" / "summarize_dataset.py"
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,7 +66,7 @@ def _run(cmd: list[str], env: dict, dry_run: bool, label: str) -> None:
     if dry_run:
         print(f"  DRY-RUN: {' '.join(str(c) for c in cmd)}")
         return
-    result = subprocess.run(cmd, env=env, check=False)
+    result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"{label} exited with code {result.returncode}")
 
@@ -90,41 +88,12 @@ def _run_fit(
         env["FIT_ABLATION_QUARTER_ONLY"] = "1"
     env["FIT_N_WORKERS"] = str(n_workers)
 
-    cmd = [sys.executable, str(FIT_SCRIPT), "--no-chain"]
+    cmd = [sys.executable, str(FIT_SCRIPT)]
     if nozzle_filter:
         # patch: restrict names list via env var (fit_raw_data reads FIT_NOZZLE_FILTER)
         env["FIT_NOZZLE_FILTER"] = nozzle_filter
 
     _run(cmd, env=env, dry_run=dry_run, label="fit_raw_data.py")
-
-
-def _run_audit(run_dir: Path, *, dry_run: bool) -> None:
-    out_dir = run_dir / "spatial_censoring_audit"
-    cmd = [
-        sys.executable, str(AUDIT_SCRIPT),
-        "--synthetic-root", str(run_dir),
-        "--out-dir", str(out_dir),
-    ]
-    _run(cmd, env=os.environ.copy(), dry_run=dry_run, label="audit_cdf_spatial_censoring.py")
-
-
-def _run_survival(run_dir: Path, *, dry_run: bool) -> None:
-    report_csv = run_dir / "fit_report.csv"
-    if not dry_run and not report_csv.exists():
-        print(f"  SKIP summarize_filter_survival: fit_report.csv not found at {report_csv}")
-        return
-    cmd = [
-        sys.executable, str(SURVIVAL_SCRIPT),
-        "--fit-report", str(report_csv),
-        "--out-dir", str(run_dir / "fit_survival_report"),
-    ]
-    _run(cmd, env=os.environ.copy(), dry_run=dry_run, label="summarize_filter_survival.py")
-
-
-def _run_dataset_summary(dry_run: bool) -> None:
-    # summarize_dataset.py has no argparse; writes to MLP/curve_fit/ by default.
-    cmd = [sys.executable, str(DATASET_SCRIPT)]
-    _run(cmd, env=os.environ.copy(), dry_run=dry_run, label="summarize_dataset.py")
 
 
 def _mirror_canonical(run_dir: Path, dry_run: bool) -> None:
@@ -147,6 +116,10 @@ def _record_outputs(run_dir: Path) -> None:
         "spatial_censoring_audit/plume_spatial_censoring_audit.csv": ("scr_audit_detail", "Per-trajectory SCR audit"),
         "spatial_censoring_audit/spatial_censoring_summary_overall.csv": ("scr_audit_summary", "SCR overall summary"),
         "fit_survival_report/filter_survival_by_source.csv": ("filter_survival", "Filter survival by penetration source"),
+        "cdf_right_censoring_points/cdf_points_uncensored.csv": ("cdf_uncensored_points", "Point-level CDF uncensored samples"),
+        "cdf_right_censoring_points/cdf_condition_censoring_summary.csv": ("cdf_censoring_condition_summary", "CDF condition-level censoring summary"),
+        "p50_q1_oracle/p50_q1_fit_metrics.csv": ("p50_q1_oracle_fit_metrics", "Per-condition p50-q1 oracle fit metrics"),
+        "p50_q1_oracle/p50_q1_predictions.csv": ("p50_q1_oracle_predictions", "Per-condition p50-q1 extrapolation predictions"),
     }
     for rel, (role, desc) in role_map.items():
         if (run_dir / rel).exists():
@@ -184,10 +157,6 @@ def run(args: argparse.Namespace) -> Path:
         dry_run=args.dry_run,
         nozzle_filter=args.nozzle_filter,
     )
-    _run_audit(run_dir, dry_run=args.dry_run)
-    _run_survival(run_dir, dry_run=args.dry_run)
-    _run_dataset_summary(dry_run=args.dry_run)
-
     if mirror:
         _mirror_canonical(run_dir, dry_run=args.dry_run)
 

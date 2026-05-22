@@ -29,7 +29,10 @@
 
 \begin{frame}{The Core Argument}
 \textbf{Goal:}
-Prove that the MLP not only predicts accurate mean penetration trajectories but also provides \textbf{statistically reliable dynamic uncertainty bounds ($\sigma$)}. 
+Show that the production MLP not only predicts accurate mean penetration trajectories
+but also provides \textbf{deliberately conservative dynamic uncertainty bounds ($\sigma$)}.
+The refreshed comparison keeps SVGP as the point-accuracy winner and frames the MLP
+as the more cautious screening surrogate.
 
 \vspace{0.5em}
 \textbf{The Limitation of Traditional Baselines:}
@@ -45,10 +48,11 @@ Prove that the MLP not only predicts accurate mean penetration trajectories but 
 
 \begin{frame}{Evaluation Protocol}
 \small
-\begin{block}{Common clean diagnostic set}
-All models are evaluated on the same \num{795561} points. For every point \(i\),
-the diagnostic consumes a scalar observation \(y_i\), predictive mean \(\mu_i\),
-and predictive standard deviation \(\sigma_i\).
+\begin{block}{Current diagnostic sets}
+The refreshed full-clean CDF protocol has \num{692942} points. The main fixed
+diagnostic table, \texttt{cdf\_points\_uncensored.csv}, has \num{542565} points
+after conservative right-censoring removal. For every point \(i\), diagnostics
+consume \(y_i\), \(\mu_i\), and \(\sigma_i\).
 \end{block}
 
 \begin{block}{Why this matters}
@@ -58,11 +62,12 @@ both \emph{calibrated} and \emph{sharp}.
 \end{block}
 
 \begin{block}{Models compared}
-Calibrated Hiroyasu--Arai, Naber--Siebers delay, old Stage-3 MLP
-\(\Delta P^{0.25}\), and five new Stage-3 MLP \(\Delta P^{0.5}\) seeds.
+Calibrated Hiroyasu--Arai, Naber--Siebers delay, production MLP anchor-off
+mean over five seeds, \(\mu\)-anchor raw-uncertain MLP mean over five seeds,
+and the Stage~3 SVGP seed-42 baseline.
 \end{block}
 
-\src{MLP/eval/calibration_diagnostics.py}
+\src{MLP/baseline/comparison_reports/stage3_fixed_table_eval_with_ha_ns_20260521/}
 \end{frame}
 
 \begin{frame}{Metric 1: Reliability Diagram \& Expected Calibration Error (ECE)}
@@ -125,22 +130,23 @@ uniform on \([0,1]\).
     \item U-shaped PIT: too many observations fall in predictive tails, often indicating under-dispersion / overconfidence.
     \item Hump-shaped PIT: too many observations fall near the predictive median, often indicating over-dispersion / conservative variance.
     \item A one-sided skew indicates systematic bias in \(\mu\).
-    \item With \(n=\num{795561}\), KS \(p\)-values become extremely sensitive; histogram shape and ECE are more informative than treating \(p=0\) as a simple failure label.
+    \item With \(n=\num{692942}\) on the full-clean table, KS \(p\)-values become extremely sensitive; histogram shape and ECE are more informative than treating \(p=0\) as a simple failure label.
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Calibration Results: Summary Table}
+\begin{frame}{Current Coverage Summary}
 \scriptsize
 \begin{center}
-{\setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{L{0.38\linewidth}R{0.10\linewidth}R{0.11\linewidth}R{0.12\linewidth}R{0.10\linewidth}R{0.10\linewidth}}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{L{0.34\linewidth}R{0.12\linewidth}R{0.12\linewidth}R{0.12\linewidth}R{0.12\linewidth}R{0.12\linewidth}R{0.12\linewidth}}
 \toprule
-Model & ECE & CRPS & Sharp. & 1\(\sigma\) & 2\(\sigma\) \\
+Model & Full RMSE & Full 1\(\sigma\) & Full 2\(\sigma\) & Uncens. RMSE & Uncens. 1\(\sigma\) & Uncens. 2\(\sigma\) \\
 \midrule
-Hiroyasu--Arai calibrated & 0.070 & 5.503 & 7.478 & 0.536 & 0.886 \\
-Naber--Siebers delay & 0.045 & 4.894 & 7.632 & 0.620 & 0.893 \\
-Stage-3 MLP \(\Delta P^{0.25}\), seed 42 & \good{0.035} & 3.409 & \good{6.505} & 0.745 & 0.979 \\
-\good{Stage-3 MLP \(\Delta P^{0.5}\), 5-seed mean} & 0.044 & \good{3.245} & 6.611 & 0.774 & 0.981 \\
+Hiroyasu--Arai calibrated & 11.268 & 0.615 & 0.912 & 10.261 & 0.630 & 0.917 \\
+Naber--Siebers delay & 10.545 & 0.637 & 0.919 & 9.286 & 0.659 & 0.927 \\
+\good{Production MLP anchor-off mean(5)} & 4.735 & \good{0.867} & \good{0.985} & 4.265 & \good{0.887} & \good{0.989} \\
+\(\mu\)-anchor raw-uncertain mean(5) & 5.200 & 0.834 & 0.985 & 4.941 & 0.840 & 0.988 \\
+SVGP Stage~3 & \good{4.628} & 0.703 & 0.939 & \good{4.193} & 0.716 & 0.945 \\
 \bottomrule
 \end{tabular}
 }
@@ -148,51 +154,50 @@ Stage-3 MLP \(\Delta P^{0.25}\), seed 42 & \good{0.035} & 3.409 & \good{6.505} &
 
 \vspace{0.35em}
 \footnotesize
-\textbf{Readout:} the new \(\Delta P^{0.5}\) MLP has the best CRPS, so its full
-predictive distributions score best overall. It is conservative on the clean set
-(coverage above 0.683/0.954), while the old seed-42 model has the lowest ECE but
-worse CRPS and no five-seed aggregate.
+\textbf{Readout:} SVGP is the point-accuracy winner on both current tables. The
+production MLP is intentionally conservative: its 1\(\sigma\)/2\(\sigma\)
+coverage is well above the nominal 0.683/0.954 on the clean and uncensored sets.
 
-\src{MLP/baseline/comparison_reports/calibration_20260509_215557/summary.csv}
+\src{Thesis/generated/baseline_comparison_20260521/fixed_table_group_summary.csv}
 \end{frame}
 
-\begin{frame}{Reliability Diagram: ECE in Picture Form}
+\begin{frame}{Full-Clean Coverage}
 \centering
-\includegraphics[width=0.78\linewidth,height=0.72\textheight,keepaspectratio]{reliability_overlay.png}
+\includegraphics[width=0.84\linewidth,height=0.72\textheight,keepaspectratio]{full_clean_coverage_comparison_20260521.png}
 
 \vspace{0.15em}
 \footnotesize
-The diagonal is perfect lower-tail calibration. The \(\Delta P^{0.5}\) MLP family
-stays closer to the diagonal than the deterministic baselines, though the seed-2024
-variant visibly drives the five-seed mean ECE upward.
+Nominal Gaussian coverage is marked by dashed lines. Production MLP coverage is
+above nominal, while SVGP is closer to nominal but slightly under the 2\(\sigma\)
+target on the full-clean table.
 
-\src{MLP/baseline/comparison_reports/calibration_20260509_215557/reliability_overlay.png}
+\src{Thesis/images/baseline_comparison_20260521/full_clean_coverage_comparison.png}
 \end{frame}
 
-\begin{frame}{CRPS vs Sharpness}
+\begin{frame}{Uncensored-CDF Coverage}
 \centering
-\includegraphics[width=0.82\linewidth,height=0.72\textheight,keepaspectratio]{crps_sharpness_scatter.png}
+\includegraphics[width=0.84\linewidth,height=0.72\textheight,keepaspectratio]{cdf_uncensored_coverage_comparison_20260521.png}
 
 \vspace{0.15em}
 \footnotesize
-Lower-left is better only if reliability is acceptable. The MLP points dominate
-HA/NS in CRPS at similar or lower mean \(\sigma\), showing that the improvement is
-not produced by simply widening the uncertainty bands.
+On the conservatively uncensored CDF table, production MLP remains over-covering
+and SVGP remains closer to nominal. This is the central accuracy--coverage trade-off
+used in the updated thesis narrative.
 
-\src{MLP/baseline/comparison_reports/calibration_20260509_215557/crps_sharpness_scatter.png}
+\src{Thesis/images/baseline_comparison_20260521/cdf_uncensored_coverage_comparison.png}
 \end{frame}
 
-\begin{frame}{PIT Histograms}
+\begin{frame}{Accuracy and Coverage Must Be Read Together}
 \centering
-\includegraphics[width=0.94\linewidth,height=0.64\textheight,keepaspectratio]{pit_histograms.png}
+\includegraphics[width=0.86\linewidth,height=0.64\textheight,keepaspectratio]{full_clean_metric_bars_20260521.png}
 
 \vspace{0.05em}
 \footnotesize
-PIT histograms diagnose the failure mode: skew means bias, U-shape means
-under-dispersion, and centre-heavy histograms mean conservative variance. Because
-the sample is very large, visual shape is interpreted together with ECE and CRPS.
+The updated message is balanced: MLP no longer claims to beat SVGP in point
+accuracy. It is close to SVGP, far ahead of HA/NS, and substantially more
+conservative in uncertainty coverage.
 
-\src{MLP/baseline/comparison_reports/calibration_20260509_215557/pit_histograms.png}
+\src{Thesis/images/baseline_comparison_20260521/full_clean_metric_bars_rmse_mae_p95.png}
 \end{frame}
 
 \begin{frame}{Conclusion}
@@ -203,9 +208,9 @@ By integrating Reliability Diagrams, CRPS, and PIT histograms, we provide a comp
 \bluenote{\textbf{Takeaway:}}\\
 Unlike Naber--Siebers or Hiroyasu--Arai models which output rigid curves plus
 global residual bands, the MLP acts as a heteroscedastic probabilistic surrogate.
-The current evidence is strongest in CRPS and coverage: the \(\Delta P^{0.5}\)
-five-seed MLP has the best CRPS and conservative clean-set coverage, while GP-style
-or deterministic baselines remain useful references for nominal calibration.
+The current evidence is strongest in conservative coverage and deployment
+simplicity: the production five-seed MLP does not beat SVGP on RMSE, but it gives
+larger safety margins while staying far ahead of deterministic HA/NS baselines.
 \end{frame}
 
 \end{document}

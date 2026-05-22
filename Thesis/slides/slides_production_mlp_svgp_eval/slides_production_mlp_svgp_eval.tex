@@ -1,0 +1,340 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage{colortbl}
+\usepackage{graphicx}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\bluenote}[1]{\textcolor{blue!65!black}{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\definecolor{winrow}{RGB}{220,240,220}
+\definecolor{softrow}{RGB}{232,242,255}
+\definecolor{warnrow}{RGB}{255,238,230}
+
+\title[Production MLP vs SVGP]{Production MLP Multi-Seed Training\\Fixed-Table Evaluation Against SVGP}
+\author{Mie Spray Postprocessing Project}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Message}
+\small
+\textbf{Claim:} the production MLP does \emph{not} beat the Stage~3 SVGP on the cleanest
+point-level CDF metric, but it gets close while producing much more conservative
+uncertainty intervals.
+
+\vspace{0.6em}
+\begin{itemize}\setlength\itemsep{4pt}
+  \item Main uncensored CDF RMSE: SVGP \(4.193\) mm vs. production MLP \(4.265 \pm 0.040\) mm.
+  \item Production MLP has higher coverage: \(1\sigma=0.887\), \(2\sigma=0.989\), vs. SVGP \(0.716/0.945\).
+  \item The diagnostic \texttt{mu\_anchor + raw\_uncertain} MLP is worse on point-level CDF,
+        but gives the best Q1 extrapolation RMSE.
+\end{itemize}
+
+\vspace{0.6em}
+\begin{block}{Thesis framing}
+SVGP should be presented as a strong probabilistic baseline, not a strawman. The MLP result
+is competitive in mean accuracy, more conservative in uncertainty, and easier to deploy;
+the \(\mu\)-anchor path is useful mainly as an extrapolation diagnostic.
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Compared Model Families}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{3.8cm}L{4.2cm}L{6.0cm}@{}}
+\toprule
+\textbf{Model family} & \textbf{Run / seed contract} & \textbf{Role in comparison} \\
+\midrule
+\textbf{SVGP Stage~3} &
+seed 42; two-stage heteroscedastic sparse GP &
+Strong probabilistic baseline trained with Stage~3 data: synthetic Q1 plus real clean CDF. \\
+\addlinespace
+\textbf{Production MLP} &
+5 seeds: 7, 17, 42, 99, 2024; Stage~3 \texttt{anchor\_off} &
+Production candidate. Warm-started from full-data Stage~2 \texttt{no\_anchor}; trained with production KD loss. \\
+\addlinespace
+\textbf{\(\mu\)-anchor raw-uncertain MLP} &
+5 seeds: 7, 17, 42, 99, 2024; \(\lambda_{\rm anchor}=0.01\) &
+Diagnostic candidate. Warm-started from Stage~2 \texttt{mu\_anchor}; uses uncertain-bin raw/KD blend. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.45em}
+\footnotesize
+All neural models use the same engineered feature family:
+\texttt{time\_norm}, tilt, plumes, injection duration, backpressure,
+\(\log p_{\rm inj}\), and \(\log p_{\rm chamber}\).
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Production MLP Training Recipe}
+\small
+\begin{columns}[T]
+\column{0.50\textwidth}
+\begin{block}{Architecture and input}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item MLP hidden widths: \(512,512,128\)
+  \item Dropout: \(0.30\)
+  \item Output: Gaussian mean and log variance
+  \item Target scale: engineered \(A\)-scaled penetration
+  \item Stage~3 time grid: \(512\) points over 0--5 ms
+\end{itemize}
+\end{block}
+
+\column{0.47\textwidth}
+\begin{block}{Training schedule}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item Base Stage~2 teacher: \texttt{no\_anchor}
+  \item Stage~3 refinement: \(150\) epochs
+  \item Batch size: \(128\)
+  \item Weight decay: \(10^{-4}\)
+  \item Loss: raw CDF NLL + production KD
+  \item KD mode: \texttt{mse\_mu\_plus\_sigma}
+  \item KD \(\sigma\) weight: \(5.0\)
+  \item Stage~3 anchor: off, \(\lambda_{\rm anchor}=0\)
+\end{itemize}
+\end{block}
+\end{columns}
+
+\vspace{0.45em}
+\footnotesize
+Production run roots:
+\path{MLP/runs_mlp/distill_cdf_onset_v2_ablate_anchor_off_20260521_122435} through
+\path{..._124004}. The five seeds are evaluated independently and reported as mean \(\pm\) std.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Training Data Contract}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}L{4.2cm}R{2.3cm}R{2.3cm}R{2.3cm}L{3.4cm}@{}}
+\toprule
+\textbf{Training source} & \textbf{train pts} & \textbf{val pts} & \textbf{test pts} & \textbf{Use} \\
+\midrule
+Synthetic Q1 / Stage~3 base & 645{,}120 & 138{,}240 & 138{,}240 & Shared synthetic supervision \\
+Real clean CDF, row split & 589{,}741 & 103{,}201 & -- & Raw CDF refinement \\
+\rowcolor{softrow}
+Combined SVGP Stage~3 & 1{,}234{,}861 & 241{,}441 & 138{,}240 & SVGP seed-42 training table \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\vspace{0.6em}
+\begin{block}{Fairness note}
+The production MLP and SVGP are compared after both consume the same full-data Stage~3
+information class: synthetic Q1 supervision plus real clean CDF trajectories. LONO is kept
+separate because it answers a different question: held-out nozzle-family transfer.
+\end{block}
+
+\vspace{0.25em}
+\footnotesize
+SVGP source: \texttt{seed\_config.json} in the seed-42 Stage~3 GP run folder.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Evaluation Protocols}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{3.3cm}R{2.0cm}R{2.0cm}L{6.4cm}@{}}
+\toprule
+\textbf{Protocol} & \textbf{points} & \textbf{conditions} & \textbf{Purpose} \\
+\midrule
+Full clean CDF & 692{,}942 & 592 & Legacy full-series metric; includes right-censored regions. \\
+\rowcolor{winrow}
+CDF uncensored & 542{,}565 & 592 & Main physical point metric after conservatively removing FOV and signal-decay censoring. \\
+P50 observed & 4{,}213 & 495 & Condition-level P50 points used by the Q1 oracle fit. \\
+Q1 grid, extrapolated & 21{,}527 & 495 & Robust extrapolation check outside the observed P50 window. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.55em}
+\footnotesize
+The Q1 protocol is indexed by \path{MLP/synthetic_data/p50_q1_oracle/p50_q1_fit_metrics.csv}.
+Model errors are computed on the companion observed/grid tables sharing the same
+\texttt{condition\_id}: \path{p50_q1_observed_fit_points.csv} and \path{p50_q1_predictions.csv}.
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Full Clean CDF: Legacy Reference}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}L{4.3cm}R{2.1cm}R{2.1cm}R{2.1cm}R{2.1cm}R{1.6cm}R{1.6cm}@{}}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{P95} & \textbf{cov1} & \textbf{cov2} \\
+ & \textbf{mm} & \textbf{mm} & \textbf{mm} & \textbf{mm} & & \\
+\midrule
+\rowcolor{softrow}
+SVGP Stage~3 & \textbf{4.628} & \textbf{3.173} & \textbf{-0.070} & 9.242 & 0.703 & 0.939 \\
+Production MLP, mean(5) & 4.735 \(\pm\) 0.037 & 3.293 \(\pm\) 0.039 & +0.626 & \textbf{9.167} & \textbf{0.867} & \textbf{0.985} \\
+\(\mu\)-anchor raw-uncertain, mean(5) & 5.200 \(\pm\) 0.048 & 3.654 \(\pm\) 0.047 & -0.585 & 10.525 & 0.834 & 0.985 \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\vspace{0.55em}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item This is the earlier full-clean metric with right-censored regions retained.
+  \item SVGP wins pointwise RMSE/MAE; production MLP wins coverage and slightly lower P95.
+  \item The \(\mu\)-anchor diagnostic model is not a production winner on this protocol.
+\end{itemize}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Main Result: CDF Uncensored}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}L{4.3cm}R{2.1cm}R{2.1cm}R{2.1cm}R{2.1cm}R{1.6cm}R{1.6cm}@{}}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{P95} & \textbf{cov1} & \textbf{cov2} \\
+ & \textbf{mm} & \textbf{mm} & \textbf{mm} & \textbf{mm} & & \\
+\midrule
+\rowcolor{softrow}
+SVGP Stage~3 & \textbf{4.193} & \textbf{2.894} & \textbf{-0.040} & 8.461 & 0.716 & 0.945 \\
+Production MLP, mean(5) & 4.265 \(\pm\) 0.040 & 3.032 & +0.562 & \textbf{8.307} & \textbf{0.887} & \textbf{0.989} \\
+\(\mu\)-anchor raw-uncertain, mean(5) & 4.941 \(\pm\) 0.066 & 3.505 & -0.868 & 10.123 & 0.840 & 0.988 \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\vspace{0.5em}
+\begin{block}{Reading}
+On the cleanest point-level metric, production MLP is close but still behind SVGP:
+\(+0.073\) mm RMSE. The main compensating advantage is conservative uncertainty,
+not lower mean error.
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{P50 Observed: Condition-Level P50 Check}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}L{4.5cm}R{2.1cm}R{2.1cm}R{2.1cm}R{2.1cm}R{2.1cm}@{}}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{P95} & \textbf{cond. RMSE} \\
+ & \textbf{mm} & \textbf{mm} & \textbf{mm} & \textbf{mm} & \textbf{mm} \\
+\midrule
+Q1 oracle fit & \textbf{1.010} & \textbf{0.689} & +0.197 & \textbf{2.048} & \textbf{0.900} \\
+\rowcolor{softrow}
+SVGP Stage~3 & 2.649 & 1.603 & +0.358 & 5.900 & 1.855 \\
+Production MLP, mean(5) & 2.848 \(\pm\) 0.059 & 1.826 & +0.856 & 6.017 & 2.068 \\
+\(\mu\)-anchor raw-uncertain, mean(5) & 3.212 \(\pm\) 0.245 & 2.147 & -0.468 & 7.323 & 2.837 \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\vspace{0.5em}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item Q1 oracle is a reference fit to P50 points, not a learned model competing for deployment.
+  \item Among learned models, SVGP remains the best on observed P50 points.
+  \item The \(\mu\)-anchor model does not improve the observed-window mean prediction.
+\end{itemize}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Q1 Extrapolation: Where the \(\mu\)-Head Helps}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}L{4.5cm}R{2.1cm}R{2.1cm}R{2.1cm}R{2.1cm}R{2.1cm}@{}}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{Bias} & \textbf{P95} & \textbf{cond. RMSE} \\
+ & \textbf{mm} & \textbf{mm} & \textbf{mm} & \textbf{mm} & \textbf{mm} \\
+\midrule
+SVGP Stage~3 & 10.591 & 7.236 & +6.410 & \textbf{23.701} & 7.465 \\
+Production MLP, mean(5) & 10.864 \(\pm\) 0.064 & 7.380 & +6.753 & 24.514 & 7.461 \\
+\rowcolor{winrow}
+\(\mu\)-anchor raw-uncertain, mean(5) & \textbf{10.358 \(\pm\) 0.106} & \textbf{6.965} & \textbf{+6.269} & 23.768 & \textbf{7.072} \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\vspace{0.5em}
+\begin{block}{Interpretation}
+The \(\mu\)-anchor/raw-uncertain recipe hurts local pointwise CDF accuracy but reduces the
+Q1 extrapolation error and positive bias. This supports using it as a diagnostic for
+stable extrapolation, not as the main production model.
+\end{block}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{What the Comparison Supports}
+\small
+\begin{enumerate}\setlength\itemsep{6pt}
+  \item \textbf{SVGP is the accuracy winner} on the two most direct observed-data metrics:
+        full clean CDF and uncensored CDF.
+  \item \textbf{Production MLP is close enough to be credible}: on uncensored CDF it is only
+        \(0.073\) mm RMSE worse than SVGP, while maintaining much higher empirical coverage.
+  \item \textbf{The \(\mu\)-anchor head has a different behavior}: worse observed-data RMSE,
+        better Q1 extrapolation RMSE and lower positive extrapolation bias.
+  \item \textbf{The thesis should separate claims}: use SVGP as the strong probabilistic
+        baseline; use production MLP for deployability and conservative uncertainty;
+        use \(\mu\)-anchor/raw-uncertain as evidence about extrapolation regularization.
+\end{enumerate}
+\end{frame}
+
+% ──────────────────────────────────────────────────────────────
+\begin{frame}{Artifacts}
+\footnotesize
+\textbf{Evaluation script and reports}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item \texttt{MLP/eval/evaluate\_stage3\_fixed\_tables.py}
+  \item \texttt{comparison\_reports/stage3\_fixed\_table\_eval\_20260521/main\_table.md}
+  \item \texttt{comparison\_reports/stage3\_fixed\_table\_eval\_20260521/group\_summary.csv}
+  \item \texttt{comparison\_reports/mlp\_production\_stage3\_vs\_svgp\_stage3\_full\_clean\_20260521/}
+\end{itemize}
+
+\vspace{0.25em}
+\textbf{Main model roots}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item SVGP: \texttt{gp\_baseline\_stage3\_20260521\_112229/per\_seed/seed\_42/model.pt}
+  \item Production MLP: \texttt{distill\_cdf\_onset\_v2\_ablate\_anchor\_off\_20260521\_122435} ... \texttt{124004}
+  \item \(\mu\)-anchor diagnostic: \texttt{distill\_cdf\_onset\_v2\_mu\_anchor\_raw\_uncertain\_raw05\_kd025\_prod\_kd\_20260521\_124745} ... \texttt{125816}
+\end{itemize}
+
+\vspace{0.25em}
+\textbf{This deck:}\\
+\texttt{Thesis/slides/slides\_production\_mlp\_svgp\_eval/slides\_production\_mlp\_svgp\_eval.tex}
+\end{frame}
+
+\end{document}

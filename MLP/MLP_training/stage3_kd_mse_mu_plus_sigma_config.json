@@ -17,8 +17,7 @@
     "eval_save_plots": false,
     "eval_batch_points": 262144,
     "eval_max_traj_plots": 0,
-    "skip_post_train_eval": false,
-    "synthetic_root": "MLP/synthetic_data_20260509"
+    "skip_post_train_eval": false
   },
   "selection": {
     "metric": "rmse_mm",

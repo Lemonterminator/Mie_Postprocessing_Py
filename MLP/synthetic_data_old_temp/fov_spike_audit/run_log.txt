@@ -1,0 +1,71 @@
+Reading from C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data_20260509
+Writing audit to C:\Users\Jiang\Documents\Mie_Postprocessing_Py\MLP\synthetic_data_20260509\fov_spike_audit
+Loaded 24316 traces across 9 nozzles.
+
+Proposed rule:
+  is_right_censored = (last_pen > 85 mm) AND (|end_slope| < 2 mm/ms)
+
+Per-nozzle proposed-censored rate:
+ nozzle  n_traces  frac_proposed_censored  median_hampel_spikes_per_trace
+Nozzle0     14274                   0.000                           0.000
+Nozzle1      1236                   0.000                           0.000
+Nozzle2      2542                   0.000                           0.000
+Nozzle3       741                   0.000                           0.000
+Nozzle4      1256                   0.000                           0.000
+Nozzle5      1393                   0.000                           0.000
+Nozzle6       932                   0.000                           0.000
+Nozzle7       927                   0.000                           0.000
+Nozzle8      1015                   0.000                           0.000
+
+Per-nozzle cap (p99 of last_valid_pen_mm):
+  Nozzle0: 92.29 mm  ->  0.85*cap = 78.45 mm
+  Nozzle1: 92.47 mm  ->  0.85*cap = 78.60 mm
+  Nozzle2: 92.47 mm  ->  0.85*cap = 78.60 mm
+  Nozzle3: 92.47 mm  ->  0.85*cap = 78.60 mm
+  Nozzle4: 92.47 mm  ->  0.85*cap = 78.60 mm
+  Nozzle5: 92.47 mm  ->  0.85*cap = 78.60 mm
+  Nozzle6: 92.47 mm  ->  0.85*cap = 78.60 mm
+  Nozzle7: 87.75 mm  ->  0.85*cap = 74.59 mm
+  Nozzle8: 95.88 mm  ->  0.85*cap = 81.50 mm
+
+Collecting point-level features (this re-walks the cleaned series)…
+  collected 702,347 points across 9 nozzles.
+
+Stage-3 raw_reliable fraction (per nozzle × rule × slope-ratio):
+ nozzle pen_cutoff_rule  slope_ratio_min  n_raw_reliable  frac_raw_reliable  pen_max_kept_mm
+Nozzle0        0.85_cap            0.300          346149              0.913           78.341
+Nozzle0        0.85_cap            0.500          346146              0.912           78.341
+Nozzle0       flat_80mm            0.300          351033              0.925           79.968
+Nozzle0       flat_80mm            0.500          351030              0.925           79.968
+Nozzle1        0.85_cap            0.300           29882              0.807           78.501
+Nozzle1        0.85_cap            0.500           29882              0.807           78.501
+Nozzle1       flat_80mm            0.300           30526              0.824           79.771
+Nozzle1       flat_80mm            0.500           30526              0.824           79.771
+Nozzle2        0.85_cap            0.300           68415              0.838           78.501
+Nozzle2        0.85_cap            0.500           68415              0.838           78.501
+Nozzle2       flat_80mm            0.300           69573              0.852           79.771
+Nozzle2       flat_80mm            0.500           69573              0.852           79.771
+Nozzle3        0.85_cap            0.300           21991              0.862           78.501
+Nozzle3        0.85_cap            0.500           21989              0.862           78.501
+Nozzle3       flat_80mm            0.300           22349              0.876           79.771
+Nozzle3       flat_80mm            0.500           22347              0.876           79.771
+Nozzle4        0.85_cap            0.300           32569              0.833           78.501
+Nozzle4        0.85_cap            0.500           32569              0.833           78.501
+Nozzle4       flat_80mm            0.300           33238              0.851           79.771
+Nozzle4       flat_80mm            0.500           33238              0.851           79.771
+Nozzle5        0.85_cap            0.300           38288              0.806           78.501
+Nozzle5        0.85_cap            0.500           38288              0.806           78.501
+Nozzle5       flat_80mm            0.300           39217              0.826           79.771
+Nozzle5       flat_80mm            0.500           39217              0.826           79.771
+Nozzle6        0.85_cap            0.300           25027              0.808           78.501
+Nozzle6        0.85_cap            0.500           25027              0.808           78.501
+Nozzle6       flat_80mm            0.300           25590              0.826           79.771
+Nozzle6       flat_80mm            0.500           25590              0.826           79.771
+Nozzle7        0.85_cap            0.300           23563              0.883           74.492
+Nozzle7        0.85_cap            0.500           23563              0.883           74.492
+Nozzle7       flat_80mm            0.300           25065              0.939           79.795
+Nozzle7       flat_80mm            0.500           25065              0.939           79.795
+Nozzle8        0.85_cap            0.300           28655              0.828           81.392
+Nozzle8        0.85_cap            0.500           28655              0.828           81.392
+Nozzle8       flat_80mm            0.300           27920              0.807           79.812
+Nozzle8       flat_80mm            0.500           27920              0.807           79.812

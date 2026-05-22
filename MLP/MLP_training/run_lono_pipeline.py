@@ -30,10 +30,16 @@ if hasattr(sys.stderr, "reconfigure"):
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import torch
+
 from engineered_feature_common import (
     DEFAULT_STAGE1_CONFIG,
     build_all_stage_tables,
     build_dataset_registry,
+    build_feature_matrix_np,
+    infer_feature_family,
+    load_run_artifacts,
+    split_mu_logvar,
 )
 
 
@@ -60,6 +66,13 @@ NS_POINTS_CSV = (
     / "MLP" / "baseline" / "Naber_Siebers" / "outputs"
     / "20260509_004452_ns_delay_grouped_condition_all_clean_diagnostic_20260509"
     / "points.csv"
+)
+
+UNCENSORED_POINTS_CSV = (
+    PROJECT_ROOT / "MLP" / "synthetic_data" / "cdf_right_censoring_points" / "cdf_points_uncensored.csv"
+)
+Q1_ORACLE_CSV = (
+    PROJECT_ROOT / "MLP" / "synthetic_data" / "p50_q1_oracle" / "p50_q1_fit_metrics.csv"
 )
 
 SAVED_RUN_DIR_RE = re.compile(r"Saved run_dir:\s*(.+)$")
@@ -129,19 +142,19 @@ def identify_nozzle_families(*, data_dir: str, registry, min_groups: int = 50) -
     return [str(name) for name in valid.index]
 
 
-def find_anchor_off_run_dir(suite_summary_path: Path) -> Path:
-    """Pull the anchor_off variant's run_dir from the suite summary JSON."""
+def find_named_run_dir(suite_summary_path: Path, name: str) -> Path:
+    """Pull the named variant's run_dir from the suite summary JSON."""
     summary = json.loads(suite_summary_path.read_text(encoding="utf-8"))
     for entry in summary.get("results", []):
-        if str(entry.get("name")) == "anchor_off":
+        if str(entry.get("name")) == name:
             run_dir = entry.get("run_dir")
             if run_dir:
                 return Path(run_dir)
     # Fallback: selection.best
     best = (summary.get("selection") or {}).get("best") or {}
-    if str(best.get("name")) == "anchor_off" and best.get("run_dir"):
+    if str(best.get("name")) == name and best.get("run_dir"):
         return Path(best["run_dir"])
-    raise RuntimeError(f"Could not locate anchor_off run_dir in {suite_summary_path}")
+    raise RuntimeError(f"Could not locate {name!r} run_dir in {suite_summary_path}")
 
 
 def metrics_from_points(df: pd.DataFrame) -> dict[str, float]:
@@ -170,6 +183,133 @@ def filter_points(points_csv: Path, holdout: str, experiment_col: str) -> pd.Dat
     return df.loc[df[experiment_col].astype(str) == str(holdout)].copy()
 
 
+def _predict_points_batched(
+    *,
+    artifacts,
+    features: np.ndarray,
+    a_scale: np.ndarray,
+    batch_size: int = 262144,
+) -> tuple[np.ndarray, np.ndarray]:
+    device = next(artifacts.model.parameters()).device
+    family = infer_feature_family(artifacts.train_config["feature_columns"])
+    mu_chunks, std_chunks = [], []
+    with torch.no_grad():
+        for start in range(0, len(features), batch_size):
+            feat_t = torch.as_tensor(features[start:start + batch_size], dtype=torch.float32, device=device)
+            scale_t = torch.as_tensor(a_scale[start:start + batch_size, None], dtype=torch.float32, device=device)
+            out = artifacts.model(feat_t)
+            mu_hat, log_var_hat = split_mu_logvar(out)
+            log_var_hat = torch.clamp(log_var_hat, min=-20.0, max=20.0)
+            if family == "engineered_v2":
+                mu = scale_t * mu_hat
+                std = scale_t * torch.exp(0.5 * log_var_hat)
+            else:
+                mu = mu_hat
+                std = torch.exp(0.5 * log_var_hat)
+            std_floor = float(artifacts.train_config.get("std_clamp_min", 0.0))
+            std = torch.clamp(std, min=std_floor)
+            mu_chunks.append(mu.detach().cpu().numpy().reshape(-1))
+            std_chunks.append(std.detach().cpu().numpy().reshape(-1))
+    return np.concatenate(mu_chunks), np.concatenate(std_chunks)
+
+
+def eval_on_uncensored_points(
+    anchor_run: Path,
+    holdout: str,
+    *,
+    uncensored_csv: Path = UNCENSORED_POINTS_CSV,
+    device: str = "cpu",
+    batch_size: int = 262144,
+) -> dict[str, float]:
+    """Run MLP inference on right-censored point dataset, held-out nozzle only."""
+    if not uncensored_csv.exists():
+        print(f"[warn] uncensored points CSV not found: {uncensored_csv}")
+        return {}
+    df = pd.read_csv(uncensored_csv, low_memory=False)
+    df = df[df["experiment_name"].astype(str) == str(holdout)].reset_index(drop=True)
+    if len(df) == 0:
+        print(f"[warn] No uncensored points for holdout={holdout!r}")
+        return {}
+
+    artifacts = load_run_artifacts(anchor_run, device=device)
+    registry = build_dataset_registry()
+    feature_columns = list(artifacts.train_config["feature_columns"])
+    time_feature = str(artifacts.train_config.get("time_feature", "time_norm_0_5ms"))
+
+    feat_blocks, scale_blocks, truth_blocks = [], [], []
+    for _, grp in df.groupby("condition_id", sort=False):
+        row0 = grp.iloc[0]
+        raw = {
+            "umbrella_angle_deg": float(row0["umbrella_angle_deg"]),
+            "plumes": float(row0["plumes"]),
+            "diameter_mm": float(row0["diameter_mm"]),
+            "injection_duration_us": float(row0["injection_duration_us"]),
+            "injection_pressure_bar": float(row0["injection_pressure_bar"]),
+            "control_backpressure_bar": float(row0["control_backpressure_bar"]),
+            "chamber_pressure_bar": float(row0["chamber_pressure_bar"]),
+            "dataset_key": str(row0["experiment_name"]),
+        }
+        time_ms = grp["time_ms"].to_numpy(dtype=np.float32)
+        try:
+            features_np, a_scale_np, _ = build_feature_matrix_np(
+                raw, time_ms, artifacts.scaler_state, feature_columns, registry,
+                time_feature=time_feature,
+            )
+        except Exception as exc:
+            print(f"[warn] feature build failed for condition {row0.get('condition_id')}: {exc}")
+            continue
+        feat_blocks.append(features_np)
+        scale_blocks.append(a_scale_np.reshape(-1))
+        truth_blocks.append(grp["penetration_mm"].to_numpy(dtype=np.float32))
+
+    if not feat_blocks:
+        return {}
+
+    features_all = np.concatenate(feat_blocks)
+    a_scale_all = np.concatenate(scale_blocks)
+    truth_all = np.concatenate(truth_blocks)
+
+    pred_all, std_all = _predict_points_batched(
+        artifacts=artifacts,
+        features=features_all,
+        a_scale=a_scale_all,
+        batch_size=batch_size,
+    )
+    pts_df = pd.DataFrame({
+        "pen_pred_mm": pred_all,
+        "pen_true_mm": truth_all.astype(float),
+        "pen_std_mm": std_all,
+    })
+    return metrics_from_points(pts_df)
+
+
+def oracle_metrics_for_holdout(
+    holdout: str,
+    *,
+    oracle_csv: Path = Q1_ORACLE_CSV,
+    uncensored_csv: Path = UNCENSORED_POINTS_CSV,
+) -> dict[str, float]:
+    """Per-condition q1 oracle RMSE/MAE/bias averaged over held-out nozzle conditions."""
+    if not oracle_csv.exists() or not uncensored_csv.exists():
+        return {}
+    fm = pd.read_csv(oracle_csv)
+    cond_to_exp = (
+        pd.read_csv(uncensored_csv, low_memory=False, usecols=["condition_id", "experiment_name"])
+        .drop_duplicates()
+    )
+    fm = fm.merge(cond_to_exp, on="condition_id", how="left")
+    sub = fm[fm["experiment_name"].astype(str) == str(holdout)]
+    if sub.empty:
+        return {}
+    return {
+        "n_conditions": int(len(sub)),
+        "rmse_mm": float(sub["rmse"].mean()),
+        "mae_mm": float(sub["mae"].mean()),
+        "bias_mm": float(sub["bias"].mean()),
+        "rmse_mm_median": float(sub["rmse"].median()),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data-dir", type=str, default=DEFAULT_STAGE1_CONFIG["data_dir"])
@@ -181,6 +321,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-dir", type=Path, default=None)
     p.add_argument("--skip-folds", type=str, nargs="*", default=None,
                    help="Skip these experiment_name values (e.g. already-running fold).")
+    p.add_argument("--stage3-config", type=Path, default=None,
+                   help="Override Stage-3 suite config (default: stage3_ablation_suite_config.json).")
+    p.add_argument("--stage3-only", type=str, default="anchor_off",
+                   help="Stage-3 suite ablation name to keep (default: anchor_off).")
     p.add_argument("--dry-run", action="store_true")
     return p.parse_args()
 
@@ -192,6 +336,8 @@ def run_one_fold(
     seed: int,
     device: str,
     dry_run: bool,
+    stage3_config: Path,
+    stage3_only: str,
 ) -> dict[str, Any]:
     fold_dir.mkdir(parents=True, exist_ok=True)
     timing: dict[str, float] = {}
@@ -246,18 +392,18 @@ def run_one_fold(
     s3_log = fold_dir / "stage3.log"
     s3_cmd = [
         python_exe(), str(STAGE3_SUITE_SCRIPT),
-        "--config", str(STAGE3_SUITE_CONFIG),
+        "--config", str(stage3_config),
         "--teacher-run", str(stage2_run),
         "--device", device,
         "--seed", str(seed),
-        "--only", "anchor_off",
+        "--only", stage3_only,
         "--lono-holdout", holdout,
     ]
     t0 = time.time()
     if dry_run:
         print(f"[dry-run] {' '.join(s3_cmd)}")
         suite_summary = Path("DRY_RUN/suite_summary.json")
-        anchor_run = Path("DRY_RUN/anchor_off")
+        anchor_run = Path(f"DRY_RUN/{stage3_only}")
     else:
         rc, out = run_subprocess_streaming(s3_cmd, s3_log)
         if rc != 0:
@@ -265,7 +411,7 @@ def run_one_fold(
         suite_summary = parse_suite_summary_path(out)
         if suite_summary is None:
             raise RuntimeError("Could not parse suite_summary path.")
-        anchor_run = find_anchor_off_run_dir(suite_summary)
+        anchor_run = find_named_run_dir(suite_summary, stage3_only)
     timing["stage3_s"] = time.time() - t0
 
     record: dict[str, Any] = {
@@ -325,10 +471,20 @@ def run_one_fold(
         if NS_POINTS_CSV.exists():
             record["ns_metrics"] = metrics_from_points(
                 filter_points(NS_POINTS_CSV, holdout, "experiment_name"))
+
+        # ── Uncensored-point eval (raw ground truth, held-out nozzle) ──
+        print(f"[fold {holdout}] Running eval on uncensored points ...", flush=True)
+        record["mlp_uncensored_metrics"] = eval_on_uncensored_points(
+            anchor_run, holdout, device=device)
+
+        # ── q1 oracle baseline (per-condition fit on p50) ──
+        record["q1_oracle_metrics"] = oracle_metrics_for_holdout(holdout)
     else:
         record["mlp_metrics"] = {}
         record["ha_metrics"] = {}
         record["ns_metrics"] = {}
+        record["mlp_uncensored_metrics"] = {}
+        record["q1_oracle_metrics"] = {}
 
     (fold_dir / "fold_summary.json").write_text(
         json.dumps(record, indent=2), encoding="utf-8"
@@ -341,9 +497,12 @@ def aggregate(records: list[dict[str, Any]], output_dir: Path) -> None:
                    "coverage_1sigma", "coverage_2sigma", "mean_pred_std_mm"]
     rows = []
     for rec in records:
-        for model_name, key in [("MLP_dp05", "mlp_metrics"),
-                                ("HA", "ha_metrics"),
-                                ("NS", "ns_metrics")]:
+        for model_name, key in [
+            ("MLP_series", "mlp_metrics"),
+            ("MLP_uncensored", "mlp_uncensored_metrics"),
+            ("HA", "ha_metrics"),
+            ("NS", "ns_metrics"),
+        ]:
             m = rec.get(key, {})
             if not m:
                 continue
@@ -351,12 +510,21 @@ def aggregate(records: list[dict[str, Any]], output_dir: Path) -> None:
             for k in metric_keys + ["n_points"]:
                 row[k] = m.get(k)
             rows.append(row)
+        # q1 oracle: only has rmse_mm / mae_mm / bias_mm / n_conditions
+        q1 = rec.get("q1_oracle_metrics", {})
+        if q1:
+            row = {"holdout": rec["holdout"], "model": "q1_oracle_p50"}
+            row["rmse_mm"] = q1.get("rmse_mm")
+            row["mae_mm"] = q1.get("mae_mm")
+            row["bias_mm"] = q1.get("bias_mm")
+            row["n_points"] = q1.get("n_conditions")
+            rows.append(row)
     per_fold = pd.DataFrame(rows)
     per_fold.to_csv(output_dir / "per_fold.csv", index=False)
 
     # Aggregate: per-model fold mean ± std
     agg_rows = []
-    for model_name in ["MLP_dp05", "HA", "NS"]:
+    for model_name in ["MLP_series", "MLP_uncensored", "HA", "NS", "q1_oracle_p50"]:
         sub = per_fold.loc[per_fold["model"] == model_name]
         if sub.empty:
             continue
@@ -372,15 +540,18 @@ def aggregate(records: list[dict[str, Any]], output_dir: Path) -> None:
     md = ["# LONO 5-fold result (mean ± std across folds)\n"]
     md.append("| model | rmse_mm | mae_mm | bias_mm | p95_mm | cov_1σ | cov_2σ |")
     md.append("|---|---|---|---|---|---|---|")
+    def _fmt(v: Any) -> str:
+        return f"{v:.3f}" if isinstance(v, float) and not np.isnan(v) else "—"
+
     for agg in agg_rows:
         md.append(
             f"| {agg['model']} | "
-            f"{agg['rmse_mm_mean']:.3f} ± {agg['rmse_mm_std']:.3f} | "
-            f"{agg['mae_mm_mean']:.3f} ± {agg['mae_mm_std']:.3f} | "
-            f"{agg['bias_mm_mean']:.3f} ± {agg['bias_mm_std']:.3f} | "
-            f"{agg['p95_abs_err_mm_mean']:.3f} ± {agg['p95_abs_err_mm_std']:.3f} | "
-            f"{agg['coverage_1sigma_mean']:.3f} ± {agg['coverage_1sigma_std']:.3f} | "
-            f"{agg['coverage_2sigma_mean']:.3f} ± {agg['coverage_2sigma_std']:.3f} |"
+            f"{_fmt(agg['rmse_mm_mean'])} ± {_fmt(agg['rmse_mm_std'])} | "
+            f"{_fmt(agg['mae_mm_mean'])} ± {_fmt(agg['mae_mm_std'])} | "
+            f"{_fmt(agg['bias_mm_mean'])} ± {_fmt(agg['bias_mm_std'])} | "
+            f"{_fmt(agg['p95_abs_err_mm_mean'])} ± {_fmt(agg['p95_abs_err_mm_std'])} | "
+            f"{_fmt(agg['coverage_1sigma_mean'])} ± {_fmt(agg['coverage_1sigma_std'])} | "
+            f"{_fmt(agg['coverage_2sigma_mean'])} ± {_fmt(agg['coverage_2sigma_std'])} |"
         )
     md.append("\n## Per fold (held-out nozzle)\n")
     md.append("| holdout | model | rmse_mm | mae_mm | bias_mm | p95_mm | cov_1σ | cov_2σ |")
@@ -388,9 +559,10 @@ def aggregate(records: list[dict[str, Any]], output_dir: Path) -> None:
     for _, r in per_fold.iterrows():
         md.append(
             f"| {r['holdout']} | {r['model']} | "
-            f"{r['rmse_mm']:.3f} | {r['mae_mm']:.3f} | {r['bias_mm']:.3f} | "
-            f"{r['p95_abs_err_mm']:.3f} | {r['coverage_1sigma']:.3f} | "
-            f"{r['coverage_2sigma']:.3f} |"
+            f"{_fmt(r['rmse_mm'])} | {_fmt(r['mae_mm'])} | {_fmt(r['bias_mm'])} | "
+            f"{_fmt(r.get('p95_abs_err_mm', float('nan')))} | "
+            f"{_fmt(r.get('coverage_1sigma', float('nan')))} | "
+            f"{_fmt(r.get('coverage_2sigma', float('nan')))} |"
         )
     (output_dir / "headline_comparison.md").write_text("\n".join(md), encoding="utf-8")
     print("\n=== Aggregate written ===\n")
@@ -425,7 +597,14 @@ def main() -> None:
         "n_folds": len(nozzles),
         "nozzles": nozzles,
         "skip_folds": args.skip_folds,
+        "stage3_config": str(args.stage3_config) if args.stage3_config else None,
+        "stage3_only": str(args.stage3_only),
     }, indent=2), encoding="utf-8")
+
+    stage3_config = args.stage3_config if args.stage3_config is not None else STAGE3_SUITE_CONFIG
+    stage3_only = str(args.stage3_only)
+    print(f"Stage-3 suite config: {stage3_config}")
+    print(f"Stage-3 ablation name: {stage3_only}")
 
     records: list[dict[str, Any]] = []
     for i, holdout in enumerate(nozzles, start=1):
@@ -435,6 +614,7 @@ def main() -> None:
             rec = run_one_fold(
                 holdout=holdout, fold_dir=fold_dir,
                 seed=args.seed, device=args.device, dry_run=args.dry_run,
+                stage3_config=stage3_config, stage3_only=stage3_only,
             )
             records.append(rec)
         except Exception as e:

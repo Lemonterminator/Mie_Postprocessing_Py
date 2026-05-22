@@ -1,0 +1,42 @@
+{
+  "_comment": "Ablation: replace series_wide_clean (#1) with series_wide_truncated (#2) as the raw supervision source. All other hyperparameters mirror the production mse_mu_plus_sigma KD config so the comparison isolates the raw-source switch.",
+  "common": {
+    "teacher_run": "latest_stage2",
+    "device": "auto",
+    "series_split": "truncated",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_fast": false,
+    "eval_save_points": true,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "truncated_raw_kd_mse_mu_plus_sigma",
+      "enabled": true,
+      "run_name_prefix": "stage3_truncated_raw_kd_mse_mu_plus_sigma",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

@@ -1,6 +1,26 @@
+"""Fit cleaned spray-penetration traces from raw Mie top-view CSV exports.
+
+This is the main curve-fit production script for ``MLP/synthetic_data``. For
+each configured nozzle dataset and each penetration source (CDF, bw_x,
+bw_polar), it:
+
+1. reads raw per-frame plume measurements plus companion ``.meta.json`` files;
+2. resolves physical units, hydraulic delay, plume alignment, and cutoff
+   filters;
+3. fits the current q1 quarter-root model to each plume trace;
+4. writes per-folder fit tables, clean/flagged splits, long and wide series
+   tables, plots, and a compact ``fit_report.csv``.
+
+When run directly, the script can also chain dataset summaries, filter-survival
+summaries, and fit diagnostics unless ``--no-chain`` is passed.
+"""
+
 from pathlib import Path
 import json
 import os
+import shutil
+import subprocess
+import sys
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -34,6 +54,9 @@ MIN_INITIAL_VELOCITY = 1e-7
 
 # Input/output roots (curve_fit/ is one level below MLP/, two below project root)
 _THIS_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = _THIS_DIR.parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 data_root = _THIS_DIR.parent.parent / "Mie_scattering_top_view_results"
 data_out_dir = _THIS_DIR.parent / "synthetic_data"
 # Environment-variable overrides (propagated by run_fit_pipeline.py to worker subprocesses)
@@ -91,6 +114,7 @@ MIN_TI = 0.0
 MIN_SERIES_POINTS = 10  # discard series with fewer valid points before fitting
 
 def calculate_subframe_delay(time_s, series, first_valid_idx, n_points=3, fallback_delay_s=float('nan')):
+    """Estimate spray start time by extrapolating the first positive samples."""
     max_idx = min(len(time_s), len(series))
     
     t_early = []
@@ -159,6 +183,7 @@ PENETRATION_SOURCES = [
 
 
 def get_enabled_penetration_sources():
+    """Return the penetration sources enabled by the module-level switches."""
     return [source for source in PENETRATION_SOURCES if source["enabled"]]
 
 
@@ -180,6 +205,7 @@ def _first_non_missing(series):
 
 
 def _read_csv_with_expanded_static_meta(csv_path):
+    """Load a raw CSV and broadcast static metadata from its companion JSON."""
     df = pd.read_csv(csv_path)
 
     meta_path = csv_path.with_suffix(".meta.json")
@@ -217,6 +243,7 @@ def _infer_num_plumes_from_columns(df_file, column_prefix):
 
 
 def _resolve_penetration_prefix_and_scale(df_file, penetration_source, mm_per_px_scale):
+    """Choose mm or legacy-pixel penetration columns and return the mm scale."""
     mm_prefix = penetration_source.get("column_prefix_mm")
     if mm_prefix and _infer_num_plumes_from_columns(df_file, mm_prefix) > 0:
         return mm_prefix, 1.0
@@ -237,6 +264,7 @@ def _resolve_penetration_prefix_and_scale(df_file, penetration_source, mm_per_px
 
 
 def robust_z(series):
+    """Median/MAD robust z-score used for within-file fit-quality outlier checks."""
     s = pd.to_numeric(series, errors="coerce")
     if s.notna().sum() == 0:
         return pd.Series(np.nan, index=s.index, dtype=float)
@@ -248,6 +276,7 @@ def robust_z(series):
 
 
 def apply_filter_masking(df, group_cols=MASK_GROUP_COLS, z_thresh=MASK_Z_THRESH):
+    """Attach quality masks and split fit rows into clean and flagged subsets."""
     out = df.copy()
     if out.empty:
         out["cost_per_point"] = np.nan
@@ -399,6 +428,12 @@ def penetration_cleaning(
     forced_delay=None,
     replace_negative_with_zero=False,
 ):
+    """Clean one plume penetration trace before curve fitting.
+
+    The steps mirror the notebook prototype: optional hydraulic-delay scan,
+    optional negative-value clamp, pre-onset removal, unit conversion, and
+    lower/upper frame-difference truncation.
+    """
     arr = np.asarray(arr, dtype=float).copy()
     first_positive_idx = 0 if forced_delay is None else int(forced_delay)
 
@@ -445,6 +480,7 @@ def penetration_cleaning(
 
 
 def get_area_based_delay(df_file, plume_idx):
+    """Prefer area-onset delay when an ``area_plume_*`` signal is available."""
     area_col = f"area_plume_{plume_idx}"
     if area_col not in df_file.columns:
         return np.nan, "penetration_fallback"
@@ -647,6 +683,7 @@ def prepare_cleaned_series(
     diff_threshold_lower=DIFF_THRESHOLD_LOWER,
     diff_threshold_upper=DIFF_THRESHOLD_UPPER,
 ):
+    """Build delay-aligned cleaned series arrays for every plume in one CSV."""
     penetration_column_prefix, pen_correction = _resolve_penetration_prefix_and_scale(
         df_file,
         penetration_source,
@@ -700,6 +737,8 @@ def prepare_cleaned_series(
         delay_sources[plume_idx] = delay_source if np.isfinite(area_delay) else "penetration_fallback"
         temp_series[plume_idx] = np.asarray(cleaned_serie, dtype=float)
 
+    # Use a robust file-level delay reference, then clip individual plume
+    # delays around it so one bad onset does not shift a plume far away.
     valid_delays = delays_raw[np.isfinite(delays_raw)]
     median_delay_s = np.nanmedian(valid_delays) if valid_delays.size else 0.0
     delays_used = np.full(number_of_plumes, median_delay_s, dtype=float)
@@ -754,6 +793,7 @@ def collect_series_rows(
     delays_used,
     delay_sources,
 ):
+    """Flatten cleaned plume arrays into a long point table."""
     rows = []
     file_path = Path(file_path)
     for plume_idx in range(cleaned_series.shape[0]):
@@ -784,6 +824,7 @@ def collect_series_rows(
 
 
 def filter_series_df(series_df, fit_df):
+    """Keep only series points whose plume survived into the supplied fit table."""
     if series_df.empty or fit_df.empty:
         return series_df.iloc[0:0].copy()
 
@@ -793,6 +834,7 @@ def filter_series_df(series_df, fit_df):
 
 
 def build_wide_series_df(series_df, fit_df):
+    """Pivot long cleaned-series points into time_ms_*/penetration_mm_* columns."""
     if series_df.empty:
         base_cols = [
             "file_path",
@@ -880,6 +922,7 @@ def save_fit_plot(
     max_hydraulic_delay_frames,
     delay_clip_half_window,
 ):
+    """Plot cleaned traces with fitted curves for one folder and source."""
     cache = {}  # csv_path -> (time_s, time_ms, cleaned_series, inj_dur_s)
 
     # map filename and stem to path for fallback resolution
@@ -1034,6 +1077,7 @@ def save_raw_plot(
     max_hydraulic_delay_frames,
     delay_clip_half_window,
 ):
+    """Plot delay-aligned raw/cleaned traces over the early 0-2 ms window."""
     cache = {}
 
     name_to_paths = {}
@@ -1141,6 +1185,7 @@ def process_folder(
     max_hydraulic_delay_frames,
     delay_clip_half_window,
 ):
+    """Process one condition folder for one penetration source."""
     csv_files = sorted(folder.glob("*.csv"))
     if not csv_files:
         print(f"Skip {folder.name}: no csv files.")
@@ -1418,6 +1463,7 @@ def _process_folder_worker(kwargs):
 
 
 def get_dataset_settings(name):
+    """Return per-dataset calibration and delay defaults."""
     if name == "Nozzle0":
         return {
             "or_mm_per_px_reference": 412.0,
@@ -1434,6 +1480,7 @@ def get_dataset_settings(name):
 
 
 def main():
+    """CLI entry point: collect folder tasks, fit them, and write the report."""
     import argparse
     global data_out_dir, data_root, ABLATION_QUARTER_ONLY, N_WORKERS, names
     _p = argparse.ArgumentParser(add_help=False)
@@ -1442,6 +1489,12 @@ def main():
     _p.add_argument("--ablation-quarter-only", action="store_true", default=False)
     _p.add_argument("--n-workers", type=int, default=None)
     _p.add_argument("--no-chain", action="store_true", default=False)
+    _p.add_argument("--no-cdf-censoring-points", action="store_true", default=False)
+    _p.add_argument("--no-p50-q1", action="store_true", default=False)
+    _p.add_argument("--p50-source-key", default="cdf_p50_q1")
+    _p.add_argument("--p50-min-bins", type=int, default=5)
+    _p.add_argument("--p50-min-traces-per-bin", type=int, default=4)
+    _p.add_argument("--p50-extrapolate-t-max-ms", type=float, default=5.0)
     _p.add_argument("--nozzle-filter", type=str, default=None,
                     help="Restrict to one nozzle name suffix (for smoke-testing).")
     _args, _ = _p.parse_known_args()
@@ -1541,25 +1594,97 @@ def main():
         report_df.to_csv(report_path, index=False)
         print(f"\nFit report saved -> {report_path}  ({len(report_df)} rows)")
 
+    if not _args.no_chain:
+        _run_default_postprocessing(_args)
+
+
+def _run_python_script(script: Path, args: list[str], *, label: str) -> None:
+    """Run a post-fit helper script with the current fit roots in its environment."""
+    env = os.environ.copy()
+    env["FIT_OUTPUT_ROOT"] = str(data_out_dir)
+    env["FIT_INPUT_ROOT"] = str(data_root)
+    cmd = [sys.executable, str(script), *args]
+    print(f"\n[fit_raw_data] {label}")
+    completed = subprocess.run(cmd, env=env, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(f"{label} failed with exit code {completed.returncode}")
+
+
+def _run_default_postprocessing(args) -> None:
+    """Generate diagnostics, CDF censoring points, and the p50-q1 oracle source."""
+    curve_fit_dir = Path(__file__).resolve().parent
+
+    try:
+        _run_python_script(curve_fit_dir / "summarize_dataset.py", [], label="dataset summary")
+    except Exception as exc:
+        print(f"[summarize_dataset] skipped: {exc}")
+
+    try:
+        _run_python_script(
+            curve_fit_dir / "summarize_filter_survival.py",
+            [
+                "--fit-report",
+                str(data_out_dir / "fit_report.csv"),
+                "--out-dir",
+                str(data_out_dir / "fit_survival_report"),
+            ],
+            label="filter survival summary",
+        )
+    except Exception as exc:
+        print(f"[summarize_filter_survival] skipped: {exc}")
+
+    try:
+        _run_python_script(curve_fit_dir / "fit_diagnostics.py", [], label="fit diagnostics")
+    except Exception as exc:
+        print(f"[fit_diagnostics] skipped: {exc}")
+
+    try:
+        _run_python_script(
+            curve_fit_dir / "audit_cdf_spatial_censoring.py",
+            [
+                "--synthetic-root",
+                str(data_out_dir),
+                "--out-dir",
+                str(data_out_dir / "spatial_censoring_audit"),
+            ],
+            label="spatial censoring audit",
+        )
+    except Exception as exc:
+        print(f"[audit_cdf_spatial_censoring] skipped: {exc}")
+
+    censoring_out = data_out_dir / "cdf_right_censoring_points"
+    if not args.no_cdf_censoring_points:
+        from MLP.curve_fit.workflows.cdf_censoring_points import run_cdf_censoring_points
+
+        if censoring_out.exists():
+            shutil.rmtree(censoring_out)
+        summary = run_cdf_censoring_points(
+            synthetic_root=data_out_dir,
+            out_dir=censoring_out,
+            make_plots=True,
+            condition_plots=True,
+        )
+        print(f"[cdf_right_censoring_points] wrote {summary['out_dir']}")
+
+    if not args.no_p50_q1:
+        points_uncensored = censoring_out / "cdf_points_uncensored.csv"
+        if not points_uncensored.exists():
+            print(f"[p50_q1_oracle] skipped: missing {points_uncensored}")
+            return
+        from MLP.curve_fit.workflows.p50_q1_oracle import run_p50_q1_oracle
+
+        summary = run_p50_q1_oracle(
+            points_uncensored=points_uncensored,
+            synthetic_root=data_out_dir,
+            out_dir=data_out_dir / "p50_q1_oracle",
+            source_key=args.p50_source_key,
+            min_bins=args.p50_min_bins,
+            min_traces_per_bin=args.p50_min_traces_per_bin,
+            extrapolate_t_max_ms=args.p50_extrapolate_t_max_ms,
+        )
+        print(f"[p50_q1_oracle] fitted {summary['n_fit_conditions']} conditions")
+
 
 if __name__ == "__main__":
-    import sys as _sys
-    _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import argparse as _ap
-    _pre = _ap.ArgumentParser(add_help=False)
-    _pre.add_argument("--no-chain", action="store_true", default=False)
-    _pre_args, _ = _pre.parse_known_args()
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     main()
-    if not _pre_args.no_chain:
-        from summarize_dataset import main as _summarize_main
-        _summarize_main()
-        try:
-            from summarize_filter_survival import main as _survival_main
-            _survival_main()
-        except Exception as _e:
-            print(f"[summarize_filter_survival] skipped: {_e}")
-        try:
-            from fit_diagnostics import main as _diagnostics_main
-            _diagnostics_main()
-        except Exception as _e:
-            print(f"[fit_diagnostics] skipped: {_e}")

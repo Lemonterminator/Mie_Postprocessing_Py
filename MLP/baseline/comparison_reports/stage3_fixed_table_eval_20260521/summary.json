@@ -1,0 +1,23 @@
+{
+  "created_at": "2026-05-21T14:21:04",
+  "device": "cuda",
+  "batch_points": 262144,
+  "tables": {
+    "cdf_uncensored": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\cdf_right_censoring_points\\cdf_points_uncensored.csv",
+      "n_rows": 542565
+    },
+    "p50_q1_fit_metrics": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\p50_q1_oracle\\p50_q1_fit_metrics.csv",
+      "n_rows": 495
+    },
+    "p50_observed": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\p50_q1_oracle\\p50_q1_observed_fit_points.csv",
+      "n_rows": 4213
+    },
+    "q1_grid": {
+      "path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data\\p50_q1_oracle\\p50_q1_predictions.csv",
+      "n_rows": 25245
+    }
+  }
+}

@@ -1,0 +1,5 @@
+```
+                               model                                                                                                                                  source  n_points  n_trajectories  rmse_mm   mae_mm   bias_mm  median_abs_err_mm  p90_abs_err_mm  p95_abs_err_mm  coverage_1sigma  coverage_2sigma  mean_pred_std_mm  mean_rel_err  median_rel_err  nrmse_range
+     SVGP stage2 (synthetic q1 only) MLP\runs_mlp\gp_baseline_stage2_20260521_090859\external_eval_full\gp_rmse_eval_clean_20260521_120209_seed_42_full\metrics_summary.json    692942           24316 5.551777 3.899153  1.295972           2.760986        8.620750       11.326493         0.653726         0.903884          4.576273      0.193978        0.068849     0.057904
+SVGP stage3 (synthetic q1 + raw CDF) MLP\runs_mlp\gp_baseline_stage3_20260521_112229\external_eval_full\gp_rmse_eval_clean_20260521_115511_seed_42_full\metrics_summary.json    692942           24316 4.628070 3.172598 -0.070344           2.212373        6.957179        9.242125         0.703381         0.939445          3.999558      0.123530        0.061461     0.048270
+```

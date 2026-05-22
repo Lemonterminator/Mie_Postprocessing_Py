@@ -1,23 +1,25 @@
 \section{Results}
 
-\subsection{Trajectory targets after extraction and fitting}
+\subsection{Evaluation map and headline results}
 
-The extraction and fitting workflow produced 295 cleaned fitted trajectory files across the processed campaign archive. This stage matters because the surrogate is not trained on raw, intermittently broken plume traces; it is trained on targets that retain the main temporal structure while damping segmentation noise and reducing late-time censoring bias. Figure~\ref{fig:clean-fit-example} shows a representative example: the cleaned curves preserve plume-to-plume differences, while the fitted trajectories provide smooth targets that remain faithful to the observed liquid envelope.
+Chapter~4 defined the penetration surrogate as a censoring-aware low-dimensional probabilistic regression problem. The results are therefore organised as a set of linked evaluation views rather than as a single leaderboard. The full-clean CDF protocol tests the deployed pointwise surrogate on all cleaned held-out CDF points from Dataset~\#1. The uncensored CDF table is the primary censoring-controlled pointwise check from Dataset~\#2. The P50-observed and q1-extrapolated tables are condition-level checks that separate in-window representative behaviour from continuation behaviour. The leave-one-nozzle-family (LONO) protocol tests transfer to unseen nozzle families, and the final ablation block attributes the design choices that make the MLP useful for the downstream screening workflow.
+
+The extraction and fitting workflow produced 295 cleaned fitted trajectory files across the processed campaign archive. This stage matters because the surrogate is not trained on raw, intermittently broken plume traces but on targets that retain the main temporal structure while damping segmentation noise and reducing late-time censoring bias. Figure~\ref{fig:clean-fit-example} shows a representative example: the cleaned curves preserve plume-to-plume differences, and the fitted trajectories provide smooth targets that remain faithful to the observed liquid envelope.
 
 \begin{figure}[t]
-\centering
+\centeringThesis\latex\sections_zh\04_trajectory_surrogate_screening.tex
 \includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
 \caption{Cleaned trajectories and q1 fitted curves (\textbf{the cleaned CDF penetration}) for operating condition T24 of the BC20241003\_HZ\_Nozzle1 campaign. Solid lines represent frame-by-frame raw penetration observations, while dashed lines are the corresponding $t^{1/4}$ single-branch (q1) fitted curves. This condition contains dozens of plume trajectories, with inter-plume variations and fitting continuation behaviors clearly visible; the fitted curves smoothly extrapolate to $\SI{3}{ms}$ after observations end, providing censoring-aware targets for subsequent surrogate training.}
 \label{fig:clean-fit-example}
 \end{figure}
 
-\subsection{Overall surrogate accuracy and uncertainty behaviour}
+\subsection{In-domain CDF accuracy and uncertainty}
 
-Table~\ref{tab:model-summary} summarises the role and held-out performance of the three learning stages. Stage~1 achieves low error on one representative curve per operating condition and therefore acts as a stable mean anchor rather than as the final screening model. Stage~2 tackles a harder task: the full filtered dataset with within-condition plume variation and a learned variance output. Its test MAE therefore rises from \SI{8.05}{mm} to \SI{9.28}{mm}, reflecting the shift from a median-trajectory problem to a conditional-distribution problem and making Stage~2 useful as the uncertainty-aware teacher.
+Table~\ref{tab:model-summary} summarises the role and held-out performance of the three learning stages. Stage~1 trains on one representative trajectory per operating condition and acts as a stable mean anchor; its test MAE of \SI{2.91}{mm} is measured on a corresponding representative test set. Stage~2 tackles a harder task --- the full filtered dataset spanning within-condition plume-to-plume variation with a learned variance output --- and its test MAE of \SI{5.63}{mm} is measured on that larger, more heterogeneous test population. The two figures are therefore not directly comparable: the higher Stage~2 MAE reflects the harder supervision target rather than degraded accuracy, and makes Stage~2 the appropriate uncertainty-aware teacher.
 
-Under the original archived training and evaluation split, the anchor-off Stage~3 model improves both accuracy and bias, reaching an overall RMSE of~\SI{6.68}{mm}, MAE of~\SI{4.83}{mm}, and residual bias of~\SI{-0.02}{mm} over 519{,}570 held-out time points from 21{,}470 trajectories. Figure~\ref{fig:pred-vs-actual-best} shows that the held-out predictions remain close to the identity line over the full measured range, with the scatter broadening gradually as penetration grows. That broadening is consistent with the heteroscedastic design: the model is not forcing one constant error bar onto all time instants and operating conditions.
+Under the refreshed full-clean CDF protocol with the production \texttt{kd\_mse\_mu\_plus\_sigma} Stage~3 loss form (\(\lambda_\sigma=5.0\)) trained over five seeds \(\{7,17,42,99,2024\}\), the anchor-off Stage~3 model reaches an overall RMSE of \(\SI{4.735}{mm}\pm\SI{0.037}{mm}\), MAE of \(\SI{3.293}{mm}\pm\SI{0.039}{mm}\), and a small positive bias of \(\SI{+0.626}{mm}\pm\SI{0.112}{mm}\) over each seed's 692{,}942 held-out time points from 24{,}316 trajectories. Figure~\ref{fig:pred-vs-actual-best} shows that the held-out predictions remain close to the identity line over the full measured range, with the scatter broadening gradually as penetration grows. That broadening is consistent with the heteroscedastic design: the model is not forcing one constant error bar onto all time instants and operating conditions.
 
-The uncertainty calibration is also meaningful in engineering terms. The final 1$\sigma$ and 2$\sigma$ coverages are 72.24\% and 97.03\%, respectively, which are slightly more conservative than the nominal Gaussian values of 68.3\% and 95.4\% (evaluated against the smoothed fitted targets rather than raw CDF observations, which sets a lower bar than raw-signal coverage would). Figure~\ref{fig:stage3-calibration-coverage} further expands this point through reliability plots and coverage curves binned by predicted standard deviation, rather than only comparing mean standard deviation with mean error. For early design screening this conservative bias is desirable: the model is somewhat more cautious than an exactly calibrated Gaussian and therefore less likely to understate late-time or weakly observed penetration uncertainty.
+The uncertainty calibration is also meaningful in engineering terms. The final 5-seed mean 1$\sigma$ and 2$\sigma$ coverages on the full-clean protocol are 86.7\% and 98.5\%, distinctly more conservative than the nominal Gaussian values of 68.3\% and 95.4\%. Figure~\ref{fig:stage3-calibration-coverage} expands this point through reliability plots and coverage curves binned by predicted standard deviation, rather than comparing only mean standard deviation with mean error. For early-design screening, this conservative bias is a feature rather than a defect: the model is deliberately more cautious than an exactly calibrated Gaussian and therefore less likely to understate late-time or weakly observed penetration uncertainty.
 
 \begin{figure}[t]
 \centering
@@ -34,9 +36,9 @@ The uncertainty calibration is also meaningful in engineering terms. The final 1
 \toprule
 Stage & Supervision target & Key held-out metrics & Interpretation \\
 \midrule
-Stage~1 & Representative fitted trajectories (599 rows) & Validation MSE~17.06; test MAE~\SI{8.05}{mm} & Stable mean anchor after $A$-scaling, but still only one representative curve per operating condition. \\
-Stage~2 & Full filtered fitted set (20{,}940 trajectories) & Validation NLL~2.099; test MAE~\SI{9.28}{mm}; mean predicted std.~\SI{12.51}{mm} & Harder teacher task that separates conditional mean from conditional spread on the full filtered archive. \\
-Stage~3 & Raw CDF with regime-dependent KD guidance & Original split: RMSE~\SI{6.68}{mm}; MAE~\SI{4.83}{mm}; bias~\SI{-0.02}{mm}; coverage 72.24\% / 97.03\% & Anchor-off screening model with better early-time fidelity, negligible residual bias, and conservative late-time behaviour; final headline metrics are taken from the external-cleaning protocol below. \\
+Stage~1 & Representative fitted trajectories (599 rows; 421/89/89 split) & Test MAE~\SI{2.91}{mm} (engineered \texttt{a\_dp050\_plus\_pressures} variant) & Stable mean anchor after $A$-scaling on the engineered seven-feature design, one representative curve per operating condition. \\
+Stage~2 & Full filtered fitted set (49{,}908 train / 10{,}961 val / 10{,}831 test trajectories) & Test MAE~\SI{5.63}{mm}; mean predicted std.~\SI{7.61}{mm}; validation NLL~$-0.323$ & Harder teacher task that separates conditional mean from conditional spread on the full filtered archive. \\
+Stage~3 & Raw CDF with regime-dependent KD guidance, \texttt{kd\_mse\_mu\_plus\_sigma} loss (\(\lambda_\sigma=5.0\)), anchor off & Full-clean 5-seed mean: RMSE~\(\SI{4.735}{mm}\pm\SI{0.037}{mm}\); MAE~\(\SI{3.293}{mm}\pm\SI{0.039}{mm}\); bias~\(\SI{+0.626}{mm}\pm\SI{0.112}{mm}\); coverage 86.7\% / 98.5\% & Production anchor-off screening model with better early-time fidelity and conservative late-time behaviour; final headline metrics are taken from the external-cleaning protocol below. \\
 \bottomrule
 \end{tabular}
 \caption{Summary of the three surrogate-training stages and their role in the final screening workflow.}
@@ -50,9 +52,7 @@ Stage~3 & Raw CDF with regime-dependent KD guidance & Original split: RMSE~\SI{6
 \label{fig:pred-vs-actual-best}
 \end{figure}
 
-\subsection{Extended evaluation under the external-cleaning protocol}
-
-The held-out results above describe the Stage~3 behaviour under the original archived training and evaluation split. To check whether the conclusion depends on that single split, this thesis also introduces an external-cleaning evaluation protocol. This protocol contains 795{,}561 prediction points and 33{,}845 trajectories, and all models are evaluated on the same target set. Table~\ref{tab:external-clean-headline} summarises the main surrogate and three baselines: a calibrated Hiroyasu--Arai empirical correlation, a delayed Naber--Siebers correlation, and a sparse heteroscedastic Gaussian process; their functional forms, image-feature source, and fitting protocol are given in Section~\ref{sec:baseline-fitting-protocol-en}. Across four repeated runs with the same anchor-off configuration, the transition-region-scaled three-stage MLP reaches a mean RMSE of \SI{6.094}{mm}, MAE of \SI{4.465}{mm}, P95 absolute error of \SI{12.888}{mm}, and conservative 1$\sigma$/2$\sigma$ coverage of 0.783/0.982. This reduces RMSE by 38.9\%, 31.1\%, and 11.7\% relative to Hiroyasu--Arai, Naber--Siebers, and the Gaussian process, respectively, showing an accuracy and tail-error advantage even against a non-parametric machine-learning baseline with uncertainty output. The resulting predicted distributions are then projected onto the simplified two-dimensional engine-geometry model in Figures~\ref{fig:impingement-preview}--\ref{fig:impingement-summary}, yielding a probabilistic wall-impingement screening proxy rather than a deterministic pass/fail threshold.
+The held-out results above describe the Stage~3 behaviour under the original archived training and evaluation split. To check whether the conclusion depends on that single split, this thesis also introduces an external-cleaning evaluation protocol. The refreshed full-clean CDF protocol contains 692{,}942 prediction points and 24{,}316 trajectories, and all models are evaluated on the same target set. Table~\ref{tab:external-clean-headline} summarises the physical baselines, the production MLP variants, and the Stage~3 sparse heteroscedastic Gaussian-process alternative backbone: a calibrated Hiroyasu--Arai empirical correlation, a delayed Naber--Siebers correlation, a production multi-seed MLP, the \texttt{mu\_anchor}/raw-uncertain production-KD variant, and the Stage~3 SVGP. The physical-baseline fitting protocol is given in Section~\ref{sec:baseline-fitting-protocol-en}, while the SVGP construction is described in Section~\ref{sec:svgp-alternative-backbone-en}. Across five repeated runs with the production anchor-off configuration (seeds 7/17/42/99/2024), the three-stage MLP reaches a mean RMSE of \SI{4.735}{mm}, MAE of \SI{3.293}{mm}, P95 absolute error of \SI{9.167}{mm}, and conservative 1$\sigma$/2$\sigma$ coverage of 0.867/0.985. This reduces RMSE by 58.0\% and 55.1\% relative to Hiroyasu--Arai and Naber--Siebers, respectively. The SVGP remains slightly better in point RMSE/MAE (RMSE \SI{4.628}{mm}), so the current claim is not that the MLP is universally better than the kernel backbone; rather, the production MLP is close in point accuracy, has comparable tail error, and is deliberately more conservative in coverage. The resulting predicted distributions are then projected onto the simplified two-dimensional engine-geometry model in Figures~\ref{fig:impingement-preview}--\ref{fig:impingement-summary}, yielding a probabilistic wall-impingement screening proxy rather than a deterministic pass/fail threshold.
 
 \begin{table}[t]
 \centering
@@ -62,35 +62,38 @@ The held-out results above describe the Stage~3 behaviour under the original arc
 \toprule
 Model & RMSE & MAE & Bias & P95 & 1$\sigma$ & 2$\sigma$ \\
 \midrule
-Calibrated Hiroyasu--Arai & 9.974 & 7.686 & 0.625 & 20.493 & 0.536 & 0.886 \\
-Delayed Naber--Siebers & 8.840 & 6.780 & -0.344 & 17.922 & 0.620 & 0.893 \\
-Previous quarter-power scaling reference model & 6.696 & 4.875 & -1.149 & 14.118 & 0.745 & 0.979 \\
-Three-stage MLP, transition-region scaling, anchor-off, mean over four repeats & \textbf{6.094} & \textbf{4.465} & -0.554 & \textbf{12.888} & 0.783 & 0.982 \\
-Three-stage MLP, raw-reliable-no-kd (ablation control, seed 2024) & 6.682 & 5.077 & -1.976 & 13.594 & 0.737 & 0.976 \\
-Sparse heteroscedastic Gaussian process, mean over five repeats & 6.898 & 5.206 & -1.184 & 14.365 & 0.670 & 0.950 \\
+Calibrated Hiroyasu--Arai & 11.268 & 8.658 & 0.288 & 22.891 & 0.615 & 0.912 \\
+Delayed Naber--Siebers & 10.545 & 8.177 & -0.442 & 21.253 & 0.637 & 0.919 \\
+Three-stage MLP, production anchor-off, mean over five repeats & 4.735 & 3.293 & 0.626 & \textbf{9.167} & 0.867 & 0.985 \\
+Three-stage MLP, \texttt{mu\_anchor}/raw-uncertain production-KD, mean over five repeats & 5.200 & 3.654 & -0.585 & 10.525 & 0.834 & 0.985 \\
+Sparse heteroscedastic GP, Stage~3 mode & \textbf{4.628} & \textbf{3.173} & -0.070 & 9.242 & 0.703 & 0.939 \\
 \bottomrule
 \end{tabular}
-\caption{Extended results under the same external-cleaning evaluation protocol. Error units are mm; P95 denotes the 95th percentile absolute error. The main MLP row is averaged over four repeated runs with the same anchor-off configuration (seeds 7/17/42/99); raw-reliable-no-kd is an ablation control reported for seed 2024 only. Nominal Gaussian coverage is approximately 0.683 / 0.954.}
+\caption{Extended results under the refreshed full-clean CDF evaluation protocol. Error units are mm; P95 denotes the 95th percentile absolute error. The two MLP rows are averaged over five repeated runs (seeds 7/17/42/99/2024), while the SVGP row is the trained Stage~3 seed-42 kernel reference. Nominal Gaussian coverage is approximately 0.683 / 0.954. Source files are under \codepath{Thesis/generated/baseline\_comparison\_20260521/}.}
 \label{tab:external-clean-headline}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.86\linewidth]{images/baseline_comparison_20260509/metric_bars_rmse_mae_p95.png}
-\caption{Comparison between the main surrogate and the physical and non-parametric machine-learning baselines in RMSE, MAE, and tail error.}
+\includegraphics[width=0.86\linewidth]{images/baseline_comparison_20260521/full_clean_metric_bars_rmse_mae_p95.png}
+\caption{Full-clean CDF comparison between the production MLP, the physical baselines, and the SVGP alternative backbone in RMSE, MAE, and tail error.}
 \label{fig:metric-bars-current}
 \end{figure}
 
-Across the four repeated anchor-off runs (seeds 7/17/42/99), the RMSE standard deviation is \SI{0.120}{mm}, with a range of \SIrange{5.948}{6.231}{mm}. This range lies entirely below the previous quarter-power scaling reference result of \(\SI{6.696}{mm}\), indicating that the transition-region scaling improvement is not a single-run accident. The label \emph{quarter-power} refers specifically to the Hiroyasu--Arai exponent $\Delta P^{1/4}$ embedded in the previous amplitude scale $A = \Delta P^{1/4}\cdot\rho_a^{-1/4}\cdot d_n^{1/2}$. Time-binned log--log regression on the same dataset estimates an empirical $\Delta P$ exponent of approximately $0.5$ over the mid-injection window, well above the H--A value of $0.25$; the current model therefore adopts $A = \Delta P^{0.5}\cdot\rho_a^{-0.25}\cdot d_n^{0.5}$, and the RMSE reduction from \SI{6.696}{mm} to \SI{6.094}{mm} confirms that the empirically grounded exponent improves predictions consistently across all four seeds. The raw-reliable-no-kd row in the table (seed 2024, RMSE \SI{6.682}{mm}) is an ablation-control variant; it quantifies the performance loss after removing distillation regularisation from the reliable raw regime and is not included in the anchor-off repeatability statistic.
+The same fitted HA/NS baselines were also re-scored on the conservative uncensored CDF table \codepath{MLP/synthetic\_data/cdf\_right\_censoring\_points/cdf\_points\_uncensored.csv}. On this 542{,}565-point subset, the production MLP has RMSE \SI{4.265}{mm}, the SVGP has RMSE \SI{4.193}{mm}, and the two physical curve-fitting baselines remain far higher at \SI{10.261}{mm} (Hiroyasu--Arai) and \SI{9.286}{mm} (Naber--Siebers). On the same protocol the production MLP has 1$\sigma$/2$\sigma$ coverage of 0.887/0.989 against SVGP's 0.716/0.945, confirming that the MLP's compensating advantage is conservative uncertainty rather than lower point error. Across the five repeated production runs, the full-clean RMSE standard deviation is \SI{0.037}{mm} with a range of \SIrange{4.689}{4.768}{mm}; on the uncensored CDF table the standard deviation is \SI{0.040}{mm} with a range of \SIrange{4.217}{4.310}{mm}. This tight range shows that the production result is not a seed accident, even though the SVGP remains the strongest point predictor in the current fixed-table comparison.
+
+\subsection{P50/Q1 condition-level checks}
+
+Two further protocols sharpen the SVGP-vs-MLP comparison beyond the pointwise CDF metric. On the 4{,}213-point condition-level P50 set, an oracle q1 fit to the P50 observations reaches RMSE \SI{1.010}{mm} as a non-deployable lower bound; among learned models the SVGP leads at RMSE \SI{2.649}{mm}, the production MLP follows at \(\SI{2.848}{mm}\pm\SI{0.059}{mm}\), and the diagnostic \(\mu\)-anchor/raw-uncertain variant is the worst at \(\SI{3.212}{mm}\pm\SI{0.245}{mm}\). On the 21{,}527-point q1 extrapolation grid outside the observed P50 window, however, the ranking inverts: the \(\mu\)-anchor variant attains the lowest RMSE (\(\SI{10.358}{mm}\pm\SI{0.106}{mm}\)) and the smallest positive extrapolation bias (\SI{+6.269}{mm}), ahead of the SVGP (\SI{10.591}{mm}, bias \SI{+6.410}{mm}) and the production MLP (\(\SI{10.864}{mm}\pm\SI{0.064}{mm}\), bias \SI{+6.753}{mm}). The two MLP variants therefore probe a genuine trade-off: the production anchor-off model is a conservative in-distribution surrogate, while the \(\mu\)-anchor/raw-uncertain model is retained as an extrapolation-regularised diagnostic that is closer to the SVGP-style smoothing prior outside the observed window. Detailed per-seed numbers and run roots are recorded in \codepath{Thesis/slides/slides\_production\_mlp\_svgp\_eval/}.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.80\linewidth]{images/baseline_comparison_20260509/per_seed_rmse.png}
-\caption{Per-seed RMSE for the four repeated anchor-off runs (seeds 7/17/42/99). The dashed line marks the four-run mean of~\SI{6.094}{mm}; raw-reliable-no-kd (seed 2024) is listed separately as an ablation control in the main table.}
+\includegraphics[width=0.80\linewidth]{images/baseline_comparison_20260521/production_mlp_per_seed_rmse.png}
+\caption{Per-seed RMSE for the five repeated production runs (seeds 7/17/42/99/2024), shown under both the full-clean CDF protocol and the conservative uncensored CDF table. Solid horizontal lines mark the corresponding five-run means.}
 \label{fig:five-seed-rmse-current}
 \end{figure}
 
-To visualise the error structure, Figure~\ref{fig:latest-pred-residual} uses the best repeated run as a representative diagnostic. The scatter remains broadly aligned with the identity line, and the residual mean is close to zero, but high-penetration regions and difficult nozzle families still show wider error tails. This supports a cautious conclusion: the model has stable millimetre-scale predictive ability, but it is not an unconditional extrapolator.
+To visualise the error structure, Figure~\ref{fig:latest-pred-residual} uses the best repeated run as a representative diagnostic. The scatter remains broadly aligned with the identity line and the residual mean is close to zero, but high-penetration regions and difficult nozzle families still show wider error tails. The cautious reading is that the model has stable millimetre-scale predictive ability within its supported domain without being an unconditional extrapolator.
 
 \begin{figure}[t]
 \centering
@@ -103,32 +106,36 @@ To visualise the error structure, Figure~\ref{fig:latest-pred-residual} uses the
 \centering
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/latest_residual_histogram_seed99.png}
 \end{minipage}
-\caption{Predicted-versus-measured scatter and residual distribution for a representative repeated run. This figure diagnoses the error structure; the main thesis claim uses the four-run anchor-off mean (RMSE \SI{6.094}{mm}).}
+\caption{Predicted-versus-measured scatter and residual distribution for a representative repeated run. This figure diagnoses the error structure; the headline comparison above uses the refreshed five-run production mean.}
 \label{fig:latest-pred-residual}
 \end{figure}
 
-\subsection{Extended probability calibration, CRPS, and leave-one-nozzle-family evaluation}
+\subsection{Probability calibration}
 
-Coverage checks only test a small number of confidence intervals, so this thesis further uses reliability diagrams, the continuous ranked probability score (CRPS), and probability-integral-transform histograms. The four repeated anchor-off runs have a mean CRPS of \SI{3.174}{mm}, lower than the physical baselines and the previous reference model. The improvement therefore does not come simply from widening uncertainty intervals; it comes from a better joint trade-off between mean accuracy and uncertainty width.
+Coverage checks only test a small number of confidence intervals, so this thesis further uses reliability diagrams, the continuous ranked probability score (CRPS), and probability-integral-transform histograms. The five-seed production anchor-off runs maintain a CRPS materially lower than the physical baselines, and the gain does not come from simply widening uncertainty intervals: it comes from a better joint trade-off between mean accuracy and uncertainty width.
 
-Figure~\ref{fig:calibration-current} shows the reliability diagram and the CRPS--sharpness plane. The three-stage MLP (anchor-off) has 1$\sigma$/2$\sigma$ coverage of 0.783/0.982, which is above the nominal Gaussian values and therefore slightly conservative on the external-cleaning set. The Gaussian process coverage of 0.670/0.950 is closer to nominal coverage, but its RMSE, MAE, and tail error are all higher than those of the three-stage MLP. Thus, the Gaussian process is a strong uncertainty baseline, but under the current protocol it does not replace the accuracy advantage of the three-stage model.
+Figure~\ref{fig:calibration-current} shows the reliability diagram and the CRPS--sharpness plane after adding the Stage~3 SVGP to the same full-clean diagnostic. The three-stage MLP (anchor-off) has 1$\sigma$/2$\sigma$ coverage above the nominal Gaussian values (0.867/0.985 over the five-seed mean) and is therefore intentionally conservative on the external-cleaning set. The refreshed Stage~3 comparison in Table~\ref{tab:external-clean-headline} shows that the SVGP is now the strongest point predictor (RMSE \SI{4.628}{mm}, 1$\sigma$/2$\sigma$ coverage 0.703/0.939) and also has the lowest CRPS in the refreshed calibration diagnostic, while the production MLP remains the more conservative screening surrogate (RMSE \SI{4.735}{mm}, but coverage well above nominal). The two models should therefore be read as different accuracy--coverage trade-offs rather than as a single-winner result: SVGP sits closer to nominal coverage, while MLP keeps wider uncertainty margins for downstream screening.
 
 \begin{figure}[t]
 \centering
 \begin{minipage}{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/calibration_20260509/reliability_overlay.png}
+\includegraphics[width=\linewidth]{images/calibration_20260521/reliability_overlay.png}
 \end{minipage}
 \hfill
 \begin{minipage}{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/calibration_20260509/crps_sharpness_scatter.png}
+\includegraphics[width=\linewidth]{images/calibration_20260521/crps_sharpness_scatter.png}
 \end{minipage}
-\caption{Probabilistic-prediction diagnostics. Left: reliability diagram. Right: continuous ranked probability score versus average predicted standard deviation. The three-stage MLP is better in accuracy and probabilistic score, while the Gaussian process is closer to nominal coverage.}
+\caption{Probabilistic-prediction diagnostics for the physical baselines, five production MLP seeds, and the Stage~3 SVGP alternative backbone. Left: reliability diagram. Right: continuous ranked probability score versus average predicted standard deviation.}
 \label{fig:calibration-current}
 \end{figure}
 
-The leave-one-nozzle-family evaluation checks whether the model is merely interpolating within nozzle families already seen during training. Across five held-out folds, the three-stage MLP has a mean RMSE of \(\SI{7.435}{mm}\pm\SI{0.692}{mm}\), still below Hiroyasu--Arai at \(\SI{10.713}{mm}\pm\SI{1.542}{mm}\) and Naber--Siebers at \(\SI{9.784}{mm}\pm\SI{2.102}{mm}\). The mean coverage is 0.701/0.957, close to nominal Gaussian values, but the most difficult held-out nozzle family shows clear under-coverage. This indicates that transition-region scaling and three-stage training improve cross-family robustness, while nozzle-family-dependent transient dynamics remain the main residual risk.
+\subsection{LONO transfer and OOD failure}
+
+The leave-one-nozzle-family evaluation checks whether the model is merely interpolating within nozzle families already seen during training. Under the refreshed five-fold LONO protocol (held-out families Nozzle0, Nozzle1, Nozzle2, Nozzle4, Nozzle5) with the Stage~2 teacher locked to \texttt{mu\_anchor}, the LONO-winning Stage~3 MLP variant \texttt{raw\_uncertain\_raw05\_kd025} attains a five-fold mean RMSE of \(\SI{12.55}{mm}\pm\SI{12.46}{mm}\), MAE of \(\SI{9.80}{mm}\pm\SI{10.18}{mm}\), and mean 1$\sigma$/2$\sigma$ coverage of 0.575/0.770. The same uncensored LONO evaluation gives the Stage~3 SVGP RMSE \(\SI{10.16}{mm}\pm\SI{9.57}{mm}\), MAE \(\SI{7.87}{mm}\pm\SI{7.55}{mm}\), and coverage 0.628/0.821. The cross-family conclusion is therefore conditional: SVGP is the stronger point-transfer backbone, while the MLP is retained for its conservative in-domain screening behaviour, onset side output, and inexpensive ablation workflow.
+
+The large standard deviations are dominated by the Nozzle0 fold, which is the only first-generation injector geometry in the campaign. Nozzle0 is better interpreted as an out-of-design-family failure case than as an ordinary average-performance fold: the Stage~3 MLP reaches RMSE \(\SI{34.76}{mm}\) there and the SVGP reaches RMSE \(\SI{26.99}{mm}\), both with systematic under-prediction. Excluding Nozzle0, the MLP four-fold mean RMSE drops to \(\SI{7.00}{mm}\pm\SI{1.18}{mm}\), while the SVGP reaches \(\SI{5.95}{mm}\pm\SI{1.98}{mm}\). Coverage then becomes mixed rather than one-sided: the MLP and SVGP have nearly identical 1$\sigma$ coverage (0.696 vs.\ 0.697), while the MLP has higher 2$\sigma$ coverage (0.923 vs.\ 0.890). The LONO evidence therefore argues against claiming universal MLP dominance, and instead separates in-domain conservative deployment from nozzle-family transfer accuracy.
 
 \begin{figure}[t]
 \centering
@@ -141,15 +148,55 @@ The leave-one-nozzle-family evaluation checks whether the model is merely interp
 \centering
 \includegraphics[width=\linewidth]{images/lono_20260509/lono_coverage_by_fold.png}
 \end{minipage}
-\caption{Leave-one-nozzle-family evaluation. The three-stage MLP has lower RMSE than the two physical baselines in every held-out fold, but some nozzle families still show under-coverage risk.}
+\caption{Current uncensored LONO cross-backbone diagnostic. Left: per-fold RMSE for the Stage~3 MLP LONO winner and the Stage~3 SVGP, with legacy HA/NS LONO RMSE means shown only as dashed scale references. Right: per-fold 1$\sigma$ coverage under the same uncensored point protocol, with the nominal Gaussian level shown as a dashed line.}
 \label{fig:lono-current}
 \end{figure}
 
-\subsection{Variation across campaigns and representative trajectory cases}
+\subsubsection{Cross-architecture LONO comparison against the SVGP alternative backbone}
+\label{sec:svgp-lono-comparison-en}
 
-Error is not uniform across campaign folders. Figure~\ref{fig:per-folder-rmse-best} shows the mean and median per-trajectory RMSE for the final model across the evaluated subfolders. The easiest folders remain in the low-\SI{3}{mm} range, while the hardest approaches \SI{9}{mm}. Nozzle0 sits in the middle of this ranking rather than at either extreme, so the global improvement from the final ablation is not driven by a single anonymised reference campaign.
+To test how the same censoring-aware regression protocol behaves across model families, the same five-fold LONO split is repeated with the sparse heteroscedastic Gaussian-process alternative backbone in Stage~3 mode, trained on the synthetic targets concatenated with raw CDF point observations to match the Stage~3 MLP supervision regime. All other axes (the five held-out nozzle families, the production input feature set, and the post-training uncensored evaluation script) are held fixed as far as the stored artifacts allow. The physical LONO rows are retained only as legacy RMSE scale references because same-protocol MAE and coverage tables were not traceable for those baselines in the current archive.
 
-Representative cases make this difference visible. Figure~\ref{fig:traj-best-case} shows a best-performing example in which the predicted mean follows the measured plume trajectories closely and the uncertainty bands remain comparatively tight. Figure~\ref{fig:traj-worst-case} shows a harder case in which the model remains monotone and the uncertainty bands widen appropriately, yet several plumes exhibit systematic curvature mismatch or delayed rise. Importantly, the hard example contains no censored trajectories, so the residual error cannot be attributed solely to field-of-view loss; nozzle-family-dependent early transients remain a genuine source of modelling difficulty.
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{tabular}{@{}L{0.34\linewidth}rrrr@{}}
+\toprule
+Model & RMSE [mm] & MAE [mm] & 1$\sigma$ cov. & 2$\sigma$ cov. \\
+\midrule
+Calibrated Hiroyasu--Arai, legacy LONO reference & 10.713 \(\pm\) 1.542 & --- & --- & --- \\
+Delayed Naber--Siebers, legacy LONO reference & 9.784 \(\pm\) 2.102 & --- & --- & --- \\
+Three-stage MLP, Stage~3 LONO winner & 12.55 \(\pm\) 12.46 & 9.80 \(\pm\) 10.18 & 0.575 & 0.770 \\
+Sparse heteroscedastic GP, Stage~3 mode & \textbf{10.16 \(\pm\) 9.57} & \textbf{7.87 \(\pm\) 7.55} & \textbf{0.628} & \textbf{0.821} \\
+Three-stage MLP, excluding Nozzle0 & 7.00 \(\pm\) 1.18 & 5.25 \(\pm\) 0.81 & 0.696 & \textbf{0.923} \\
+Sparse heteroscedastic GP, excluding Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \textbf{4.55 \(\pm\) 1.55} & \textbf{0.697} & 0.890 \\
+\bottomrule
+\end{tabular}
+\caption{Cross-architecture LONO comparison. The MLP and SVGP rows report unweighted means and standard deviations across the five leave-one-nozzle-out folds using the current uncensored evaluation artifacts. Dashes indicate that same-protocol MAE and uncertainty coverage were not traceable for the legacy physical-baseline LONO references. Bold values indicate the best current Stage~3 architecture in each comparable column.}
+\label{tab:svgp-lono-comparison}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/svgp_lono_comparison.png}
+\caption{Combined current uncensored LONO diagnostic between the Stage~3 MLP and sparse heteroscedastic GP. The left panel reports RMSE by held-out nozzle family; the right panel reports empirical 1$\sigma$ coverage with the nominal Gaussian level marked by a dashed line.}
+\label{fig:svgp-lono-comparison}
+\end{figure}
+
+Only the Stage~3 MLP and Stage~3 SVGP rows are used for the formal cross-architecture statement because those are the rows with complete current artifacts under the same uncensored LONO protocol. The result is not ambiguous: the kernel backbone has lower RMSE and MAE both with and without Nozzle0. The MLP's remaining advantage is not OOD point accuracy; it is the broader workflow surrounding the low-dimensional surrogate, especially the onset side head, regime-aware KD, conservative in-domain screening coverage, and the low cost of the ablation grid documented below.
+
+\subsubsection{Methodological note: dual-protocol evaluation}
+\label{sec:dual-protocol-en}
+
+The two evaluation protocols used in this chapter --- the LONO cross-validation reported above and the five-seed production bootstrap reported in Section~\ref{sec:kd-form-fix} --- are deliberately distinct and answer different questions. The LONO protocol holds out an entire nozzle family during training; it measures whether the surrogate generalises to a nozzle geometry never seen during training and therefore reports the model's \emph{out-of-distribution} behaviour. The production protocol retrains the same configuration under five random seeds on the full dataset and evaluates on a non-right-censored test set; it measures the model's \emph{in-distribution} fit quality together with its sensitivity to random initialisation, and is the appropriate protocol for variance reporting in the headline table.
+
+The two protocols are reported in parallel rather than as a single ranking because each isolates a separate claim. A model that performs best under LONO but loses under the production bootstrap would generalise well but fit poorly within the supported domain; a model that performs best under the production bootstrap but loses under LONO would fit the training domain tightly but extrapolate poorly to new nozzle geometries. The production protocol supports the MLP as a conservative screening surrogate within the measured design space. The LONO protocol shows that the SVGP alternative backbone is stronger in nozzle-family transfer point accuracy. These are complementary claims rather than a single architecture-wide victory statement.
+
+\subsubsection{Variation across campaigns and representative trajectory cases}
+
+Error is not uniform across campaign folders. Figure~\ref{fig:per-folder-rmse-best} shows the mean and median per-trajectory RMSE for the final model across the evaluated subfolders. The easiest folders remain in the low-\SI{3}{mm} range, while the hardest approaches \SI{9}{mm}. Nozzle0 sits in the middle of this ranking rather than at either extreme, so the global improvement from the final ablation is not driven by a single reference campaign.
+
+Representative cases make this difference visible. Figure~\ref{fig:traj-best-case} shows a best-performing example in which the predicted mean follows the measured plume trajectories closely and the uncertainty bands remain comparatively tight. Figure~\ref{fig:traj-worst-case} shows a harder case in which the model remains monotone and the uncertainty bands widen appropriately, yet several plumes exhibit systematic curvature mismatch or delayed rise. The hard example contains no censored trajectories, so the residual error cannot be attributed solely to field-of-view loss; nozzle-family-dependent early transients remain a genuine source of modelling difficulty.
 
 \begin{figure}[t]
 \centering
@@ -172,15 +219,15 @@ Representative cases make this difference visible. Figure~\ref{fig:traj-best-cas
 \label{fig:traj-worst-case}
 \end{figure}
 
-\subsection{Visual evidence and failure mode analysis of hard cases: Nozzle 3 example}
+\subsubsection{Visual evidence and failure mode analysis of hard cases: Nozzle 3 example}
 
-The leave-one-nozzle-family evaluation reveals that the surrogate model experiences under-coverage and amplified errors on specific nozzle families such as Nozzle 3. To investigate the physical root cause of the model's underperformance in these hard cases, this thesis extracts the raw Phantom high-speed Mie scattering images and cross-references them with the corresponding per-plume penetration trajectories (Figure~\ref{fig:failure-mode-nozzle3}).
+The leave-one-nozzle-family evaluation shows under-coverage and amplified errors on specific nozzle families such as Nozzle~3. To examine what these hard cases look like in the raw data, the Phantom high-speed Mie scattering images are cross-referenced with the corresponding per-plume penetration trajectories (Figure~\ref{fig:failure-mode-nozzle3}).
 
-The image sequence ($t \approx 0.6 \sim 1.0\,\si{ms}$) exposes extreme hole-to-hole asymmetry: while the plumes on the left establish stable continuous jets, the three plumes on the bottom right (approximately 3 to 5 o'clock positions) appear severely stunted. Some of these holes only manage to squeeze out detached puffs of low-momentum liquid, which rapidly decelerate against the ambient gas. This visual observation perfectly matches the flat "plateau" feature seen in the penetration curves (e.g., the green curve for Plume 2 and the blue curve for Plume 0) within the same time window. Subsequently ($t > 1.0\,\si{ms}$), the main jet on the bottom right suddenly bursts through and rapidly overtakes the initial puff, appearing as an unphysical step-like surge in the penetration curve.
+The image sequence ($t \approx 0.6 \sim 1.0\,\si{ms}$) shows pronounced hole-to-hole asymmetry: while the plumes on the left establish stable continuous jets, the three plumes on the bottom right (roughly 3--5 o'clock) appear short and fragmented. Some of these holes initially emit detached, low-momentum liquid packets that decelerate quickly against the ambient gas. This visual observation matches the flat ``plateau'' feature seen in the penetration curves (for example the green curve for Plume~2 and the blue curve for Plume~0) within the same time window. Subsequently ($t > 1.0\,\si{ms}$), a main jet appears at the same azimuthal positions and rapidly overtakes the initial packet, producing a step-like surge in the penetration curve.
 
-This localised "lead-dissipation followed by main-jet surge" phenomenon strongly points to needle eccentricity and wobble during the extreme transients of the pilot injection. During the micro-lift stage, the lateral displacement of the needle severely throttles the valve seat clearance on the bottom right side. Only after the needle is fully lifted can the high-pressure fuel flow smoothly through all holes.
+The shape of the trace --- a slow leading packet followed by a faster main jet that catches up and overtakes it --- is consistent with the wake-driven catch-up and overtake mechanism reported in split- and multiple-injection studies, in which a preceding liquid packet can modify the penetration of a following packet through wake effects and axial gas-momentum preconditioning. Because the present experiments do not include simultaneous gas-velocity measurements, internal-flow visualisation, or packet-identity tracking, the case can only be interpreted as image evidence \emph{consistent with} such a mechanism; mechanical causes such as needle wobble or transient hole throttling are equally plausible candidates that the available data cannot adjudicate.
 
-This finding provides a direct physical explanation for the limitations of the surrogate model. Although the computer-vision pipeline faithfully captures this micro-hydrodynamic anomaly, the reduced-order fit target ($k_{1/4}t^{1/4}$) is mathematically incapable of enveloping an "S-shaped" step trajectory that features such aggressive second-derivative discontinuities. Forcing a smooth, monotonic prior onto this highly transient physical reality inevitably leads to massive target distortion, which is the root cause of the degraded coverage of the Stage-2 and Stage-3 networks on these nozzle families. This proves that future modelling of extreme transient sprays cannot rely solely on smooth empirical shape priors, but must explicitly account for mechanical asymmetries such as needle wobble.
+What the data \emph{do} support is the modelling consequence. The reduced-order fit target ($k_{1/4}t^{1/4}$) is monotone and concave by construction, so it cannot envelope a step trajectory with a second-derivative discontinuity of this kind. Imposing the smooth monotone prior on such traces distorts the target, and this distortion is one identifiable contributor to the degraded coverage of Stage~2 and Stage~3 on the affected families. Modelling extreme transient sprays of this kind will therefore require either a more flexible shape prior or explicit conditioning on whichever physical mechanism turns out to be responsible, once a diagnostic that can resolve it becomes available.
 
 \begin{figure}[p]
 \centering
@@ -214,44 +261,100 @@ This finding provides a direct physical explanation for the limitations of the s
 \label{fig:failure-mode-nozzle3}
 \end{figure}
 
-\subsection{Ablation evidence for the final tuning choice}
+\subsection{MLP ablation evidence and screening demonstration}
 
-The ablation suite compared four Stage~3 configurations:
-(i)~the baseline configuration with $w_{\mathrm{kd}}=0.25$ in the high-confidence raw regime bins and $\lambda_{\mathrm{anchor}}=0.01$;
-(ii)~\textbf{the raw-only reliable regime variant}, which removes KD blending in reliable bins;
-(iii)~\textbf{the blended uncertain regime variant}, which reintroduces partial raw supervision in the uncertain regime; and
-(iv)~\textbf{the anchor-free distillation variant}, which sets $\lambda_{\mathrm{anchor}}=0$ while leaving the raw/KD regime design unchanged.
-Table~\ref{tab:stage3-ablation-ranking} and Figure~\ref{fig:ablation-best} show the ranking. The anchor-off variant is the best model by overall RMSE and also reduces the residual bias from \SI{-1.37}{mm} in the baseline to \SI{-0.02}{mm}. This indicates that the early zero-penetration anchor, although physically plausible as a prior, was slightly over-constraining the learned mean and creating a global under-prediction.
+The previous sections establish the cross-architecture result: SVGP is currently the point-accuracy winner, especially under LONO transfer, while the production MLP is the more conservative in-domain screening surrogate. The remaining evidence explains why the MLP stack is still kept as the operational workflow: its curriculum can be ablated cheaply, its onset side output supports the GUI prototype, and its regime-aware distillation makes the conservative screening behaviour traceable rather than accidental.
 
-It should be stated explicitly that Table~\ref{tab:stage3-ablation-ranking} supports the choice of the anchor-off variant and the raw/KD mixing strategy, but does not constitute a full hyperparameter search over the 70\%/20\% coverage boundaries, \(\sigma_{\mathrm{ref}}=\SI{10}{mm}\), or all possible weight combinations. These values are reported as a reproducible conservative design configuration; additional local sensitivity configurations should be used to check their stability once the full data and training environment are restored.
+\subsubsection{Stage-2 anchor-schedule ablation}
+\label{sec:stage2-anchor-ablation-en}
+
+Stage~2 introduces two optional early-time anchor terms on top of the heteroscedastic NLL: a quadratic penalty pulling \(\mu(t{\to}0)\to 0\) (weight \(\lambda_\mu\)) and a quadratic penalty on the excess standard deviation \(\max(0,\,\sigma(t{\to}0)-\sigma_{0})\) above a fixed floor \(\sigma_{0}\) (weight \(\lambda_\sigma\)). Both terms integrate against a triangular kernel \(w(t)=\max(0,\,1-t/\tau)\) over an early-time window of \(\tau=\SI{0.15}{ms}\). To check whether these anchors help or hurt cross-nozzle generalisation, three Stage~2 variants are compared under the same LONO protocol as Stage~1: (i)~\texttt{no\_anchor} (\(\lambda_\mu=\lambda_\sigma=0\)); (ii)~\texttt{mu\_anchor} (\(\lambda_\mu=10^{-2}\), \(\lambda_\sigma=0\)); (iii)~\texttt{mu\_sigma\_anchor} (\(\lambda_\mu=10^{-2}\), \(\lambda_\sigma=10^{-3}\)). All three variants share the Stage~1 winner (\texttt{a\_dp050\_plus\_pressures}) as warm start, the same five-fold LONO split, the same Stage~3 anchor-off distillation chain, the same architecture, optimiser, and a single fixed seed (42); the only varying axis is the Stage~2 anchor configuration. Held-out metrics in this section are evaluated on the held-out nozzle's uncensored CDF~P50 points after the full Stage~1$\to$Stage~2$\to$Stage~3 chain (eval-point counts per fold: 311{,}149 / 60{,}369 / 33{,}017 / 28{,}139 / 25{,}705 for Nozzle0 / Nozzle2 / Nozzle5 / Nozzle4 / Nozzle1, respectively).
 
 \begin{table}[t]
 \centering
 \footnotesize
-\begin{tabular}{lrrrr}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.30\linewidth}rrrr@{}}
 \toprule
-Configuration & RMSE [mm] & MAE [mm] & Bias [mm] & P95 abs. err. [mm] \\
+Variant & RMSE [mm] & MAE [mm] & Bias [mm] & 1$\sigma$ / 2$\sigma$ coverage \\
 \midrule
-the anchor-free distillation variant & 6.68 & 4.83 & $-0.02$ & 13.89 \\
-the raw-only reliable regime variant & 6.82 & 5.01 & $-0.91$ & 14.17 \\
-the blended uncertain regime variant & 6.87 & 5.07 & $-1.23$ & 14.21 \\
-\textbf{the baseline distillation variant} & 6.91 & 5.08 & $-1.37$ & 14.32 \\
+\texttt{no\_anchor}        & 14.54 $\pm$ 12.36 & 10.80 $\pm$ \phantom{0}9.96 & $-8.50 \pm 11.03$ & 0.602 / 0.763 \\
+\texttt{mu\_anchor}        & \textbf{12.73 $\pm$ 12.44} & \textbf{\phantom{0}9.86 $\pm$ 10.22} & \textbf{\boldmath$-7.11 \pm 11.51$} & 0.570 / \textbf{0.775} \\
+\texttt{mu\_sigma\_anchor} & 13.05 $\pm$ 12.46 & 10.06 $\pm$ 10.33 & $-7.59 \pm 11.45$ & 0.564 / 0.764 \\
 \bottomrule
 \end{tabular}
-\caption{Stage~3 ablation ranking from the automatic post-training RMSE evaluation. The selected model is the anchor-free distillation variant.}
+\caption{Stage~2 anchor-schedule LONO ablation. Each row is the held-out mean $\pm$ standard deviation across the five leave-one-nozzle-out folds (Nozzle0, Nozzle1, Nozzle2, Nozzle4, Nozzle5). The selected Stage-2 teacher configuration is \texttt{mu\_anchor}, which wins on RMSE, MAE, bias magnitude, and 2$\sigma$ coverage simultaneously.}
+\label{tab:stage2-anchor-ablation}
+\end{table}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.28\linewidth}rrrrr|r@{}}
+\toprule
+Variant & Nozzle0 & Nozzle1 & Nozzle2 & Nozzle4 & Nozzle5 & Mean \\
+\midrule
+\texttt{no\_anchor}        & 34.25 & \phantom{0}6.56 & 19.18 & 7.57 & 5.11 & 14.54 \\
+\texttt{mu\_anchor}        & 34.92 & \phantom{0}7.16 & \textbf{\phantom{0}7.76} & 8.20 & 5.60 & \textbf{12.73} \\
+\texttt{mu\_sigma\_anchor} & 35.12 & \phantom{0}7.10 & 10.04 & 7.73 & 5.27 & 13.05 \\
+\bottomrule
+\end{tabular}
+\caption{Per-fold LONO RMSE [mm] for the three Stage~2 anchor variants. All three collapse on the Nozzle0 fold (a first-generation injector geometry that is genuinely out-of-design-family and dominates the mean by point count); the discriminating fold is Nozzle2, where \texttt{no\_anchor} loses 11.4\,mm of RMSE relative to \texttt{mu\_anchor}.}
+\label{tab:stage2-anchor-ablation-per-fold}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/stage2_anchor_ablation.png}
+\caption{Stage-2 anchor-schedule LONO ablation summary. Left: per-fold held-out RMSE for the three anchor variants; right: per-fold 1$\sigma$ coverage with the nominal Gaussian level marked by a dashed line. Generated from \codepath{MLP/runs\_mlp/stage2\_lono\_ablation\_20260520\_235200/per\_fold.csv}.}
+\label{fig:stage2-anchor-ablation}
+\end{figure}
+
+The ablation tests two coupled hypotheses. First, whether the zero-time mean anchor injects a usable physical prior at the cost of biasing the conditional mean elsewhere; the comparison \texttt{no\_anchor} vs.\ \texttt{mu\_anchor} isolates this trade-off. Second, whether forcing the early-time \(\sigma\) toward the floor damages calibration on held-out nozzle families; the comparison \texttt{mu\_anchor} vs.\ \texttt{mu\_sigma\_anchor} isolates this second axis without confounding by mean-anchor presence.
+
+Both hypotheses are resolved in favour of the \(\mu\)-only anchor. Activating the \(\mu\)-anchor reduces mean RMSE by \SI{1.81}{mm} (\(14.54\to12.73\,\si{mm}\)) and MAE by \SI{0.94}{mm}, while raising 2\(\sigma\) coverage from 0.763 to 0.775 and shrinking the systematic under-prediction bias from \SI{-8.50}{mm} to \SI{-7.11}{mm}. The improvement is concentrated on the Nozzle2 fold, where \texttt{no\_anchor} collapses to \SI{19.18}{mm} RMSE because the NLL is free to exploit the data-poor near-\(t{=}0\) window as a slack pool; the anchor removes this degree of freedom. The three modern-design folds (Nozzle1/4/5, $\sim$25--33k eval points each) all sit within \SI{1}{mm} of one another across the three variants, so the anchor's value materialises only when the LONO fold creates a genuine OOD challenge.
+
+Adding the \(\sigma\)-anchor on top tightens the mean predicted standard deviation from \SI{5.68}{mm} to \SI{5.49}{mm} but produces no compensating gain: RMSE rises to \SI{13.05}{mm} and 2\(\sigma\) coverage drops back to 0.764. The interpretation is that pushing \(\sigma\) toward its floor near \(t{=}0\) propagates through Stage~3 distillation as a more confident but slightly biased \(\mu\) prediction, which hurts both accuracy and calibration. The Stage-3 ablations reported in the next subsection therefore lock the Stage-2 teacher to the \texttt{mu\_anchor} configuration (\(\lambda_\mu=10^{-2}\), \(\lambda_\sigma=0\)); any conclusion about Stage~3 regime weighting or KD form is conditional on this anchor choice. The full per-fold breakdown and raw aggregate files are available under \codepath{MLP/runs\_mlp/stage2\_lono\_ablation\_20260520\_235200/}.
+
+\subsubsection{Stage-3 regime ablation}
+
+After the Stage~2 anchor ablation, the Stage~3 suite was rerun under the same five-fold LONO protocol with the teacher fixed to \texttt{mu\_anchor}. The suite compared four Stage~3 configurations:
+(i)~the baseline configuration with $w_{\mathrm{kd}}=0.25$ in the high-confidence raw regime bins and $\lambda_{\mathrm{anchor}}=0.01$;
+(ii)~\textbf{the raw-only reliable regime variant}, which removes KD blending in reliable bins;
+(iii)~\textbf{the blended uncertain regime variant}, which reintroduces partial raw supervision in the uncertain regime; and
+(iv)~\textbf{the anchor-free distillation variant}, which sets $\lambda_{\mathrm{anchor}}=0$ while leaving the raw/KD regime design unchanged.
+Table~\ref{tab:stage3-ablation-ranking} gives the LONO ranking. The blended uncertain-regime variant \texttt{raw\_uncertain\_raw05\_kd025} has the lowest mean RMSE and MAE, while \texttt{anchor\_off} has the highest 2\(\sigma\) coverage. The separation is small: the best and worst mean RMSE differ by only \SI{0.21}{mm}, far below the cross-fold standard deviation of about \SI{12.5}{mm}. This should therefore be read as a weak Stage~3 tuning preference rather than a decisive architecture-level effect.
+
+The per-fold pattern explains the small aggregate margin. Nozzle0 remains an out-of-design-family failure for every Stage~3 variant, with RMSE in the \SIrange{34.76}{35.31}{mm} range and a systematic \(\approx\SI{-27}{mm}\) under-prediction bias. The blended uncertain-regime variant wins Nozzle2 and Nozzle1, whereas the baseline wins Nozzle5 and Nozzle4. Consequently, Table~\ref{tab:stage3-ablation-ranking} supports \texttt{raw\_uncertain\_raw05\_kd025} as the LONO RMSE/MAE winner under the fixed \texttt{mu\_anchor} teacher, but it does not constitute a full hyperparameter search over the 70\%/20\% coverage boundaries, \(\sigma_{\mathrm{ref}}=\SI{10}{mm}\), or all possible weight combinations. The complete run artifacts are stored in \codepath{MLP/runs\_mlp/stage3\_lono\_ablation\_20260521\_092405/}.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{tabular}{lrrrrr}
+\toprule
+Configuration & RMSE [mm] & MAE [mm] & Bias [mm] & cov. 1$\sigma$ & cov. 2$\sigma$ \\
+\midrule
+baseline distillation variant & 12.68 $\pm$ 12.74 & 9.97 $\pm$ 10.55 & $-7.86 \pm 11.28$ & 0.565 & 0.759 \\
+raw-only reliable-regime variant & 12.76 $\pm$ 12.48 & 10.01 $\pm$ 10.22 & $-7.45 \pm 11.35$ & 0.556 & 0.761 \\
+\textbf{blended uncertain-regime variant} & \textbf{12.55 $\pm$ 12.46} & \textbf{9.80 $\pm$ 10.18} & \textbf{$-6.87 \pm 11.53$} & \textbf{0.575} & 0.770 \\
+anchor-free distillation variant & 12.73 $\pm$ 12.44 & 9.86 $\pm$ 10.22 & $-7.11 \pm 11.51$ & 0.570 & \textbf{0.775} \\
+\bottomrule
+\end{tabular}
+\caption{Stage~3 LONO ablation after fixing the Stage~2 teacher to \texttt{mu\_anchor}. Each row reports the held-out mean $\pm$ standard deviation across five leave-one-nozzle-out folds. The blended uncertain-regime variant is the RMSE/MAE winner; the anchor-free variant has the strongest 2$\sigma$ coverage.}
 \label{tab:stage3-ablation-ranking}
 \end{table}
 
-The ablation trend also clarifies why Stage~3 is more credible than Stage~1 or Stage~2 for screening use. The winning model does not remove teacher guidance; it removes only the extra early-time anchor that was already partly redundant with the onset loss and raw observations. The selected tuning therefore keeps the physically motivated raw/KD balance while avoiding a bias-inducing constraint at the origin.
+The ablation trend also clarifies why Stage~3 should be treated as a fine-tuning layer rather than a complete cure for OOD nozzle geometry. The winning LONO variant does not remove teacher guidance; it modifies only the uncertain-regime raw/KD balance, gaining most of its advantage on Nozzle2 and Nozzle1. Conversely, Nozzle0 is almost unchanged across variants, confirming that the dominant failure there is missing design-family coverage rather than the Stage~3 regime schedule itself. For the downstream production-style analysis, this LONO result is therefore used as evidence for conservative Stage~3 regime selection, while the separate KD-loss-form study below addresses the in-distribution near-FOV bias mechanism.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/ablation_comparison_best.png}
-\caption{Ablation summary for Stage~3 tuning. Disabling the early anchor gives the lowest RMSE, the lowest MAE, and nearly zero residual bias.}
+\caption{Stage~3 LONO tuning summary. With the Stage~2 teacher fixed to \texttt{mu\_anchor}, the blended uncertain-regime variant gives the lowest mean RMSE/MAE, while \texttt{anchor\_off} gives the strongest 2$\sigma$ coverage. Generated from \codepath{MLP/runs\_mlp/stage3\_lono\_ablation\_20260521\_092405/per\_fold.csv}.}
 \label{fig:ablation-best}
 \end{figure}
 
-\subsection{Distillation loss form: diagnosis and near-FOV bias fix}
+\subsubsection{Distillation loss form: diagnosis and near-FOV bias fix}
 \label{sec:kd-form-fix}
 
 After switching to the \texttt{a\_plus\_pressures} feature variant, slicing the Stage~3 residuals by the near-FOV indicator \(\mathrm{pen}\ge 0.9\,\mathrm{cap}_\mathrm{nozzle}\) exposed a systematic degradation in the upper-penetration regime: even though the Stage~2 teacher was nearly unbiased near the FOV cap (bias \SI{-0.59}{mm}, RMSE \SI{4.82}{mm}), the distilled anchor-off student deteriorated on the same slice to a bias of \SI{-2.70}{mm} and an RMSE of \SI{6.11}{mm}. This drift could not be attributed to the Stage~1/2 fits---the Hampel + DIFF\_LOWER cleaning pipeline does not undershoot the teacher near the cap---so the loss must have been introduced inside the Stage~3 distillation step itself.
@@ -272,7 +375,7 @@ which adds an explicit log-variance MSE on top of the mean MSE so that \(\sigma\
 \label{fig:kd-overlay}
 \end{figure}
 
-Because Stage~3 trains on three distinct supervision regimes, the held-out evaluation is best reported on those regimes separately rather than only as a single aggregate. Holding Stage~1 and Stage~2 fixed and re-training Stage~3 under five random seeds \(\{7,17,42,99,2024\}\) (Mode~A protocol), the final \texttt{kd\_mse\_mu\_plus\_sigma} model (\(\lambda_\sigma=5.0\)) achieves an overall RMSE of \(\SI{4.803}{mm}\pm\SI{0.032}{mm}\), MAE of \(\SI{3.282}{mm}\pm\SI{0.036}{mm}\), and bias of \(\SI{+0.908}{mm}\pm\SI{0.179}{mm}\) on each seed's 692{,}942 held-out time points. Restricting the same five-seed evaluation to the non-right-censored subset reported in the abstract---traces whose entire CDF lies inside the FOV, comprising 14{,}686 trajectories and 393{,}912 prediction points---yields RMSE \(\SI{4.884}{mm}\pm\SI{0.031}{mm}\), MAE \(\SI{3.152}{mm}\pm\SI{0.038}{mm}\), and 1\(\sigma\)/2\(\sigma\) uncertainty coverage of \(85.53\,\%\pm 0.30\,\%\) / \(97.70\,\%\pm 0.08\,\%\) (per-seed values in \codepath{Thesis/generated/current/stage3\_mse\_mu\_plus\_sigma\_modeA\_trace\_not\_censored.csv}). Table~\ref{tab:stage3-kd-regimes} breaks this down by training-time supervision regime and by FOV-censoring flag (numbers for the representative seed \(s=99\)). The \texttt{raw\_reliable} slice (79\% of points), where raw NLL dominates the supervision, has RMSE \SI{4.68}{mm} and bias \SI{+0.67}{mm}; the KD-only slice (\texttt{raw\_uncertain} and \texttt{teacher\_only} combined, 21\% of points) has RMSE \SI{5.08}{mm} and bias \SI{+0.93}{mm}, slightly higher but still below the previous baseline's aggregate. Viewed through the FOV-censoring lens, traces that stay fully inside the FOV (n=393{,}912) yield RMSE \SI{4.85}{mm} and bias \SI{+0.99}{mm}; traces that hit the FOV cap (n=299{,}030) yield RMSE \SI{4.65}{mm} and bias \SI{+0.37}{mm}; the intersection---the near-cap points of right-censored traces (n=47{,}676)---reaches RMSE \SI{4.95}{mm} and bias \SI{-0.69}{mm}, essentially matching the teacher on the same slice. Across all five seeds the full near-cap slice (\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)) reaches RMSE \(\SI{4.881}{mm}\pm\SI{0.024}{mm}\) and bias \(\SI{-0.566}{mm}\pm\SI{0.079}{mm}\), and the right-censored near-cap subset reaches RMSE \(\SI{4.939}{mm}\pm\SI{0.023}{mm}\) and bias \(\SI{-0.590}{mm}\pm\SI{0.077}{mm}\). The latter is within one seed-level standard deviation of the teacher's \(\SI{-0.59}{mm}\), confirming that the distillation-induced loss in this band has been removed and that the fix is stable under random reinitialisation.
+Because Stage~3 trains on three distinct supervision regimes, the held-out evaluation is best reported on those regimes separately rather than only as a single aggregate. Holding Stage~1 and Stage~2 fixed and re-training Stage~3 under five random seeds \(\{7,17,42,99,2024\}\) (Mode~A protocol), the final \texttt{kd\_mse\_mu\_plus\_sigma} model (\(\lambda_\sigma=5.0\)) achieves an overall full-clean RMSE of \(\SI{4.735}{mm}\pm\SI{0.037}{mm}\), MAE of \(\SI{3.293}{mm}\pm\SI{0.039}{mm}\), and bias of \(\SI{+0.626}{mm}\pm\SI{0.112}{mm}\) on each seed's 692{,}942 held-out time points. Restricting the same five-seed evaluation to the conservatively uncensored CDF subset (\num{542565} points after density-drop and FOV-saturation truncation) yields RMSE \(\SI{4.265}{mm}\pm\SI{0.040}{mm}\), MAE \(\SI{3.032}{mm}\pm\SI{0.048}{mm}\), bias \(\SI{+0.562}{mm}\pm\SI{0.119}{mm}\), and 1\(\sigma\)/2\(\sigma\) uncertainty coverage of \(0.887\pm 0.004\) / \(0.989\pm 0.001\) (per-seed values in \codepath{Thesis/generated/baseline\_comparison\_20260521/fixed\_table\_group\_summary.csv}). Table~\ref{tab:stage3-kd-regimes} breaks this down by training-time supervision regime and by FOV-censoring flag (numbers for the representative seed \(s=99\)). The \texttt{raw\_reliable} slice (79\% of points), where raw NLL dominates the supervision, has RMSE \SI{4.68}{mm} and bias \SI{+0.67}{mm}; the KD-only slice (\texttt{raw\_uncertain} and \texttt{teacher\_only} combined, 21\% of points) has RMSE \SI{5.08}{mm} and bias \SI{+0.93}{mm}, slightly higher but still below the previous baseline's aggregate. Viewed through the FOV-censoring lens, traces that stay fully inside the FOV (n=393{,}912) yield RMSE \SI{4.85}{mm} and bias \SI{+0.99}{mm}; traces that hit the FOV cap (n=299{,}030) yield RMSE \SI{4.65}{mm} and bias \SI{+0.37}{mm}; the intersection---the near-cap points of right-censored traces (n=47{,}676)---reaches RMSE \SI{4.95}{mm} and bias \SI{-0.69}{mm}, essentially matching the teacher on the same slice. Across all five seeds the full near-cap slice (\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)) reaches RMSE \(\SI{4.881}{mm}\pm\SI{0.024}{mm}\) and bias \(\SI{-0.566}{mm}\pm\SI{0.079}{mm}\), and the right-censored near-cap subset reaches RMSE \(\SI{4.939}{mm}\pm\SI{0.023}{mm}\) and bias \(\SI{-0.590}{mm}\pm\SI{0.077}{mm}\). The latter is within one seed-level standard deviation of the teacher's \(\SI{-0.59}{mm}\), confirming that the distillation-induced loss in this band has been removed and that the fix is stable under random reinitialisation.
 
 \begin{figure}[t]
 \centering
@@ -317,9 +420,16 @@ trace censored \& near-cap & 47{,}676 & 4.95 & \(-\)0.69 & 0.28 \\
 \label{fig:kd-sigma-calibration}
 \end{figure}
 
-\subsection{Prototype screening output and evidence boundary}
+\subsubsection{Methodological note: ablation affordability as an MLP-specific advantage}
+\label{sec:mlp-ablation-affordability-en}
 
-The final surrogate can be coupled to a simplified collision-screening geometry. On the default toy input,
+A direct consequence of choosing an MLP architecture for the penetration surrogate is that the systematic ablation suite reported in this thesis is computationally tractable on commodity hardware. Three independent ablation matrices appear in earlier sections: Stage~1 over nine engineered-feature variants under five LONO folds (Section~\ref{sec:stage1-lono-ablation}), Stage~2 over three anchor schedules under the same LONO protocol, and Stage~3 over four regime-weighting variants combined with seven single-variable KD-form ablations. The full LONO~$\times$~ablation~$\times$~seed grid required to support the headline tables completes in tens of GPU-hours on a single consumer-grade accelerator. The same ablation matrix applied to a CNN- or Transformer-style spatio-temporal surrogate would scale by one to two orders of magnitude in training cost, and a master-level computational budget would in practice force the author to report a single configuration without isolating the marginal contribution of each design choice. Reporting design-decision attribution at this granularity is therefore not an architecture-independent capability but a direct dividend of choosing a lightweight backbone.
+
+Computational affordability is not the only justification for the MLP choice. The surrogate target in this thesis is a pointwise regression of $(\mu,\sigma)$ as a function of low-dimensional condition descriptors (time, scaled amplitude, log-pressure residuals, and the nozzle-family one-hot indicator), not a spatio-temporal field prediction. The inductive biases that motivate CNNs (local translation invariance over a regular spatial grid) and Transformers (long-range sequence modelling) are therefore not aligned with the task structure; both add representational capacity that the task does not require and pay for it in calibration noise and parameter count. Taken together, architecture--task matching and ablation affordability make the MLP the principled rather than the merely convenient choice, and the systematic ablation evidence presented in Chapters~4 and~5 would not have been reachable under a master-level computational budget without that match.
+
+\subsubsection{Prototype screening output and evidence boundary}
+
+The final surrogate can be coupled to a simplified collision-screening geometry. The current GUI prototype uses the MLP because it already exposes the onset side output needed by the temporal screening display; the SVGP could replace the penetration \(\mu,\sigma\) channel, but it does not by itself replace that onset head. On the default toy input,
 \[
 \left\{
 \begin{aligned}

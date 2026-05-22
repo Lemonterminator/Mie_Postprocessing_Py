@@ -31,28 +31,28 @@ Although Schlieren and Shadowgraphy can provide spray boundaries,
 their sensitivity to the liquid-phase boundary is less pronounced than that of droplet-scattering-based methods.
 Consequently, DBI and Mie scattering are most closely aligned with the tasks of extracting liquid contours, penetration, and cone angles \cite{Linne2013SprayImaging}.
 
-This thesis therefore adapts long-established experimental spray analysis:
-for Mie scattering experiments, since there is no reliable one-to-one mapping from pixel intensity to a physical spray quantity,
-the camera intensity is treated as a carrier of geometric cues, not as a stand-in for a thermodynamic field.
+This thesis therefore adapts long-established experimental spray analysis.
+Because Mie scattering provides no reliable one-to-one mapping from pixel intensity to a physical spray quantity,
+the camera intensity is treated as a carrier of geometric cues rather than as a stand-in for a thermodynamic field.
 Operational observables --- penetration, cone angle, projected area, boundary position ---
 are defensible in a way that claims about exact liquid distribution are not \cite{Linne2013SprayImaging,LefebvreMcDonell2017}.
-The reason penetration and cone angle have stayed as standard descriptors in diesel spray research is the same:
+Penetration and cone angle have remained the standard descriptors in diesel spray research for the same reason:
 they are interpretable, and their measurements stay reasonably stable across controlled experimental campaigns
 \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
 
-The same emphasis remains consistent in prior optical spray studies.
+Prior optical spray studies follow the same line.
 Early two-dimensional Mie-scattering work inside optical diesel engines already reported jet-tip penetration and cone-angle information
 as the practical outputs of image analysis, rather than attempting a full liquid-state reconstruction \cite{MuenchLeipertz1992}.
-Even more recent imaging studies, with improved instrumentation and tighter synchronisation,
+More recent imaging studies, with improved instrumentation and tighter synchronisation,
 still organise liquid-spray comparison around penetration and spreading-angle measurements \cite{JungManinSkeenPickett2015}.
 The implication is that a thesis built on Mie videos should be judged first by the quality, reproducibility,
 and stated limits of its extracted observables.
 
 The data used in this work were recorded in existing top-view multi-hole nozzle Mie-scattering experiments conducted at the Wärtsilä OSCC.
-In contrast to common back-illumination or side-view single-hole isolation configurations,
-this experimental setup utilizes lateral window illumination and positions the injector at the rear of the chamber,
-thereby allowing all spray plumes to be captured simultaneously within a single field of view.
-This configuration is particularly advantageous for preserving the plume-to-plume and shot-to-shot variations essential for the subsequent modelling in this thesis.
+In contrast to common back-illumination or side-view single-hole configurations,
+this setup uses lateral window illumination and positions the injector at the rear of the chamber,
+so that all spray plumes are captured simultaneously within a single field of view.
+This configuration is particularly advantageous for preserving the plume-to-plume and shot-to-shot variations on which the subsequent modelling depends.
 
 Within this framing, penetration in particular serves as the core input for the subsequent trajectory fitting, surrogate modelling, and wall-impingement risk screening
 \cite{Linne2013SprayImaging,LefebvreMcDonell2017,Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996},
@@ -63,9 +63,8 @@ in the dense liquid-core region near the nozzle, repeated scattering and interna
 This thesis treats the halo as a slowly varying background component rather than local liquid concentration; the corresponding suppression strategy (gradient-domain filtering) and the geometric correction associated with the line-of-sight simplification are described as part of the image-processing workflow in Chapter~3.
 
 Equally important, quantitative processing should preserve the camera's original linear greyscale response as far as possible.
-Display-oriented gamma correction, frame-wise display gain, and local contrast enhancement should not be treated as measurement inputs \cite{Cromey2010TwistedPixels}.
-Such nonlinear or adaptive grey-level transforms change local gradient ratios, threshold relationships, and the cumulative-distribution support used for front extraction.
-The enhancement steps used later in this thesis are therefore fixed, reproducible measurement operations for extracting geometric boundaries from the raw Mie records, not visual adjustments intended to make frames easier to inspect.
+Display-oriented gamma correction, frame-wise display gain, and local contrast enhancement should not be treated as measurement inputs \cite{Cromey2010TwistedPixels}, because such nonlinear or adaptive grey-level transforms change local gradient ratios, threshold relationships, and the cumulative-distribution support used for front extraction.
+The enhancement steps used later in this thesis are therefore fixed, reproducible operations for extracting geometric boundaries from the raw Mie records, not visual adjustments intended to make frames easier to inspect.
 
 A further point worth stressing is that the path from the Mie intensity field to geometric observables depends on the specific measurement rule.
 Magnotti and Genzale show that different liquid-penetration metrics lead to materially different conclusions in diesel-spray model validation,
@@ -106,7 +105,7 @@ k_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4}(d_n t)^{1/2},
 t_b=k_b\,\frac{\rho_l d_n}{(\rho_a\Delta P)^{1/2}} .
 \]
 Here \(d_n\) is the nozzle-hole diameter, \(\Delta P=P_{\mathrm{inj}}-P_{\mathrm{ch}}\) is the injection pressure difference, and \(\rho_l\) and \(\rho_a\) are the fuel and ambient-gas densities.
-In the literature, \(k_v\), \(k_p\), and \(k_b\) may be treated as empirical constants; in the baseline comparison of this thesis, these three dimensionless coefficients are recalibrated on the training split to give the empirical law a fair, dataset-specific baseline.
+In the literature, \(k_v\), \(k_p\), and \(k_b\) are treated as empirical constants; in the baseline comparison of this thesis these three coefficients are recalibrated on the training split, giving the empirical law a fair, dataset-specific reference.
 The physical interpretation is direct: the pre-breakup branch is controlled by exit velocity, while the post-breakup branch is controlled by momentum flux, ambient density, and nozzle scale.
 
 The Naber--Siebers correlation preserves a similar momentum scaling but gives explicit importance to ambient-gas density and spray spreading angle \cite{NaberSiebers1996}.
@@ -132,16 +131,16 @@ S(\mathbf{x})=A\,f(\mathbf{x}),
 \]
 where \(A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}\) is the same Hiroyasu--Arai post-breakup amplitude and \(\mathbf{x}\) contains standardised features for time, plume tilt, plume count, injection duration, and control back-pressure.
 The tunable objects in the GP are not a small set of physical coefficients but kernel hyperparameters: output scale, length scales, noise level, and, under automatic relevance determination (ARD), one length scale per input dimension.
-The sparse heteroscedastic GP baseline used here further combines a mean GP with a log-residual-variance GP to output both \(\mu_S(t)\) and \(\sigma_S(t)\), and uses sparse variational approximation to scale to the large tabular dataset \cite{HensmanFusiLawrence2013}, making it a strong statistical baseline rather than a traditional empirical correlation.
-All three baselines consume the same penetration observations and test-matrix features exported by the image-processing chain rather than raw pixels; they differ in how tightly the penetration function is constrained, from the physical forms of Hiroyasu--Arai and Naber--Siebers to the kernel-defined flexibility of the GP.
-The appeal of these baselines is practical: together, they provide interpretable or statistically controlled reference points for the gross penetration history.
+The sparse heteroscedastic GP baseline used here combines a mean GP with a log-residual-variance GP to output both \(\mu_S(t)\) and \(\sigma_S(t)\), and uses a sparse variational approximation to scale to the large tabular dataset \cite{HensmanFusiLawrence2013}, making it a strong statistical baseline rather than a traditional empirical correlation.
+All three baselines consume the same penetration observations and test-matrix features exported by the image-processing chain rather than raw pixels; they differ in how tightly the penetration function is constrained, from the rigid physical forms of Hiroyasu--Arai and Naber--Siebers to the kernel-defined flexibility of the GP.
+Together they provide interpretable or statistically controlled reference points for the gross penetration history.
 Their limitation becomes visible when the injection event is short.
-The more recent start-of-injection transient analysis by Zhou et al.\
+The start-of-injection (SOI) transient analysis by Zhou et al.\
 shows that early-time behaviour can be substantially richer than the classical two-stage law when sac pressurisation and needle-opening transients matter.
-In their study, the start-of-injection (SOI) stages were found to scale approximately as \(t^{3/2}\) at first, then \(t^{3/4}\),
+In their study, the SOI stages were found to scale approximately as \(t^{3/2}\) at first, then \(t^{3/4}\),
 and only later settle toward the familiar \(t^{1/2}\) behaviour \cite{ZhouLiYi2021}.
 The implication for this thesis is direct:
-for pilot diesel injections, the injection duration and the first-breakup time scale are short enough that early transients occupy a non-negligible portion of the observed signal,
+in pilot diesel injections, the injection duration and the first-breakup time scale are short enough that early transients occupy a non-negligible portion of the observed signal,
 so any single rigid empirical law is, by construction, an inadequate descriptor of the full trace.
 
 End-of-injection studies push the same point further by showing that the relevant time variable itself changes across regimes.
@@ -172,15 +171,14 @@ K_p \left( \dfrac{\Delta P}{\rho_a} \right)^{1/4} d_n^{1/2} t^{1/2}\\
 In modelling terms, one piece of the penetration law lives on the clock counted from start of injection,
 while another piece lives on the clock counted from end of injection
 --- or, more precisely, from the moment the decelerating entrainment-wave state starts to dominate at the tip.
-That distinction is useful here because it makes clear that the power-law exponent alone is not the full story:
+That distinction is useful here because it shows that the power-law exponent alone is not the full story:
 the effective time origin carries physical meaning of its own.
-It also makes the case for a softer engineering parameterisation,
-because in short pilot injections the observation window can contain both clocks at once and the precise switching instant
+It also motivates a softer engineering parameterisation,
+because in short pilot injections the observation window can contain both clocks at once, and the precise switching instant
 is not directly readable from a noisy Mie-derived trace.
 
 
-The collapse of the quasi-steady picture is not caused by fluid dynamics alone.
-The upstream injector hardware adds its own dynamics.
+The collapse of the quasi-steady picture is not caused by fluid dynamics alone; the upstream injector hardware adds its own dynamics.
 In a common-rail injection system, needle-valve opening and closing are finite-time mechanical transients;
 until the needle is fully lifted, the effective nozzle flow area varies with time
 and directly modulates the instantaneous injection rate and near-nozzle flow field \cite{StumppRicco1996,HiroyasuArai1990}.
@@ -192,7 +190,7 @@ at best, in a narrow middle window.
 The modelling implication is that rigid power-law correlations are valuable baselines but incomplete targets for this dataset.
 Data-driven models, when bounded by physical scaling and auditable preprocessing,
 do not require the transient regimes to be identified and parameterised in advance,
-and they can absorb the combined effect of several overlapping physical mechanisms without assembling a separate piecewise rule for each one.
+and can absorb the combined effect of several overlapping physical mechanisms without assembling a separate piecewise rule for each one.
 
 \subsection{Mie-video image-to-data workflow: processing, metric extraction, and plume registration}
 
@@ -226,15 +224,15 @@ trading a single human verification for a consistent geometric reference frame a
 The log-ratio preprocessing stage borrows directly from homomorphic signal processing.
 When image formation contains multiplicative components --- illumination, gain drift, sensor response ---
 taking a logarithm turns those multiplications into additions,
-after which background subtraction and filtering behave more stably than they would on raw intensity
+after which background subtraction and filtering behave more stably than on raw intensity
 \cite{OppenheimSchaferStockham1968,GonzalezWoodsDIP}.
-The choice has a direct numerical motivation in the present data as well:
-if the observed intensity is approximated as \(I(x,y,t)=L(x,y)S(x,y,t)+n\), with \(L\) representing slowly varying illumination, window reflection, or camera-gain structure, then \(\log(I+\epsilon)-\log(B+\epsilon)\) acts as a limited flat-field correction.
-It preferentially suppresses event-independent multiplicative background structure rather than changing the appearance of a single displayed frame.
-a pixel-wise division on raw intensity produces unstable ratios in low-brightness regions,
+The choice has a direct numerical motivation here as well.
+If the observed intensity is approximated as \(I(x,y,t)=L(x,y)S(x,y,t)+n\), with \(L\) representing slowly varying illumination, window reflection, or camera-gain structure, then \(\log(I+\epsilon)-\log(B+\epsilon)\) acts as a limited flat-field correction:
+it preferentially suppresses event-independent multiplicative background structure rather than changing the appearance of a single displayed frame.
+Pixel-wise division on raw intensity instead produces unstable ratios in low-brightness regions,
 while plain subtraction does not adequately remove multiplicative illumination variation.
-Working in the log domain is not meant to interpret Mie intensity as concentration; it simultaneously suppresses multiplicative illumination and gain drift
-and avoids basing later boundary extraction on numerically fragile raw intensity ratios.
+Working in the log domain is not meant to interpret Mie intensity as concentration; it suppresses multiplicative illumination and gain drift
+while avoiding numerically fragile raw intensity ratios in the subsequent boundary extraction.
 
 \subsubsection{Metric definition and boundary extraction in spray imaging}
 
@@ -350,11 +348,11 @@ The purpose is to separate the conditional mean trajectory from unresolved resid
 
 Heteroscedastic regression alone, however, does not remove the downward bias caused by right-censoring.
 If partially observed raw trajectories are used directly as supervision, the late-time mean can still be pulled down by the field-of-view boundary even when the network also outputs variance.
-This motivates the teacher-guided distillation stage:
-first, a heteroscedastic teacher is trained on manually fitted and conservatively extrapolated synthetic trajectories so that it learns a censoring-aware late-time continuation;
-then, a student model trained against the raw CDF observations is constrained by the teacher.
+This motivates the teacher-guided distillation stage.
+First, a heteroscedastic teacher is trained on the fitted and conservatively extrapolated synthetic trajectories so that it learns a censoring-aware late-time continuation;
+then a student model trained against the raw CDF observations is constrained by the teacher.
 Reliable early- and mid-time raw observations remain directly supervised, while sparse or censored late-time regions are guided more strongly by the teacher's soft targets.
-Distillation is therefore not used here merely as a compression trick; it is a way to project censoring-aware synthetic information back into the raw-observation domain.
+Distillation is therefore not used here merely as a compression trick, but as a way to project censoring-aware synthetic information back into the raw-observation domain.
 
 The Gaussian output form is also useful computationally.
 When both teacher and student produce univariate Gaussian distributions, the Kullback--Leibler divergence between them has a closed form:
@@ -402,11 +400,24 @@ The Continuous Ranked Probability Score (CRPS) is one widely used example:
 it penalises both bias in the predicted mean and excessive dispersion in the predictive distribution, encouraging predictions that are accurate without being unnecessarily diffuse.
 
 High-accuracy deep networks can still be overconfident, meaning that their reported probabilities or confidence intervals do not match empirical frequencies.
-Guo et al.\ diagnosed this problem systematically and emphasized the need for post-hoc probabilistic calibration and empirical coverage checks \cite{Guo2017Calibration}.
+Guo et al.\ diagnosed this problem systematically and emphasised the need for post-hoc probabilistic calibration and empirical coverage checks \cite{Guo2017Calibration}.
 In the present setting, a naively trained heteroscedastic network may output variances that are too narrow under some operating conditions, so that observations fall outside nominal prediction intervals too often.
-For an early-design-screening surrogate, uncertainty calibration must therefore be checked on hold-out data.
-For out-of-distribution behaviour, it should also be tested through spatial cross-validation, such as leaving out an entire nozzle family, and by comparing empirical $1\sigma$ and $2\sigma$ coverage with their nominal levels.
+For an early-design screening surrogate, uncertainty calibration must therefore be checked on held-out data, and out-of-distribution behaviour should additionally be probed through spatial cross-validation, for example by leaving out an entire nozzle family and comparing empirical $1\sigma$ and $2\sigma$ coverage with their nominal levels.
 This motivates the use of CRPS, reliability diagrams, and leave-one-nozzle-family diagnostics in the results chapter.
+
+\subsubsection{Why kernel surrogates and neural surrogates differ out of distribution}
+\label{sec:kernel-vs-nn-ood-en}
+
+The choice between a kernel-based regressor such as a sparse heteroscedastic GP and a neural surrogate is not only a question of capacity or implementation cost; the two families carry different inductive biases that become visible only when the test input drifts away from the training support.
+A GP with an ARD Mat\'ern kernel and inducing-point variational posterior is, by construction, a function-space Bayesian model: the kernel encodes a smoothness prior, and the predictive mean degrades smoothly toward the prior mean as features move away from the training inducing points, while the predictive variance grows in the same direction \cite{RasmussenWilliams2006,HensmanFusiLawrence2013}.
+The behaviour out of distribution is therefore conservative by default --- not because the model has been carefully tuned for it, but because the prior dominates wherever the data do not.
+A neural surrogate has no equivalent reversion mechanism: the trained network is a deterministic nonlinear extrapolator whose values out of distribution depend on the geometry of the learned function and on whatever shape or anchor priors are baked into training.
+Wilson and Izmailov argue from the Bayesian-deep-learning perspective that this is a generic gap rather than an architecture-specific quirk: kernel methods recover graceful generalisation through their prior, while neural networks have to be calibrated explicitly to approach the same behaviour \cite{WilsonIzmailov2020BDL}.
+Ovadia et al.'s large-scale empirical study confirms the practical consequence on dataset shift: deep models, including heteroscedastic ones, tend to remain overconfident or to inherit training-distribution biases when the test distribution moves, while probabilistic baselines lose accuracy more gracefully \cite{Ovadia2019Trust}.
+For the present thesis these references are general background rather than a centerpiece, because the contribution is the censoring-aware learning protocol and the screening interface rather than the choice of regressor.
+The relevance is methodological: the leave-one-nozzle-family evaluation in Chapter~5 should not be read as a head-to-head architecture contest with a single winner.
+A kernel surrogate is expected, a priori, to be more conservative when the held-out nozzle family is genuinely outside the training support, while a staged MLP is expected to be more aggressive in fitting training-distribution structure and to carry that structure into the held-out fold.
+The empirical results in Chapter~5 are therefore consistent with this prior-versus-likelihood separation, not a surprise that demands a post-hoc explanation, and they are reported in that spirit.
 
 \subsection{Spray--wall impingement mechanisms and probabilistic collision-risk screening}
 
