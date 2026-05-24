@@ -1,30 +1,28 @@
-\section{Experimental Data and Image-Processing Workflow}
+\section{Experimental Data and Image Processing Workflow}
 
-\subsection{Workflow overview}
+\subsection{Workflow Overview}
 
-Figure~\ref{fig:surrogate-data-flow} shows the overall data flow of the surrogate-model workflow used in this thesis, organised into four lanes.
-Raw inputs (high-speed Mie videos, calibration configuration, and test metadata) are processed into plume-resolved features, boundary points, and penetration traces.
-Those outputs feed the reduced-order trajectory fitting and surrogate-training stages described later in the thesis.
-The final trained model is deployed in the wall-impingement screening application, combining piston geometry and physical parameters to produce collision probabilities and visualisation animations.
-Table~\ref{tab:workflow} summarises the same stages in textual form.
-This chapter focuses on the first two lanes of Figure~\ref{fig:surrogate-data-flow}: how the OSCC video data are calibrated, preprocessed, registered, and converted into plume-resolved geometric observables.
-Target construction, surrogate training, and probabilistic screening are deferred to the following chapter.
+Figure~\ref{fig:surrogate-data-flow} illustrates the overall data flow of the surrogate modeling workflow used in this thesis, organized into four swimlanes.
+Raw inputs (high-speed Mie videos, calibration configurations, and test metadata) first undergo CUDA-accelerated image processing to generate 1D features and boundary points; based on this, BW-based (binary) and CDF-based penetration trajectories along with other geometric metrics are obtained.
+These observables are expanded into synthetic trajectories via non-parametric curve fitting and are used to drive a three-stage neural network training: Stage~1 (MSE), Stage~2 (NLL), and Stage~3 (Raw + KD).
+The ultimately trained model is deployed in a wall impingement screening application, which outputs impingement probabilities and visualization animations in combination with piston geometry and physical parameters.
+Table~\ref{tab:workflow} summarizes these same stages in textual form.
+This chapter focuses on the first two swimlanes of Figure~\ref{fig:surrogate-data-flow}: how the OSCC video data undergoes calibration, preprocessing, registration, and conversion into plume-resolved geometric observables.
+The construction of trajectory targets, surrogate modeling training, and probabilistic screening are deferred to the next chapter.
 
-The method-level motivation is that optical experiments provide image-based evidence, but event-wise image post-processing yields a tabulated dataset of discrete observations.
-Left at that level, those observations cannot directly serve as a condition-parametric predictive model for fast design iteration.
-For that reason, this chapter treats image processing not as a cosmetic preprocessing step, but as the auditable layer that turns high-speed Mie recordings into consistently defined plume-resolved temporal observables.
+The methodological motivation is that while optical experiments provide image-based evidence, event-by-event image post-processing ultimately yields only a discrete observation table.
+If halted at this layer, these observations cannot be directly used as a conditionally parameterized predictive model for rapid design iterations.
+Therefore, this chapter treats image processing as an auditable methodological stage rather than an ancillary preprocessing step; it is responsible for converting high-speed Mie recordings into consistently defined plume-resolved time-series observables.
 
-These tasks are carried out on data from the W\"artsil\"a Optical Spray Combustion Chamber (OSCC).
-The raw material consists of terabyte-scale, room-temperature, non-reacting, top-view Mie-scattering recordings
-collected with a fixed camera arrangement across multiple operating conditions and nozzle geometries.
-The chain first calibrates the nozzle geometry manually, then uses CUDA-accelerated preprocessing, polar registration,
-and plume-strip extraction to generate plume-resolved observables.
-The remaining target-construction and surrogate-training steps are described in Chapter~4.
+These tasks are performed based on data from the Wärtsilä Optical Spray Combustion Chamber (OSCC).
+The raw materials are terabytes of room-temperature, non-reacting, top-view Mie scattering recordings, acquired across multiple operating conditions and nozzle geometries under a fixed camera setup.
+The pipeline first manually calibrates the nozzle geometry, then generates plume-resolved observables via CUDA-accelerated preprocessing, polar registration, and plume strip extraction,
+and constructs penetration targets through reduced-order fitting, which are subsequently passed to the three-stage MLP surrogate described in Chapter~4.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{../images/surrogate_modelling_data_flow.png}
-\caption{Overview of the surrogate-model data flow. The four lanes correspond to raw inputs, image processing, data augmentation and deep learning, and model deployment; arrows annotate key data transfers and training links (Median Filtering, Warm Start, Warm Start + Distillation, Supervised Fine-Tuning).}
+\caption{Overview of the surrogate modeling data flow. The four swimlanes correspond to raw inputs, image processing, data augmentation and deep learning, and model deployment; arrows denote key data transfer and training connections (Median Filtering, Warm Start, Warm Start + Distillation, Supervised Fine-Tuning).}
 \label{fig:surrogate-data-flow}
 \end{figure}
 
@@ -32,33 +30,33 @@ The remaining target-construction and surrogate-training steps are described in 
 \centering
 \begin{tabular}{|L{0.21\linewidth}|L{0.26\linewidth}|L{0.33\linewidth}|}
 \hline
-Stage & Main role & Primary output \\
+Stage & Primary Function & Primary Output \\
 \hline
-Manual nozzle calibration & Fix nozzle centre, radius, and angular reference & One geometry anchor per recording set \\
+Manual Nozzle Calibration & Fix nozzle center, radii, and angular reference & One geometric anchor per recording set \\
 \hline
-Batch video processing and plume extraction & Bulk preprocessing, per-plume feature extraction, and boundary export & Plume-wise penetration traces, binary geometric metrics, and boundary-point NPZ files \\
+Batch Video Processing \& Plume Extraction & Batch preprocessing, plume-wise feature extraction, and boundary export & Plume-resolved penetration trajectories, binary geometric metrics, and boundary CSVs \\
 \hline
-Trajectory cleaning and reduced-order fitting & Cleaning, delay alignment, and censoring-aware target construction & Cleaned trajectories, fit parameters, and fit plots \\
+Trajectory Cleaning \& Reduced-Order Fitting & Cleaning, temporal alignment, and censoring-aware target construction & Cleaned trajectories, fitting parameters, and fit plots \\
 \hline
-Stage-1 MSE baseline & Deterministic representative-trajectory training & Training log, scaler state, \codepath{best\_model\_stage1.pt}, and loss curves \\
+Stage~1 MSE Baseline & Deterministic representative trajectory training & Training logs, scaler states, \codepath{best\_model\_stage1.pt}, and loss curves \\
 \hline
-Stage-2 NLL extension & Heteroscedastic mean-and-variance learning on the full filtered dataset & Training log, scaler state, and teacher checkpoint \codepath{best\_model\_stage2.pt} \\
+Stage~2 NLL Extension & Learn heteroscedastic mean and variance on the fully filtered dataset & Training logs, scaler states, and teacher checkpoint \codepath{best\_model\_stage2.pt} \\
 \hline
-Stage-3 distillation refinement & Regime-dependent raw-CDF distillation and early-time refinement & Run log, \codepath{best\_model\_refinement.pt}, and ablation summary \\
+Stage~3 Distillation Refinement & Interval-dependent raw CDF distillation and early-time refinement & Run logs, \codepath{best\_model\_refinement.pt}, and ablation summaries \\
 \hline
-Prototype probabilistic screening & Project the predicted penetration distribution onto a simplified engine geometry to assess near-wall risk & Per-frame $P_{\mathrm{hit}}(t)$, cumulative $E$, and visualisation animations \\
+Prototype Probabilistic Screening & Project predicted penetration distributions onto simplified engine geometries to assess near-wall risks & Frame-wise $P_{\mathrm{hit}}(t)$, cumulative $E$, and visualization animations \\
 \hline
 \end{tabular}
 \caption{Implemented workflow documented in this thesis.}
 \label{tab:workflow}
 \end{table}
 
-\subsection{Experimental dataset}
+\subsection{Experimental Datasets}
 
-The input data come from a pressurised spray chamber (OSCC) operated at Wärtsilä's test facility.
-Nine nozzle families were tested: eight prototype nozzles (Nozzle1--Nozzle8) recorded in October--November 2024,
+The input data originate from a pressurized Optical Spray Combustion Chamber (OSCC) operated at the Wärtsilä test facility.
+A total of nine nozzle families were tested: eight prototype nozzles (Nozzle1--Nozzle8) recorded between October and November 2024,
 and one reference injector (Nozzle0) recorded in June 2022.
-Table~\ref{tab:nozzle-overview} summarises the nozzle geometry and the range of operating conditions covered by each family.
+Table~\ref{tab:nozzle-overview} summarizes the geometry of each nozzle family and the range of operating conditions covered.
 
 \begin{table}[t]
 \centering
@@ -77,117 +75,133 @@ Nozzle5 & 0.348 & 11 & 140 & 25{,}000 & 2000          & 570--763   \\
 Nozzle6 & 0.333 & 12 & 140 & 25{,}000 & 2000          & 609--881   \\
 Nozzle7 & 0.365 & 12 & 164 & 25{,}000 & 2000          & 580--764   \\
 Nozzle8 & 0.365 & 10 & 130 & 25{,}000 & 2000          & 580--764   \\
-Nozzle0   & 0.384 & 10 & 140 & 34{,}000 & 1400--2200    & 340--1200  \\
+Nozzle0 & 0.384 & 10 & 140 & 34{,}000 & 1400--2200    & 340--1200  \\
 \bottomrule
 \end{tabular}
-\caption{Nozzle geometry and operating-condition ranges. $d_n$: hole diameter; $N$: number of orifices; $\theta_{\mathrm{umb}}$: umbrella angle; FPS: recording frame rate; $P_{\mathrm{inj}}$: injection pressure; $t_{\mathrm{inj}}$: commanded injection duration. Chamber pressures span 4.42--13.26\,bar (Nozzle1--8, three density levels) and 5--35\,bar (Nozzle0). Control back-pressure is 1\,bar or 4\,bar for Nozzle0 runs; not independently varied for Nozzle1--8.}
+\caption{Nozzle geometries and operating condition ranges. $d_n$: hole diameter; $N$: number of holes; $\theta_{\mathrm{umb}}$: umbrella angle; FPS: recording frame rate; $P_{\mathrm{inj}}$: injection pressure; $t_{\mathrm{inj}}$: commanded injection duration. Chamber pressure ranges from 4.42 to 13.26\,bar (Nozzle1--8, three density levels) and 5 to 35\,bar (Nozzle0). The control back pressure for Nozzle0 is 1\,bar or 4\,bar; Nozzle1--8 did not vary the control back pressure independently.}
 \label{tab:nozzle-overview}
 \end{table}
 
-Across all nine families the injection pressure ranges from 1,400 to 2,200\,bar,
+Across these nine nozzle families, the injection pressure ranges from 1,400 to 2,200\,bar,
 the commanded injection duration from 340 to 1,200\,\si{\micro s},
 and the chamber pressure from 4.42 to 35\,bar.
-Each operating-condition subfolder typically contains five repeated recordings,
-and each recording is clipped to around 80 frames to limit GPU memory use.
-In total, the processed archive spans 266 test-condition subfolders and 2,992 recording files
-(one metrics CSV and one metadata JSON per \texttt{.cine}, plus a boundary-point NPZ archive when boundary export is enabled); the clipped working archive occupies several tens of gigabytes,
-while the full unclipped recordings represent a terabyte-scale raw input.
-An up-to-date breakdown is regenerated automatically by \textbf{the dataset summarisation script}
-at the end of each run of \textbf{the data cleaning and fitting routine}.
+Each operating condition subfolder typically contains five repeated recordings,
+and each recording is cropped to approximately 100 frames to limit GPU memory footprint.
+The processed archive totals 266 test condition subfolders and 2,992 recording files
+(one CSV per \texttt{.cine}); the cropped working archive occupies tens of GB,
+while the full uncropped recordings constitute terabytes of raw input.
+The latest statistics are automatically regenerated by the \textbf{dataset summarization script} at the end of each run of the \textbf{data cleaning and fitting routine}.
 
-\subsection{Manual calibration of nozzle geometry}\label{subsec:nozzle-calibration}
+\subsection{Manual Calibration of Nozzle Geometry}\label{subsec:nozzle-calibration}
 
-The manual calibration workflow in \textbf{the interactive calibration interface} consists of three user-facing stages.
+The manual calibration workflow within the \textbf{interactive calibration GUI} consists of three user-facing stages.
 
-First, the operator opens a representative frame in the main annotation interface, adjusts the display settings, and prepares the nozzle-centred view that will be used for the batch anchor.
+First, the operator opens a representative frame in the main annotation interface, adjusts the display settings, and prepares the nozzle center view for batch anchoring.
 
-Second, the dedicated calibration dialog is launched, where the user clicks nozzle-rim points on the selected frame.
+Second, a dedicated calibration dialog is launched, where the user clicks on the nozzle edge points on the selected frame.
 
-Third, the fitted centre and radius are returned to the main interface, where the recovered geometry can be inspected together with the plume guides and ring overlay before the configuration is saved for later batch processing.
+Third, the fitted center and radius are fed back to the main interface; before saving the configuration, the operator can inspect the recovered geometry overlaid with plume guide lines and the annular region.
 
-The point-selection dialog enforces at least three clicks and computes the circle through \textbf{the algebraic circle fitting function} once the required number of points has been entered. The fitted circle provides the nozzle centre and calibration radius, while any angular offset is used only as a GUI guide for plume overlays rather than as a batch-processing input.
+The point selection dialog requires at least three clicks; after the required number of points is input, the program calculates the circle using an \textbf{algebraic circle fitting function}.
+The fitted circle provides the nozzle center, calibration radius, and angular offset for the entire recording.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{../images/fig_gui_calibration_workflow.pdf}
-\caption{Interactive nozzle-calibration workflow. (a) The main interface loads a representative frame with display adjustments; (b) the point-selection dialog records nozzle-rim points; (c) the circle-fitting result, plume guides, and ring overlay are written back to the main interface for inspecting the geometric anchor used by subsequent batch processing.}
+\caption{Interactive nozzle calibration workflow. (a) The main interface loads a representative frame and adjusts display settings; (b) the point selection dialog registers nozzle edge points; (c) circle fitting results, plume guide lines, and the annular overlay are written back to the main interface to inspect the geometric anchor used for subsequent batch processing.}
 \label{fig:gui-calibration-workflow}
 \end{figure}
 
-This design is appropriate for the current datasets because the camera and injector geometry stay fixed within a recording, and several workpieces concentric with the nozzle are visible in the background and can serve as auxiliary references. Calibrating once and reusing the same centre for all frames avoids frame-to-frame jitter in the downstream plume-angle analysis.
+This design suits the current dataset because the camera and injector geometries remain fixed within a single recording, and several artifacts concentric with the nozzle in the background can serve as auxiliary references.
+Calibrating only once and reusing the same center for all frames avoids inter-frame jitter during downstream plume angle analysis.
 
-\subsection{Batch video processing and plume extraction}
+\subsection{Batch Video Processing and Plume Extraction}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\linewidth]{../images/Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png}
-\caption{Overview of the multi-hole top-view Mie-scattering processing pipeline, from raw recordings through calibration, CUDA-accelerated preprocessing, plume registration, and penetration extraction.}
+\includegraphics[width=1\linewidth]{../images/Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png}
+\caption{Overview of the multi-hole top-view Mie scattering processing pipeline, from raw \texttt{.cine} recordings, through calibration, CUDA-accelerated preprocessing, plume registration, and penetration extraction, to CSV export.}
 \label{fig:pipeline-overview}
 \end{figure}
 
-The file processor in \textbf{the multi-hole geometric construction script} is the operational centre of the image-analysis workflow. For each \texttt{.cine} recording, \textbf{the video-processing loop} loads the video into the active array backend, reuses one annular ring mask for the whole folder, calls \textbf{the multi-hole preprocessing routine} and \textbf{the multi-hole postprocessing routine}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and writes the metrics CSV and metadata JSON while queuing the boundary-point NPZ when boundary export is enabled. The numerically heavy part of this chain stays backend-local: when CuPy is available, convolution, angular binning, remapping, thresholding, connected-component cleanup, and morphology all remain on the CUDA path until the final disk writes. Throughout this section, bolded descriptive names are used in place of specific script, function, and variable names to keep the exposition implementation-agnostic; the correspondence is tabulated in Appendix~\ref{app:implementation_mapping}.
+The file handler in the \textbf{multi-hole geometry construction script} serves as the operational hub for the image analysis workflow.
+For each \texttt{.cine} recording, the \textbf{video processing loop} loads the video into the current array backend, reuses the annular mask for the entire folder, invokes the \textbf{multi-hole preprocessor} and \textbf{multi-hole postprocessor}, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and ultimately exports the synchronized CSV and metadata files.
+The most computationally expensive parts of this chain are kept strictly local to the backend: when CuPy is available, convolutions, angular binning, remapping, thresholding, connected component cleaning, and morphological operations are all executed along the CUDA path until the final tabular export.
 
-This implementation choice keeps the heavy image operations on one array backend and overlaps GPU work with disk I/O, which matters for long archive runs.
+This implementation choice stems from practical limitations in early internal workflows. The legacy pipeline relied on frame-by-frame MATLAB processing and lacked effective batch parallelism: processing $\sim$50\,GB of videos typically took around a day and was prone to crashing.
+Therefore, migrating heavy image operations to a batch CUDA-oriented pipeline is considered a methodological design in this thesis rather than merely a software optimization.
 
-\subsubsection{Batch scheduling, memory reuse, and resume contract}
+\subsubsection{Batch Scheduling, Memory Reuse, and Recovery Contract}
 
-The CUDA pipeline is an archive-oriented batch scheduler built around three practical safeguards.
-Video loading uses a depth-1 producer--consumer prefetch: while recording~\(N\) is being processed on the GPU, a background worker reads recording~\(N+1\) from disk, so that GPU compute and disk I/O overlap rather than serialise.
-Host-to-device transfers and CuPy array construction are deliberately kept in the main thread, because CuPy's CUDA execution context is thread-affine; this keeps kernel dispatch, synchronisation, and memory-pool state on one thread without locking overhead.
-Output writes are handled by a persistent three-worker I/O pool: metrics CSVs, metadata JSONs, boundary-point NPZ files, and optional preview AVI files are submitted as futures immediately after the GPU stage completes, so that the next recording's GPU processing overlaps with the previous one's disk writes.
+This CUDA pipeline is not a simple port of the frame-by-frame MATLAB script, but an end-to-end archive processing scheduler centered around three engineering safeguards.
+Video loading employs depth-1 producer-consumer prefetching: while recording \(N\) is processed on the GPU, a background worker reads recording \(N+1\) from disk, overlapping GPU computation with disk I/O rather than executing serially.
+Host-to-device transfers and CuPy array construction are deliberately kept in the main thread because the CuPy CUDA context is thread-bound; this allows kernel scheduling, synchronization, and memory pool states to be centrally managed by the same thread without locking overhead.
+Output writing is handled by a long-lived three-worker I/O pool: metrics CSVs, metadata JSONs, boundary archives, and optional preview video files are submitted as futures immediately after the GPU stage finishes, overlapping the GPU processing of the next recording with the disk writes of the previous one.
 
-Memory management is matched to the archive access pattern.
-After each recording, intermediate arrays are released and a garbage-collection pass returns CuPy arrays to the default memory pool, but block-level pool deallocation is deliberately deferred to subfolder boundaries.
-Because consecutive recordings within the same subfolder typically share the same frame shape, retaining pool blocks allows the next file to reuse an already-allocated GPU buffer directly, avoiding repeated round-trips to the CUDA driver; hard pool release at subfolder boundaries limits fragmentation across long archive runs.
+Memory management is also tailored to the archive access pattern.
+After each recording is processed, temporary arrays are released, and the CuPy arrays are returned to the default memory pool via garbage collection; however, block-level pool freeing is intentionally deferred to subfolder boundaries.
+Because consecutive recordings within the same subfolder typically share the same frame dimensions, retaining the pool blocks allows the next file to directly reuse allocated GPU buffers, avoiding repeated round-trips to the CUDA driver; enforcing a pool block free at subfolder boundaries limits fragmentation during long-running archive jobs.
 
-The pipeline also maintains a recoverable output contract.
-A per-run checkpoint file, \codepath{processing\_checkpoint.json}, is written with an explicit filesystem flush after each recording; it tracks per-file fields \texttt{status}, \texttt{file}, \texttt{outputs}, \texttt{error}, and \texttt{updated\_at}.
-The rerun logic skips recordings whose metrics CSV, metadata JSON, and optional boundary-point NPZ already exist, so the checkpoint acts as traceable progress logging rather than as the skip condition.
-This means a failed multi-hour batch run can resume from the last successful file without repeating work.
+The pipeline also maintains a resumable output contract.
+Every run writes to a checkpoint file \codepath{processing\_checkpoint.json} and explicitly flushes the filesystem after each recording; it tracks the \texttt{status}, \texttt{file}, \texttt{outputs}, \texttt{error}, and \texttt{updated\_at} fields for every file.
+The completion condition requires both the metrics CSV and the metadata JSON to exist; when boundary export is enabled, the corresponding boundary archive must also exist. Any partial results will trigger reprocessing rather than being silently accepted.
+This contract allows a failed, hours-long batch job to resume from the last successful file without duplicating work.
 
-The same metadata-loading path normalises values across heterogeneous experiment years.
-Frame rate is read preferentially from the Phantom CINE header field \texttt{FrameRate}, with \texttt{FrameRate16} and \texttt{fPbRate} as successive fallbacks.
-Injection duration is resolved from the experiment configuration via the CINE number, with a group-level fallback when the lookup is unavailable.
-Hard defaults only exist for \texttt{umbrella\_angle\_deg}, \texttt{fps}, \texttt{injection\_pressure\_bar}, and \texttt{control\_backpressure\_bar}; \texttt{plumes}, \texttt{diameter\_mm}, and \texttt{chamber\_pressure\_bar} are taken from metadata lookups and may remain NaN if missing.
-This metadata hierarchy matters for the mixed Nozzle0 (2022) and Nozzle1--8 (2024) archives, whose recording-header conventions differ.
-The clipping bounds described in Section~3.2 set a physical time window of approximately 3--4\,ms, covering the pilot injection and its early relaxation tail targeted in this thesis.
+The same checkpoint logic is used to unify metadata from heterogeneous testing years.
+The frame rate is preferentially read from the Phantom CINE header field \texttt{FrameRate}, with \texttt{FrameRate16} and \texttt{fPbRate} as sequential fallbacks; the injection duration is queried from a test-matrix JSON keyed by the CINE filename, further falling back to group constants; injection pressure, plume count, and umbrella angle are sourced from the nozzle or test-matrix JSON files, falling back to conservative in-script defaults only when missing.
+This metadata hierarchy is particularly critical for the mixed Nozzle0 (2022) and Nozzle1--8 (2024) archives, as their recording header conventions differ.
+The cropping boundary described in Section~3.2 defines a physical time window of approximately 3--4\,ms, covering the pilot injection and its early relaxation tail focused on in this thesis.
 
-\subsubsection{Calibration hand-off and batch anchoring}
+\subsubsection{Calibration Handover and Batch Anchoring}
 
-The batch stage starts from the calibration produced in Section~\ref{subsec:nozzle-calibration}. In the algebraic circle fitting function, the clicked nozzle-rim points \((x_i,y_i)\) are fitted with the algebraic circle model
+The batch stage proceeds from the calibration obtained in Section~\ref{subsec:nozzle-calibration}.
+In the algebraic circle fitting function, the clicked nozzle edge points \((x_i,y_i)\) are fitted with an algebraic circle model:
 \[
 x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \]
-solved in least-squares form by \texttt{np.linalg.lstsq}. The recovered parameters are
+and solved via least squares using \texttt{np.linalg.lstsq}.
+The recovered parameters are
 \[
-c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
+c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F}.
 \]
-and the same routine also estimates an average angular offset from the clicked rim points relative to an ideal equally spaced set. The GUI writes these values to \textbf{the calibration configuration file}, after which the batch pipeline can process a full folder without manual re-centering. The minimal \texttt{config.json} schema is \{\texttt{plumes}, \texttt{centre\_x}, \texttt{centre\_y}, \texttt{inner\_radius}, \texttt{outer\_radius}\}; the two radii define the annular processing mask, the local orifice origin, and the downstream strip geometry. The pixel-to-millimetre scale is not obtained from a full camera-intrinsic calibration, but inferred from the known physical outer-ring scale:
+The same routine estimates an average angular offset based on the deviation of the clicked edge points from an ideal equally spaced set.
+The GUI writes these values to the \textbf{calibration configuration file}, after which the batch pipeline can process the entire folder without manual recentering.
+The minimal \texttt{config.json} schema is \{\texttt{plumes}, \texttt{centre\_x}, \texttt{centre\_y}, \texttt{inner\_radius}, \texttt{outer\_radius}\}; the two radii jointly define the annular processing mask, the local orifice origins, and the downstream strip geometry.
+The pixel-to-millimeter scale is not obtained through full camera intrinsic calibration, but is back-calculated from the known physical scale of the outer ring:
 \[
 s_{\mathrm{mm/px}}=\frac{90.0}{r_{\mathrm{outer,px}}},
 \]
-where \(r_{\mathrm{outer,px}}\) is the \texttt{outer\_radius} stored in the configuration file. This one-time calibration is deliberately user-facing rather than fully automatic: the operator can zoom, choose a representative frame, and anchor the full batch with a physically meaningful nozzle centre \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
+where \(r_{\mathrm{outer,px}}\) is the \texttt{outer\_radius} saved in the config file.
+This one-time calibration is deliberately kept as a user-visible operation rather than fully automated: operators can zoom in, select representative frames, and anchor the entire batch process with a physically meaningful nozzle center \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
 
-\subsubsection{Bulk and robust preprocessing}
+\subsubsection{Batch and Robust Preprocessing}
 
-The first algorithmic stage inside the batch pipeline is a foreground-construction stage for noisy Mie videos rather than idealised binary images. In \textbf{the foreground extraction filter}, the raw frame \(V_t(x,y)\) is mapped to
+The first algorithmic contribution in the batch pipeline is a foreground construction stage designed for noisy Mie videos, rather than schemes aimed at ideal binary images.
+In the \textbf{foreground extraction filter}, the raw frame \(V_t(x,y)\) is mapped to
 \[
 L_t(x,y)=\log(V_t(x,y)+\varepsilon),
 \qquad
 L_{\mathrm{bkg}}(x,y)=\operatorname{median}_{t<t_{\mathrm{SOI}}} L_t(x,y),
 \]
-followed by the log-ratio reconstruction
+followed by a log-ratio reconstruction:
 \[
 R_t(x,y)=\exp\!\left(L_t(x,y)-L_{\mathrm{bkg}}(x,y)\right)-1
 =\frac{V_t(x,y)-B(x,y)}{B(x,y)}.
 \]
-The implementation then applies an intensity gate \(M_t(x,y)=\mathbf{1}[V_t(x,y)>\alpha B(x,y)]\), subtracts a pre-injection baseline, applies a soft threshold
+The implementation then multiplies \(R_t\) by an intensity gate \(M_t(x,y)=\mathbf{1}[V_t(x,y)>\alpha B(x,y)]\), subtracts the pre-injection baseline, and applies a soft threshold
 \[
 F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
 \]
-where \(\varepsilon\) is a small constant to prevent log-zero, \(t_{\mathrm{SOI}}\) marks the start-of-injection window, \(B(x,y) = \exp(L_{\mathrm{bkg}}(x,y)) - \varepsilon\) is the linear-scale background, \(\alpha\) is a contrast multiplier for the intensity gate, \(R_0(x,y)\) is the residual pre-injection baseline, and \(\tau\) is a soft threshold to suppress background noise. The implementation then rescales the result by robust quantiles before any geometric processing. This sequence matters for Mie videos because the raw intensity is not a direct measure of liquid volume fraction; the practical objective is stable geometry extraction under non-uniform illumination, glare, and background texture rather than exact optical inversion \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}.
+where \(\varepsilon\) is a small constant to prevent log-zero, \(t_{\mathrm{SOI}}\) is the start of injection, \(B(x,y)=\exp(L_{\mathrm{bkg}}(x,y))-\varepsilon\) is the linear-scale background, \(\alpha\) is the contrast multiplier for the intensity gate, \(R_0(x,y)\) is the residual pre-injection baseline, and \(\tau\) is a soft threshold used to suppress background noise.
+The result is then rescaled with robust quantiles before entering the geometric processing.
+This sequence is critical for Mie videos, as the raw intensity is not a direct measure of liquid volume fraction; the actual goal is to stably extract geometry under non-uniform illumination, glare, and background textures, rather than performing a rigorous optical inversion \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}.
 
-The need for this robust preprocessing is visible at the visualisation level, but display enhancement itself does not enter the quantitative chain. Figure~\ref{fig:gui-gain-halo} compares the same spray frame under two display gains while the remaining GUI parameters are held fixed. At the lower gain, the plume cores remain comparatively compact; at the higher gain, a bright halo spreads around the spray core and contaminates a much larger region of the image. The example is not evidence that one display gain is more physically truthful than another. It illustrates instead that using gamma-corrected, display-gain-adjusted, or locally contrast-enhanced frames for boundary extraction would make the boundary move with the display mapping \cite{Cromey2010TwistedPixels}. These views are therefore used only for human inspection. The quantitative path uses the pre-injection background estimate and Sobel edge energy, so the geometric response is governed by fixed operators and local boundary structure rather than display brightness \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}.
+The necessity of this robust preprocessing is visually apparent, but the display enhancement itself does not enter the quantitative chain.
+Figure~\ref{fig:gui-gain-halo} compares the appearance of the same spray frame under two display gains, with other GUI parameters held constant.
+At a lower gain, the plume core is relatively compact; at a higher gain, a bright halo diffuses along the spray core, occupying a much larger image region.
+This example does not dictate which display gain is physically more truthful, but illustrates that if gamma-corrected, display-gain-adjusted, or locally contrast-enhanced frames were used for boundary extraction, the boundaries would shift with the display mapping \cite{Cromey2010TwistedPixels}.
+Thus, these views are strictly for manual inspection.
+Quantitative computations use a robust background estimation from pre-injection statistics, and convert the representation into an edge-dominant Sobel feature space, ensuring the geometric response is dictated by fixed operators and local boundary structures rather than display brightness \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}.
 
 \begin{figure}[t]
 \centering
@@ -200,98 +214,130 @@ The need for this robust preprocessing is visible at the visualisation level, bu
 \centering
 \includegraphics[width=\linewidth]{../images/GUI_gain_7.png}
 \end{minipage}
-\caption{Same spray frame shown in the interactive calibration interface at gain values 1.0 and 7.0, with the remaining display parameters unchanged. The higher-gain view makes the bright halo around the spray much more apparent, illustrating that display mapping changes visual boundary perception; these gain views are used only for human inspection, not as quantitative boundary-extraction inputs.}
+\caption{The same spray frame displayed in the interactive calibration GUI with gains of 1.0 and 7.0, with other display parameters held constant. The higher-gain view accentuates the bright halo around the spray, demonstrating that display mappings alter visual boundary perception; these gain views are for manual inspection only and do not serve as inputs for quantitative boundary extraction.}
 \label{fig:gui-gain-halo}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_preproc_background.pdf}
-\caption{Representative-frame visualisation of the robust background stage. (a) Raw frame and calibration geometry; (b) background estimated from pre-injection frames; (c) foreground representation after log-ratio background subtraction.}
+\caption{Representative frame visualizations of the robust background stage. (a) Raw frame and calibration geometry; (b) background estimated from pre-injection frames; (c) foreground representation after log-ratio background subtraction.}
 \label{fig:mie-preproc-background}
 \end{figure}
 
-\subsubsection{Rank-1 separable Sobel high-pass on the CUDA backend}
+\subsubsection{Rank-1 Separable Sobel High-Pass on CUDA Backend}
 
-The second stage is the edge-enhancing high-pass stage applied directly to the full video cube. In \textbf{the GPU-accelerated Sobel filter}, Sobel kernels \(K_x\) and \(K_y\) are generated once and applied with \textbf{the 2D convolution routine}:
+The second contribution is an explicit edge-enhancing high-pass stage acting directly on the entire video cube.
+In the \textbf{GPU-accelerated Sobel filter}, the Sobel kernels \(K_x\) and \(K_y\) are generated exactly once and applied via the \textbf{2D convolution routine}:
 \[
 S_t(x,y)=\sqrt{\left(K_x * F_t\right)^2+\left(K_y * F_t\right)^2},
 \]
-where \(K_x\) and \(K_y\) are the horizontal and vertical Sobel convolution kernels, \(*\) denotes the 2-D convolution operator, \(F_t\) is the preprocessed foreground image, and \(S_t\) is the resulting gradient magnitude.
+where \(K_x\) and \(K_y\) are the horizontal and vertical Sobel convolution kernels, \(*\) denotes the 2D convolution operator, \(F_t\) is the preprocessed foreground image, and \(S_t\) is the resulting gradient magnitude.
 
-A subtler efficiency comes from the rank-1 structure of the Sobel kernels themselves. In \textbf{the kernel construction function}, each directional kernel is assembled as an explicit outer product,
+A subtler efficiency gain comes from the rank-1 structure of the Sobel kernel itself.
+In the \textbf{convolution kernel builder}, each directional kernel is explicitly assembled as an outer product:
 \[
 K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf{g},
 \]
-where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative. An outer-product matrix has rank exactly one, so the 2-D convolution is equivalent to two sequential 1-D passes along the spatial axes. \textbf{The convolution routine} checks for separability and routes rank-1 kernels through the faster path, reducing the per-pixel multiply-add cost from \(O(k^2)\) to \(O(2k)\) for a \(k\times k\) kernel. Because the Sobel kernels are rank-1 by construction, both \(K_x\) and \(K_y\) follow that path across the full video cube.
+where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative.
+The outer product matrix is exactly rank-1, rendering the 2D convolution equivalent to two sequential 1D convolutions along the spatial axes.
+The \textbf{rank-1 separability test} automatically verifies this and switches to the separable path when the condition is met, reducing the per-pixel multiply-add overhead for a \(k\times k\) kernel from \(O(2k)\) instead of \(O(k^2)\).
+Since Sobel kernels are rank-1 by construction, \(K_x\) and \(K_y\) are always applied as pairs of 1D convolutions over the entire video cube.
 
-The output is then robust-scaled again and masked by the ring geometry, keeping the entire operation on the CuPy backend. The contribution is not the Sobel operator itself, which is classical, but its integration into a bulk video workflow that avoids repeated host--device copies and prepares every plume for the same downstream geometric treatment \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
+This is followed by another robust rescaling and the application of an annular geometric mask.
+This step is critical at the implementation level because it transforms the low-contrast grayscale spray into an edge-dominant representation, while keeping the entire operation on the CuPy backend.
+The contribution here lies not in the Sobel operator itself, but in its integration into a batch video workflow that avoids repeated host-device copies, preparing a consistent downstream geometric processing for each plume \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_preproc_sobel.pdf}
-\caption{Representative-frame visualisation of the edge-enhancing high-pass stage. (a) Background-subtracted foreground; (b) Sobel gradient magnitude.}
+\caption{Representative frame visualizations of the edge-enhancing high-pass stage. (a) Foreground after background subtraction; (b) Sobel gradient magnitude.}
 \label{fig:mie-preproc-sobel}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_threshold_mask_repair_summary.pdf}
-\caption{Compact illustration of the path from high-pass representation to binary spray support. (a) High-pass intensity distribution within the annular region across the full video, with the fixed support threshold marked; (b) single-plume high-pass strip on a representative frame; (c) raw binary support from fixed thresholding; (d) binary support after morphological repair, with added and removed pixels highlighted.}
+\caption{Compact example from high-pass representation to binary spray support. (a) High-pass intensity distribution across the annular region of the entire video, marking the fixed support threshold; (b) single-plume high-pass strip on a representative frame; (c) raw binary support obtained by fixed thresholding; (d) binary support after morphological repair, highlighting added and removed pixels.}
 \label{fig:threshold-mask-repair-summary}
 \end{figure}
 
-The high-pass strips are no longer binarised with a triangle threshold, because that rule was sensitive to the near-zero peak, the long-tailed intensity distribution, and the fraction of zeros introduced by masking. The current implementation first min-max scales each rotated plume strip, then applies a percentile-based robust rescale to the 4-D plume stack, and finally thresholds the result at \(T_{\mathrm{BW}}=0.01\) on the normalised scale:
+The high-pass strips are no longer binarized using triangle thresholding, because that rule is highly sensitive to near-zero peaks, long-tailed intensity distributions, and the proportion of zeros introduced by masking.
+The current implementation first applies percentile-based min-max normalization to each plume's \((t,y,x)\) high-pass strip volume, mapping the \(q_{\min}\) and \(q_{\max}\) percentiles to 0 and 1, and clipping values outside the range.
+A single fixed threshold \(T_{\mathrm{BW}}=0.01\) is then applied to the normalized strips:
 \[
 B_p(t,y,x)=\mathbf{1}\!\left[\tilde{H}_p(t,y,x)>T_{\mathrm{BW}}\right].
 \]
-The percentile rescale absorbs video-to-video brightness and local-contrast differences, while the fixed threshold only expresses whether the normalised edge response is strong enough. The threshold marked in Figure~\ref{fig:threshold-mask-repair-summary}(a) is this fixed support threshold on the normalised intensity scale.
+The percentile normalization absorbs brightness and local contrast discrepancies across different videos, while the fixed threshold purely indicates whether the normalized edge response is sufficiently strong.
+The threshold marked in Figure~\ref{fig:threshold-mask-repair-summary}(a) is precisely this fixed support threshold on the normalized intensity scale.
 
-When the binary support needs further repair, \textbf{the binary plume-video repair function} works in two passes. It first treats each plume's \((t,y,x)\) binary volume as a 3-D object, applies closing with a \(3\times3\times3\) structuring element, fills holes, and keeps the largest 3-D connected component. It then keeps the largest 2-D connected component in each individual frame. The first pass uses temporal adjacency to bridge short breaks; the second removes detached fragments from each frame. Figure~\ref{fig:threshold-mask-repair-summary}(d) shows the effect of this repair path on a single-frame support mask; it should be read as a robustness step for binary geometric metrics, not as a physical recovery of the raw Mie intensity field.
+When the binary support requires further patching, the \textbf{binary plume video repair function} processes the temporal volume first, followed by single frames.
+For each plume's \((t,y,x)\) binary volume, the routine first performs closing with a \(3\times3\times3\) structuring element, fills holes, and retains the 3D largest connected component; subsequently, the 2D largest connected component is retained for each frame.
+The former leverages temporal adjacency to repair transient breaks, while the latter removes dangling fragments in individual frames.
+Figure~\ref{fig:threshold-mask-repair-summary}(d) shows the impact of this repair path on a single-frame support mask; it should be interpreted as a robustification step for binary geometric metrics rather than a physical restoration of the raw Mie intensity field.
 
-\subsubsection{Angular density as polar resampling}
+\subsubsection{Angular Density as Polar Resampling}
 
-After preprocessing, the pipeline does not search for plume directions by contour tracing in Cartesian coordinates. Instead, \textbf{the polar re-parameterization routine} collapses each frame around the calibrated nozzle center into an angular signal. For every pixel,
+After preprocessing, the pipeline abandons contour tracking in Cartesian coordinates for finding plume directions.
+Instead, the \textbf{polar reparameterization routine} performs a polar reparameterization around the calibrated nozzle center.
+For each pixel,
 \[
 \theta(x,y)=\operatorname{atan2}(y-c_y,\;x-c_x)\bmod 360^\circ,
 \]
-and the per-frame angular signal for bin \(k\) is accumulated as
+and the angular signal in bin \(k\) for each frame is accumulated as
 \[
 A_t(k)=\sum_{(x,y)\in \mathcal{B}_k} I_t(x,y), \qquad
 D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 \]
-where \(\mathcal{B}_k\) is the set of pixels whose angle falls into bin \(k\), \(I_t(x,y)\) is the processed foreground intensity, \(A_t(k)\) is the accumulated angular signal, \(D_t(k)\) is the mean angular density, and \(\#\mathcal{B}_k\) is the number of pixels in the bin. In the CuPy implementation, the binning and weighted sums are performed directly on GPU arrays by \textbf{the GPU histogram binning operation} and \textbf{the GPU weighted sum operation}. Conceptually, this is a radial collapse of the 2D image into a 1D angular occupancy signal, which is a much more stable object for multihole alignment than raw edge fragments in the original frame \cite{Szeliski2010Vision}.
+where \(\mathcal{B}_k\) is the set of pixels falling into angle bin \(k\), \(I_t(x,y)\) is the processed foreground intensity, \(A_t(k)\) is the accumulated angular signal, \(D_t(k)\) is the average angular density, and \(\#\mathcal{B}_k\) is the pixel count in that bin.
+In the CuPy implementation, both binning and weighted summation are executed directly on GPU arrays, via the \textbf{GPU histogram binning operation} and the \textbf{GPU weighted sum operation}, respectively.
+Conceptually, this radially compresses the 2D image into a 1D angular occupancy signal; for multi-hole alignment, it is significantly more stable than edge fragments in the raw frames \cite{Szeliski2010Vision}.
 
-\subsubsection{FFT-based self-adaptive rotation alignment}
+\subsubsection{FFT-based Adaptive Rotation Alignment}
 
-The plume guide angles are then estimated from the periodicity of the angular signal rather than from a fixed offset. Let
+Rather than proceeding from fixed offsets, the plume guide angles are estimated from the periodicity of the angular signal.
+Let
 \[
 \bar{A}(k)=\sum_t A_t(k)
 \]
-be the time-summed angular profile, and let \(P\) be the known number of plumes. The function \textbf{the FFT-based phase alignment function} computes the real FFT of \(\bar{A}\), reads the phase of the plume harmonic \(P\), and converts it to an angular offset
+be the time-summed angular profile, and let \(P\) be the known number of plumes.
+The \textbf{FFT-based phase alignment function} computes the real FFT of \(\bar{A}\), reads the phase of the plume harmonic \(P\), and converts it to an angular offset:
 \[
 \hat{\phi}_0
 =
 -\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
 \]
-This is what makes the alignment self-adaptive: the code uses the observed harmonic phase of the current dataset instead of assuming a manually typed reference angle for every recording. \textbf{The multi-hole geometric construction script} then constructs plume directions
+This is exactly what makes the alignment adaptive: the code uses the harmonic phase observed in the current dataset, rather than manually assuming a reference angle for each recording.
+The \textbf{multi-hole geometry construction script} then constructs the plume directions
 \[
 \phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
 \]
-and combines them with a fixed-threshold occupancy mask plus short-gap filling to reject empty angular sectors. The FFT itself is standard; the contribution here is using the known injector multiplicity to turn the angular-density signal into an automatic plume registration rule \cite{CooleyTukey1965FFT,Szeliski2010Vision}.
+and incorporates a triangle-threshold occupancy mask and short-gap filling to exclude empty angular sectors.
+While FFT itself is standard, the contribution here is transforming the angular density signal into an automatic plume registration rule using the known multi-hole count of the injector \cite{CooleyTukey1965FFT,Szeliski2010Vision}.
 
-The same occupied-angle mask also suggests a simple cone-angle proxy. Treat the bin-wise mask as periodic on \([0,360^\circ)\), merge any \texttt{True} runs that cross the \(0^\circ/360^\circ\) boundary, and convert each contiguous run length from bins to degrees. The resulting angular widths quantify the support occupied by each plume over the full recording. We report both the total occupied angle and the mean run width; the latter serves as a coarse cone-angle proxy because it summarises the average angular spread of a plume without requiring a separate edge fit in every frame.
+The same occupied-angle mask also yields a simple proxy for the cone angle.
+The approach treats the bin-wise mask as a periodic signal over \([0,360^\circ)\), merges \texttt{True} segments crossing the \(0^\circ/360^\circ\) boundary, and converts each contiguous segment length from bins to degrees.
+The resulting angular width quantifies the angular support span occupied by each plume throughout the recording.
+Both the total occupied angle and the average width of contiguous segments are reported; the latter serves as a rough cone angle proxy, summarizing the average angular spread of the plume without independently fitting edges frame by frame.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_angular_occupancy.pdf}
-\caption{Polar angular-occupancy analysis. (a) Per-frame angular-signal heat map; (b) time-summed angular profile with light vertical lines marking the estimated plume guide angles; (c) occupied-angle mask obtained by thresholding the angular profile and short-gap filling; (d) FFT harmonic spectrum with the plume count marked as a dashed vertical line and the computed angular offset annotated.}
+\caption{Polar angular occupancy analysis. (a) Frame-wise angular signal heatmap; (b) time-summed angular profile, with light vertical lines marking estimated plume guide angles; (c) occupied angle mask obtained by profile thresholding and short-gap filling; (d) FFT harmonic spectrum, where the nozzle hole count is marked with a dashed vertical line and the computed angular offset is annotated.}
 \label{fig:angular-occupancy}
 \end{figure}
 
-\subsubsection{Inverse affine mapping and plume-strip extraction}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/fig_angular_mask_comparison.png}
+\caption{Occupied-angle mask derived from the FFT-based plume registration, shown in two coordinate systems. (a) Cartesian view: angular bins occupied by the spray over the full video duration are rendered as white wedges, with the nozzle center (red cross) and the FOV boundary (red dashed circle) overlaid; the annotation reports the total occupied angle, detected run count, and cone-angle proxy. (b) Polar unrolled view: each column corresponds to one 0.5$^\circ$ angular bin, with white indicating spray presence and the green horizontal line marking the FOV radius; individual run widths (cone-angle estimates per plume) are annotated at the top.}
+\label{fig:angular-mask-comparison}
+\end{figure}
 
-Once the target angles are known, each plume is remapped into a common nozzle-left strip coordinate system. Each plume angle \(\phi_p\) defines a rotation-plus-translation that places the nozzle at the left edge and mid-height of the output strip; the remap is computed via the inverse relation implemented in \textbf{the inverse affine map generator}:
+\subsubsection{Inverse Affine Mapping and Plume Strip Extraction}
+
+Once the target angles are determined, each plume is remapped to a common strip coordinate system centered on the left side of the nozzle.
+Each plume angle \(\phi_p\) defines a rotation plus translation that places the nozzle at the left edge and middle height of the output strip; the remapping is achieved using the inverse relationship implemented in the \textbf{inverse affine map generator}:
 \[
 \begin{bmatrix}
 x_{\mathrm{src}}\\y_{\mathrm{src}}
@@ -314,30 +360,40 @@ u\\v
 \qquad
 \mathbf{b}=\mathbf{t}-\mathbf{A}\mathbf{c},
 \]
-where \(\mathbf{c}=(c_x,c_y)^\top\) is the nozzle centre and \(\mathbf{t}\) is the strip-origin translation. For each plume, \textbf{the X/Y-coordinate inverse spatial maps} are precomputed once by \textbf{the forward affine transform builder}, and \textbf{the GPU video remapping routine} samples the full video cube with nearest, bilinear, bicubic, or Lanczos kernels. These maps store source-image sampling coordinates rather than spray intensities: the X-map pixel value gives the source \(x\) coordinate sampled for that output-strip pixel, and the Y-map stores the corresponding \(y\). The multihole pipeline applies a fixed strip size derived from the configured outer radius and a triangular plume mask after remapping. Precomputing the inverse maps once per plume angle makes the per-frame cost independent of rotation; every downstream metric is then measured in the same local strip coordinate system \cite{Szeliski2010Vision}.
+where \(\mathbf{c}=(c_x,c_y)^\top\) is the nozzle center and \(\mathbf{t}\) is the strip origin translation.
+For each plume, the \textbf{X/Y coordinate inverse spatial map} is precomputed exactly once, first generated by the \textbf{forward affine transform builder}, and then sampled by the \textbf{GPU video resampling routine} across the entire video cube using nearest-neighbor, bilinear, bicubic, or Lanczos kernels.
+These maps store source image sampling coordinates rather than spray intensities: the X-map pixel values give the \(x\)-coordinates sampled in the source image for the output strip pixels, while the Y-map stores the corresponding \(y\)-coordinates.
+Following remapping, the multi-hole pipeline applies a fixed \textbf{standardized strip size} and a triangular plume mask.
+Because the inverse map is precomputed once per plume angle, the per-frame overhead is rotation-agnostic; all subsequent metrics are measured in this shared local strip coordinate system \cite{Szeliski2010Vision}.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_efficient_rotation.pdf}
-\caption{Inverse affine remapping and geometric metrics in strip coordinates. (a) Rotated single-plume high-pass strip with the local orifice position, inner radius, $S_{\mathrm{CDF}}$ (CDF penetration front $\hat{x}_p$, defined in Section~3.4.8), $S_{\mathrm{BW,x}}$ (axial binary penetration), and $R_{\mathrm{BW}}$ (polar binary penetration $R_p$, defined in Section~3.4.9) overlaid in the same coordinate system; (b) triangular spray mask applied after remapping; (c) compact preview of the inverse-map arrays, where colour channels encode the source-image sampling coordinates of each output-strip pixel.}
+\caption{Inverse affine remapping and geometric metrics in strip coordinates. (a) Rotated single-plume high-pass strip, with the local orifice position, inner radius, $S_{\mathrm{CDF}}$ (CDF penetration front $\hat{x}_p$, defined in Section~3.4.8), $S_{\mathrm{BW,x}}$ (axial binary penetration), and $R_{\mathrm{BW}}$ (polar binary penetration $R_p$, defined in Section~3.4.9) overlaid in the same coordinate system; (b) triangular spray mask applied after remapping; (c) compact preview of the inverse mapping arrays, where color channels encode the source image sampling coordinates for each output strip pixel.}
 \label{fig:efficient-rotation}
 \end{figure}
 
-\subsubsection{Robust CDF penetration from aligned plume strips}
+\subsubsection{Robust CDF Penetration from Aligned Plume Strips}
 
-The penetration estimator is deliberately based on cumulative intensity support instead of on the single brightest pixel or the outermost isolated blob. For each plume strip \(I_p(t,y,x)\), \textbf{the plume-wise CDF penetration estimator} first collapses the cross-stream direction,
+The penetration estimator is deliberately based on cumulative intensity support rather than a single brightest pixel or the outermost isolated blob.
+For each plume strip \(I_p(t,y,x)\), the \textbf{plume-wise CDF penetration estimator} first collapses transversely,
 \[
 H_p(t,x)=\sum_y I_p(t,y,x),
 \]
-subtracts a left-edge baseline from each frame, clips negative values, and generates a support mask by automatic thresholding, largest-component cleanup, and binary opening. Within that support, \textbf{the axial CDF front locator} forms the axial cumulative distribution
+then subtracts the left-edge baseline for each frame, clips negative values, and generates a support mask via automatic thresholding, largest connected component cleaning, and binary opening.
+Within this support region, the \textbf{axial CDF front locator} constructs the axial cumulative distribution
 \[
 C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi)+\varepsilon},
 \]
-where \(\tilde{H}_p(t,\xi)\) is the baseline-subtracted and cleaned cross-stream sum, \(\varepsilon\) prevents division by zero, and \(C_p(t,x)\) is the resulting axial cumulative distribution. The penetration front \(\hat{x}_p(t)\) is then defined as the first location satisfying
+where \(\tilde{H}_p(t,\xi)\) is the baseline-subtracted and cleaned transverse intensity sum, \(\varepsilon\) prevents division by zero, and \(C_p(t,x)\) is the resulting axial cumulative distribution.
+Subsequently, the penetration front \(\hat{x}_p(t)\) is defined as the minimum position satisfying
 \[
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
-where the quantile threshold is fixed at \(q=0.995\) in the batch-processing run used throughout this thesis, i.e., \texttt{upper\_quantile\_cdf = 1 - 5e-3} in \codepath{mie\_multi\_hole.py}. The reusable library function keeps a lower default value for interactive testing; all quantitative results in this thesis use the \(q=0.995\) value supplied by the batch script. The inner radius is then subtracted to express distance from the nozzle annulus, followed by explicit trajectory cleanup. The library already makes the time series non-decreasing with a cumulative maximum, so the script's extra cleanup is a conservative safety check rather than the primary monotonicity mechanism. If a negative step still appears in the working copy, the code blanks the remainder of that plume series from the preceding frame onward:
+where the quantile threshold is fixed at \(q=0.995\) across the entire batch archive in this work, corresponding to \texttt{upper\_quantile\_cdf = 1 - 5e-3} in \codepath{mie\_multi\_hole.py}.
+The reusable library function defaults to a lower value during interactive testing; all quantitative results herein use the \(q=0.995\) written into the archive by the batch script.
+The inner radius is then subtracted, expressing the distance relative to the nozzle annulus, followed by explicit trajectory cleaning.
+This cleaning step does not elevate all receding values via a cumulative maximum, but directly truncates the tail upon detecting the first non-physical backward jump:
 \[
 \Delta \hat{x}_p(j)=\hat{x}_p(j+1)-\hat{x}_p(j),\qquad
 j_p^\star=\min\{j:\Delta \hat{x}_p(j)<0\},
@@ -345,55 +401,85 @@ j_p^\star=\min\{j:\Delta \hat{x}_p(j)<0\},
 \[
 \hat{x}_p(t)\leftarrow \mathrm{NaN}\quad \text{for}\quad t\ge j_p^\star .
 \]
-In the implementation, truncation begins near the first negative-difference frame, which can sacrifice later weak reappearances of signal; this is a conservative choice to avoid interpreting isolated noise spikes or boundary reflections as true penetration retreat. After this conservative tail truncation, the script turns the series into a valid-frame mask, removes isolated short segments with \texttt{remove\_short\_true\_runs(..., min\_len=5)}, and multiplies the cleaned mask back into the penetration series before export. This CDF front is the main penetration observable used downstream: it is much less sensitive to broken leading-edge pixels than a naive max-index definition, while still producing a penetration quantity aligned with standard diesel-spray usage \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
+In implementation, truncation starts around the first negative difference, potentially sacrificing weaker reappearing signals later; this is a conservative choice made to avoid mistaking isolated noise spikes or boundary reflections for genuine penetration retractions.
+Following tail truncation, the script builds a valid frame mask and removes isolated short segments using \texttt{remove\_short\_true\_runs(..., min\_len=5)}.
+This CDF front is one of the pipeline's primary practical contributions: it is far less sensitive to fractured leading-edge pixels than a naive maximum-index definition, while still yielding a penetration quantity consistent with standard diesel spray conventions \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
 
-\subsubsection{Boundary metrics and geometric proxies}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/td_map.png}
+\vspace{2pt}
+\includegraphics[width=0.92\linewidth]{../images/penetration_td.png}
+\caption{Time-distance (TD) intensity maps illustrating the CDF penetration extraction on a representative single plume (single-hole recording; the same processing applies to all nozzle families). Top: the TD map compresses the plume strip transversely, yielding a 2D view of axial spray development over time; hydraulic delay (white dashed) and nozzle closing (black dashed) are annotated. Bottom: the CDF penetration front $\hat{x}_p(t)$ (pink curve) overlaid on the gain-corrected TD map, extracted at quantile $q=0.995$.}
+\label{fig:td-map-penetration}
+\end{figure}
 
-Binarized plume strips are also passed to \textbf{the secondary feature extractor}, which computes area, binary penetration, boundary-based radial penetration, volume-like proxies, cone-angle proxies, and near-nozzle opening/closing times. The projected area is
+\subsubsection{Boundary Metrics and Geometric Proxies}
+
+The binarized plume strips are also passed to a \textbf{secondary feature extractor}, which computes several supplementary observables.
+The projected area is
 \[
 A_p(t)=\sum_{x,y} B_p(t,y,x).
 \]
-Axial binarized penetration is obtained from the rightmost column whose occupancy exceeds a pixel threshold, while polar penetration is defined from the upper and lower boundary point clouds as
+Axial binary penetration is derived from the rightmost column where the occupied pixel count exceeds a threshold, while polar penetration is defined from the upper and lower boundary point clouds as
 \[
 R_p(t)=\max\!\left(
 \max_i \sqrt{x_{u,i}^2+y_{u,i}^2},
 \max_j \sqrt{x_{l,j}^2+y_{l,j}^2}
 \right).
 \]
-The code also stores a volume-like geometric proxy,
+The code also stores a volume-like geometric proxy:
 \[
 V_p(t)=x_{\mathrm{scale}} \frac{\pi}{4}\sum_x \left(w_u(t,x)+w_l(t,x)\right)^2,
 \]
-where \(w_u\) and \(w_l\) are the upper and lower half-widths and \(x_{\mathrm{scale}}=1/\cos((180^\circ-\theta_{\mathrm{umb}})/2)\) compensates for umbrella-angle tilt when needed. This quantity is not a three-dimensional reconstruction; it is a geometric proxy obtained by interpreting the binary projected cross-section as an axisymmetric envelope. The script also exports upper and lower variants,
+where \(w_u\) and \(w_l\) are the upper and lower half-widths respectively, and \(x_{\mathrm{scale}}=1/\cos((180^\circ-\theta_{\mathrm{umb}})/2)\) compensates for the umbrella angle inclination when needed.
+This quantity is not a 3D reconstruction, but a geometric proxy derived by interpreting the binary projected cross-section as an axisymmetric envelope.
+The script also exports upper and lower bound versions,
 \[
 V_{p,\max}(t)=\pi x_{\mathrm{scale}}\sum_x \max(w_u,w_l)^2,\qquad
 V_{p,\min}(t)=\pi x_{\mathrm{scale}}\sum_x \min(w_u,w_l)^2,
 \]
-which use the larger and smaller of the two half-widths as the local effective radius. These bounds record the possible range of the proxy when the upper and lower boundaries are asymmetric. Cone-angle proxies are computed in two ways: by averaging local boundary angles
+which use the larger and smaller of the two half-widths as the local effective radius, bounding the possible range of this proxy when the upper and lower boundaries are asymmetric.
+The cone angle proxy is calculated in two ways: by averaging the local boundary angles
 \[
 \alpha_{\mathrm{avg}}(t)=\overline{\arctan(y_u/x_u)}-\overline{\arctan(y_l/x_l)},
 \]
-and by fitting fixed-intercept boundary lines and taking
+and by fitting boundary lines with a fixed intercept to compute
 \[
 \alpha_{\mathrm{lg}}(t)=\arctan(m_u)-\arctan(m_l).
 \]
-Near-nozzle opening and closing times are finally inferred from a small detection window close to the injector. These metrics matter because they turn each aligned strip into a compact geometric state vector; however, the downstream modeling in this thesis remains focused on penetration, which is the best-supported target in the available analyses \cite{Linne2013SprayImaging,LefebvreMcDonell2017}.
+Finally, the opening and closing times near the nozzle are inferred from a small detection window near the injector.
+The detection logic robust-scales the mean patch intensity inside this window, applies a two-threshold hysteresis scheme (high threshold 0.50, low threshold 0.10), and marks the resulting active injection interval; Figure~\ref{fig:nozzle-timing} shows a representative timing signal with the recovered hydraulic delay and nozzle closing events.
 
-\subsection{Boundary extraction without pixel-level ground truth}
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/nozzle_timing.png}
+\caption{Near-nozzle timing signal used to detect the hydraulic delay and nozzle closing event. The robust-scaled patch intensity (blue) rises above the high threshold (red dashed) at the hydraulic delay (solid red vertical line) and drops below the low threshold (orange dashed) at nozzle closing (black vertical line); the detected active injection interval is highlighted in green. Single-hole recording shown for clarity; the same detection algorithm is applied to all nozzle families.}
+\label{fig:nozzle-timing}
+\end{figure}
 
-This thesis does not frame spray-boundary extraction as a pixel-level supervised segmentation task, so IoU or F1 score, which require manually annotated ground-truth masks, are not the primary evaluation criteria. For high-speed Mie images, the useful signal is the local foreground/background contrast, so the implementation uses gradient enhancement and morphological cleanup to obtain an operational boundary. The spray boundary itself is still affected by atomisation, breakup, and grey-level transition, so it cannot be treated as an exact pixel-level ground truth. Building an IoU or F1 benchmark would require pixel-wise manual annotation over a large time sequence, and those annotations would still carry subjective boundary judgements. The reliability of the extracted boundary is therefore assessed through the Mie-scattering imaging mechanism, overlay inspection, temporal continuity, and consistency among multiple geometric proxy metrics. This evaluation choice matches the objective of the thesis: stable extraction of penetration, cone angle, and boundary-envelope observables, rather than training or comparing a generic semantic segmenter.
-Quantitative evidence supporting the reliability of the extracted observables --- cross-metric consistency between CDF and binary penetration estimates, temporal-continuity checks, and leave-one-nozzle-family diagnostics --- is presented in Chapter~5.
+These metrics are important because they compress each aligned strip into a compact geometric state vector; however, the downstream modeling in this work remains centered on penetration, as it is the most well-supported target in existing analyses \cite{Linne2013SprayImaging,LefebvreMcDonell2017}.
+
+\subsection{Boundary Extraction Without Pixel-Level Ground Truth}
+
+This thesis does not formulate spray boundary extraction as a pixel-level supervised segmentation task, and therefore does not rely on metrics like IoU or F1 score---which require manually annotated ground-truth masks---as primary evaluation criteria.
+For high-speed Mie images, droplet scattering typically creates direct local contrast between the bright foreground and the dark background; compared to the background refractive index textures and large-scale grayscale variations common in Schlieren imaging, these imaging characteristics are better suited to extracting actionable boundaries using gradient enhancement and morphological cleaning.
+The spray boundary itself is also affected by atomization, breakup, and grayscale transitions, meaning no unique pixel-level ground truth exists.
+Establishing an IoU or F1 benchmark would require massive frame-by-frame manual annotation of time series, and these annotations would inherently carry the subjectivity of boundary judgments.
+Therefore, this work evaluates the reliability of the extracted boundaries through the physical mechanisms of Mie scattering imaging, overlay inspections, temporal continuity, and consistency across multiple geometric proxies.
+This evaluation approach aligns with the goals of this work: stably extracting penetration, cone angle, and boundary envelope observables, rather than training or comparing a generalized semantic segmenter.
+Quantitative evidence supporting the reliability of these observables---such as cross-metric consistency between CDF and binary penetration estimates, temporal continuity checks, and leave-one-nozzle-family-out diagnostics---will be presented in Chapter~5.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_segmentation_boundary_overlay.png}
-\caption{Visual inspection of the spray-boundary extraction result. The grey foreground is obtained from the raw Mie image by log-ratio background correction, Sobel gradient enhancement, and nearest-neighbour rotational remapping; the red contour is reconstructed from boundary points extracted from the binary support image. The overlay shows that the boundary proxy follows the effective liquid envelope formed by local contrast changes rather than relying on a single foremost bright pixel.}
+\caption{Visual inspection of spray boundary extraction results. The grayscale foreground is obtained from the raw Mie image via logarithmic background division, Sobel gradient enhancement, and nearest-neighbor rotation remapping; the red contour is the BW boundary derived from the binary support image. This overlay demonstrates that the boundary proxy predominantly tracks the effective liquid-phase envelope formed by local contrast changes, rather than relying on a single foremost bright point.}
 \label{fig:mie-segmentation-boundary-overlay}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{../images/fig_mie_metrics_summary.pdf}
-\caption{Examples of the main quantitative outputs after alignment and binarisation. (a) Three penetration descriptors versus frame index; (b) two cone-angle proxies; (c) maximum projection of the binarised strip of a representative plume, with the near-nozzle opening and closing frames marked.}
+\caption{Examples of primary quantitative outputs after alignment and binarization. (a) Three penetration descriptors versus frame index; (b) two cone angle proxies; (c) maximum binary strip projection for a representative plume, annotating the opening and closing frames near the nozzle.}
 \label{fig:mie-metrics-summary}
 \end{figure}

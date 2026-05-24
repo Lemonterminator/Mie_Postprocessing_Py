@@ -62,7 +62,7 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"> 
    <dc:format>application/pdf</dc:format> 
-   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">基于 Mie 散射视频的数据驱动穿深预测与概率性碰壁筛查</rdf:li></rdf:Alt></dc:title>
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">基于 Mie 散射成像的数据驱动穿深预测与概率性碰壁筛查</rdf:li></rdf:Alt></dc:title>
    <dc:creator><rdf:Seq><rdf:li>Linan Jiang</rdf:li></rdf:Seq></dc:creator>
    <dc:language><rdf:Bag><rdf:li>en</rdf:li></rdf:Bag></dc:language>
    <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></dc:rights>
@@ -83,9 +83,9 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"> 
    <xmp:CreatorTool>LaTeX with hyperref</xmp:CreatorTool> 
-   <xmp:ModifyDate>2026-05-23T15:24:36+03:00</xmp:ModifyDate> 
-   <xmp:CreateDate>2026-05-23T15:24:36+03:00</xmp:CreateDate> 
-   <xmp:MetadataDate>2026-05-23T15:24:36+03:00</xmp:MetadataDate> 
+   <xmp:ModifyDate>2026-05-25T02:12:54+03:00</xmp:ModifyDate> 
+   <xmp:CreateDate>2026-05-25T02:12:54+03:00</xmp:CreateDate> 
+   <xmp:MetadataDate>2026-05-25T02:12:54+03:00</xmp:MetadataDate> 
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmpRights = "http://ns.adobe.com/xap/1.0/rights/"> 
    <xmpRights:Marked>True</xmpRights:Marked>
@@ -94,7 +94,7 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"> 
    <xmpMM:DocumentID>uuid:F78D18BF-7FBF-2447-F37B-95D09FF822DB</xmpMM:DocumentID> 
-   <xmpMM:InstanceID>uuid:5729AA3A-2ECF-6881-21B3-C1AAFB1B06E5</xmpMM:InstanceID> 
+   <xmpMM:InstanceID>uuid:BC2374E7-ADC3-582F-EFCE-DAC3BDD22B2C</xmpMM:InstanceID> 
   </rdf:Description> 
  </rdf:RDF> 
 </x:xmpmeta> 

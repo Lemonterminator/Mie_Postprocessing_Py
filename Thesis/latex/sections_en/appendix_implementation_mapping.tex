@@ -2,142 +2,143 @@
 \section{Implementation Mapping}
 \label{app:implementation_mapping}
 
-To improve the readability of the methodological descriptions, the codebase-specific variable names, function names, and script names have been replaced with descriptive phrases in the main text. For practitioners intending to reproduce the work or navigate the provided codebase, the following tables map the descriptive phrases used in the text back to their exact implementation identifiers.
+To improve the readability of the methodology description, specific variable names, function names, and script names in the code have been replaced with descriptive semantic phrases in the main text. For practitioners intending to reproduce this study or consult the project codebase, the following tables map the descriptive phrases used in the text back to their exact identifiers in the codebase.
 
 \subsection{Documents and Scripts}
 
 \begin{table}[h]
 \centering
-\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\textbf{Semantic Phrase} & \textbf{Codebase Identifier} \\
 \midrule
-the data cleaning and fitting routine & \texttt{fit\_raw\_data.py} \\
-the interactive calibration interface & \texttt{GUI.py} \\
-the multi-hole geometric construction script & \codepath{mie\_multi\_hole.py} \\
-the dataset summarisation script & \texttt{MLP/summarize\_dataset.py} \\
-the calibration configuration file & \texttt{config.json} \\
-the training log file & \codepath{epoch\_loss.csv} \\
-the Stage-1 model checkpoint & \codepath{best\_model\_stage1.pt} \\
-the Stage-1 training script & \texttt{train\_stage1\_mse.py} \\
-the Stage-2 training script & \texttt{train\_stage2\_nll.py} \\
-the piecewise-arc geometry module & \codepath{design\_A.py} \\
-the Hermite spline geometry module & \codepath{design\_hermite.py} \\
-the out-of-distribution check routine & \codepath{MLP/ood\_sanity.py} \\
-the training support manifest & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
-the piston module directory & \codepath{MLP/piston/} \\
-the early dense-feature diagnostic slide deck & \codepath{MLP/v1\_direct\_feature\_training/...} \\
-the interpretable surrogate prototype folder & \codepath{MLP/interpretatable\_test} \\
-the fitted statistics analysis notebook & \texttt{fitted\_stats\_analysis.ipynb} \\
-the synthetic data export directory & \codepath{MLP/synthetic\_data} \\
-the final selected Stage-3 distillation archive & \codepath{distill\_cdf\_onset\_v2...} \\
-the spatial right-censoring audit script & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
-the Mie image-processing output directory & \codepath{Mie\_scattering\_top\_view\_results} \\
+Data cleaning and fitting program & \texttt{fit\_raw\_data.py} \\
+Interactive calibration interface & \texttt{GUI.py} \\
+Multi-hole geometry construction script & \codepath{mie\_multi\_hole.py} \\
+Dataset summary script & \texttt{MLP/summarize\_dataset.py} \\
+Calibration configuration file & \texttt{config.json} \\
+Training log file & \codepath{epoch\_loss.csv} \\
+Stage one model checkpoint & \codepath{best\_model\_stage1.pt} \\
+Stage one training script & \texttt{train\_stage1\_mse.py} \\
+Stage two training script & \texttt{train\_stage2\_nll.py} \\
+Segmented arc geometry module & \codepath{design\_A.py} \\
+Hermite spline geometry module & \codepath{design\_hermite.py} \\
+Out-of-distribution sanity check program & \codepath{MLP/ood\_sanity.py} \\
+Training support list & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
+Piston module directory & \codepath{MLP/piston/} \\
+Early dense feature diagnostics slides & \codepath{MLP/v1\_direct\_feature\_training/...} \\
+Interpretable surrogate model prototype folder & \codepath{MLP/interpretatable\_test} \\
+Fitting statistics analysis notebook & \texttt{fitted\_stats\_analysis.ipynb} \\
+Synthetic data export directory & \codepath{MLP/synthetic\_data} \\
+Final selected stage three distillation archive & \codepath{distill\_cdf\_onset\_v2...} \\
+Spatial right-censored audit script & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
+Mie image processing output directory & \codepath{Mie\_scattering\_top\_view\_results} \\
 \bottomrule
 \end{tabular}
-\caption{Mapping of document and script names to their codebase identifiers.}
+\caption{Mapping table for document and script names}
 \end{table}
 
-\subsection{Functions and Methods}
+\subsection{Core Functions and Methods}
 
 \begin{table}[h]
 \centering
-\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\textbf{Semantic Phrase} & \textbf{Codebase Identifier} \\
 \midrule
-the video processing loop & \texttt{\_process\_cine\_file} \\
-the multi-hole preprocessor & \texttt{mie\_multihole\_preprocessing} \\
-the multi-hole postprocessor & \texttt{mie\_multihole\_postprocessing} \\
-the algebraic circle fitting function & \texttt{calc\_circle} \\
-the foreground extraction filter & \texttt{refined\_log\_subtraction} \\
-the GPU-accelerated Sobel filter & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
-the kernel construction function & \texttt{build\_2d\_kernel} \\
-the rank-1 separability test & \texttt{\_separable\_factors\_cupy} \\
-the 2D convolution routine & \texttt{convolution\_2D\_cupy} \\
-the polar re-parameterization routine & \texttt{angle\_signal\_density\_auto} \\
-the GPU binning operation & \texttt{cp.digitize} \\
-the GPU weighted sum operation & \texttt{cp.bincount} \\
-the FFT-based phase alignment function & \texttt{estimate\_offset\_from\_fft} \\
-the forward affine transform builder & \texttt{build\_rotation\_affine} \\
-the inverse affine map generator & \texttt{build\_affine\_inverse\_maps\_cupy} \\
-the GPU video remapping routine & \texttt{remap\_video\_cupy} \\
-the plume-wise CDF penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
-the axial CDF front locator & \texttt{penetration\_cdf\_front} \\
-the secondary feature extractor & \texttt{extract\_single\_plume\_features} \\
-the binary plume-video repair function & \texttt{repair\_binary\_plume\_video} \\
-the robust outlier masking routine & \texttt{apply\_filter\_masking} \\
-the group-aware dataset splitting routine & \texttt{assign\_splits\_by\_group} \\
-the physical scaling validation routine & \texttt{run\_pretrain\_collapse\_check} \\
+Video processing loop & \texttt{\_process\_cine\_file} \\
+Multi-hole preprocessing program & \texttt{mie\_multihole\_preprocessing} \\
+Multi-hole postprocessing program & \texttt{mie\_multihole\_postprocessing} \\
+Algebraic circle fitting function & \texttt{calc\_circle} \\
+Foreground extraction filter & \texttt{refined\_log\_subtraction} \\
+GPU-accelerated Sobel filter & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
+Convolution kernel builder function & \texttt{build\_2d\_kernel} \\
+Rank-1 separability test & \texttt{\_separable\_factors\_cupy} \\
+2D convolution program & \texttt{convolution\_2D\_cupy} \\
+Polar coordinate reparameterization program & \texttt{angle\_signal\_density\_auto} \\
+GPU histogram binning operation & \texttt{cp.digitize} \\
+GPU weighted summation operation & \texttt{cp.bincount} \\
+FFT-based phase alignment function & \texttt{estimate\_offset\_from\_fft} \\
+Forward affine transformation builder & \texttt{build\_rotation\_affine} \\
+Inverse affine mapping generator & \texttt{build\_affine\_inverse\_maps\_cupy} \\
+GPU video resampling program & \texttt{remap\_video\_cupy} \\
+Plume-based CDF penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
+Axial CDF front locator & \texttt{penetration\_cdf\_front} \\
+Secondary feature extractor & \texttt{extract\_single\_plume\_features} \\
+Binary plume video repair function & \texttt{repair\_binary\_plume\_video} \\
+Robust outlier filtering program & \texttt{apply\_filter\_masking} \\
+Grouped dataset splitting program & \texttt{assign\_splits\_by\_group} \\
+Physical scaling verification program & \texttt{run\_pretrain\_collapse\_check} \\
 \bottomrule
 \end{tabular}
-\caption{Mapping of algorithmic functions to their codebase identifiers.}
+\caption{Mapping table for algorithm and core function names}
 \end{table}
 
-\subsection{Variables and Features}
+\subsection{Program Variables and Data Features}
 
 \begin{table}[h]
 \centering
-\begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
+\begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{Descriptive Name} & \textbf{Codebase Identifier} \\
+\textbf{Semantic Phrase} & \textbf{Codebase Identifier} \\
 \midrule
-the X/Y-coordinate inverse spatial maps & \texttt{mapx}, \texttt{mapy} \\
-the standardised strip dimensions & \texttt{OUT\_SHAPE} \\
-the axial binary penetration metric & \texttt{penetration\_bw\_x} \\
-the polar binary penetration metric & \texttt{penetration\_bw\_polar} \\
-the cleaned CDF penetration & \texttt{penetration\_cdf clean} \\
-the opening-delay regression point count parameter & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
-the normalized time coordinate & \texttt{time\_norm\_0\_5ms} \\
-the ambient gas density feature & \texttt{chamber\_density\_kg\_per\_m3} \\
-the ambient chamber pressure feature & \texttt{chamber\_pressure\_bar} \\
-the scaling-only / scaling-and-residual variants & \texttt{a\_only}, \texttt{a\_plus\_log\_a} \\
-the operating condition group identifier & \texttt{sample\_group\_id} \\
-the high-confidence raw regime & \texttt{raw\_reliable} \\
-the uncertain raw regime & \texttt{raw\_uncertain} \\
-the teacher-only extrapolation regime & \texttt{teacher\_only} \\
-the anchor-free distillation variant & \texttt{anchor\_off} \\
-the raw-only reliable regime variant & \texttt{raw\_reliable\_no\_kd} \\
-the blended uncertain regime variant & \texttt{raw\_uncertain\_raw05\_kd025} \\
-the baseline distillation variant & \texttt{baseline} \\
+Horizontal coordinate inverse map / Vertical coordinate inverse map & \texttt{mapx}, \texttt{mapy} \\
+Standardized crop size & \texttt{OUT\_SHAPE} \\
+Axial binary penetration metric & \texttt{penetration\_bw\_x} \\
+Polar binary penetration metric & \texttt{penetration\_bw\_polar} \\
+Cleaned CDF penetration & \texttt{penetration\_cdf clean} \\
+Onset delay regression points parameter & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
+Normalized time coordinate & \texttt{time\_norm\_0\_5ms} \\
+Chamber gas density feature & \texttt{chamber\_density\_kg\_per\_m3} \\
+Chamber ambient pressure feature & \texttt{chamber\_pressure\_bar} \\
+Scaling-only/Scaling and residual feature variant & \texttt{a\_only}, \texttt{a\_plus\_log\_a} \\
+Operating condition group identifier & \texttt{sample\_group\_id} \\
+High-confidence raw interval & \texttt{raw\_reliable} \\
+Uncertain raw interval & \texttt{raw\_uncertain} \\
+Teacher-only extrapolation interval & \texttt{teacher\_only} \\
+Unanchored distillation variant & \texttt{anchor\_off} \\
+No-distillation reliable interval variant & \texttt{raw\_reliable\_no\_kd} \\
+Mixed uncertain interval variant & \texttt{raw\_uncertain\_raw05\_kd025} \\
+Baseline distillation variant & \texttt{baseline} \\
 \bottomrule
 \end{tabular}
-\caption{Mapping of variables and features to their codebase identifiers.}
+\caption{Mapping table for program variables and data features}
 \end{table}
 
-\subsection{Neural-Network Implementation Choices}
+\subsection{Neural Network Implementation Choices}
 \label{app:nn-implementation-mapping}
 
-To keep the modelling chapter readable for non-machine-learning audiences, several specific implementation choices in the neural-network sections are referred to by descriptive concept phrases rather than by the named-algorithm identifiers familiar from the deep-learning literature. The following table maps those concept phrases back to their conventional names. The mathematical content is unchanged; only the naming convention differs from a typical machine-learning paper.
+To maintain readability in the modeling chapter for readers without a machine learning background, the neural network section utilizes conceptual phrases for certain specific implementation choices, rather than the algorithmic jargon commonly found in deep learning literature. The following table provides the correspondence between the conceptual phrases and their conventional names. The mathematical content remains unchanged; only the naming conventions differ from typical machine learning papers.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{p{0.45\linewidth} p{0.5\linewidth}}
 \toprule
-\textbf{Concept phrase used in the text} & \textbf{Conventional name} \\
+\textbf{Conceptual Phrase Used in Text} & \textbf{Conventional Algorithm Name} \\
 \midrule
-the decoupled-weight-decay adaptive-moment optimiser & AdamW (Adam with decoupled weight decay) \\
-smooth-gating activation & GELU (Gaussian-Error Linear Unit) \\
-stochastic unit-masking (at rate $p$) & dropout (with drop probability $p$) \\
-binary cross-entropy loss & BCE loss \\
-the rectified-linear-unit operator $\operatorname{ReLU}(\cdot)$ & ReLU, equivalent to the positive-part operator $\max(0,\cdot)$ \\
+Decoupled weight decay adaptive moment optimizer & AdamW (Adam with decoupled weight decay) \\
+Smooth gated activation & GELU (Gaussian Error Linear Unit) \\
+Random unit masking (rate $p$) & dropout (dropout probability $p$) \\
+Binary cross-entropy loss & BCE loss \\
+Rectified linear unit operator $\operatorname{ReLU}(\cdot)$ & ReLU, equivalent to the positive part operator $\max(0,\cdot)$ \\
 \bottomrule
 \end{tabular}
-\caption{Mapping between the concept phrases used in the neural-network sections and the conventional named-algorithm identifiers.}
+\caption{Correspondence between conceptual phrases and conventional algorithm names in the neural network chapter.}
 \end{table}
 
-\section{Methodological Primer for Non-ML Readers}\label{app:ml-primer}
+\section{Methodology Primer for Non-Machine-Learning Readers}
+\label{app:ml-primer-en}
 
-This appendix provides an intuitive introduction to the four technical domains used in this thesis --- computer vision, robust optimisation, GPU parallel computing, and neural-network training --- intended for readers whose primary background is in fluid mechanics or mechanical design. The four tools are connected in sequence: image processing extracts penetration observables from videos; robust optimisation compresses noisy trajectories into stable fitting targets; GPU parallelism allows large-batch processing to finish within a reasonable timeframe; and neural networks learn conditional predictive distributions from those targets.
+This appendix is intended for readers whose primary background is in fluid mechanics or mechanical design. It briefly introduces four categories of techniques involved in this thesis: computer vision, robust optimization, GPU parallel computing, and neural network training. The main text only invokes these concepts when necessary to explain methodological choices; more fundamental terminological explanations are consolidated here to prevent the literature review from assuming a tutorial function.
 
 \paragraph{Computer Vision and Signal Processing.}
-Computers store images as numerical matrices: each pixel corresponds to a matrix element, and its value represents the intensity at that point. \emph{Convolution} slides a small template window (the kernel) over the image and performs a weighted sum at each step; the effect depends on the kernel shape and can smooth, extract edges, or enhance textures. The Sobel operator is a convolution kernel that computes local brightness gradients and responds most strongly to abrupt contrast changes such as liquid-phase boundaries, making it a standard tool for locating boundaries in spray images. \emph{Polar-coordinate transformation} converts an image from Cartesian pixel rows and columns into a coordinate system with angle and radial distance as axes; performed around the calibrated nozzle centre, it folds the directional structure of a multi-hole spray into a 1D angular signal that simplifies registration. The \emph{Fast Fourier Transform} (FFT) decomposes a signal into sinusoidal components, exposing periodic structures as frequency-domain peaks; this thesis uses it to identify the rotational periodicity of multi-hole sprays and estimate each hole's angular offset.
+Computers store images as numerical matrices, where each pixel corresponds to an intensity value in the matrix. Image processing is essentially performing mathematical operations on these matrices. \emph{Convolution} is one of the most common operations: a small template window slides across the image pixel by pixel, performing a weighted sum at each step. Different convolution kernels can be used for smoothing, edge extraction, or texture enhancement. The Sobel operator is a class of convolution kernels used to estimate local brightness gradients. It responds strongly to abrupt intensity changes such as liquid-phase boundaries, making it suitable for spray boundary localization. The \emph{polar coordinate transformation} converts images from pixel row-column coordinates to a coordinate system with angle and radial distance as axes; by applying this transformation around the nozzle center, the directional structure of a multi-hole spray can be collapsed into a one-dimensional angular signal. The \emph{Fast Fourier Transform} (FFT) decomposes signals into frequency components, making periodic structures appear as frequency-domain peaks; this study utilizes it to identify the rotational periodicity of the multi-hole spray and estimate the nozzle hole angle offset.
 
-\paragraph{Robust Optimisation and Curve Fitting.}
-Least-squares fitting finds a curve that minimises the sum of squared distances from observations to that curve. When the data contain outliers --- for example, frames corrupted by optical noise or quantisation artefacts --- the squared penalty allows those points to disproportionately affect the result. The Huber loss is a compromise: it retains the smooth squared penalty for small residuals but switches to an absolute-value penalty above a threshold, suppressing outlier leverage. This is consistent with the engineering practice of down-weighting anomalous readings and is supported by robust statistics \cite{Huber1964,NocedalWright2006}. The \emph{gradient descent} algorithm used for neural-network training computes the partial derivative of the loss with respect to each parameter, then takes a small step along the direction of steepest descent, repeating until the loss converges --- conceptually equivalent to walking downhill in a high-dimensional parameter space.
+\paragraph{Robust Optimization and Curve Fitting.}
+Least-squares fitting seeks a curve that minimizes the sum of squared residuals between the observation points and the curve. When a small number of frames are affected by optical noise or quantization errors, the squared penalty amplifies the influence of these points. The Huber loss retains the squared penalty when the residual is small, and transitions to an approximate absolute value penalty once the residual exceeds a threshold, thereby reducing the leverage effect of outliers \cite{Huber1964,NocedalWright2006}. Gradient descent in neural network training calculates the partial derivatives of the loss function at the current parameters and iteratively updates the parameters in the direction that reduces the loss.
 
 \paragraph{GPU Parallel Computing.}
-CPUs typically have a few highly optimised cores well suited to complex sequential logic. GPUs have thousands of simpler cores and are ideal for applying the same arithmetic operation to many well-organised data elements simultaneously. Image processing fits this pattern: convolving each pixel, accumulating in each angular bin, and thresholding each frame are operations that are independent across pixels or frames, so the GPU can distribute them across thousands of cores. CUDA is NVIDIA's parallel-computing platform; CuPy is a Python library that mirrors the NumPy interface, allowing this thesis's image-processing chain to switch to a GPU backend with minimal code changes. The engineering significance is that GPU acceleration turns terabyte-scale batch processing from a multi-day task into one that finishes within hours and supports iterative refinement \cite{NickollsBuckGarlandSkadron2008}.
+CPUs typically have fewer but more complex cores, suitable for serial logic; GPUs possess a large number of simpler cores, ideal for performing the same operation simultaneously on many data elements. Convolution, thresholding, angular binning, and frame-by-frame aggregation in image processing perfectly fit this paradigm. CUDA is NVIDIA's parallel computing platform; CuPy provides a Python interface similar to NumPy, allowing the processing pipeline in this study to offload the primary array operations to the GPU. Its engineering significance lies in transforming the processing of terabyte-scale video archives from a lengthy task, which is difficult to iterate repeatedly, into a workflow that can be re-run as calibrations, thresholds, and objective definitions are adjusted \cite{NickollsBuckGarlandSkadron2008}.
 
 \paragraph{Neural Networks and Deep Learning.}
-The Multilayer Perceptron (MLP) used in this thesis cascades several layers of linear transformations and non-linear activation functions into a parameterised non-linear function, mapping operating-condition features and time to penetration predictions. Modern training depends on regularisation and optimisation choices: dropout randomly masks neurons during training, forcing redundant representations and reducing overfitting when operating-condition support is sparse \cite{Srivastava2014Dropout}; decoupled weight decay, as in AdamW, separates the decay term from the adaptive gradient update and can improve generalisation \cite{LoshchilovHutter2019AdamW}; smooth gated activations such as SiLU/Swish preserve smooth derivative propagation, which matters for the derivative-based physical penalties introduced later \cite{Ramachandran2017Swish}. Parameters are obtained by iterative gradient descent on a training loss. Mean Squared Error (MSE) is the simplest objective and corresponds to regression toward the conditional mean. Heteroscedastic Gaussian Negative Log-Likelihood (NLL) extends MSE by letting the network output both a conditional mean and a conditional variance, equivalent to an uncertainty band that varies with the operating condition rather than a fixed error band for all conditions \cite{KendallGal2017}. Knowledge distillation is a teacher--student framework: a teacher network trained on clean data provides soft targets that a student network imitates in regions where direct labels are sparse or incomplete, analogous to an experienced engineer supplying a baseline judgement when measurements are insufficient \cite{HintonVinyalsDean2015}.
+The Multilayer Perceptron (MLP) used in this study consists of several linear layers and non-linear activation functions, taking operating condition features and time as inputs to output penetration predictions. Dropout randomly masks a portion of neurons during training, reducing the risk of overfitting under sparse operating condition support \cite{Srivastava2014Dropout}. AdamW decouples weight decay from the adaptive gradient update, helping to improve generalization \cite{LoshchilovHutter2019AdamW}. Smooth activation functions such as SiLU/Swish make derivative transmission more continuous, facilitating the use of physical derivative penalties \cite{Ramachandran2017Swish}. Mean Squared Error (MSE) corresponds to conditional mean regression; heteroscedastic Gaussian Negative Log-Likelihood (NLL) allows the network to output both the conditional mean and conditional variance simultaneously, providing error bands of varying widths for different operating conditions \cite{KendallGal2017}. Knowledge distillation first trains a teacher model that performs stably on clean data, and then uses its soft outputs to guide the student model to learn in regions where labels are sparse or unreliable \cite{HintonVinyalsDean2015}.
