@@ -131,7 +131,10 @@ S(\mathbf{x})=A\,f(\mathbf{x}),
 \]
 where \(A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}\) is the same Hiroyasu--Arai post-breakup amplitude and \(\mathbf{x}\) contains standardised features for time, plume tilt, plume count, injection duration, and control back-pressure.
 The tunable objects in the GP are not a small set of physical coefficients but kernel hyperparameters: output scale, length scales, noise level, and, under automatic relevance determination (ARD), one length scale per input dimension.
-The sparse heteroscedastic GP baseline used here combines a mean GP with a log-residual-variance GP to output both \(\mu_S(t)\) and \(\sigma_S(t)\), and uses a sparse variational approximation to scale to the large tabular dataset \cite{HensmanFusiLawrence2013}, making it a strong statistical baseline rather than a traditional empirical correlation.
+The sparse heteroscedastic GP baseline used here combines a mean GP with a log-residual-variance GP to output both \(\mu_S(t)\) and \(\sigma_S(t)\).
+Scalability is achieved through the variational inducing-point framework introduced by Titsias \cite{Titsias2009SparseGP}, which replaces the full GP posterior with a variational approximation supported on a small set of inducing inputs; the memory and compute cost then scales as $\mathcal{O}(Nm^2)$ in the number of training points~$N$ and inducing points~$m$, rather than the cubic cost $\mathcal{O}(N^3)$ of exact GP regression.
+Hensman et al.\ extended this to stochastic mini-batch optimisation, making variational inducing-point GPs practical on datasets with millions of points \cite{HensmanFusiLawrence2013}.
+Together these two frameworks make the sparse heteroscedastic GP a strong statistical baseline for the same scaled regression task as the MLP, rather than a traditional empirical correlation.
 All three baselines consume the same penetration observations and test-matrix features exported by the image-processing chain rather than raw pixels; they differ in how tightly the penetration function is constrained, from the rigid physical forms of Hiroyasu--Arai and Naber--Siebers to the kernel-defined flexibility of the GP.
 Together they provide interpretable or statistically controlled reference points for the gross penetration history.
 Their limitation becomes visible when the injection event is short.
@@ -289,6 +292,14 @@ short pilot-injection traces are dominated by SOI and EOI transients, the finite
 The purpose here is therefore not to show again that neural networks can predict spray macroscopic quantities, but to add three components required by this dataset:
 censoring-aware target construction, heteroscedastic uncertainty quantification, and distillation-based refinement.
 
+Organising a learning problem as a progression from simple to complex is the central idea of curriculum learning, introduced by Bengio et al.\ \cite{BengioCurriculumLearning2009}.
+In their formulation, presenting a learner with more representative or constrained examples first and progressively harder, more diverse ones later accelerates convergence and improves generalisation, because the optimiser is guided toward a useful region of parameter space before encountering the full difficulty of the training distribution.
+The three-stage design in this thesis follows this logic at the level of data populations rather than individual samples.
+Stage~1 trains on a single representative trajectory per operating-condition group, establishing a stable condition-level mean.
+Stage~2 expands to the full filtered archive of fitted trajectories and adds heteroscedastic plume-to-plume spread.
+Stage~3 introduces the hardest supervision signal last --- raw right-censored CDF observations mixed with the teacher's soft targets --- only after the network has already learned a useful prior on the mean and variance functions.
+This population-level schedule reduces the risk of collapse under noisy, censored observations and provides a principled rationale for the staged design independent of the censoring problem itself.
+
 \subsubsection{Right-censoring and stable target construction}
 
 Among these three components, censoring-aware target construction is unavoidable because it follows directly from the geometry of the experiment.
@@ -366,8 +377,12 @@ The direction of the KL divergence is still a design choice.
 This thesis uses the teacher-to-student, or forward, KL direction \(D_{\mathrm{KL}}(p_{\mathrm{teacher}}\|p_{\mathrm{student}})\), because it is consistent with the NLL-style objectives used in the earlier stages and encourages the student to cover the teacher distribution in sparse late-time regions.
 Reverse KL is more mode-seeking and is less sensitive to thin tails and rare extrapolated trajectories.
 Preliminary checks indicated only small prediction differences between the two directions within the operating range of interest, so forward KL should be understood as a deliberate but not separately proven conservative choice.
-Recent work on regression distillation and incomplete supervision likewise shows that teacher soft targets can reduce student error where direct labels are missing or unreliable
-\cite{HintonVinyalsDean2015,TarvainenValpola2017,KangKang2024KDRegression}.
+Knowledge distillation was introduced by Hinton et al.\ \cite{HintonVinyalsDean2015} as a model-compression technique: a large, well-trained teacher network produces soft output distributions that carry more gradient signal than hard labels, and a compact student is trained to match those soft targets.
+In regression, soft targets take the form of distribution parameters --- here the teacher $(\mu_t,\,\sigma_t^2)$ --- so the student simultaneously fits the conditional mean and the conditional spread.
+Tarvainen and Valpola extended the concept through the mean-teacher framework \cite{TarvainenValpola2017}, in which an exponential moving average of the student weights serves as a temporally smoothed teacher; the key insight is that self-consistent soft targets can provide reliable supervision even for data that lack hard labels.
+In the present pipeline, teacher and student are trained on structurally different populations: the teacher on fitted synthetic targets from Dataset~\#3 and the student on raw CDF observations from Dataset~\#1.
+The distillation is therefore not a compression step or a self-consistency regulariser, but a mechanism for propagating censoring-aware synthetic trajectory information back into the raw-observation domain.
+Kang and Kang confirm that this generalisation of the KD objective applies to regression tasks with sparse or missing supervision: teacher soft targets systematically reduce student error in held-out regimes where direct labels are absent or unreliable \cite{KangKang2024KDRegression}.
 
 The resulting learning rationale ties together censoring-aware target construction, heteroscedastic regression for input-dependent uncertainty, and teacher-guided bias correction.
 
@@ -405,6 +420,13 @@ In the present setting, a naively trained heteroscedastic network may output var
 For an early-design screening surrogate, uncertainty calibration must therefore be checked on held-out data, and out-of-distribution behaviour should additionally be probed through spatial cross-validation, for example by leaving out an entire nozzle family and comparing empirical $1\sigma$ and $2\sigma$ coverage with their nominal levels.
 This motivates the use of CRPS, reliability diagrams, and leave-one-nozzle-family diagnostics in the results chapter.
 
+Two alternative approaches to predictive uncertainty in neural regression provide useful context.
+Deep ensembles, proposed by Lakshminarayanan et al.\ \cite{LakshminarayananEnsembles2017}, train multiple independent networks from different random initialisations and aggregate their predictions; the ensemble mean and variance capture both epistemic and aleatoric uncertainty and have been shown to outperform single-model heteroscedastic outputs on out-of-distribution inputs in several benchmarks.
+Monte Carlo Dropout, introduced by Gal and Ghahramani \cite{GalGhahramani2016Dropout}, approximates a deep Gaussian process by retaining dropout stochastically at test time; each forward pass samples from an approximate posterior, giving a computationally cheap uncertainty estimate without requiring multiple independently trained networks.
+Both approaches are architecture-agnostic and could in principle be combined with the MLP backbone used here.
+Single-model heteroscedastic NLL is retained on practical grounds: the three-stage training chain, regime-aware distillation, and the LONO ablation grid together require dozens of training runs, and ensemble or MC sampling would multiply that cost by the ensemble size or sample count.
+Held-out coverage diagnostics and the leave-one-nozzle-family evaluation in Chapter~5 serve as the empirical validation that the single-model uncertainty output is useful for engineering screening.
+
 \subsubsection{Why kernel surrogates and neural surrogates differ out of distribution}
 \label{sec:kernel-vs-nn-ood-en}
 
@@ -418,6 +440,10 @@ For the present thesis these references are general background rather than a cen
 The relevance is methodological: the leave-one-nozzle-family evaluation in Chapter~5 should not be read as a head-to-head architecture contest with a single winner.
 A kernel surrogate is expected, a priori, to be more conservative when the held-out nozzle family is genuinely outside the training support, while a staged MLP is expected to be more aggressive in fitting training-distribution structure and to carry that structure into the held-out fold.
 The empirical results in Chapter~5 are therefore consistent with this prior-versus-likelihood separation, not a surprise that demands a post-hoc explanation, and they are reported in that spirit.
+
+The leave-one-nozzle-family evaluation also serves as a domain-generalisation diagnostic in the sense used in the transfer-learning literature \cite{PanYang2010TransferLearning}: each held-out fold presents the model with a nozzle geometry, hole count, or umbrella angle not seen during training, so the evaluation tests whether the learned function transfers to a new input distribution without retraining.
+For the kernel surrogate, the prior-dominated failure mode in an unseen fold is expected and graceful; for the staged MLP, the risk is that learned structure from the training folds carries over into the held-out fold as a systematic bias.
+Reporting both under the same evaluation protocol, rather than selecting the fold arrangement post hoc, ensures that the cross-model comparison reflects genuine out-of-support generalisation behaviour.
 
 \subsection{Spray--wall impingement mechanisms and probabilistic collision-risk screening}
 
@@ -437,6 +463,12 @@ Pilot penetration is therefore first a key control variable for main-fuel mixing
 on that basis, it is also the central geometric input for wall-risk screening.
 The penetration and uncertainty predictions developed in this thesis primarily support pilot-injection control and combustion-organisation assessment, while also supporting wall-risk ranking.
 
+The operational context matters for understanding the required properties of a penetration surrogate.
+In four-stroke large-bore marine dual-fuel engines of the kind studied here, the pilot-diesel injection event typically lasts 300--1\,200\,$\mu$s at rail pressures of 1\,400--2\,200\,bar, delivering a small fuel quantity per cylinder per cycle to ignite a premixed natural-gas charge \cite{Karim2015DualFuel,WeiGeng2016DualFuelReview}.
+This injection window is short enough that the observable spray trajectory is dominated throughout by start-of-injection and end-of-injection transients; the quasi-steady penetration phase, which classical correlations are designed to describe, is brief or entirely absent within the observation window.
+At the same time, cycle-to-cycle variability in delivered momentum, needle-lift dynamics, and sac-pressure transients introduces plume-to-plume and repeat-injection scatter that cannot be reduced to a single deterministic penetration value.
+A screening tool that quantifies the full penetration distribution --- its temporal evolution, its operating-condition dependence, and its shot-to-shot spread --- therefore provides more actionable ranking information than a deterministic penetration prediction alone.
+
 When that spatial control fails, liquid-phase spray contact with engine surfaces becomes one of the downstream consequences that must be managed.
 When liquid fuel reaches the piston crown or cylinder wall before evaporation or ignition has had time to consume it,
 a fuel film deposits on the surface, and the downstream consequences
@@ -451,6 +483,7 @@ The picture changes again at marine scale.
 The spatial scale of spray development in large-bore marine diesel engines is not a scaled-up version of an automotive case,
 and optical studies with full-size marine injectors confirm that wall confinement materially shifts both ignition delay and natural-luminosity
 flame intensity relative to a free-jet configuration \cite{liu2024marine_impingement}.
+Data-driven surrogate approaches specific to marine injector geometry are likewise emerging: Vaz et al.\ demonstrated feed-forward neural network prediction of spray macroscopic characteristics for multi-hole marine injectors across a range of injection pressures and back-pressures \cite{VazKarathanasis2026}, confirming that low-dimensional regression surrogates can achieve useful accuracy on these geometrically distinct large-bore systems.
 
 The simplest screening rule used in engineering practice has barely changed in two decades:
 compare the liquid-phase spray-tip penetration $S_\mathrm{tip}(t)$ against the nozzle-to-wall distance $L_\mathrm{wall}$,
