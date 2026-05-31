@@ -27,12 +27,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fit-run-dir", type=Path, default=None)
     parser.add_argument("--output-root", type=Path, default=AUDIT_RUNS)
     parser.add_argument("--raw-root", type=Path, default=REPO_ROOT / "Mie_scattering_top_view_results")
-    parser.add_argument("--dualfit-run-dir", type=Path, default=None)
     parser.add_argument("--cdf-audit-csv", type=Path, default=None)
     parser.add_argument("--support-csv", type=Path, default=None)
     parser.add_argument("--stage2-manifest", type=Path, default=None)
     parser.add_argument("--allow-synthetic-population", action="store_true")
-    parser.add_argument("--skip", choices=("b1", "d2", "b3", "b5", "e1"), action="append", default=[])
+    parser.add_argument("--skip", choices=("b1", "d2", "b5", "e1"), action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
     return parser.parse_args()
@@ -64,12 +63,6 @@ def _run(cmd: list[str], *, dry_run: bool, continue_on_error: bool) -> None:
         raise RuntimeError(message)
 
 
-def _dualfit_available(path: Path | None) -> bool:
-    if path is not None:
-        return path.exists()
-    return any(p.is_dir() for p in SYNTHETIC_DATA_RUNS.glob("*_dualfit"))
-
-
 def run(args: argparse.Namespace) -> Path:
     fit_run_dir = resolve_fit_run(args)
     run_id = make_run_id("audit")
@@ -77,7 +70,6 @@ def run(args: argparse.Namespace) -> Path:
     config = {
         "fit_run_dir": str(fit_run_dir),
         "raw_root": str(args.raw_root),
-        "dualfit_run_dir": None if args.dualfit_run_dir is None else str(args.dualfit_run_dir),
         "cdf_audit_csv": None if args.cdf_audit_csv is None else str(args.cdf_audit_csv),
         "support_csv": None if args.support_csv is None else str(args.support_csv),
         "skip": list(args.skip),
@@ -124,15 +116,6 @@ def run(args: argparse.Namespace) -> Path:
             ],
         ),
         (
-            "b3",
-            [
-                sys.executable,
-                str(SCRIPT_DIR / "q1_vs_two_regime_comparison.py"),
-                "--out-dir",
-                str(run_dir / "b3_q1_vs_two_regime"),
-            ],
-        ),
-        (
             "e1",
             [
                 sys.executable,
@@ -151,15 +134,10 @@ def run(args: argparse.Namespace) -> Path:
         commands[1][1].extend(["--stage2-manifest", str(args.stage2_manifest)])
     if args.cdf_audit_csv is not None:
         commands[2][1].extend(["--input-csv", str(args.cdf_audit_csv)])
-    if args.dualfit_run_dir is not None:
-        commands[3][1].extend(["--dualfit-run-dir", str(args.dualfit_run_dir)])
     if args.support_csv is not None:
-        commands[4][1].extend(["--support-csv", str(args.support_csv)])
+        commands[3][1].extend(["--support-csv", str(args.support_csv)])
 
     skipped = set(args.skip)
-    if "b3" not in skipped and not _dualfit_available(args.dualfit_run_dir):
-        skipped.add("b3")
-        print("[audit] skip b3: no *_dualfit archive found; run Phase 1 with --ablation-dual-fit to enable it.")
     for key, cmd in commands:
         if key in skipped:
             print(f"[audit] skip {key}")

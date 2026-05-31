@@ -1,0 +1,34 @@
+{
+  "_comment": "Production retrain with a_dp050_plus_pressures (Stage-1 LONO winner, MAE 7.46) and locked Stage-3 KD form mse_mu_plus_sigma, lambda_sigma=5.0. Mode A reseeds Stage 3 only on top of a shared Stage-1/2 backbone. Use --mode C to also reseed Stage-1/2.",
+  "seeds": [7, 17, 42, 99, 2024],
+  "default_seed": 42,
+  "variant": "a_dp050_plus_pressures",
+  "architecture_mode": "family_head",
+  "n_families": 2,
+  "device": "auto",
+  "stage3_ablation_config": "MLP/MLP_training/config/stage3_anchor_off_only_config.json",
+  "include_sensitivity": false,
+  "modes": {
+    "single": {
+      "description": "One seed, full Stage 1->2->3 anchor_off only.",
+      "rerun_stage1_per_seed": true,
+      "rerun_stage2_per_seed": true,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": true
+    },
+    "A": {
+      "description": "Stage 3 reseeded across config.seeds; Stage 1/2 trained once and shared.",
+      "rerun_stage1_per_seed": false,
+      "rerun_stage2_per_seed": false,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": false
+    },
+    "C": {
+      "description": "Full pipeline reseeded per seed. Most rigorous; ~25-30h total.",
+      "rerun_stage1_per_seed": true,
+      "rerun_stage2_per_seed": true,
+      "rerun_stage3_per_seed": true,
+      "single_seed_only": false
+    }
+  }
+}

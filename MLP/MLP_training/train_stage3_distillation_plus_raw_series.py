@@ -1,10 +1,48 @@
 """
-Distillation + raw series refinement for v2 engineered-feature architecture.
+Stage-3 distillation + raw-CDF refinement (v2 engineered-feature architecture).
 
-Loads a trained Stage-2 NLL model (v2), raw CDF series, builds regime labels,
-then trains a student model via knowledge distillation with raw-CDF supervision.
+Loads a trained Stage-2 NLL model, raw CDF series, builds coverage-based regime
+labels, then trains a student model via knowledge distillation with raw-CDF
+supervision in the time-varying regime.
 
-Converted from MLP/v1_direct_feature_training/distillation_plus_raw_series.ipynb,
+Regime labeling
+---------------
+Raw CDF observations thin out over time because the spray tip moves out of the
+field of view or the droplet density falls below detection threshold. This
+"right-side censoring" makes raw supervision unreliable after a condition-
+dependent cutoff time.
+
+Time is bucketed into 0.1 ms bins over [0, 5] ms. Each bin is assigned one of
+three regimes based on the bin's CDF coverage relative to the group peak:
+- raw_reliable:  coverage near peak → supervised directly by raw observations.
+- raw_uncertain: coverage clearly dropping → preferred source switches to the
+                 teacher model (Stage-2 Gaussian) with raw as a secondary anchor.
+- teacher_only:  coverage too sparse for reliable raw supervision → teacher
+                 Gaussian samples replace raw observations entirely.
+
+The regime assignment is coverage-driven, not value-driven, because the problem
+is the disappearance of usable raw observations, not just noise in the remaining
+ones.
+
+Distillation loss
+-----------------
+The student keeps the same family-aware pointwise MLP as the teacher (same
+architecture and feature columns). Its per-time-step loss weight switches between:
+- raw weight (raw_reliable):  direct NLL against the measured CDF point.
+- KD weight (raw_uncertain / teacher_only): MSE or KL against the teacher's
+  (mu, log_var) in physical-space (mm), controlled by the kd_mode config key.
+
+Production default KD mode: mse_mu_plus_sigma (MSE on mu + λ * MSE on log_var).
+KL-based modes were evaluated but caused sigma-arbitrage near the FOV boundary:
+the student learned to reduce NLL by inflating sigma rather than improving mu,
+producing systematic under-prediction of small penetration depths near the nozzle.
+
+Production Stage-3 expects a family_head teacher trained on the
+a_dp050_plus_pressures feature set. The student is initialised from the teacher
+state dict verbatim and keeps output_dim=2 (mu, log_var); the old onset auxiliary
+channel is intentionally removed.
+
+Converted from MLP/notebooks/distillation_plus_raw_series.ipynb,
 updated to use the v2 engineered-feature common module (A-scaled penetration).
 """
 
@@ -25,33 +63,49 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from engineered_feature_common import (
-        PenetrationMLP,
         build_dataset_registry,
         build_feature_matrix_np,
         build_model,
+        family_head_state_dict_to_residual,
         infer_feature_family,
         load_run_artifacts,
         split_mu_logvar,
+        state_dict_to_residual_film,
         RunArtifacts,
         TIME_FEATURE,
     )
 else:
     from .engineered_feature_common import (
-        PenetrationMLP,
         build_dataset_registry,
         build_feature_matrix_np,
         build_model,
+        family_head_state_dict_to_residual,
         infer_feature_family,
         load_run_artifacts,
         split_mu_logvar,
+        state_dict_to_residual_film,
         RunArtifacts,
         TIME_FEATURE,
+    )
+
+if __package__ in {None, ""}:
+    from stage3.kd_losses import (
+        KD_REGISTRY,
+        TEACHER_CONF_WEIGHT_MIN,
+        TEACHER_CONF_WEIGHT_MAX,
+        weighted_mean,
+    )
+else:
+    from .stage3.kd_losses import (
+        KD_REGISTRY,
+        TEACHER_CONF_WEIGHT_MIN,
+        TEACHER_CONF_WEIGHT_MAX,
+        weighted_mean,
     )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +118,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 AVAILABLE_SOURCES = ["cdf", "bw_x", "bw_polar"]
 DEFAULT_SOURCES = ["cdf"]
+
+RESIDUAL_STUDENT_ARCHES = {
+    "residual_family_head",
+    "residual_film_last_block",
+    "residual_film_all_blocks",
+}
 
 COMMON_META_COLS = [
     "plumes",
@@ -101,8 +161,18 @@ TEACHER_MIN_COUNT = 4
 CONSECUTIVE_BINS = 2
 TIME_BIN_WEIGHT_MIN = 0.5
 TIME_BIN_WEIGHT_MAX = 2.0
-TEACHER_CONF_WEIGHT_MIN = 0.25
-TEACHER_CONF_WEIGHT_MAX = 1.0
+
+PRODUCTION_STAGE3_VARIANTS = {"a_dp050_plus_pressures", "a_plus_pressures"}
+PRODUCTION_STAGE3_FEATURE_COLUMNS = [
+    "time_norm_0_5ms",
+    "tilt_angle_radian_z",
+    "plumes_z",
+    "injection_duration_us_z",
+    "control_backpressure_bar_z",
+    "log_injection_pressure_bar_z",
+    "log_chamber_pressure_bar_z",
+    "family_id",
+]
 
 
 def value_or_default(value: Any, default: float | int) -> float | int:
@@ -495,7 +565,7 @@ def umbrella_to_tilt_radian(umbrella_angle_deg: float) -> float:
 
 def build_teacher_raw_dict(meta_row: pd.Series) -> dict[str, Any]:
     """Build the raw-input dict expected by ``build_feature_matrix_np``."""
-    return {
+    raw = {
         "tilt_angle_radian": umbrella_to_tilt_radian(meta_row["umbrella_angle_deg"]),
         "plumes": float(meta_row["plumes"]),
         "diameter_mm": float(meta_row["diameter_mm"]),
@@ -504,6 +574,11 @@ def build_teacher_raw_dict(meta_row: pd.Series) -> dict[str, Any]:
         "chamber_pressure_bar": float(meta_row["chamber_pressure_bar"]),
         "control_backpressure_bar": float(meta_row["control_backpressure_bar"]),
     }
+    experiment_name = meta_row.get("experiment_name", meta_row.get("dataset_key", None))
+    if experiment_name is not None and not pd.isna(experiment_name):
+        raw["dataset_key"] = str(experiment_name)
+        raw["experiment_name"] = str(experiment_name)
+    return raw
 
 
 def predict_teacher_gaussian(
@@ -694,8 +769,6 @@ class CDFRefinementSequenceDataset(Dataset):
         raw_weights = raw_regime_weights * raw_valid.astype(np.float32) * time_bin_weights
         kd_regime_weights = kd_regime_weights * time_bin_weights
 
-        onset_target = np.clip(self.time_grid_ms / max(float(self.config["onset_ramp_ms"]), 1e-6), 0.0, 1.0).astype(np.float32)
-        onset_loss_mask = ((self.time_grid_ms >= 0.0) & (self.time_grid_ms <= float(self.config["onset_loss_window_ms"]))).astype(np.float32)
         anchor_weight = np.clip(1.0 - self.time_grid_ms / max(float(self.config["anchor_window_ms"]), 1e-6), 0.0, 1.0).astype(np.float32)
 
         return {
@@ -706,8 +779,6 @@ class CDFRefinementSequenceDataset(Dataset):
             "raw_valid": torch.from_numpy(raw_valid),
             "raw_weight": torch.from_numpy(raw_weights.astype(np.float32)),
             "kd_weight": torch.from_numpy(kd_regime_weights.astype(np.float32)),
-            "onset_target": torch.from_numpy(onset_target),
-            "onset_loss_mask": torch.from_numpy(onset_loss_mask),
             "anchor_weight": torch.from_numpy(anchor_weight),
             "sample_idx": torch.tensor(int(idx), dtype=torch.long),
         }
@@ -738,53 +809,214 @@ def build_sequence_sampler_weights(dataset: CDFRefinementSequenceDataset) -> np.
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Student model (output_dim=3: mu_hat, logvar_hat, onset_logit)
+# Student model (family_head output_dim=2: mu_hat, logvar_hat)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def validate_stage3_teacher_config(
+    teacher_config: dict[str, Any],
+    *,
+    student_architecture_mode: str = "family_head",
+) -> None:
+    variant = str(teacher_config.get("variant", "")).strip()
+    if variant not in PRODUCTION_STAGE3_VARIANTS:
+        allowed = ", ".join(sorted(PRODUCTION_STAGE3_VARIANTS))
+        raise ValueError(
+            f"Stage-3 production teacher must use a_dp050_plus_pressures "
+            f"(legacy alias a_plus_pressures accepted); got variant={variant!r}. "
+            f"Allowed: {allowed}."
+        )
+
+    architecture_mode = str(teacher_config.get("architecture_mode", "single")).lower()
+    allowed_teacher_arches = {"family_head"}
+    if str(student_architecture_mode).lower() in RESIDUAL_STUDENT_ARCHES:
+        # Residual-style students can be hot-started either from the original
+        # deployed family-head model or from a previously converted residual
+        # production checkpoint.
+        allowed_teacher_arches = {
+            "family_head",
+            "residual_family_head",
+            "residual_film_last_block",
+            "residual_film_all_blocks",
+        }
+    if architecture_mode not in allowed_teacher_arches:
+        raise ValueError(
+            "Stage-3 production teacher has unsupported architecture_mode; "
+            f"expected one of {sorted(allowed_teacher_arches)}, got {architecture_mode!r}."
+        )
+
+    feature_columns = list(teacher_config.get("feature_columns") or [])
+    if feature_columns != PRODUCTION_STAGE3_FEATURE_COLUMNS:
+        raise ValueError(
+            "Stage-3 production teacher has unexpected feature_columns.\n"
+            f"Expected: {PRODUCTION_STAGE3_FEATURE_COLUMNS}\n"
+            f"Got:      {feature_columns}"
+        )
+
+    input_dim = int(teacher_config.get("input_dim", len(feature_columns)))
+    if input_dim != len(PRODUCTION_STAGE3_FEATURE_COLUMNS):
+        raise ValueError(
+            f"Stage-3 production teacher must have input_dim={len(PRODUCTION_STAGE3_FEATURE_COLUMNS)}; "
+            f"got {input_dim}."
+        )
+
+    output_dim = int(teacher_config.get("output_dim", 2))
+    if output_dim != 2:
+        raise ValueError(f"Stage-3 production teacher must have output_dim=2; got {output_dim}.")
+
+    n_families = int(teacher_config.get("n_families", 2))
+    if n_families != 2:
+        raise ValueError(f"Stage-3 production teacher must have n_families=2; got {n_families}.")
+
+    family_head_dims = [int(x) for x in teacher_config.get("family_head_dims", [128])]
+    if family_head_dims != [128]:
+        raise ValueError(
+            f"Stage-3 production teacher must use family_head_dims=[128]; got {family_head_dims}."
+        )
+
 
 def build_student_model_from_teacher(
     teacher_model: torch.nn.Module,
     teacher_config: dict,
     device: torch.device,
-) -> PenetrationMLP:
-    student = PenetrationMLP(
-        input_dim=int(teacher_config["input_dim"]),
-        hidden_dims=[int(x) for x in teacher_config["hidden_dims"]],
-        output_dim=3,
-        activation=str(teacher_config.get("activation", "gelu")),
-        dropout=float(teacher_config.get("dropout", 0.0)),
-    ).to(device)
+    *,
+    student_architecture_mode: str = "family_head",
+    residual_shared_family_id: int = 1,
+) -> torch.nn.Module:
+    student_architecture_mode = str(student_architecture_mode).lower()
+    validate_stage3_teacher_config(
+        teacher_config,
+        student_architecture_mode=student_architecture_mode,
+    )
+    student_config = dict(teacher_config)
+    student_config["output_dim"] = 2
+    student_config["architecture_mode"] = student_architecture_mode
+    student_config["n_families"] = int(student_config.get("n_families", 2))
+    student_config["family_head_dims"] = [int(x) for x in student_config.get("family_head_dims", [128])]
+    student_config["fallback_family_id"] = int(student_config.get("fallback_family_id", 1))
 
-    teacher_state = teacher_model.state_dict()
-    student_state = student.state_dict()
-    for key, value in teacher_state.items():
-        if key in student_state and student_state[key].shape == value.shape:
-            student_state[key] = value.clone()
-
-    final_weight_key = [k for k in student_state if k.endswith("weight")][-1]
-    final_bias_key = [k for k in student_state if k.endswith("bias")][-1]
-    student_state[final_weight_key][:2] = teacher_state[final_weight_key]
-    student_state[final_bias_key][:2] = teacher_state[final_bias_key]
-    student_state[final_weight_key][2].zero_()
-    student_state[final_bias_key][2].zero_()
-    student.load_state_dict(student_state)
+    student = build_model(student_config).to(device)
+    if student_architecture_mode == str(teacher_config.get("architecture_mode", "single")).lower():
+        student.load_state_dict(teacher_model.state_dict(), strict=True)
+        return student
+    if student_architecture_mode == "residual_family_head":
+        mapped_state = family_head_state_dict_to_residual(
+            teacher_model.state_dict(),
+            student.state_dict(),
+            shared_family_id=int(residual_shared_family_id),
+        )
+        student.load_state_dict(mapped_state, strict=True)
+        return student
+    if student_architecture_mode in {"residual_film_last_block", "residual_film_all_blocks"}:
+        mapped_state = state_dict_to_residual_film(
+            teacher_model.state_dict(),
+            student.state_dict(),
+            source_architecture_mode=str(teacher_config.get("architecture_mode", "single")).lower(),
+            shared_family_id=int(residual_shared_family_id),
+        )
+        student.load_state_dict(mapped_state, strict=True)
+        return student
+    raise ValueError(f"Unsupported student_architecture_mode={student_architecture_mode!r}")
     return student
 
 
-def split_student_output(model_output: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    mu, log_var, onset_logit = torch.split(model_output, [1, 1, 1], dim=-1)
-    return mu, log_var, onset_logit
+def apply_trunk_freeze(
+    student: torch.nn.Module,
+    freeze: bool,
+    *,
+    unfreeze_last_blocks: int = 0,
+) -> bool:
+    """Freeze the shared trunk, optionally leaving its final blocks trainable.
+
+    The family-aware student warm-starts the trunk verbatim from the Stage-2
+    teacher. With the trunk trainable, raw-NLL gradients dominated by the
+    majority family (Nozzle1-8) drift the shared representation, which the
+    minority family-0 mu-head cannot track -> the KD term explodes and val
+    diverges. Freezing pins the trunk as a fixed feature extractor and lets the
+    per-family heads + shared log_var head refine on top of it.
+
+    Also switches the trunk to eval mode during training (see
+    run_refinement_epoch) so its Dropout layers do not inject noise into the
+    otherwise-frozen features. Returns True if a trunk was actually frozen.
+    """
+    if not freeze or not hasattr(student, "trunk"):
+        student._trunk_frozen = False  # type: ignore[attr-defined]
+        student._trunk_unfreeze_last_blocks = 0  # type: ignore[attr-defined]
+        return False
+    for p in student.trunk.parameters():
+        p.requires_grad_(False)
+    n_blocks = max(0, int(unfreeze_last_blocks))
+    if n_blocks > 0 and isinstance(student.trunk, torch.nn.Sequential):
+        children = list(student.trunk.children())
+        linear_idx = [i for i, module in enumerate(children) if isinstance(module, torch.nn.Linear)]
+        if linear_idx:
+            start = linear_idx[max(0, len(linear_idx) - n_blocks)]
+            for module in children[start:]:
+                for p in module.parameters():
+                    p.requires_grad_(True)
+    student._trunk_frozen = True  # type: ignore[attr-defined]
+    student._trunk_unfreeze_last_blocks = n_blocks  # type: ignore[attr-defined]
+    return True
+
+
+def apply_residual_shared_mu_freeze(student: torch.nn.Module, freeze: bool) -> bool:
+    """Freeze the residual model's shared mu head, leaving deltas trainable."""
+    if not freeze or not hasattr(student, "mu_shared_head"):
+        student._residual_shared_mu_frozen = False  # type: ignore[attr-defined]
+        return False
+    for p in student.mu_shared_head.parameters():
+        p.requires_grad_(False)
+    student._residual_shared_mu_frozen = True  # type: ignore[attr-defined]
+    return True
+
+
+def set_trainable_by_prefixes(
+    model: torch.nn.Module,
+    *,
+    trainable_prefixes: tuple[str, ...],
+) -> None:
+    """Enable gradients only for parameter names beginning with the prefixes."""
+    for name, param in model.named_parameters():
+        param.requires_grad_(any(name.startswith(prefix) for prefix in trainable_prefixes))
+
+
+def build_refinement_optimizer(
+    student: torch.nn.Module,
+    refine_config: dict,
+) -> torch.optim.Optimizer:
+    """AdamW over the student's trainable params (skips a frozen trunk)."""
+    trunk_lr = refine_config.get("trunk_learning_rate", None)
+    if trunk_lr is not None:
+        trunk_params = [
+            p for name, p in student.named_parameters()
+            if p.requires_grad and name.startswith("trunk.")
+        ]
+        head_params = [
+            p for name, p in student.named_parameters()
+            if p.requires_grad and not name.startswith("trunk.")
+        ]
+        groups = []
+        if head_params:
+            groups.append({"params": head_params, "lr": refine_config["learning_rate"]})
+        if trunk_params:
+            groups.append({"params": trunk_params, "lr": float(trunk_lr)})
+        if groups:
+            return torch.optim.AdamW(
+                groups,
+                lr=refine_config["learning_rate"],
+                weight_decay=refine_config["weight_decay"],
+            )
+
+    trainable = [p for p in student.parameters() if p.requires_grad]
+    return torch.optim.AdamW(
+        trainable,
+        lr=refine_config["learning_rate"],
+        weight_decay=refine_config["weight_decay"],
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Loss functions  (v2: operates in A-scaled space)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-def weighted_mean(values: torch.Tensor, weights: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
-    denom = weights.sum()
-    if float(denom.detach().cpu()) <= eps:
-        return values.new_tensor(0.0)
-    return (values * weights).sum() / denom
-
 
 def derivative_shape_penalty(
     mu_physical: torch.Tensor,
@@ -849,8 +1081,10 @@ def refinement_loss(
     *,
     config: dict,
     is_engineered_v2: bool,
+    student_model: torch.nn.Module | None = None,
+    flat_features: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict]:
-    mu_hat, log_var_hat, onset_logit = split_student_output(student_output)
+    mu_hat, log_var_hat = split_mu_logvar(student_output)
     log_var_hat = torch.clamp(log_var_hat, min=config["log_var_bounds"][0], max=config["log_var_bounds"][1])
 
     bsz, n_points, _ = mu_hat.shape
@@ -867,8 +1101,6 @@ def refinement_loss(
     raw_target = batch["raw_target"].unsqueeze(-1)  # physical mm
     raw_weight = batch["raw_weight"]
     kd_weight = batch["kd_weight"]
-    onset_target = batch["onset_target"]
-    onset_loss_mask = batch["onset_loss_mask"]
     anchor_weight = batch["anchor_weight"]
     time_ms = batch["time_ms"]
 
@@ -876,49 +1108,16 @@ def refinement_loss(
     raw_nll_point = 0.5 * (log_var_phys + (mu_phys - raw_target).pow(2) / var_phys)
     raw_loss = weighted_mean(raw_nll_point.squeeze(-1), raw_weight)
 
-    # KD loss in physical space (mode-selectable)
+    # KD loss in physical space — dispatch via KD_REGISTRY plugin
     kd_mode = str(config.get("kd_mode", "forward_kl"))
-    teacher_std_phys = torch.sqrt(teacher_var_phys)
-    if kd_mode == "mse_mu":
-        kd_point = (mu_phys - teacher_mu_phys).pow(2)
-        conf_weight = torch.ones_like(teacher_std_phys).squeeze(-1)
-        kd_loss = weighted_mean(kd_point.squeeze(-1), kd_weight)
-    elif kd_mode == "mse_mu_plus_sigma":
-        teacher_log_var_phys = torch.log(teacher_var_phys)
-        mu_term = (mu_phys - teacher_mu_phys).pow(2)
-        sigma_term = (log_var_phys - teacher_log_var_phys).pow(2)
-        lambda_sigma = float(config.get("kd_sigma_weight", 1.0))
-        kd_point = mu_term + lambda_sigma * sigma_term
-        conf_weight = torch.ones_like(teacher_std_phys).squeeze(-1)
-        kd_loss = weighted_mean(kd_point.squeeze(-1), kd_weight)
-    else:
-        if kd_mode == "reverse_kl":
-            # KL(student || teacher)
-            kl_point = 0.5 * (
-                torch.log(teacher_var_phys / var_phys)
-                + (var_phys + (mu_phys - teacher_mu_phys).pow(2)) / teacher_var_phys
-                - 1.0
-            )
-        else:
-            # forward_kl (default) and forward_kl_uniform_conf both use KL(teacher || student)
-            kl_point = 0.5 * (
-                torch.log(var_phys / teacher_var_phys)
-                + (teacher_var_phys + (teacher_mu_phys - mu_phys).pow(2)) / var_phys
-                - 1.0
-            )
-        if kd_mode == "forward_kl_uniform_conf":
-            conf_weight = torch.ones_like(teacher_std_phys).squeeze(-1)
-        else:
-            conf_weight = torch.clamp(
-                float(config["sigma_conf_ref_mm"]) / teacher_std_phys,
-                min=float(config.get("teacher_conf_weight_min", TEACHER_CONF_WEIGHT_MIN)),
-                max=float(config.get("teacher_conf_weight_max", TEACHER_CONF_WEIGHT_MAX)),
-            ).squeeze(-1)
-        kd_loss = weighted_mean(kl_point.squeeze(-1), kd_weight * conf_weight)
-
-    # Onset BCE
-    onset_bce = F.binary_cross_entropy_with_logits(onset_logit.squeeze(-1), onset_target, reduction="none")
-    onset_loss = weighted_mean(onset_bce, onset_loss_mask)
+    kd_loss, conf_weight = KD_REGISTRY[kd_mode](config)(
+        mu_phys=mu_phys,
+        log_var_phys=log_var_phys,
+        var_phys=var_phys,
+        teacher_mu_phys=teacher_mu_phys,
+        teacher_var_phys=teacher_var_phys,
+        kd_weight=kd_weight,
+    )
 
     # Anchor and shape penalties in physical space
     anchor_loss = weighted_mean(mu_phys.squeeze(-1).pow(2), anchor_weight)
@@ -930,23 +1129,40 @@ def refinement_loss(
         d2_transition_ms=config["d2_transition_ms"],
     )
 
+    delta_l2 = mu_hat.new_tensor(0.0)
+    delta_rms = mu_hat.new_tensor(0.0)
+    if student_model is not None and flat_features is not None and hasattr(student_model, "residual_delta_stats"):
+        delta_stats = student_model.residual_delta_stats(flat_features)
+        delta_l2 = delta_stats["delta_l2"]
+        delta_rms = delta_stats["delta_rms"]
+    film_l2 = mu_hat.new_tensor(0.0)
+    film_rms = mu_hat.new_tensor(0.0)
+    if student_model is not None and hasattr(student_model, "adapter_regularization_stats"):
+        film_stats = student_model.adapter_regularization_stats()
+        film_l2 = film_stats["film_l2"]
+        film_rms = film_stats["film_rms"]
+
     loss = (
         raw_loss
         + kd_loss
-        + float(config["lambda_onset"]) * onset_loss
         + float(config["lambda_anchor"]) * anchor_loss
         + float(config["d1_positive_weight"]) * d1_penalty
         + float(config["d2_concave_weight"]) * d2_penalty
+        + float(config.get("residual_delta_l2_weight", 0.0)) * delta_l2
+        + float(config.get("film_adapter_l2_weight", 0.0)) * film_l2
     )
 
     metrics = {
         "loss": float(loss.detach().cpu()),
         "raw_nll": float(raw_loss.detach().cpu()),
         "kd_kl": float(kd_loss.detach().cpu()),
-        "onset_bce": float(onset_loss.detach().cpu()),
         "anchor": float(anchor_loss.detach().cpu()),
         "d1_penalty": float(d1_penalty.detach().cpu()),
         "d2_penalty": float(d2_penalty.detach().cpu()),
+        "delta_l2": float(delta_l2.detach().cpu()),
+        "delta_rms_hat": float(delta_rms.detach().cpu()),
+        "film_l2": float(film_l2.detach().cpu()),
+        "film_rms_hat": float(film_rms.detach().cpu()),
         "teacher_conf_min": float(conf_weight.min().detach().cpu()),
         "teacher_conf_max": float(conf_weight.max().detach().cpu()),
     }
@@ -969,15 +1185,22 @@ def run_refinement_epoch(
 ) -> dict:
     is_train = optimizer is not None
     student_model.train(mode=is_train)
+    # A frozen trunk is a fixed feature extractor: keep it in eval mode even
+    # during training so its Dropout does not perturb the warm-started features.
+    if is_train and getattr(student_model, "_trunk_frozen", False) and hasattr(student_model, "trunk"):
+        student_model.trunk.eval()
 
     totals = {
         "loss": 0.0,
         "raw_nll": 0.0,
         "kd_kl": 0.0,
-        "onset_bce": 0.0,
         "anchor": 0.0,
         "d1_penalty": 0.0,
         "d2_penalty": 0.0,
+        "delta_l2": 0.0,
+        "delta_rms_hat": 0.0,
+        "film_l2": 0.0,
+        "film_rms_hat": 0.0,
     }
     total_sequences = 0
 
@@ -990,7 +1213,8 @@ def run_refinement_epoch(
         if is_train:
             optimizer.zero_grad(set_to_none=True)
 
-        student_out = student_model(features.reshape(batch_size * n_points, feat_dim)).reshape(batch_size, n_points, 3)
+        flat_features = features.reshape(batch_size * n_points, feat_dim)
+        student_out = student_model(flat_features).reshape(batch_size, n_points, 2)
         teacher_mu, teacher_log_var, teacher_var = compute_teacher_outputs(
             teacher_model,
             features,
@@ -1003,6 +1227,7 @@ def run_refinement_epoch(
         loss, metrics = refinement_loss(
             student_out, a_scale, teacher_mu, teacher_var, batch_device,
             config=config, is_engineered_v2=is_engineered_v2,
+            student_model=student_model, flat_features=flat_features,
         )
 
         if is_train:
@@ -1013,6 +1238,82 @@ def run_refinement_epoch(
         total_sequences += batch_size
         for key in totals:
             totals[key] += metrics[key] * batch_size
+
+    denom = max(total_sequences, 1)
+    return {key: value / denom for key, value in totals.items()}
+
+
+def run_residual_mimic_epoch(
+    student_model: torch.nn.Module,
+    teacher_model: torch.nn.Module,
+    dataloader: DataLoader,
+    *,
+    optimizer: torch.optim.Optimizer | None,
+    device: torch.device,
+    config: dict,
+    is_engineered_v2: bool,
+) -> dict[str, float]:
+    """Mimic the production teacher's mean with only residual deltas trainable."""
+    is_train = optimizer is not None
+    student_model.train(mode=is_train)
+    if hasattr(student_model, "trunk"):
+        student_model.trunk.eval()
+    if hasattr(student_model, "mu_shared_head"):
+        student_model.mu_shared_head.eval()
+    if hasattr(student_model, "log_var_head"):
+        student_model.log_var_head.eval()
+
+    totals = {
+        "loss": 0.0,
+        "mimic_mu_mse": 0.0,
+        "delta_l2": 0.0,
+        "delta_rms_hat": 0.0,
+    }
+    total_sequences = 0
+
+    for batch in dataloader:
+        batch_device = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+        features = batch_device["features"]
+        a_scale = batch_device["a_scale"]
+        batch_size, n_points, feat_dim = features.shape
+        flat_features = features.reshape(batch_size * n_points, feat_dim)
+
+        if is_train:
+            optimizer.zero_grad(set_to_none=True)
+
+        student_out = student_model(flat_features).reshape(batch_size, n_points, 2)
+        student_mu_hat, _ = split_mu_logvar(student_out)
+        teacher_mu, _, _ = compute_teacher_outputs(
+            teacher_model,
+            features,
+            a_scale,
+            log_var_bounds=config["log_var_bounds"],
+            nll_eps=config["nll_eps"],
+            std_clamp_min=float(config.get("std_clamp_min", 0.0)),
+            is_engineered_v2=is_engineered_v2,
+        )
+        if is_engineered_v2:
+            a = a_scale.reshape(batch_size, n_points, 1) if a_scale.ndim == 3 else a_scale.unsqueeze(-1)
+            student_mu = a * student_mu_hat
+        else:
+            student_mu = student_mu_hat
+
+        mimic_mu_mse = torch.mean((student_mu - teacher_mu).pow(2))
+        delta_stats = student_model.residual_delta_stats(flat_features)
+        delta_l2 = delta_stats["delta_l2"]
+        delta_rms = delta_stats["delta_rms"]
+        loss = mimic_mu_mse + float(config.get("residual_mimic_delta_l2_weight", config.get("residual_delta_l2_weight", 0.0))) * delta_l2
+
+        if is_train:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(student_model.parameters(), 1.0)
+            optimizer.step()
+
+        total_sequences += batch_size
+        totals["loss"] += float(loss.detach().cpu()) * batch_size
+        totals["mimic_mu_mse"] += float(mimic_mu_mse.detach().cpu()) * batch_size
+        totals["delta_l2"] += float(delta_l2.detach().cpu()) * batch_size
+        totals["delta_rms_hat"] += float(delta_rms.detach().cpu()) * batch_size
 
     denom = max(total_sequences, 1)
     return {key: value / denom for key, value in totals.items()}
@@ -1056,7 +1357,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--save-figures", action="store_true")
     p.add_argument("--seed", type=int, default=None,
                    help="Override seed inherited from Stage-2 train_config (controls split, init, dropout).")
-    p.add_argument("--run-name-prefix", default="distill_cdf_onset_v2",
+    p.add_argument("--run-name-prefix", default="distill_cdf_family_head_v3",
                    help="Prefix for the refinement run directory under MLP/runs_mlp.")
     p.add_argument("--ablation-name", default=None,
                    help="Optional label stored in refine_config.json.")
@@ -1067,15 +1368,9 @@ def parse_args() -> argparse.Namespace:
 
     loss_group = p.add_argument_group("Stage3 loss tuning")
     loss_group.add_argument("--lambda-anchor", type=float, default=None,
-                            help="Override early-time anchor loss weight. Default: 1e-2.")
+                            help="Override early-time anchor loss weight. Default: 0.0 (anchor-off).")
     loss_group.add_argument("--anchor-window-ms", type=float, default=None,
                             help="Override early-time anchor window length. Default: 0.15.")
-    loss_group.add_argument("--lambda-onset", type=float, default=None,
-                            help="Override onset BCE loss weight. Default: 0.1.")
-    loss_group.add_argument("--onset-ramp-ms", type=float, default=None,
-                            help="Override onset target ramp length. Default: 0.12.")
-    loss_group.add_argument("--onset-loss-window-ms", type=float, default=None,
-                            help="Override onset BCE time window. Default: 0.2.")
     loss_group.add_argument("--d1-positive-weight", type=float, default=None,
                             help="Override positive-slope penalty weight. Default: 5e-5.")
     loss_group.add_argument("--d2-concave-weight", type=float, default=None,
@@ -1122,14 +1417,48 @@ def parse_args() -> argparse.Namespace:
                             choices=("forward_kl", "reverse_kl", "mse_mu",
                                      "mse_mu_plus_sigma", "forward_kl_uniform_conf"),
                             default=None,
-                            help="KD loss form. forward_kl=KL(teacher||student) (default); "
+                            help="KD loss form. mse_mu_plus_sigma is the production default; "
+                                 "forward_kl=KL(teacher||student); "
                                  "reverse_kl=KL(student||teacher); mse_mu uses MSE on means and "
                                  "ignores variances; mse_mu_plus_sigma adds an MSE term on log-var "
                                  "weighted by --kd-sigma-weight; forward_kl_uniform_conf forces "
                                  "conf_weight=1.0 (disables sigma-based reweighting).")
     loss_group.add_argument("--kd-sigma-weight", type=float, default=None,
                             help="Lambda for the log-var MSE term when --kd-mode=mse_mu_plus_sigma. "
-                                 "Default 1.0.")
+                                 "Default 5.0.")
+    loss_group.add_argument("--student-architecture-mode",
+                            choices=("family_head", "residual_family_head",
+                                     "residual_film_last_block", "residual_film_all_blocks"),
+                            default="family_head",
+                            help="Student architecture. residual_family_head converts a family-head teacher "
+                                 "into shared-mu + per-family residual deltas. residual_film_* additionally "
+                                 "inserts identity-initialized per-family FiLM adapters into the MLP trunk.")
+    loss_group.add_argument("--residual-shared-family-id", type=int, default=1,
+                            help="Family head to copy into the residual model's shared mu head.")
+    loss_group.add_argument("--residual-delta-l2-weight", type=float, default=None,
+                            help="Shrinkage weight on residual delta predictions in Stage-3 refinement.")
+    loss_group.add_argument("--film-adapter-l2-weight", type=float, default=None,
+                            help="Shrinkage weight that keeps residual-FiLM adapters near identity "
+                                 "((gamma-1)^2 + beta^2).")
+    loss_group.add_argument("--residual-mimic-epochs", type=int, default=None,
+                            help="Pre-refinement epochs that train only residual deltas to mimic the teacher mean.")
+    loss_group.add_argument("--residual-mimic-delta-l2-weight", type=float, default=None,
+                            help="Optional delta shrinkage weight during mimic warm-up. Defaults to residual_delta_l2_weight.")
+    loss_group.add_argument("--freeze-residual-shared-mu", action="store_true", default=False,
+                            help="Freeze mu_shared_head for residual-family-head refinement.")
+    loss_group.add_argument("--freeze-trunk", action="store_true", default=False,
+                            help="Freeze the warm-started shared trunk during Stage-3 "
+                                 "refinement (family_head only); only the per-family mu-heads "
+                                 "and shared log_var head are trained. Stabilises KD when the "
+                                 "minority family-0 head cannot track a trunk drifting under "
+                                 "majority-family raw-NLL gradients.")
+    loss_group.add_argument("--unfreeze-trunk-last-blocks", type=int, default=None,
+                            help="When freezing the trunk, keep the last N Linear blocks "
+                                 "trainable. Use with a small --trunk-learning-rate for "
+                                 "partial shared-representation adaptation.")
+    loss_group.add_argument("--trunk-learning-rate", type=float, default=None,
+                            help="Optional learning rate for trainable trunk parameters. "
+                                 "Head parameters still use --learning-rate.")
     loss_group.add_argument("--drop-above-cap-fraction", type=float, default=None,
                             help="If > 0, drop discrete raw points with pen_mm > fraction * "
                                  "cap_per_experiment from supervised training (eval still uses "
@@ -1141,8 +1470,17 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--skip-post-train-eval", action="store_true",
                    help="Skip automatic RMSE inference evaluation after training.")
+    p.add_argument("--skip-post-train-calibration", action="store_true",
+                   help="Skip the calibration/coverage audit step run after the "
+                        "automatic RMSE evaluation. (RMSE eval still runs unless "
+                        "--skip-post-train-eval is also set.)")
+    p.add_argument("--eval-kind", choices=("point_tables", "series"), default="point_tables",
+                   help="Automatic post-training eval protocol. point_tables uses "
+                        "uncensored CDF/P50/Q1 point tables; series is the legacy "
+                        "series_wide clean/all evaluator.")
     p.add_argument("--eval-split", choices=("clean", "all"), default="clean",
-                   help="series_wide split for automatic post-training RMSE evaluation.")
+                   help="series_wide split for automatic post-training RMSE evaluation "
+                        "when --eval-kind=series.")
     p.add_argument("--eval-t-min-ms", type=float, default=0.0)
     p.add_argument("--eval-t-max-ms", type=float, default=5.0)
     p.add_argument("--eval-rel-err-floor-mm", type=float, default=5.0)
@@ -1172,7 +1510,7 @@ def set_global_seed(seed: int) -> None:
 def sanitize_run_name(text: str) -> str:
     """Keep run directory names portable across Windows and WSL."""
     cleaned = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in str(text).strip())
-    return cleaned.strip("_") or "distill_cdf_onset_v2"
+    return cleaned.strip("_") or "distill_cdf_family_head_v3"
 
 
 def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
@@ -1182,9 +1520,6 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
     scalar_map = {
         "lambda_anchor": args.lambda_anchor,
         "anchor_window_ms": args.anchor_window_ms,
-        "lambda_onset": args.lambda_onset,
-        "onset_ramp_ms": args.onset_ramp_ms,
-        "onset_loss_window_ms": args.onset_loss_window_ms,
         "d1_positive_weight": args.d1_positive_weight,
         "d2_concave_weight": args.d2_concave_weight,
         "d2_start_ms": args.d2_start_ms,
@@ -1202,6 +1537,9 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
         "time_bin_weight_max": args.time_bin_weight_max,
         "drop_above_cap_fraction": args.drop_above_cap_fraction,
         "kd_sigma_weight": args.kd_sigma_weight,
+        "residual_delta_l2_weight": args.residual_delta_l2_weight,
+        "residual_mimic_delta_l2_weight": args.residual_mimic_delta_l2_weight,
+        "film_adapter_l2_weight": args.film_adapter_l2_weight,
     }
     for key, value in scalar_map.items():
         if value is not None:
@@ -1238,6 +1576,19 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
     if args.precompute_dataset is not None:
         refine_config["precompute_dataset"] = bool(args.precompute_dataset)
         overrides["precompute_dataset"] = bool(args.precompute_dataset)
+    if getattr(args, "freeze_trunk", False):
+        refine_config["freeze_trunk"] = True
+        overrides["freeze_trunk"] = True
+    if args.unfreeze_trunk_last_blocks is not None:
+        n_blocks = max(0, int(args.unfreeze_trunk_last_blocks))
+        refine_config["unfreeze_trunk_last_blocks"] = n_blocks
+        overrides["unfreeze_trunk_last_blocks"] = n_blocks
+        if n_blocks > 0:
+            refine_config["freeze_trunk"] = True
+            overrides["freeze_trunk"] = True
+    if args.trunk_learning_rate is not None:
+        refine_config["trunk_learning_rate"] = float(args.trunk_learning_rate)
+        overrides["trunk_learning_rate"] = float(args.trunk_learning_rate)
 
     if any(value is not None for value in (args.regime_bin_ms, args.regime_time_max_ms)):
         refine_config["n_regime_bins"] = compute_n_regime_bins(
@@ -1262,6 +1613,16 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
     if getattr(args, "kd_mode", None) is not None:
         refine_config["kd_mode"] = str(args.kd_mode)
         overrides["kd_mode"] = str(args.kd_mode)
+    refine_config["student_architecture_mode"] = str(args.student_architecture_mode)
+    overrides["student_architecture_mode"] = str(args.student_architecture_mode)
+    refine_config["residual_shared_family_id"] = int(args.residual_shared_family_id)
+    overrides["residual_shared_family_id"] = int(args.residual_shared_family_id)
+    if args.residual_mimic_epochs is not None:
+        refine_config["residual_mimic_epochs"] = max(0, int(args.residual_mimic_epochs))
+        overrides["residual_mimic_epochs"] = max(0, int(args.residual_mimic_epochs))
+    if getattr(args, "freeze_residual_shared_mu", False):
+        refine_config["freeze_residual_shared_mu"] = True
+        overrides["freeze_residual_shared_mu"] = True
 
     refine_config["run_name_prefix"] = sanitize_run_name(args.run_name_prefix)
     if args.ablation_name:
@@ -1295,6 +1656,18 @@ def validate_refine_config(refine_config: dict[str, Any]) -> None:
         )
     if int(refine_config.get("num_workers", 0)) < 0:
         raise ValueError(f"num_workers must be >= 0, got {refine_config['num_workers']}.")
+    if str(refine_config.get("student_architecture_mode", "family_head")) not in {"family_head", *RESIDUAL_STUDENT_ARCHES}:
+        raise ValueError(
+            "student_architecture_mode must be 'family_head' or one of "
+            f"{sorted(RESIDUAL_STUDENT_ARCHES)}, "
+            f"got {refine_config.get('student_architecture_mode')!r}."
+        )
+    if float(refine_config.get("residual_delta_l2_weight", 0.0)) < 0:
+        raise ValueError("residual_delta_l2_weight must be >= 0.")
+    if float(refine_config.get("film_adapter_l2_weight", 0.0)) < 0:
+        raise ValueError("film_adapter_l2_weight must be >= 0.")
+    if int(refine_config.get("residual_mimic_epochs", 0)) < 0:
+        raise ValueError("residual_mimic_epochs must be >= 0.")
     validate_regime_config(refine_config)
 
 
@@ -1304,39 +1677,55 @@ def run_post_training_rmse_eval(
     device: torch.device,
     args: argparse.Namespace,
 ) -> None:
-    """Run the same RMSE analysis as MLP/eval after training."""
-    from MLP.eval.inference_rmse_on_series import run_rmse_evaluation
+    """Run the same RMSE analysis as MLP/eval after training, plus calibration audit."""
+    from MLP.MLP_training.post_eval_hooks import run_default_post_eval
 
-    eval_tag = args.eval_tag or run_dir_refine.name
-    print()
-    print("Running automatic post-training RMSE evaluation...")
-    out_dir, summary = run_rmse_evaluation(
-        refinement_run=run_dir_refine,
-        split=args.eval_split,
+    save_points = True if args.eval_save_points is None else bool(args.eval_save_points)
+    save_plots = True if args.eval_save_plots is None else bool(args.eval_save_plots)
+
+    result = run_default_post_eval(
+        run_dir=run_dir_refine,
         device=device,
+        eval_kind=args.eval_kind,
+        split=args.eval_split,
+        filter_experiment=args.lono_holdout,
         synthetic_root=SYNTHETIC_ROOT,
         t_min_ms=float(args.eval_t_min_ms),
         t_max_ms=float(args.eval_t_max_ms),
         rel_err_floor_mm=float(args.eval_rel_err_floor_mm),
         output_root=args.eval_output_root,
-        tag=eval_tag,
+        tag=args.eval_tag,
         batch_points=int(args.eval_batch_points),
         fast=bool(args.eval_fast),
-        save_points=args.eval_save_points,
-        save_plots=args.eval_save_plots,
+        save_points=save_points,
+        save_plots=save_plots,
         max_traj_plots=args.eval_max_traj_plots,
+        run_calibration=not bool(getattr(args, "skip_post_train_calibration", False)),
     )
     pointer = {
-        "eval_output_dir": str(out_dir),
-        "metrics_summary": str(out_dir / "metrics_summary.json"),
+        "eval_output_dir": str(result.eval_dir),
+        "metrics_summary": str(result.eval_dir / "metrics_summary.json"),
+        "eval_kind": result.rmse_summary.get("eval_kind", args.eval_kind),
+        "primary_eval_set": result.rmse_summary.get("primary_eval_set"),
+        "filter_experiment": args.lono_holdout,
         "split": args.eval_split,
-        "overall": summary.get("overall", {}),
+        "overall": result.rmse_summary.get("overall", {}),
+        "eval_sets": {
+            name: {
+                "overall": payload.get("overall", {}),
+                "probabilistic": payload.get("probabilistic"),
+                "outputs": payload.get("outputs", {}),
+            }
+            for name, payload in (result.rmse_summary.get("eval_sets") or {}).items()
+        },
+        "calibration_summary": result.calibration_summary,
+        "probabilistic_summaries": result.probabilistic_summaries,
+        "figure_summary": result.figure_summary,
     }
     (run_dir_refine / "post_train_rmse_eval.json").write_text(
         json.dumps(pointer, indent=2, default=str),
         encoding="utf-8",
     )
-    print("Post-training RMSE evaluation saved to:", out_dir)
 
 
 def main() -> None:
@@ -1354,6 +1743,10 @@ def main() -> None:
     train_config = artifacts.train_config
     scaler_state = artifacts.scaler_state
     teacher_model = artifacts.model
+    validate_stage3_teacher_config(
+        train_config,
+        student_architecture_mode=str(args.student_architecture_mode),
+    )
     teacher_model.eval()
 
     feature_columns = list(train_config["feature_columns"])
@@ -1461,14 +1854,11 @@ def main() -> None:
         "log_var_bounds": tuple(train_config.get("log_var_bounds", (-10.0, 6.0))),
         "nll_eps": float(train_config.get("nll_eps", 1e-12)),
         "std_clamp_min": float(train_config.get("std_clamp_min", 1e-3)),
-        "lambda_onset": 0.1,
-        "lambda_anchor": 1e-2,
+        "lambda_anchor": 0.0,
         "d1_positive_weight": 5e-5,
         "d2_concave_weight": 5e-4,
         "d2_start_ms": 0.5,
         "d2_transition_ms": 0.05,
-        "onset_ramp_ms": 0.12,
-        "onset_loss_window_ms": 0.2,
         "anchor_window_ms": 0.15,
         "sigma_conf_ref_mm": 10.0,
         "teacher_conf_weight_min": TEACHER_CONF_WEIGHT_MIN,
@@ -1476,8 +1866,18 @@ def main() -> None:
         "raw_weights": {"raw_reliable": 1.0, "raw_uncertain": 0.0, "teacher_only": 0.0},
         "kd_weights": {"raw_reliable": 0.25, "raw_uncertain": 1.0, "teacher_only": 0.75},
         "drop_above_cap_fraction": 0.0,
-        "kd_mode": "forward_kl",
-        "kd_sigma_weight": 1.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "student_architecture_mode": "family_head",
+        "residual_shared_family_id": 1,
+        "residual_delta_l2_weight": 0.0,
+        "residual_mimic_epochs": 0,
+        "residual_mimic_delta_l2_weight": 0.0,
+        "film_adapter_l2_weight": 0.0,
+        "freeze_residual_shared_mu": False,
+        "freeze_trunk": False,
+        "unfreeze_trunk_last_blocks": 0,
+        "trunk_learning_rate": None,
         "runs_root": str(MLP_ROOT / "runs_mlp"),
         "synthetic_root": str(SYNTHETIC_ROOT),
         **regime_config,
@@ -1599,8 +1999,13 @@ def main() -> None:
         "test": len(dataset_refine_test),
     })
 
+    student_build_kwargs = {
+        "student_architecture_mode": str(refine_config.get("student_architecture_mode", "family_head")),
+        "residual_shared_family_id": int(refine_config.get("residual_shared_family_id", 1)),
+    }
+
     # ── static check ──
-    student_model = build_student_model_from_teacher(teacher_model, train_config, device)
+    student_model = build_student_model_from_teacher(teacher_model, train_config, device, **student_build_kwargs)
     student_model.eval()
 
     refine_first_batch = next(iter(train_loader_refine))
@@ -1608,7 +2013,7 @@ def main() -> None:
     refine_a_scale = refine_first_batch["a_scale"].to(device)
 
     with torch.no_grad():
-        refine_student_out = student_model(refine_features.reshape(-1, refine_features.shape[-1])).reshape(refine_features.shape[0], refine_features.shape[1], 3)
+        refine_student_out = student_model(refine_features.reshape(-1, refine_features.shape[-1])).reshape(refine_features.shape[0], refine_features.shape[1], 2)
         refine_teacher_mu, _, refine_teacher_var = compute_teacher_outputs(
             teacher_model,
             refine_features,
@@ -1627,9 +2032,11 @@ def main() -> None:
         {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in refine_first_batch.items()},
         config=refine_config,
         is_engineered_v2=is_engineered_v2,
+        student_model=student_model,
+        flat_features=refine_features.reshape(-1, refine_features.shape[-1]),
     )
 
-    assert refine_student_out.shape[-1] == 3, "Student output must be [B, T, 3]."
+    assert refine_student_out.shape[-1] == 2, "Student output must be [B, T, 2]."
     assert np.isfinite(refine_metrics["loss"]), "Refinement loss must be finite."
     print("Static refinement checks passed.")
     print("student output shape:", tuple(refine_student_out.shape))
@@ -1641,18 +2048,26 @@ def main() -> None:
     dataset_tiny = CDFRefinementSequenceDataset(df_tiny, **ds_kwargs)
     loader_tiny = DataLoader(dataset_tiny, batch_size=len(dataset_tiny), shuffle=False)
 
-    tiny_model = build_student_model_from_teacher(teacher_model, train_config, device)
-    tiny_optimizer = torch.optim.AdamW(tiny_model.parameters(), lr=refine_config["learning_rate"], weight_decay=refine_config["weight_decay"])
+    tiny_model = build_student_model_from_teacher(teacher_model, train_config, device, **student_build_kwargs)
+    tiny_frozen = apply_trunk_freeze(
+        tiny_model,
+        bool(refine_config.get("freeze_trunk", False)),
+        unfreeze_last_blocks=int(refine_config.get("unfreeze_trunk_last_blocks", 0) or 0),
+    )
+    apply_residual_shared_mu_freeze(tiny_model, bool(refine_config.get("freeze_residual_shared_mu", False)))
+    tiny_optimizer = build_refinement_optimizer(tiny_model, refine_config)
     tiny_batch = next(iter(loader_tiny))
     tiny_batch_device = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in tiny_batch.items()}
 
     overfit_history = []
     for step in range(30):
         tiny_model.train()
+        if tiny_frozen:
+            tiny_model.trunk.eval()
         tiny_optimizer.zero_grad(set_to_none=True)
         features = tiny_batch_device["features"]
         a_sc = tiny_batch_device["a_scale"]
-        student_out = tiny_model(features.reshape(-1, features.shape[-1])).reshape(features.shape[0], features.shape[1], 3)
+        student_out = tiny_model(features.reshape(-1, features.shape[-1])).reshape(features.shape[0], features.shape[1], 2)
         t_mu, _, t_var = compute_teacher_outputs(
             teacher_model, features, a_sc,
             log_var_bounds=refine_config["log_var_bounds"],
@@ -1663,6 +2078,7 @@ def main() -> None:
         loss, metrics = refinement_loss(
             student_out, a_sc, t_mu, t_var, tiny_batch_device,
             config=refine_config, is_engineered_v2=is_engineered_v2,
+            student_model=tiny_model, flat_features=features.reshape(-1, features.shape[-1]),
         )
         loss.backward()
         torch.nn.utils.clip_grad_norm_(tiny_model.parameters(), 1.0)
@@ -1676,12 +2092,26 @@ def main() -> None:
         return
 
     # ── full refinement training ──
-    student_model_full = build_student_model_from_teacher(teacher_model, train_config, device)
-    optimizer_full = torch.optim.AdamW(
-        student_model_full.parameters(),
-        lr=refine_config["learning_rate"],
-        weight_decay=refine_config["weight_decay"],
-    )
+    student_model_full = build_student_model_from_teacher(teacher_model, train_config, device, **student_build_kwargs)
+    if apply_trunk_freeze(
+        student_model_full,
+        bool(refine_config.get("freeze_trunk", False)),
+        unfreeze_last_blocks=int(refine_config.get("unfreeze_trunk_last_blocks", 0) or 0),
+    ):
+        n_frozen = sum(p.numel() for p in student_model_full.trunk.parameters() if not p.requires_grad)
+        n_unfrozen = sum(p.numel() for p in student_model_full.trunk.parameters() if p.requires_grad)
+        n_train = sum(p.numel() for p in student_model_full.parameters() if p.requires_grad)
+        print(
+            f"Trunk freeze policy: {n_frozen:,} trunk params fixed, "
+            f"{n_unfrozen:,} trunk params trainable, {n_train:,} total params trainable."
+        )
+    if apply_residual_shared_mu_freeze(
+        student_model_full,
+        bool(refine_config.get("freeze_residual_shared_mu", False)),
+    ):
+        n_shared = sum(p.numel() for p in student_model_full.mu_shared_head.parameters())
+        n_train = sum(p.numel() for p in student_model_full.parameters() if p.requires_grad)
+        print(f"Residual shared-mu freeze policy: {n_shared:,} params fixed, {n_train:,} total params trainable.")
 
     run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir_refine = Path(refine_config["runs_root"]) / f"{refine_config['run_name_prefix']}_{run_stamp}"
@@ -1692,11 +2122,85 @@ def main() -> None:
     cdf_labeled_df.to_csv(run_dir_refine / "cdf_plume_audit.csv", index=False)
     delay_report_df.to_csv(run_dir_refine / "cdf_delay_report.csv", index=False)
 
+    mimic_epochs = int(refine_config.get("residual_mimic_epochs", 0) or 0)
+    if mimic_epochs > 0:
+        if not hasattr(student_model_full, "delta_heads"):
+            raise ValueError("--residual-mimic-epochs requires a residual-family student architecture.")
+        set_trainable_by_prefixes(student_model_full, trainable_prefixes=("delta_heads.",))
+        mimic_optimizer = build_refinement_optimizer(student_model_full, refine_config)
+        mimic_history = []
+        for epoch in range(1, mimic_epochs + 1):
+            train_mimic = run_residual_mimic_epoch(
+                student_model_full, teacher_model, train_loader_refine,
+                optimizer=mimic_optimizer, device=device, config=refine_config,
+                is_engineered_v2=is_engineered_v2,
+            )
+            val_mimic = run_residual_mimic_epoch(
+                student_model_full, teacher_model, val_loader_refine,
+                optimizer=None, device=device, config=refine_config,
+                is_engineered_v2=is_engineered_v2,
+            )
+            mimic_history.append({
+                "epoch": epoch,
+                **{f"train_{k}": v for k, v in train_mimic.items()},
+                **{f"val_{k}": v for k, v in val_mimic.items()},
+            })
+            print(
+                f"mimic_epoch={epoch:03d} "
+                f"train_mse={train_mimic['mimic_mu_mse']:.6f} "
+                f"val_mse={val_mimic['mimic_mu_mse']:.6f} "
+                f"val_delta_rms={val_mimic['delta_rms_hat']:.6f}"
+            )
+        torch.save(student_model_full.state_dict(), run_dir_refine / "mimic_model_refinement.pt")
+        pd.DataFrame(mimic_history).to_csv(run_dir_refine / "mimic_epoch_loss.csv", index=False)
+
+        for param in student_model_full.parameters():
+            param.requires_grad_(True)
+        apply_trunk_freeze(
+            student_model_full,
+            bool(refine_config.get("freeze_trunk", False)),
+            unfreeze_last_blocks=int(refine_config.get("unfreeze_trunk_last_blocks", 0) or 0),
+        )
+        apply_residual_shared_mu_freeze(
+            student_model_full,
+            bool(refine_config.get("freeze_residual_shared_mu", False)),
+        )
+
+    optimizer_full = build_refinement_optimizer(student_model_full, refine_config)
+
     # Save train_config_used.json and scaler_state.json so load_run_artifacts works
     student_train_config = dict(train_config)
-    student_train_config["output_dim"] = 3
+    student_train_config["output_dim"] = 2
     student_train_config["stage"] = "refinement"
     student_train_config["teacher_run_dir"] = str(artifacts.run_dir)
+    student_train_config["architecture_mode"] = str(refine_config.get("student_architecture_mode", "family_head"))
+    student_train_config["n_families"] = int(train_config.get("n_families", 2))
+    student_train_config["family_head_dims"] = [int(x) for x in train_config.get("family_head_dims", [128])]
+    student_train_config["fallback_family_id"] = int(train_config.get("fallback_family_id", 1))
+    if str(student_train_config["architecture_mode"]) in RESIDUAL_STUDENT_ARCHES:
+        student_train_config["residual_shared_family_id"] = int(refine_config.get("residual_shared_family_id", 1))
+        student_train_config["residual_delta_l2_weight"] = float(refine_config.get("residual_delta_l2_weight", 0.0))
+        if str(student_train_config["architecture_mode"]) == "residual_film_last_block":
+            student_train_config["film_adapter_placement"] = "last_block"
+            student_train_config["film_adapter_l2_weight"] = float(refine_config.get("film_adapter_l2_weight", 0.0))
+        elif str(student_train_config["architecture_mode"]) == "residual_film_all_blocks":
+            student_train_config["film_adapter_placement"] = "all_blocks"
+            student_train_config["film_adapter_l2_weight"] = float(refine_config.get("film_adapter_l2_weight", 0.0))
+        if str(student_train_config["architecture_mode"]).startswith("residual_film"):
+            mapping_policy = (
+                "residual/family-head weights copied into residual layout; "
+                "FiLM adapters identity-init; optional delta-only mimic"
+            )
+        else:
+            mapping_policy = (
+                "trunk/log_var copied; mu_heads[shared_family_id] -> mu_shared_head; "
+                "delta_heads zero-init then optional mimic"
+            )
+        student_train_config["conversion_metadata"] = {
+            "source_run_dir": str(artifacts.run_dir),
+            "source_checkpoint": str(artifacts.model_path),
+            "mapping_policy": mapping_policy,
+        }
     (run_dir_refine / "train_config_used.json").write_text(json.dumps(student_train_config, indent=2, default=str), encoding="utf-8")
     (run_dir_refine / "scaler_state.json").write_text(json.dumps(scaler_state, indent=2, default=str), encoding="utf-8")
 

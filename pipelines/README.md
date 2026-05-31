@@ -35,7 +35,6 @@ Useful options:
 ```bash
 python pipelines/run_full.py \
   --input-root Mie_scattering_top_view_results \
-  --include-dualfit-audit \
   --allow-synthetic-population \
   --train-mode single \
   --device auto \
@@ -60,10 +59,6 @@ python pipelines/fit/run_fit_pipeline.py \
   --n-workers 0
 ```
 
-Add `--ablation-dual-fit` to create a side archive named
-`{fit_run_id}_dualfit` for the B.3 q1-vs-two-regime audit. The side archive is
-not promoted to `latest.txt`.
-
 For a small smoke test on a data machine:
 
 ```bash
@@ -81,7 +76,6 @@ Generated audit groups:
 - B.1 `scr_naive_hold_gap.py`: spatial-censoring and naive-hold gap summary.
 - D.2 `data_attrition_report.py`: raw-to-fit-to-train attrition cascade.
 - B.5 `raw_coverage_heatmap.py`: CDF/regime raw coverage heatmap.
-- B.3 `q1_vs_two_regime_comparison.py`: q1 model versus two-regime comparison.
 - E.1 `scr_ood_cross_audit.py`: spatial censoring crossed with OOD support.
 
 When raw data is absent but a fit archive exists, `--allow-synthetic-population`

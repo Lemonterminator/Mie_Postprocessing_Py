@@ -75,40 +75,62 @@ def build_calibration_tables(points_df: pd.DataFrame, *, n_bins: int = 10) -> tu
 
 
 def plot_calibration(by_sigma: pd.DataFrame, coverage_curve: pd.DataFrame, out_path: Path) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.2), dpi=170)
+    fig, axes = plt.subplots(1, 2, figsize=(11.8, 4.4), dpi=180)
+    fig.patch.set_facecolor("white")
 
     ax = axes[0]
-    ax.plot(
-        coverage_curve["nominal_gaussian_coverage"],
-        coverage_curve["empirical_coverage"],
-        marker="o",
-        color="#4c78a8",
-        label="empirical",
-    )
-    ax.plot([0, 1], [0, 1], color="black", linestyle="--", linewidth=1, label="ideal")
+    nominal = pd.to_numeric(coverage_curve["nominal_gaussian_coverage"], errors="coerce").to_numpy(dtype=float)
+    empirical = pd.to_numeric(coverage_curve["empirical_coverage"], errors="coerce").to_numpy(dtype=float)
+    ax.fill_between([0.0, 1.0], [0.0, 1.0], [1.0, 1.0], color="#59a14f", alpha=0.08, label="conservative")
+    ax.plot([0, 1], [0, 1], color="#222222", linestyle="--", linewidth=1.1, label="ideal")
+    ax.plot(nominal, empirical, marker="o", linewidth=2.0, color="#4c78a8", label="empirical")
     ax.set_xlabel("Nominal Gaussian central coverage")
-    ax.set_ylabel("Empirical coverage")
-    ax.set_title("Coverage reliability")
+    ax.set_ylabel("Empirical central coverage")
+    ax.set_title("Central-interval coverage")
     ax.set_xlim(0.35, 1.0)
-    ax.set_ylim(0.35, 1.0)
-    ax.grid(True, alpha=0.25)
-    ax.legend(loc="lower right", fontsize=8)
+    ax.set_ylim(0.35, 1.01)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True, alpha=0.22)
+    ax.legend(loc="lower right", fontsize=8, frameon=True)
 
     ax = axes[1]
-    x = np.arange(len(by_sigma))
-    ax.plot(x, by_sigma["mean_sigma_mm"], marker="o", label="mean predicted sigma")
-    ax.plot(x, by_sigma["mae_mm"], marker="s", label="MAE")
-    ax.bar(x, by_sigma["coverage_1sigma"], width=0.35, alpha=0.25, label="1 sigma coverage")
-    ax.axhline(0.6827, color="black", linestyle=":", linewidth=1)
+    x = np.arange(1, len(by_sigma) + 1)
+    mean_sigma = pd.to_numeric(by_sigma["mean_sigma_mm"], errors="coerce").to_numpy(dtype=float)
+    mae = pd.to_numeric(by_sigma["mae_mm"], errors="coerce").to_numpy(dtype=float)
+    cov1 = pd.to_numeric(by_sigma["coverage_1sigma"], errors="coerce").to_numpy(dtype=float)
+    cov2 = pd.to_numeric(by_sigma["coverage_2sigma"], errors="coerce").to_numpy(dtype=float)
+
+    sigma_line = ax.plot(x, mean_sigma, marker="o", linewidth=2.0, color="#4c78a8", label="mean predicted sigma [mm]")
+    mae_line = ax.plot(x, mae, marker="s", linewidth=2.0, color="#f28e2b", label="MAE [mm]")
     ax.set_xticks(x)
-    ax.set_xticklabels([str(i + 1) for i in x])
     ax.set_xlabel("Predicted-sigma quantile bin")
-    ax.set_title("Error scale by predicted sigma")
-    ax.grid(True, axis="y", alpha=0.25)
-    ax.legend(loc="best", fontsize=8)
+    ax.set_ylabel("Error scale [mm]")
+    ax.set_title("Sharpness, error, and coverage by sigma bin")
+    y_max = float(np.nanmax(np.concatenate([mean_sigma, mae]))) if len(by_sigma) else 1.0
+    ax.set_ylim(0.0, max(1.0, y_max * 1.12))
+    ax.grid(True, axis="y", alpha=0.22)
+
+    ax_cov = ax.twinx()
+    cov_bar = ax_cov.bar(x, cov1, width=0.52, alpha=0.26, color="#9ecae1", label="1-sigma coverage")
+    cov2_line = ax_cov.plot(x, cov2, marker="^", linewidth=1.7, color="#59a14f", label="2-sigma coverage")
+    nominal_line = ax_cov.axhline(0.682689, color="#525252", linestyle=":", linewidth=1.2, label="nominal 1-sigma")
+    ax_cov.set_ylim(0.0, 1.05)
+    ax_cov.set_ylabel("Empirical coverage")
+
+    handles = [*sigma_line, *mae_line, cov_bar, *cov2_line, nominal_line]
+    labels = [handle.get_label() for handle in handles]
+    ax.legend(
+        handles,
+        labels,
+        loc="center left",
+        bbox_to_anchor=(1.22, 0.5),
+        borderaxespad=0.0,
+        fontsize=7.5,
+        frameon=True,
+    )
 
     fig.tight_layout()
-    fig.savefig(out_path)
+    fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -126,7 +148,7 @@ def run_audit(
     out_dir = output_dir or (eval_dir / "calibration")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    points_df = pd.read_csv(points_path)
+    points_df = pd.read_csv(points_path, low_memory=False)
     by_sigma, coverage_curve = build_calibration_tables(points_df, n_bins=n_bins)
     by_sigma.to_csv(out_dir / "calibration_by_sigma_bin.csv", index=False)
     coverage_curve.to_csv(out_dir / "coverage_curve.csv", index=False)

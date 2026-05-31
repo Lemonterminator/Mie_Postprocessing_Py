@@ -1,0 +1,27 @@
+{
+  "source_cdf_rmse_mm": 4.685057505414157,
+  "source_p50_rmse_mm": 3.449484484892145,
+  "source_cdf_ece": 0.0491043517948613,
+  "winner": {
+    "kind": "residual_film",
+    "architecture_mode": "residual_film_last_block",
+    "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_residual_film_from_residual_fh_FROZEN_anchor_off_residual_film_last_block_film_1em04_delta_1em03_20260531_123345",
+    "eval_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\point_eval_20260531_123655_residual_film_film_1em04_delta_1em03\\per_run_metrics.csv",
+    "film_adapter_l2_weight": 0.0001,
+    "residual_delta_l2_weight": 0.001,
+    "returncode": 0,
+    "train_log": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_film_family_head_production_20260531_123024\\train_film_1em04_delta_1em03.log",
+    "eval_log": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_film_family_head_production_20260531_123024\\eval_film_1em04_delta_1em03.log",
+    "cdf_rmse_mm": 4.509576866333119,
+    "cdf_mae_mm": 3.0740467701936915,
+    "cdf_bias_mm": -0.1819344066927471,
+    "cdf_ece": 0.0403781356296383,
+    "cdf_crps": 2.24230899212305,
+    "p50_rmse_mm": 3.1661616100503984,
+    "q1_all_rmse_mm": 10.470435078651994,
+    "q1_observed_rmse_mm": 3.110154286581201,
+    "q1_extrapolated_rmse_mm": 11.264719671720494
+  },
+  "passed_primary_goal": true,
+  "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_film_family_head_production_20260531_123024\\residual_film_family_head_eval_summary.csv"
+}

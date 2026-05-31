@@ -1,211 +1,71 @@
+"""Stage-1 MSE curriculum training: learn a stable mean penetration trend.
+
+Curriculum rationale
+--------------------
+Each injection trajectory is represented by four fitted log-parameters
+(log_k_sqrt, log_k_quarter, log_t0, log_s) from a 1D sigmoid-blended
+spray model:
+
+    S(t) = (1 - w(t)) * k_sqrt * sqrt(t)  +  w(t) * k_quarter * t^0.25
+    w(t) = sigmoid((t - t0) / s)
+
+Stage-1 trains on *representative* rows — one row per unique operating
+condition selected by proximity to the group median penetration at 5 ms.
+Using 5 ms (far-time) instead of an earlier timestamp reduces sensitivity
+to transient noise when picking the "average" trajectory.
+
+The representative-row strategy deliberately produces a *balanced* view
+of condition space: each operating condition contributes exactly one sample
+regardless of how many raw repeated measurements were taken. This keeps the
+Stage-1 optimiser from overweighting densely sampled conditions.
+
+Architecture: 2 output heads (mu, log_var).
+At Stage-1 only the mu head is meaningfully supervised. The log_var head is
+regularised toward a prior (var_reg_weight) rather than trained on variance
+data, because representative median rows do not provide heteroscedastic
+supervision signal. This keeps the output interface compatible with Stage-2
+NLL fine-tuning without introducing unstable early variance learning.
+
+Feature scaling strategy
+------------------------
+Unscaled inputs produce a flat-ellipse loss landscape that impedes gradient
+descent. Chosen scheme:
+- Time: fixed min-max over [0, 5] ms  →  time_norm in [0, 1].
+- Pressures: log(P_inj), log(P_ch), log(ΔP).  Log-scaling compresses the
+  order-of-magnitude range and preserves the physically relevant ratios.
+- Other continuous inputs (tilt, plumes, diameter, duration, backpressure):
+  z-score fitted on the training split only; scaler_state is saved and
+  reused at Stage-2 and inference without refit.
+
+Loss terms
+----------
+    L = MSE(mu, y)
+      + λ_var * ||log_var - prior||²       # anchor variance head
+      + λ_d1 * max(0, -dmu/dt)²            # monotonicity: S non-decreasing
+      + λ_d2 * max(0,  d²mu/dt²)² * gate   # concavity after d2_start_ms
+
+The d2 gate is a soft sigmoid that activates after ~0.5 ms, allowing
+physically plausible early-time acceleration while enforcing decelerating
+growth at later times.
+
+Note: training loss typically exceeds validation loss because (1) dropout
+is active during training, (2) training trajectories span more extreme
+conditions due to random splitting, and (3) penalty terms are included in
+the reported training figure but not in the test figure.
+
+Entry point: python MLP/MLP_training/train_stage1_mse.py
+"""
+
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
-
-import numpy as np
-import pandas as pd
-import torch
 
 if __package__ in {None, ""}:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from engineered_feature_common import (
-    DEFAULT_STAGE1_CONFIG,
-    FEATURE_COLUMNS_BY_VARIANT,
-    build_all_stage_tables,
-    build_dataset_registry,
-    build_model,
-    build_variant_feature_table,
-    create_run_dir,
-    make_dataloaders,
-    merge_config,
-    plot_loss_curves,
-    save_training_outputs,
-    assign_splits_by_group,
-    assign_splits_leave_one_out,
-    train_with_early_stopping,
-    variant_a_scale_dp_exp,
-    variant_target_scale_mode,
-)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train Stage-1 MSE on A-scaled penetration.")
-    parser.add_argument("--variant", choices=tuple(FEATURE_COLUMNS_BY_VARIANT.keys()), default="a_only")
-    parser.add_argument("--data-dir", type=str, default=DEFAULT_STAGE1_CONFIG["data_dir"])
-    parser.add_argument("--runs-root", type=str, default=DEFAULT_STAGE1_CONFIG["runs_root"])
-    parser.add_argument("--test-matrix-root", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=None)
-    parser.add_argument("--batch-size", type=int, default=None)
-    parser.add_argument("--n-points", type=int, default=None)
-    parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--learning-rate", type=float, default=None)
-    parser.add_argument("--weight-decay", type=float, default=None)
-    parser.add_argument("--max-curves", type=int, default=None)
-    parser.add_argument("--seed", type=int, default=None,
-                        help="Override config seed (controls split assignment and torch RNG).")
-    parser.add_argument("--allow-failed-precheck", action="store_true")
-    parser.add_argument("--no-shuffle", action="store_true")
-    parser.add_argument("--lono-holdout", type=str, default=None,
-                        help="If set, hold out experiment_name=<value> as test; "
-                             "use leave-one-nozzle-out split.")
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-    overrides = {
-        "variant": args.variant,
-        "data_dir": str(Path(args.data_dir).expanduser().resolve()),
-        "runs_root": str(Path(args.runs_root).expanduser().resolve()),
-        "max_curves": args.max_curves,
-    }
-    if args.epochs is not None:
-        overrides["epochs"] = int(args.epochs)
-    if args.batch_size is not None:
-        overrides["batch_size"] = int(args.batch_size)
-    if args.n_points is not None:
-        overrides["n_points"] = int(args.n_points)
-    if args.device is not None:
-        overrides["device"] = str(args.device)
-    if args.learning_rate is not None:
-        overrides["learning_rate"] = float(args.learning_rate)
-    if args.weight_decay is not None:
-        overrides["weight_decay"] = float(args.weight_decay)
-    if args.seed is not None:
-        overrides["seed"] = int(args.seed)
-    if args.allow_failed_precheck:
-        overrides["allow_failed_precheck"] = True
-    if args.no_shuffle:
-        overrides["shuffle_train"] = False
-
-    config = merge_config(DEFAULT_STAGE1_CONFIG, overrides)
-    seed = int(config["seed"])
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-    device = torch.device(config["device"])
-    registry = build_dataset_registry(Path(args.test_matrix_root).expanduser().resolve() if args.test_matrix_root else None)
-    run_dir = create_run_dir(config["runs_root"], "stage1_engineered_mse", config["variant"])
-    a_scale_dp_exp = variant_a_scale_dp_exp(config["variant"])
-    target_scale_mode = variant_target_scale_mode(config["variant"])
-
-    stage_tables = build_all_stage_tables(
-        config["data_dir"],
-        registry,
-        comparison_time_s=float(config["comparison_time_s"]),
-        max_curves=config.get("max_curves"),
-        output_dir=run_dir,
-        a_scale_delta_pressure_exp=a_scale_dp_exp,
-    )
-    if (
-        target_scale_mode != "none"
-        and not stage_tables.representative_precheck["passed"]
-        and not bool(config.get("allow_failed_precheck", False))
-    ):
-        raise RuntimeError(
-            "Pretrain collapse check failed. Re-run with --allow-failed-precheck to override."
-        )
-
-    if args.lono_holdout is not None:
-        representative_df = assign_splits_leave_one_out(
-            stage_tables.representative,
-            holdout_value=args.lono_holdout,
-            holdout_column="experiment_name",
-            val_ratio=float(config["val_ratio"]),
-            seed=int(config["seed"]),
-        )
-    else:
-        representative_df = assign_splits_by_group(
-            stage_tables.representative,
-            val_ratio=float(config["val_ratio"]),
-            test_ratio=float(config["test_ratio"]),
-            seed=int(config["seed"]),
-        )
-    row_table, scaler_state, feature_columns = build_variant_feature_table(
-        representative_df,
-        variant=config["variant"],
-        time_min_ms=float(config["time_min_ms"]),
-        time_max_ms=float(config["time_max_ms"]),
-    )
-    config["feature_columns"] = feature_columns
-    config["time_feature"] = feature_columns[0]
-    config["input_dim"] = len(feature_columns)
-    config["output_dim"] = 2
-    config["row_selection_mode"] = "representative"
-    config["target_scale_mode"] = target_scale_mode
-    config["a_scale_delta_pressure_exp"] = float(a_scale_dp_exp)
-
-    datasets, dataloaders = make_dataloaders(
-        row_table,
-        feature_columns=feature_columns,
-        batch_size=int(config["batch_size"]),
-        n_points=int(config["n_points"]),
-        time_min_ms=float(config["time_min_ms"]),
-        time_max_ms=float(config["time_max_ms"]),
-        shuffle_train=bool(config["shuffle_train"]),
-        num_workers=int(config["num_workers"]),
-    )
-    first_batch = next(iter(dataloaders["train"]))
-    print("Stage-1 representative row count:", len(row_table))
-    print("Split sizes:", {split: len(dataset) for split, dataset in datasets.items()})
-    print("Feature batch shape:", tuple(first_batch["features"].shape))
-    print("Target batch shape:", tuple(first_batch["target_scaled"].shape))
-    print("Precheck passed:", stage_tables.representative_precheck["passed"])
-
-    model = build_model(config).to(device)
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=float(config["learning_rate"]),
-        weight_decay=float(config["weight_decay"]),
-    )
-    objective_kwargs = {
-        "n_points": int(config["n_points"]),
-        "time_max_ms": float(config["time_max_ms"]),
-        "var_reg_weight": float(config["var_reg_weight"]),
-        "log_var_prior": float(config["log_var_prior"]),
-        "log_var_bounds": tuple(config["log_var_bounds"]),
-        "d1_positive_weight": float(config["d1_positive_weight"]),
-        "d2_concave_weight": float(config["d2_concave_weight"]),
-        "d2_start_ms": float(config["d2_start_ms"]),
-        "d2_transition_ms": float(config["d2_transition_ms"]),
-        "grad_clip_norm": float(config["grad_clip_norm"]) if config.get("grad_clip_norm") is not None else None,
-    }
-    model, iter_history, epoch_history = train_with_early_stopping(
-        model=model,
-        dataloaders=dataloaders,
-        device=device,
-        objective_name="stage1",
-        objective_kwargs=objective_kwargs,
-        epochs=int(config["epochs"]),
-        optimizer=optimizer,
-        patience=int(config["early_stopping_patience"]),
-        min_delta=float(config["early_stopping_min_delta"]),
-        log_every=int(config["log_interval"]),
-    )
-
-    save_training_outputs(
-        run_dir,
-        model=model,
-        checkpoint_name="best_model_stage1.pt",
-        train_config=config,
-        scaler_state=scaler_state,
-        row_table=row_table,
-        iter_history=iter_history,
-        epoch_history=epoch_history,
-        precheck_report=stage_tables.representative_precheck,
-    )
-    loss_curve_path = plot_loss_curves(epoch_history, run_dir, objective_name="stage1")
-
-    summary = epoch_history.loc[epoch_history["split"] == "test"].tail(1).to_dict(orient="records")
-    pd.DataFrame(summary).to_csv(run_dir / "test_summary.csv", index=False)
-    print("Saved run_dir:", run_dir)
-    print("Saved loss curves:", loss_curve_path)
-
+from trainers.stage1 import Stage1Trainer
 
 if __name__ == "__main__":
-    main()
+    Stage1Trainer().run()

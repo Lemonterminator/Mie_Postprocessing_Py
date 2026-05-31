@@ -1,0 +1,93 @@
+{
+  "_comment": "Tier-2A regime-boundary sweep. uncertain_ratio x teacher_ratio anchored at production default (0.7, 0.2). KD mode and sigma weight fixed at production winners (mse_mu_plus_sigma, 5.0); lambda_anchor=0 (anchor_off). See ablations/TIER2_REGIME_SIGMA_ONSET_PLAN.md section 3.",
+  "common": {
+    "teacher_run": "latest_stage2",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_fast": false,
+    "eval_save_points": true,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false,
+    "synthetic_root": "MLP/synthetic_data_20260509"
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "regime_default",
+      "enabled": true,
+      "run_name_prefix": "stage3_regime_default",
+      "args": {
+        "uncertain_ratio": 0.7,
+        "teacher_ratio": 0.2,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "regime_low_uncertain",
+      "enabled": true,
+      "run_name_prefix": "stage3_regime_low_uncertain",
+      "args": {
+        "uncertain_ratio": 0.5,
+        "teacher_ratio": 0.2,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "regime_low_teacher",
+      "enabled": true,
+      "run_name_prefix": "stage3_regime_low_teacher",
+      "args": {
+        "uncertain_ratio": 0.7,
+        "teacher_ratio": 0.1,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "regime_high_teacher",
+      "enabled": true,
+      "run_name_prefix": "stage3_regime_high_teacher",
+      "args": {
+        "uncertain_ratio": 0.7,
+        "teacher_ratio": 0.3,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "regime_high_uncertain",
+      "enabled": true,
+      "run_name_prefix": "stage3_regime_high_uncertain",
+      "args": {
+        "uncertain_ratio": 0.85,
+        "teacher_ratio": 0.2,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

@@ -1,6 +1,5 @@
 scr_gap_histogram: scr_naive_hold_gap_histogram.png
 data_attrition_sankey: data_attrition_sankey.png
 raw_coverage_heatmap: raw_coverage_heatmap_with_thresholds.png
-q1_two_regime_figure: q1_vs_two_regime_hardest.png
 scr_ood_plot: scr_ood_decile_summary.png
 alpha_sensitivity_figure: alpha_sensitivity_curves.png

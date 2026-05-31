@@ -29,7 +29,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-root", type=Path, default=None)
     parser.add_argument("--nozzle-filter", default=None)
     parser.add_argument("--n-workers", type=int, default=0)
-    parser.add_argument("--include-dualfit-audit", action="store_true")
     parser.add_argument("--allow-synthetic-population", action="store_true")
     parser.add_argument("--train-mode", choices=("single", "A", "B", "C"), default="single")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default=None)
@@ -76,8 +75,6 @@ def run(args: argparse.Namespace) -> None:
             fit_cmd.extend(["--input-root", str(args.input_root)])
         if args.nozzle_filter:
             fit_cmd.extend(["--nozzle-filter", args.nozzle_filter])
-        if args.include_dualfit_audit:
-            fit_cmd.append("--ablation-dual-fit")
         if args.dry_run:
             fit_cmd.append("--dry-run")
         _run(fit_cmd, dry_run=args.dry_run, continue_on_error=args.continue_on_error)
@@ -85,19 +82,13 @@ def run(args: argparse.Namespace) -> None:
         print("[full] skip fit")
 
     fit_run = None
-    dualfit_run = None
     if not args.dry_run:
         fit_run = resolve_latest(SYNTHETIC_DATA_RUNS)
-        maybe_dual = fit_run.parent / f"{fit_run.name}_dualfit"
-        if maybe_dual.exists():
-            dualfit_run = maybe_dual
 
     if "audit" not in skips:
         audit_cmd = [sys.executable, str(REPO_ROOT / "pipelines" / "audit" / "run_audit_pipeline.py")]
         if fit_run is not None:
             audit_cmd.extend(["--fit-run-dir", str(fit_run)])
-        if dualfit_run is not None:
-            audit_cmd.extend(["--dualfit-run-dir", str(dualfit_run)])
         if args.allow_synthetic_population:
             audit_cmd.append("--allow-synthetic-population")
         if args.continue_on_error:

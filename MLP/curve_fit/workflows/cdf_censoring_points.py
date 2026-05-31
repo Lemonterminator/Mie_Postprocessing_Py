@@ -62,6 +62,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--source", default=DEFAULT_SOURCE)
     p.add_argument("--split", choices=("clean", "all"), default=DEFAULT_SPLIT)
     p.add_argument("--out-dir", type=Path, default=None)
+    p.add_argument("--overwrite", action="store_true",
+                   help="Allow writing into an existing output directory.")
     p.add_argument("--dataset", action="append", dest="datasets",
                    help="Optional experiment_name filter. Can be passed multiple times.")
     p.add_argument("--folder", action="append", dest="folders",
@@ -888,8 +890,9 @@ def write_outputs(
     condition_plots: bool = True,
     max_condition_plots: int | None = None,
     condition_plot_progress_every: int = 100,
+    overwrite: bool = False,
 ) -> None:
-    out_dir.mkdir(parents=True, exist_ok=False)
+    out_dir.mkdir(parents=True, exist_ok=bool(overwrite))
     points = points.loc[:, ordered_columns(points)]
     points.to_csv(out_dir / "cdf_points_all.csv", index=False)
     points.loc[~points["is_right_censored"]].to_csv(out_dir / "cdf_points_uncensored.csv", index=False)
@@ -985,6 +988,7 @@ def run_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "condition_plots_requested": bool(args.plots and args.condition_plots),
         "max_condition_plots": None if args.max_condition_plots is None else int(args.max_condition_plots),
         "condition_plot_progress_every": int(args.condition_plot_progress_every),
+        "overwrite": bool(args.overwrite),
         "outputs": {
             "points_all": str(out_dir / "cdf_points_all.csv"),
             "points_uncensored": str(out_dir / "cdf_points_uncensored.csv"),
@@ -1005,6 +1009,7 @@ def run_from_args(args: argparse.Namespace) -> dict[str, Any]:
         condition_plots=bool(args.condition_plots),
         max_condition_plots=None if args.max_condition_plots is None else int(args.max_condition_plots),
         condition_plot_progress_every=int(args.condition_plot_progress_every),
+        overwrite=bool(args.overwrite),
     )
 
     result = {

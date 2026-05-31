@@ -1,0 +1,473 @@
+\documentclass[UTF8,aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usecolortheme{default}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage{colortbl}
+\usepackage{graphicx}
+
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\warn}[1]{\textcolor{red!65!black}{#1}}
+\newcommand{\bluenote}[1]{\textcolor{blue!65!black}{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\definecolor{winrow}{RGB}{220,240,220}
+\definecolor{softrow}{RGB}{232,242,255}
+
+\title[Residual Family Head]{Production Residual Family Head\\Warm-Start from Deployed Family-Head Model}
+\author{Mie Spray Postprocessing Project}
+\date{2026-05-30}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Message}
+\small
+\textbf{Claim:} converting the deployed family-aware Stage-3 model into a
+\emph{residual family head}
+\[
+  \mu(x,f) = \mu_{\rm shared}(h(x)) + \Delta_f(h(x))
+\]
+improves the production point-table metrics while preserving the deployment
+path for new injector families.
+
+\vspace{0.5em}
+\textbf{Best run:} \texttt{delta\_L2 = 1e-4}.\\
+\textbf{Primary metric:} CDF uncensored RMSE improves
+\good{5.056 $\to$ 4.631 mm}.\\
+\textbf{Secondary metrics:} P50 RMSE improves
+\good{3.931 $\to$ 3.395 mm}; CDF ECE improves
+\good{0.0708 $\to$ 0.0604}.
+
+\vspace{0.6em}
+\textbf{Output:}\\
+\scriptsize
+\texttt{MLP/runs\_mlp/residual\_family\_head\_production\_20260530\_225256/}\\
+\texttt{Thesis/slides/slides\_residual\_family\_head\_production/}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Experiment Contract}
+\small
+\begin{block}{Fixed production baseline}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Baseline run:
+        \texttt{distill\_cdf\_family\_head\_v3\_FROZEN\_anchor\_off\_20260529\_213346}
+  \item Feature contract: \texttt{a\_dp050\_plus\_pressures}
+  \item Evaluation: canonical point tables
+        (\texttt{cdf\_uncensored}, \texttt{p50\_observed}, \texttt{q1\_grid\_all})
+  \item Device: CUDA, seed inherited from the production run
+\end{itemize}
+\end{block}
+
+\vspace{0.4em}
+\begin{center}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabular}{@{}L{4.0cm}L{8.8cm}@{}}
+\toprule
+\textbf{Ablation} & \textbf{Values} \\
+\midrule
+Residual shrinkage & \texttt{0}, \texttt{1e-4}, \texttt{1e-3}, \texttt{1e-2} \\
+Mimic warm-up & 10 epochs, teacher is the deployed production model \\
+Refinement & 150 max epochs, patience 20, trunk frozen \\
+Trainable params & 49,923 params: residual deltas + shared log-var head \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Architecture: Residual Family Head}
+\small
+\begin{columns}[T]
+\column{0.52\textwidth}
+\textbf{Current family head}
+\[
+  \mu(x,f) = \mu_f(h(x))
+\]
+Each family owns the full mean decoder. A new family needs a fallback policy or
+a trained head.
+
+\vspace{0.5em}
+\textbf{Residual family head}
+\[
+  \mu(x,f) = \mu_{\rm shared}(h(x)) + \Delta_f(h(x))
+\]
+The shared mean is copied from the modified-family production head
+(\texttt{mu\_heads.1}); each residual head is zero-initialised.
+
+\column{0.44\textwidth}
+\begin{block}{Warm-start mapping}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item copy \texttt{trunk.*}
+  \item copy \texttt{log\_var\_head.*}
+  \item \texttt{mu\_heads.1} $\to$ \texttt{mu\_shared\_head}
+  \item \texttt{delta\_heads.*}: zero init, then KD mimic
+\end{itemize}
+\end{block}
+
+\begin{block}{Deployment property}
+An unseen family with zero residual naturally predicts
+\(\mu_{\rm shared}\); no hard-coded \texttt{fallback\_family\_id} is needed.
+\end{block}
+\end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Training Log Read}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{delta L2} & \textbf{mimic epochs} & \textbf{stop epoch} & \textbf{test loss} & \textbf{test delta RMS} \\
+\midrule
+0      & 10 & 104 & 2.074 & 0.816 \\
+1e-4   & 10 & 44  & 2.085 & 0.818 \\
+1e-3   & 10 & 110 & 2.070 & 0.813 \\
+1e-2   & 10 & 84  & 2.083 & 0.810 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.6em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item All four runs completed and early-stopped cleanly.
+  \item The mimic stage reduced the initial production-head mismatch before raw
+        refinement.
+  \item Delta magnitudes stayed tightly clustered (\(\mathrm{RMS}\approx0.81\)
+        in A-scaled space), so the shrinkage sweep mainly changes calibration
+        and tail behaviour, not gross residual size.
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Headline Metrics: Current vs Winner}
+\small
+\begin{center}
+\includegraphics[width=0.88\textwidth]{figs/production_rmse_comparison.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{Headline Metrics: Current vs Winner: Reading}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Model} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 obs RMSE} \\
+\midrule
+Current production & 5.056 & 0.0708 & 2.801 & 3.931 & 3.839 \\
+\rowcolor{winrow}
+Residual winner (1e-4) & \textbf{4.631} & \textbf{0.0604} & \textbf{2.382} & \textbf{3.395} & \textbf{3.242} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Shrinkage Sweep}
+\small
+\begin{center}
+\includegraphics[width=0.90\textwidth]{figs/delta_l2_sweep.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{Shrinkage Sweep: Reading}
+\small
+\begin{itemize}\setlength\itemsep{2pt}
+  \item All residual settings beat current production on CDF RMSE.
+  \item \texttt{1e-4} gives the best primary RMSE: \good{4.631 mm}.
+  \item Stronger shrinkage improves CDF ECE and Q1 extrapolated RMSE, but gives
+        back a small amount of primary CDF RMSE.
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{CDF Uncensored Delta vs Production}
+\small
+\begin{center}
+\includegraphics[width=0.84\textwidth]{figs/winner_cdf_deltas.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{CDF Uncensored Delta vs Production: Reading}
+\small
+\begin{block}{Reading}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Winner reduces CDF RMSE by \good{0.425 mm} and MAE by \good{0.425 mm}.
+  \item Bias moves closer to zero: \(+0.343 \to +0.180\) mm.
+  \item Calibration also improves: ECE \(0.0708 \to 0.0604\), CRPS \(2.801 \to 2.382\).
+\end{itemize}
+\end{block}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Verdict}
+\small
+\begin{enumerate}\setlength\itemsep{4pt}
+  \item The deployed production model can be hot-started into a residual family
+        head without retraining the trunk.
+  \item The best residual model beats current production on the primary metric:
+        CDF uncensored RMSE \good{5.056 $\to$ 4.631 mm}.
+  \item P50 and observed-window Q1 also improve substantially:
+        P50 \good{3.931 $\to$ 3.395 mm}; Q1 observed
+        \good{3.839 $\to$ 3.242 mm}.
+  \item Extrapolated Q1 is effectively flat for the winner
+        (11.295 $\to$ 11.307 mm); stronger shrinkage improves this tail
+        slightly at a small CDF-RMSE cost.
+  \item Next step: package the residual winner as the new candidate deployed
+        model, then run a seed check or a small new-family calibration simulation.
+\end{enumerate}
+
+\vspace{0.4em}
+\scriptsize
+\textbf{Artifacts:}
+\texttt{residual\_from\_prod\_eval\_summary.csv};
+\texttt{verdict.json};
+\texttt{figs/production\_rmse\_comparison.png};
+\texttt{figs/delta\_l2\_sweep.png};
+\texttt{figs/residual\_svgp\_context\_rmse\_comparison.png};
+\texttt{figs/residual\_svgp\_vs\_current\_best\_deltas.png}.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Addendum: Residual SVGP Follow-Up}
+\small
+\begin{block}{What changed}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Hot-started an additive residual multi-task SVGP from the deployed Stage-3 production checkpoint.
+  \item Family id stays out of the kernel feature vector; it only routes the per-family residual GP.
+  \item The winner is \texttt{delta\_L2 = 1e-4}; unseen families naturally fall back to the shared SVGP.
+\end{itemize}
+\end{block}
+
+\vspace{0.1em}
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Model} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 extrap RMSE} \\
+\midrule
+MLP residual FH & \texttt{1e-2} & 4.685 & 0.0491 & 2.368 & 3.449 & 11.248 \\
+\rowcolor{winrow}
+Residual SVGP & \texttt{1e-4} & \textbf{3.987} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{10.429} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.35em}
+\footnotesize
+Relative to the original SVGP baseline, the residual multitask winner also improves CDF uncensored RMSE from 4.193 mm to 3.987 mm.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Residual SVGP vs Current Best}
+\small
+\begin{center}
+\includegraphics[width=0.93\textwidth]{figs/residual\_svgp\_context\_rmse\_comparison.png}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Residual SVGP Sweep}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{4.8pt}
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+\textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 extrap RMSE} \\
+\midrule
+0      & 4.193 & --     & --    & 2.649 & 10.591 \\
+\rowcolor{winrow}
+1e-4   & \textbf{3.987} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{10.429} \\
+1e-3   & 4.011 & 0.0300 & 2.061 & 2.095 & 10.474 \\
+1e-2   & 4.038 & 0.0347 & 2.093 & 2.108 & 10.513 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.4em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item The sweep is narrow but stable: lower shrinkage gives the best CDF RMSE, while stronger shrinkage nudges calibration and tail extrapolation.
+  \item The selected checkpoint sits at the sweet spot for the current deployment question: best primary RMSE and best calibration on the evaluated tables.
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Next MLP-Only Ablation}
+\small
+\begin{block}{Recommended architecture: residual FiLM adapter}
+Move the family signal from only the output head into the hidden
+representation while preserving exact hot-start compatibility:
+\[
+  h_l' = \gamma_{g,l}\odot h_l + \beta_{g,l}, \qquad
+  \mu(x,g)=\mu_{\rm shared}(h_L')+\Delta_g(h_L')
+\]
+\end{block}
+
+\vspace{0.2em}
+\begin{itemize}\setlength\itemsep{3pt}
+  \item Identity init: \(\gamma_{g,l}=1\), \(\beta_{g,l}=0\), and
+        \(\Delta_g=0\), so the copied production model is unchanged at step 0.
+  \item Unknown family fallback: identity adapter plus zero residual gives the
+        shared predictor without a hard-coded fallback family.
+  \item MLP-specific question: does injector family change the representation
+        of \texttt{a\_dp050\_plus\_pressures}, not just the final mean offset?
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{MLP-Only Ablation Matrix}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.13}
+\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}L{3.1cm}L{3.0cm}L{4.2cm}L{3.2cm}@{}}
+\toprule
+\textbf{Mode} & \textbf{Placement} & \textbf{Trainable parts} & \textbf{Purpose} \\
+\midrule
+\rowcolor{winrow}
+\texttt{last-block FiLM} & final trunk block &
+FiLM + delta heads + log-var & smallest representation-level test \\
+\texttt{all-block FiLM} & every trunk block &
+FiLM + delta heads + log-var & pressure interactions by family \\
+\texttt{low-rank adapter} & final/all blocks &
+rank-4/8 adapter + heads & more expressive few-shot adapter \\
+\texttt{log-var residual} & uncertainty head &
+log-var residual only & calibration without mean-capacity change \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.45em}
+\footnotesize
+Start with \texttt{residual\_film\_last\_block}; target is to beat the latest
+MLP residual family-head CDF RMSE of 4.685 mm while keeping CDF ECE near 0.049.
+The detailed run matrix is stored in
+\texttt{mlp\_only\_architecture\_ablation\_candidates.csv}.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Residual-FiLM Production Result}
+\small
+\begin{block}{Completed production sweep}
+The planned MLP-only ablation was run on the production dataset, without LONO.
+The source was the latest residual family-head checkpoint
+(\texttt{delta\_L2 = 1e-2}); the inserted FiLM adapter was identity-initialized
+and placed after the final trunk block.
+\end{block}
+
+\vspace{0.15em}
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\textbf{Model} & \textbf{film L2} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 obs RMSE} \\
+\midrule
+Source residual FH & -- & \texttt{1e-2} & 4.685 & 0.0491 & 2.368 & 3.449 & 3.277 \\
+\rowcolor{winrow}
+Residual-FiLM & \texttt{1e-4} & \texttt{1e-3} & \textbf{4.510} & \textbf{0.0404} & \textbf{2.242} & \textbf{3.166} & \textbf{3.110} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.35em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item CDF RMSE improves by \good{0.176 mm}; P50 improves by \good{0.283 mm}.
+  \item Calibration improves as well: ECE \(0.0491 \to 0.0404\), CRPS \(2.368 \to 2.242\).
+  \item Q1 extrapolated is effectively flat: \(11.248 \to 11.265\) mm.
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Residual-FiLM Sweep}
+\small
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+\textbf{film L2} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{P50 RMSE} & \textbf{Q1 extrap RMSE} \\
+\midrule
+1e-4 & 1e-4 & 4.562 & \textbf{0.0367} & 3.247 & 11.274 \\
+\rowcolor{winrow}
+1e-4 & 1e-3 & \textbf{4.510} & 0.0404 & \textbf{3.166} & 11.265 \\
+1e-4 & 1e-2 & 4.554 & 0.0422 & 3.216 & 11.237 \\
+1e-3 & 1e-4 & 4.523 & 0.0410 & 3.183 & 11.238 \\
+1e-3 & 1e-3 & 4.574 & 0.0386 & 3.237 & 11.272 \\
+1e-3 & 1e-2 & 4.547 & 0.0426 & 3.209 & 11.243 \\
+1e-2 & 1e-4 & 4.525 & 0.0415 & 3.184 & 11.249 \\
+1e-2 & 1e-3 & 4.523 & 0.0427 & 3.174 & \textbf{11.216} \\
+1e-2 & 1e-2 & 4.523 & 0.0410 & 3.176 & 11.245 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.35em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item All nine residual-FiLM settings beat the source residual family head on CDF RMSE.
+  \item The best point-accuracy setting is lightly regularized FiLM plus medium delta shrinkage.
+  \item Stronger FiLM shrinkage is competitive and slightly helps Q1 extrapolation, but gives back CDF RMSE.
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Dataset QC-Gate Ablation}
+\small
+\begin{center}
+\includegraphics[width=0.94\textwidth]{figs/dataset_qc_gate_production_comparison.png}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Dataset QC-Gate Ablation: Reading}
+\small
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{3.8pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Model} & \textbf{Old CDF} & \textbf{Old ckpt on QC} & \textbf{QC retrain CDF} & \textbf{Old P50} & \textbf{Old ckpt on QC} & \textbf{QC retrain P50} \\
+\midrule
+Residual FH & 4.631 & \textbf{4.519} & 4.590 & 3.395 & \textbf{3.264} & 3.366 \\
+Residual-FiLM & 4.510 & 4.401 & \textbf{4.400} & 3.166 & \textbf{3.035} & 3.065 \\
+\rowcolor{winrow}
+Residual SVGP & 3.987 & 3.921 & \textbf{3.848} & 2.077 & 2.026 & \textbf{1.829} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.4em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item The QC-gated point tables improve all old checkpoints, so part of the
+        gain is target cleanup rather than retraining.
+  \item MLP retraining on the QC-gated root is neutral: residual FH regresses
+        relative to the old checkpoint on the same QC table; residual-FiLM is
+        effectively tied.
+  \item Residual SVGP gains beyond target cleanup: CDF RMSE \(3.921\to3.848\)
+        mm and P50 RMSE \(2.026\to1.829\) mm on the QC table.
+\end{itemize}
+
+\vspace{0.25em}
+\scriptsize
+\textbf{Artifact:}
+\texttt{dataset\_ablation\_qc\_gated/dataset\_qc\_gate\_production\_comparison.csv}.
+\end{frame}
+
+\end{document}

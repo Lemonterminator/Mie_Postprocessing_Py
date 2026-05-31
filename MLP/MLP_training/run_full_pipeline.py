@@ -43,9 +43,10 @@ from typing import Any, Mapping
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MLP_ROOT = PROJECT_ROOT / "MLP"
 TRAINING_ROOT = MLP_ROOT / "MLP_training"
+CONFIG_ROOT = TRAINING_ROOT / "config"
 RUNS_ROOT = MLP_ROOT / "runs_mlp"
 DEFAULT_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
-DEFAULT_CONFIG = TRAINING_ROOT / "full_pipeline_config.json"
+DEFAULT_CONFIG = CONFIG_ROOT / "full_pipeline_config.json"
 
 STAGE1_SCRIPT = TRAINING_ROOT / "train_stage1_mse.py"
 STAGE2_SCRIPT = TRAINING_ROOT / "train_stage2_nll.py"
@@ -589,7 +590,7 @@ def normalize_feature_ablations(config: Mapping[str, Any], cli_variant: str | No
 def normalize_stage2_ablations(config: Mapping[str, Any]) -> list[dict[str, Any]]:
     raw_items = config.get("stage2_ablations")
     if not raw_items:
-        return [{"name": "no_anchor", "args": {"stage2_ablation": "no_anchor"}}]
+        return [{"name": "mu_anchor", "args": {"stage2_ablation": "mu_anchor"}}]
     items: list[dict[str, Any]] = []
     for raw in raw_items:
         if isinstance(raw, str):
@@ -788,7 +789,12 @@ def parse_args() -> argparse.Namespace:
                    help="single (default, one seed); A: Stage3 reseeded; B: Stage2+3 reseeded; C: full reseeded.")
     p.add_argument("--seeds", type=int, nargs="+", default=None,
                    help="Override the config seed list (debug only).")
-    p.add_argument("--variant", default=None, help="Override config.variant (a_only or a_plus_log_a).")
+    p.add_argument("--variant", default=None, help="Override config.variant.")
+    p.add_argument("--architecture-mode", choices=("single", "family_head", "residual_family_head",
+                                                   "residual_film_last_block", "residual_film_all_blocks"), default=None,
+                   help="Stage-1/2 architecture mode. Default: config value, or family_head.")
+    p.add_argument("--n-families", type=int, default=None,
+                   help="Family count for --architecture-mode family_head. Default: config value, or 2.")
     p.add_argument("--device", choices=("auto", "cpu", "cuda"), default=None)
     p.add_argument("--include-sensitivity", action="store_true",
                    help="Include sensitivity_ablations from the Stage-3 suite config.")
@@ -844,6 +850,22 @@ def main() -> None:
     if data_dir is not None:
         parent_env["MLP_SYNTHETIC_ROOT"] = str(data_dir)
 
+    architecture_mode = args.architecture_mode or config.get("architecture_mode", "family_head")
+    n_families = int(args.n_families if args.n_families is not None else config.get("n_families", 2))
+    stage1_args: dict[str, Any] = {}
+    stage2_args: dict[str, Any] = {}
+    if architecture_mode is not None:
+        stage1_args["architecture_mode"] = str(architecture_mode)
+        stage2_args["architecture_mode"] = str(architecture_mode)
+    if str(architecture_mode) in {
+        "family_head",
+        "residual_family_head",
+        "residual_film_last_block",
+        "residual_film_all_blocks",
+    } or args.n_families is not None or "n_families" in config:
+        stage1_args["n_families"] = n_families
+        stage2_args["n_families"] = n_families
+
     if mode_spec.get("single_seed_only", False):
         seeds: list[int] = [int(config["default_seed"])]
     else:
@@ -861,6 +883,10 @@ def main() -> None:
             "mode_spec": mode_spec,
             "seeds": seeds,
             "variant": variant,
+            "architecture_mode": architecture_mode,
+            "n_families": n_families,
+            "stage1_args": stage1_args,
+            "stage2_args": stage2_args,
             "requested_device": requested_device,
             "device": device,
             "suite_config": str(suite_config_path),
@@ -881,6 +907,7 @@ def main() -> None:
     print(f"Mode:            {args.mode}  ({mode_spec.get('description', '')})")
     print(f"Seeds:           {seeds}")
     print(f"Variant:         {variant}")
+    print(f"Architecture:    {architecture_mode}  (n_families={n_families})")
     print(f"Device:          {device}  (requested: {requested_device})")
     print(f"Suite config:    {suite_config_path}")
     print(f"Sensitivity:     {include_sensitivity}")
@@ -950,6 +977,7 @@ def main() -> None:
             log_path=shared_dir / "stage1.log", dry_run=args.dry_run,
             data_dir=data_dir,
             parent_env=parent_env,
+            stage1_args=stage1_args,
         )
         write_flag(shared_dir, "stage1_shared", {"run_dir": str(shared_s1)})
         stamp_run_metadata(shared_s1, phase="stage1", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
@@ -963,6 +991,7 @@ def main() -> None:
             log_path=shared_dir / "stage2.log", dry_run=args.dry_run,
             data_dir=data_dir,
             parent_env=parent_env,
+            stage2_args=stage2_args,
         )
         write_flag(shared_dir, "stage2_shared", {"run_dir": str(shared_s2)})
         stamp_run_metadata(shared_s2, phase="stage2", parent_run_ids=parent_run_ids, orchestrator_dir=pipeline_dir)
@@ -989,6 +1018,8 @@ def main() -> None:
             parent_run_ids=parent_run_ids,
             parent_env=parent_env,
             orchestrator_dir=pipeline_dir,
+            stage1_args=stage1_args,
+            stage2_args=stage2_args,
         )
         seed_records.append(record)
 

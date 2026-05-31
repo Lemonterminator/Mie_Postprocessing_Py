@@ -1,9 +1,10 @@
 """Phase 1: Curve-fitting pipeline wrapper.
 
-Invokes fit_raw_data.py (with versioned OUTPUT_ROOT). The fit script now also
-generates diagnostics, CDF right-censoring point tables, and p50-q1 oracle
-baselines. Writes a timestamped archive to MLP/synthetic_data_runs/{run_id}/
-and updates MLP/synthetic_data_runs/latest.txt.
+Invokes ``MLP.curve_fit.workflows.raw_fit`` with a versioned ``OUTPUT_ROOT``.
+The fit workflow also generates diagnostics, CDF right-censoring point
+tables, and p50-q1 oracle baselines. Writes a timestamped archive to
+``MLP/synthetic_data_runs/{run_id}/`` and updates
+``MLP/synthetic_data_runs/latest.txt``.
 
 Usage
 -----
@@ -13,9 +14,7 @@ Options
 -------
     --output-root PATH    Override default archive root (MLP/synthetic_data_runs/)
     --input-root PATH     Path to raw Mie scattering results (default: inferred)
-    --ablation-dual-fit   Enable four-param + q1 dual-fit (for B.3 audit). Writes
-                          to a separate {run_id}_dualfit/ archive, not promoted to latest.
-    --n-workers N         Worker count for fit_raw_data (0 = all CPUs)
+    --n-workers N         Worker count for the fit workflow (0 = all CPUs)
     --mirror-canonical    Also mirror outputs to MLP/synthetic_data/ (default: on)
     --no-mirror           Turn off canonical mirror
     --dry-run             Print what would run without executing
@@ -43,15 +42,13 @@ from pipelines.common.archive_layout import (
 )
 from pipelines.common.run_metadata import make_run_id, write_metadata, finalize_metadata
 
-FIT_SCRIPT = REPO_ROOT / "MLP" / "curve_fit" / "fit_raw_data.py"
+FIT_MODULE = "MLP.curve_fit.workflows.raw_fit"
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--output-root", type=Path, default=None)
     p.add_argument("--input-root", type=Path, default=None)
-    p.add_argument("--ablation-dual-fit", action="store_true", default=False,
-                   help="Run a side-archive with four-param dual-fit for B.3 audit.")
     p.add_argument("--n-workers", type=int, default=0)
     p.add_argument("--mirror-canonical", action="store_true", default=True)
     p.add_argument("--no-mirror", action="store_true", default=False)
@@ -75,7 +72,6 @@ def _run_fit(
     run_dir: Path,
     *,
     input_root: Path | None,
-    ablation: bool,
     n_workers: int,
     dry_run: bool,
     nozzle_filter: str | None,
@@ -84,16 +80,14 @@ def _run_fit(
     env["FIT_OUTPUT_ROOT"] = str(run_dir)
     if input_root:
         env["FIT_INPUT_ROOT"] = str(input_root)
-    if ablation:
-        env["FIT_ABLATION_QUARTER_ONLY"] = "1"
     env["FIT_N_WORKERS"] = str(n_workers)
 
-    cmd = [sys.executable, str(FIT_SCRIPT)]
+    cmd = [sys.executable, "-m", FIT_MODULE]
     if nozzle_filter:
-        # patch: restrict names list via env var (fit_raw_data reads FIT_NOZZLE_FILTER)
+        # raw_fit reads FIT_NOZZLE_FILTER at config import time in worker subprocesses.
         env["FIT_NOZZLE_FILTER"] = nozzle_filter
 
-    _run(cmd, env=env, dry_run=dry_run, label="fit_raw_data.py")
+    _run(cmd, env=env, dry_run=dry_run, label=FIT_MODULE)
 
 
 def _mirror_canonical(run_dir: Path, dry_run: bool) -> None:
@@ -141,7 +135,6 @@ def run(args: argparse.Namespace) -> Path:
     config = {
         "input_root": str(args.input_root) if args.input_root else "default",
         "n_workers": args.n_workers,
-        "ablation_dual_fit": args.ablation_dual_fit,
         "mirror_canonical": mirror,
         "nozzle_filter": args.nozzle_filter,
     }
@@ -152,7 +145,6 @@ def run(args: argparse.Namespace) -> Path:
     _run_fit(
         run_dir,
         input_root=args.input_root,
-        ablation=False,
         n_workers=args.n_workers,
         dry_run=args.dry_run,
         nozzle_filter=args.nozzle_filter,
@@ -167,32 +159,6 @@ def run(args: argparse.Namespace) -> Path:
         finalize_metadata(run_dir, started_wall=t0)
         update_latest(archive_root, run_dir)
     print(f"\n[fit pipeline] Done. Run ID: {run_id}")
-
-    # Optional dual-fit side-run (for B.3 comparison audit)
-    if args.ablation_dual_fit:
-        dual_run_id = run_id + "_dualfit"
-        dual_dir = archive_root / dual_run_id if args.dry_run else make_run_dir(archive_root, dual_run_id)
-        t1 = time.monotonic()
-        if not args.dry_run:
-            write_metadata(
-                dual_dir,
-                phase="fit_dualfit",
-                config={**config, "ablation_dual_fit": True},
-                parent_run_ids={"production_fit": run_id},
-            )
-        _run_fit(
-            dual_dir,
-            input_root=args.input_root,
-            ablation=True,
-            n_workers=args.n_workers,
-            dry_run=args.dry_run,
-            nozzle_filter=args.nozzle_filter,
-        )
-        if not args.dry_run:
-            _record_outputs(dual_dir)
-            finalize_metadata(dual_dir, started_wall=t1)
-        print(f"[fit pipeline] Dual-fit archive: {dual_run_id}")
-
     return run_dir
 
 

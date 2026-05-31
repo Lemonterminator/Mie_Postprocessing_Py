@@ -1,0 +1,73 @@
+{
+  "_comment": "Phase 0 baseline freeze for refactor regression testing. After each refactor phase, re-train the same seed+config and compare metrics against these values using verify_refactor_baseline.py.",
+  "_frozen_on": "2026-05-26",
+
+  "seed": 99,
+
+  "stage1": {
+    "run_dir": "runs_mlp/stage1_engineered_mse_a_plus_pressures_20260519_002553",
+    "model_sha256": "4038e8bc155279d1e1d6ff14881d751b4ee897a42c9e967fbfbd085d10de5132",
+    "config": {
+      "seed": 99,
+      "feature_variant": null,
+      "stage": "stage1_mse"
+    },
+    "test_metrics": {
+      "epoch": 236,
+      "mse_scaled": 0.07165901638843396,
+      "physical_mae_mm": 2.909221244741369
+    },
+    "tolerance": {
+      "physical_mae_mm_rel": 0.02,
+      "_comment": "2% relative tolerance; stochastic training may shift slightly"
+    }
+  },
+
+  "stage2": {
+    "run_dir": "runs_mlp/stage2_engineered_nll_a_plus_pressures_20260519_002710",
+    "model_sha256": "70ee3f724f91f69ea6e666e07b932e84f5a8a7dd2f583eb67f056b1f5066ff84",
+    "config": {
+      "seed": 99,
+      "stage1_run_dir": "runs_mlp/stage1_engineered_mse_a_plus_pressures_20260519_002553"
+    },
+    "test_metrics": {
+      "epoch": 151,
+      "nll_scaled": -0.2397499277660825,
+      "physical_mae_mm": 5.6342190046542
+    },
+    "tolerance": {
+      "nll_scaled_abs": 0.05,
+      "physical_mae_mm_rel": 0.02
+    }
+  },
+
+  "stage3": {
+    "run_dir": "runs_mlp/stage3_diag_kd_mse_mu_plus_sigma_20260519_150301",
+    "model_sha256": "2b374867e697af31d2f8df1bdb83de7bfc73080a6e324c86b5bcd743d048f440",
+    "config": {
+      "seed": 99,
+      "kd_mode": "mse_mu_plus_sigma",
+      "kd_sigma_weight": 1.0,
+      "uncertain_ratio": 0.7
+    },
+    "test_metrics": {
+      "loss": 2.5321046835368777,
+      "raw_nll": 2.044339770776525,
+      "kd_kl": 0.43265240783066433
+    },
+    "rmse_eval": {
+      "split": "clean",
+      "n_points": 692942,
+      "rmse_mm": 4.742496967315674,
+      "mae_mm": 3.240251302719116,
+      "bias_mm": 0.8016725182533264,
+      "coverage_1sigma": 0.8823234845051967,
+      "coverage_2sigma": 0.9855197116064548
+    },
+    "tolerance": {
+      "rmse_mm_abs": 0.15,
+      "coverage_1sigma_abs": 0.02,
+      "_comment": "±0.15 mm RMSE and ±0.02 coverage are reasonable given seed-to-seed variability observed across runs"
+    }
+  }
+}

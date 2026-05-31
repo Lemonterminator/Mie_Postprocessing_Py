@@ -1,0 +1,25 @@
+{
+  "baseline_cdf_rmse_mm": 5.05550105720615,
+  "baseline_p50_rmse_mm": 3.9307959479687287,
+  "baseline_cdf_ece": 0.07081031280753651,
+  "winner": {
+    "kind": "residual",
+    "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_residual_fh_from_prod_FROZEN_anchor_off_l2_1em04_20260530_225953",
+    "eval_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\point_eval_20260530_230219_residual_fh_prod_l2_1em04\\per_run_metrics.csv",
+    "delta_l2_weight": 0.0001,
+    "returncode": 0,
+    "train_log": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_family_head_production_20260530_225256\\train_l2_1em04.log",
+    "eval_log": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_family_head_production_20260530_225256\\eval_l2_1em04.log",
+    "cdf_rmse_mm": 4.631000729476578,
+    "cdf_mae_mm": 3.1876586738714154,
+    "cdf_bias_mm": 0.1796191656560586,
+    "cdf_ece": 0.0604455105306325,
+    "cdf_crps": 2.3819856899294023,
+    "p50_rmse_mm": 3.39533473853965,
+    "q1_all_rmse_mm": 10.515224636632276,
+    "q1_observed_rmse_mm": 3.241632444429859,
+    "q1_extrapolated_rmse_mm": 11.307163704222743
+  },
+  "passed_primary_goal": true,
+  "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_family_head_production_20260530_225256\\residual_from_prod_eval_summary.csv"
+}

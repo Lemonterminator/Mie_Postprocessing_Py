@@ -1,0 +1,99 @@
+{
+  "_comment": "Tier-2B sigma_ref full sweep. Six points {3, 5, 7, 10, 15, 20} mm; production default sigma_conf_ref_mm = 10.0. Pinned to production KD form (mse_mu_plus_sigma, 5.0, anchor_off). See ablations/TIER2_REGIME_SIGMA_ONSET_PLAN.md section 4.",
+  "common": {
+    "teacher_run": "latest_stage2",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_fast": false,
+    "eval_save_points": true,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false,
+    "synthetic_root": "MLP/synthetic_data_20260509"
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "sigma_ref_3",
+      "enabled": true,
+      "run_name_prefix": "stage3_sigma_ref_3",
+      "args": {
+        "sigma_conf_ref_mm": 3.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_5",
+      "enabled": true,
+      "run_name_prefix": "stage3_sigma_ref_5",
+      "args": {
+        "sigma_conf_ref_mm": 5.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_7",
+      "enabled": true,
+      "run_name_prefix": "stage3_sigma_ref_7",
+      "args": {
+        "sigma_conf_ref_mm": 7.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_10",
+      "enabled": true,
+      "run_name_prefix": "stage3_sigma_ref_10",
+      "args": {
+        "sigma_conf_ref_mm": 10.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_15",
+      "enabled": true,
+      "run_name_prefix": "stage3_sigma_ref_15",
+      "args": {
+        "sigma_conf_ref_mm": 15.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    },
+    {
+      "name": "sigma_ref_20",
+      "enabled": true,
+      "run_name_prefix": "stage3_sigma_ref_20",
+      "args": {
+        "sigma_conf_ref_mm": 20.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "lambda_anchor": 0.0
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

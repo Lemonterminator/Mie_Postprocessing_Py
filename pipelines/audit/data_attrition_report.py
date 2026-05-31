@@ -36,7 +36,7 @@ def _data_deps():
 
 
 def _collect_raw_inventory(*args, **kwargs):
-    from MLP.curve_fit.audit_cdf_spatial_censoring import collect_raw_inventory
+    from MLP.curve_fit.reports.audit_cdf_spatial_censoring import collect_raw_inventory
 
     return collect_raw_inventory(*args, **kwargs)
 

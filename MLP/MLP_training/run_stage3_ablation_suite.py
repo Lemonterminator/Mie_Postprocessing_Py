@@ -21,7 +21,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MLP_ROOT = PROJECT_ROOT / "MLP"
 TRAIN_SCRIPT = Path("MLP") / "MLP_training" / "train_stage3_distillation_plus_raw_series.py"
-DEFAULT_CONFIG = Path("MLP") / "MLP_training" / "stage3_ablation_suite_config.json"
+DEFAULT_CONFIG = Path("MLP") / "MLP_training" / "config" / "stage3_anchor_off_only_config.json"
 DEFAULT_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
 
 COMMON_OPTION_KEYS = {
@@ -39,7 +39,14 @@ COMMON_OPTION_KEYS = {
     "save_figures",
     "seed",
     "skip_post_train_eval",
+    "student_architecture_mode",
+    "residual_shared_family_id",
+    "residual_delta_l2_weight",
+    "residual_mimic_epochs",
+    "residual_mimic_delta_l2_weight",
+    "freeze_residual_shared_mu",
     "eval_split",
+    "eval_kind",
     "eval_t_min_ms",
     "eval_t_max_ms",
     "eval_rel_err_floor_mm",
@@ -332,7 +339,7 @@ def main() -> None:
     winner_eval_config = dict(config.get("winner_eval", {}))
     for index, ablation in enumerate(ablations, start=1):
         name = str(ablation["name"])
-        run_name_prefix = str(ablation.get("run_name_prefix") or "distill_cdf_onset_v2")
+        run_name_prefix = str(ablation.get("run_name_prefix") or "distill_cdf_family_head_v3")
         cmd = build_command(
             python_exe=python_exe,
             teacher_run=teacher_run,

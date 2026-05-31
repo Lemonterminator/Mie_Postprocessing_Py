@@ -1,0 +1,26 @@
+{
+  "baseline_cdf_rmse_mm": 4.192763,
+  "baseline_p50_rmse_mm": 2.648853,
+  "baseline_q1_extrapolated_rmse_mm": 10.590671,
+  "winner": {
+    "kind": "residual",
+    "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_multitask_svgp_prod_existing_full_svgp_l2_1em04_20260531_025634",
+    "eval_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\point_eval_20260531_031534_residual_svgp_prod_l2_1em04\\per_run_metrics.csv",
+    "shared_base": "existing_full_svgp",
+    "delta_l2_weight": 0.0001,
+    "cdf_rmse_mm": 3.987471916839798,
+    "cdf_mae_mm": 2.8267596036035783,
+    "cdf_bias_mm": 0.1825934583317243,
+    "cdf_ece": 0.0261602175242646,
+    "cdf_crps": 2.040125742317233,
+    "p50_rmse_mm": 2.0765482997553195,
+    "q1_all_rmse_mm": 9.665515480642078,
+    "q1_observed_rmse_mm": 2.134452688337429,
+    "q1_extrapolated_rmse_mm": 10.429313731752222,
+    "returncode": 0,
+    "train_log": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_multitask_svgp_production_20260531_025632\\train_l2_1em04.log",
+    "eval_log": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_multitask_svgp_production_20260531_025632\\eval_l2_1em04.log"
+  },
+  "passed_primary_goal": true,
+  "summary_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_multitask_svgp_production_20260531_025632\\residual_multitask_svgp_eval_summary.csv"
+}

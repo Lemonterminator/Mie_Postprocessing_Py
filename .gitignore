@@ -1,25 +1,6 @@
-Interest/
-Cine/
-runs_mlp/
-*.csv
-*.bak
+# Python caches/runtime
 __pycache__/
-*.pyc
-__pycache__/*.pyc
-DS300/
-BC20241003_HZ_Nozzle1/
-BC20241017_HZ_Nozzle2/
-BC20241014_HZ_Nozzle3/
-BC20241007_HZ_Nozzle4/
-BC20241010_HZ_Nozzle5/
-BC20241011_HZ_Nozzle6/
-BC20241015_HZ_Nozzle7/
-BC20241016_HZ_Nozzle8/
-BC20220627 - Heinzman DS300 - Mie Top view/
-
-# Python
-__pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.pdb
@@ -27,109 +8,151 @@ __pycache__/
 .python-version
 
 # Virtual environments
-.venv/
-.venv311/
-venv/
-env/
+/.venv/
+/.venv311/
+/venv/
+/env/
 
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb-meta
 
-# Build artifacts
-build/
-dist/
+# Build/package artifacts
+/build/
+/dist/
 *.egg-info/
 *.egg
 
-# OS files
+# OS/editor noise
 .DS_Store
 Thumbs.db
+*.bak
+*.swp
+*.swo
+/.idea/
+/.vscode/
+/.claude/
+*.code-workspace
+
+# Root-level raw experiment data
+/Interest/
+/Cine/
+/DS300/
+/BC20241003_HZ_Nozzle1/
+/BC20241017_HZ_Nozzle2/
+/BC20241014_HZ_Nozzle3/
+/BC20241007_HZ_Nozzle4/
+/BC20241010_HZ_Nozzle5/
+/BC20241011_HZ_Nozzle6/
+/BC20241015_HZ_Nozzle7/
+/BC20241016_HZ_Nozzle8/
+/BC20220627 - Heinzman DS300 - Mie Top view/
 
 # Project data/artifacts
-ex.npy
-outputs/
-MLP/synthetic_data/*
-!MLP/synthetic_data/fit_diagnostics/
-MLP/synthetic_data/fit_diagnostics/*
-!MLP/synthetic_data/fit_diagnostics/slides_mechanical_engineers/
-!MLP/synthetic_data/fit_diagnostics/slides_mechanical_engineers/fit_diagnostics_mechanical_engineers.pptx
-MLP/synthetic_data_old/
-MLP/synthetic_data.zip
-MLP/eval/*
-!MLP/eval/
-!MLP/eval/inference_rmse_on_series.py
-!MLP/eval/calibration_coverage_audit.py
-MLP/media/
-Results/manual_segment_sam3_video/
-Processed_Results/
-Mie_scattering_top_view_results/
-examples/data/
+/ex.npy
+/outputs/
+/logs/
+/video/
+/Processed_Results/
+/Results/manual_segment_sam3_video/
+/Mie_scattering_top_view_results/
+/examples/data/
+/images/avi/
+/images/Phantom_Snapshots/
+/images/penetration_compare/
+/MLP/runs_mlp/
+/MLP/media/
+/MLP/synthetic_data
+/MLP/synthetic_data/
+/MLP/synthetic_data_clean_lv2/
+/MLP/synthetic_data_clean_lv3_qc_gated/
+/MLP/synthetic_data_old/
+/MLP/synthetic_data_old_temp/
+/MLP/synthetic_data.zip
+/MLP/baseline/**/outputs/
+/MLP/baseline/comparison_reports/**/*.csv
+/Thesis/slides/**/dataset_ablation_qc_gated/
+
+# Generated evaluation outputs, keep hand-written eval code versionable
+/MLP/eval/*
+!/MLP/eval/
+!/MLP/eval/*.py
+
+# Downloaded models, SDKs, and external runtime payloads
+/.models/
+/optical_flow_packages/
+/third_party/sam3_official/
+
+# Binary arrays/models/checkpoints
 *.npy
 *.npz
 *.pkl
+*.pickle
 *.ckpt
 *.pt
+*.pth
 *.onnx
 *.h5
-.models/
+*.joblib
 
-# Keep NVIDIA Optical Flow SDK contents versioned
-optical_flow_packages/
-optical_flow_packages/Optical_Flow_SDK*/
-optical_flow_packages/Optical_Flow_SDK*/**
+# Tabular/generated result files
+*.csv
+*.tsv
+*.xlsx
 
-# Images/videos and heavy outputs (adjust as needed)
+# Images/videos and heavy media outputs
 *.mp4
 *.avi
 *.mov
+*.mkv
 *.png
 *.jpg
 *.jpeg
 *.tif
 *.tiff
 
-# Keep thesis images versioned
+# Keep thesis figures versionable
 !Thesis/**/*.png
 !Thesis/**/*.jpg
 !Thesis/**/*.jpeg
 !Thesis/**/*.tif
 !Thesis/**/*.tiff
 
-# Generated thesis slide artifacts
-# Thesis/mie_multihole_parallel_programming_slides.pdf
-Thesis/mie_multihole_parallel_programming_slides.tex
-
-OSCC_postprocessing/dewe/DeweFileLibrary/*.dll
-OSCC_postprocessing/dewe/DeweFileLibrary/*.so
-OSCC_postprocessing/dewe/DeweFileLibrary/*.zip
-
-# Downloaded papers/reference source caches
-downloaded_papers/
-Thesis/reference_sources/
-
-# LaTeX auxiliary files
-Thesis/build_artifacts/
+# LaTeX build directories and auxiliary files
+/Thesis/build_artifacts/
+_minted-*/
 *.aux
 *.bbl
+*.bcf
 *.blg
 *.fdb_latexmk
 *.fls
+*.glg
+*.glo
+*.gls
+*.idx
+*.ilg
+*.ind
+*.ist
+*.loa
 *.lof
+*.log
+*.lol
 *.lot
 *.nav
 *.out
 *.run.xml
 *.snm
+*.synctex
 *.synctex.gz
 *.toc
+*.vrb
+*.xdv
+*-SAVE-ERROR
+/texput.log
 
-# IDE/editor
-.vscode/
-.idea/
-*.code-workspace
-.claude/
-.github/
-.venv/
-.vscode/
-__pycache__/
+# Downloaded papers/reference source caches
+/downloaded_papers/
+/Thesis/downloaded_papers/
+/Thesis/reference_sources/
+/Thesis/references/reference_sources/*.html
