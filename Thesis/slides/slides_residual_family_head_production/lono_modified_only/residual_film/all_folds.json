@@ -1,0 +1,307 @@
+[
+  {
+    "holdout": "BC20241017_HZ_Nozzle2",
+    "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_121422",
+    "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_121529",
+    "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_121934.json",
+    "winner_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\lono_residual_film_anchor_off_20260601_121953",
+    "timing": {
+      "stage1_s": 66.1170825958252,
+      "stage2_s": 247.05471920967102,
+      "stage3_s": 464.31251287460327,
+      "eval_s": 6.736236333847046
+    },
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_122725_lono_BC20241017_HZ_Nozzle2",
+    "mlp_metrics": {
+      "n_points": 80327,
+      "rmse_mm": 4.664766109978184,
+      "mae_mm": 3.6430491103172034,
+      "bias_mm": -1.0283460772685398,
+      "p95_abs_err_mm": 9.404479599999998,
+      "coverage_1sigma": 0.8998966723517622,
+      "coverage_2sigma": 0.9979458961494889,
+      "mean_pred_std_mm": 7.678171693012312
+    },
+    "ha_metrics": {
+      "n_points": 53680,
+      "rmse_mm": 11.753625789732471,
+      "mae_mm": 9.535512109652133,
+      "bias_mm": 7.335150748949752,
+      "p95_abs_err_mm": 22.71316736384282,
+      "coverage_1sigma": 0.4848360655737705,
+      "coverage_2sigma": 0.7676229508196721,
+      "mean_pred_std_mm": 8.317054733130012
+    },
+    "ns_metrics": {
+      "n_points": 53680,
+      "rmse_mm": 11.235926491399999,
+      "mae_mm": 9.433084102048214,
+      "bias_mm": 8.073432821048169,
+      "p95_abs_err_mm": 19.71065277636399,
+      "coverage_1sigma": 0.46555514157973177,
+      "coverage_2sigma": 0.8035581222056631,
+      "mean_pred_std_mm": 8.544198051392412
+    },
+    "mlp_uncensored_metrics": {
+      "n_points": 60076,
+      "rmse_mm": 4.292772121424894,
+      "mae_mm": 3.338699348320997,
+      "bias_mm": -0.4826377879939088,
+      "p95_abs_err_mm": 8.738415479660034,
+      "coverage_1sigma": 0.9113789200346228,
+      "coverage_2sigma": 0.9978360743058792,
+      "mean_pred_std_mm": 7.414288623254875
+    },
+    "q1_oracle_metrics": {
+      "n_conditions": 65,
+      "rmse_mm": 0.7222092040145899,
+      "mae_mm": 0.6032851112086168,
+      "bias_mm": 0.10538744658589554,
+      "rmse_mm_median": 0.7244678054049121
+    }
+  },
+  {
+    "holdout": "BC20241003_HZ_Nozzle1",
+    "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_122733",
+    "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_122827",
+    "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_123335.json",
+    "winner_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\lono_residual_film_anchor_off_20260601_123354",
+    "timing": {
+      "stage1_s": 53.82414388656616,
+      "stage2_s": 308.73857021331787,
+      "stage3_s": 354.3063826560974,
+      "eval_s": 4.62959885597229
+    },
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_123933_lono_BC20241003_HZ_Nozzle1",
+    "mlp_metrics": {
+      "n_points": 36159,
+      "rmse_mm": 5.359368353591307,
+      "mae_mm": 4.041093520206587,
+      "bias_mm": 0.3721386655148096,
+      "p95_abs_err_mm": 11.104478200000003,
+      "coverage_1sigma": 0.8678060787079289,
+      "coverage_2sigma": 0.9929478138222849,
+      "mean_pred_std_mm": 7.791016933363755
+    },
+    "ha_metrics": {
+      "n_points": 26714,
+      "rmse_mm": 12.029719191123128,
+      "mae_mm": 9.475098407255343,
+      "bias_mm": 7.39822366146245,
+      "p95_abs_err_mm": 24.045492290635075,
+      "coverage_1sigma": 0.5133637792917571,
+      "coverage_2sigma": 0.7500561503331586,
+      "mean_pred_std_mm": 8.278031821042193
+    },
+    "ns_metrics": {
+      "n_points": 26714,
+      "rmse_mm": 11.658908230173585,
+      "mae_mm": 9.536256575229913,
+      "bias_mm": 8.15513803386713,
+      "p95_abs_err_mm": 21.634341426865543,
+      "coverage_1sigma": 0.49101594669461707,
+      "coverage_2sigma": 0.7857303286666167,
+      "mean_pred_std_mm": 8.48315469027023
+    },
+    "mlp_uncensored_metrics": {
+      "n_points": 25535,
+      "rmse_mm": 5.128215451266595,
+      "mae_mm": 3.813136935308765,
+      "bias_mm": 0.41907709996854814,
+      "p95_abs_err_mm": 10.714115715026852,
+      "coverage_1sigma": 0.8684158997454474,
+      "coverage_2sigma": 0.9917368317994909,
+      "mean_pred_std_mm": 7.355831199946272
+    },
+    "q1_oracle_metrics": {
+      "n_conditions": 27,
+      "rmse_mm": 0.8526593076439406,
+      "mae_mm": 0.6904832538233227,
+      "bias_mm": 0.18397591967381086,
+      "rmse_mm_median": 0.8170632558895125
+    }
+  },
+  {
+    "holdout": "BC20241010_HZ_Nozzle5",
+    "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_123942",
+    "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_124051",
+    "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_124543.json",
+    "winner_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\lono_residual_film_anchor_off_20260601_124603",
+    "timing": {
+      "stage1_s": 69.81154799461365,
+      "stage2_s": 293.3128056526184,
+      "stage3_s": 325.82313799858093,
+      "eval_s": 4.825100898742676
+    },
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_125114_lono_BC20241010_HZ_Nozzle5",
+    "mlp_metrics": {
+      "n_points": 46929,
+      "rmse_mm": 5.938274428352502,
+      "mae_mm": 4.515329342361866,
+      "bias_mm": 3.523774360014064,
+      "p95_abs_err_mm": 12.171066759999992,
+      "coverage_1sigma": 0.7842059281041573,
+      "coverage_2sigma": 0.9785420528884059,
+      "mean_pred_std_mm": 6.740524797261822
+    },
+    "ha_metrics": {
+      "n_points": 27030,
+      "rmse_mm": 12.1995653586109,
+      "mae_mm": 9.695794868554243,
+      "bias_mm": 7.987677314487684,
+      "p95_abs_err_mm": 24.013632678361716,
+      "coverage_1sigma": 0.49515353311135774,
+      "coverage_2sigma": 0.7384017758046615,
+      "mean_pred_std_mm": 8.29543939896224
+    },
+    "ns_metrics": {
+      "n_points": 27030,
+      "rmse_mm": 11.541028888205268,
+      "mae_mm": 9.640101540638971,
+      "bias_mm": 8.493813937082969,
+      "p95_abs_err_mm": 20.449917730832112,
+      "coverage_1sigma": 0.4785053644099149,
+      "coverage_2sigma": 0.7746947835738068,
+      "mean_pred_std_mm": 8.498666935916738
+    },
+    "mlp_uncensored_metrics": {
+      "n_points": 33078,
+      "rmse_mm": 5.918965935791256,
+      "mae_mm": 4.53074161942157,
+      "bias_mm": 3.7994627001258308,
+      "p95_abs_err_mm": 12.088291645050047,
+      "coverage_1sigma": 0.76984702823629,
+      "coverage_2sigma": 0.9783844246931496,
+      "mean_pred_std_mm": 6.504350351331542
+    },
+    "q1_oracle_metrics": {
+      "n_conditions": 27,
+      "rmse_mm": 0.6320012112214131,
+      "mae_mm": 0.5524638980900628,
+      "bias_mm": 0.0873274510636482,
+      "rmse_mm_median": 0.5768106147782884
+    }
+  },
+  {
+    "holdout": "BC20241007_HZ_Nozzle4",
+    "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_125122",
+    "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_125228",
+    "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_125744.json",
+    "winner_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\lono_residual_film_anchor_off_20260601_125804",
+    "timing": {
+      "stage1_s": 65.90096998214722,
+      "stage2_s": 317.3587999343872,
+      "stage3_s": 418.989266872406,
+      "eval_s": 4.655569076538086
+    },
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_130447_lono_BC20241007_HZ_Nozzle4",
+    "mlp_metrics": {
+      "n_points": 38604,
+      "rmse_mm": 5.487905084284152,
+      "mae_mm": 4.14707026854212,
+      "bias_mm": -0.5098444717542223,
+      "p95_abs_err_mm": 11.295733600000004,
+      "coverage_1sigma": 0.8596777536006631,
+      "coverage_2sigma": 0.9814008910993679,
+      "mean_pred_std_mm": 7.557504717044866
+    },
+    "ha_metrics": {
+      "n_points": 30583,
+      "rmse_mm": 11.721763312028232,
+      "mae_mm": 9.215092958999373,
+      "bias_mm": 7.103910507256407,
+      "p95_abs_err_mm": 23.047178029989567,
+      "coverage_1sigma": 0.5143380309322172,
+      "coverage_2sigma": 0.7549946048458294,
+      "mean_pred_std_mm": 8.286590105956218
+    },
+    "ns_metrics": {
+      "n_points": 30583,
+      "rmse_mm": 11.037662393842957,
+      "mae_mm": 9.007827767938604,
+      "bias_mm": 7.520186684313936,
+      "p95_abs_err_mm": 20.56102646988363,
+      "coverage_1sigma": 0.5026648791812445,
+      "coverage_2sigma": 0.80145832652127,
+      "mean_pred_std_mm": 8.493062151527978
+    },
+    "mlp_uncensored_metrics": {
+      "n_points": 28324,
+      "rmse_mm": 5.264970092474046,
+      "mae_mm": 3.951505422318593,
+      "bias_mm": -0.7541313035906312,
+      "p95_abs_err_mm": 10.990096759796142,
+      "coverage_1sigma": 0.8516452478463494,
+      "coverage_2sigma": 0.979522666290072,
+      "mean_pred_std_mm": 7.057341692735879
+    },
+    "q1_oracle_metrics": {
+      "n_conditions": 27,
+      "rmse_mm": 0.7451682055686507,
+      "mae_mm": 0.5645953728086166,
+      "bias_mm": 0.1523496937221435,
+      "rmse_mm_median": 0.7339554040480427
+    }
+  },
+  {
+    "holdout": "BC20241011_HZ_Nozzle6",
+    "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_130455",
+    "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_130608",
+    "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_131103.json",
+    "winner_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\lono_residual_film_anchor_off_20260601_131125",
+    "timing": {
+      "stage1_s": 72.21537923812866,
+      "stage2_s": 296.3685281276703,
+      "stage3_s": 379.82768869400024,
+      "eval_s": 4.056612730026245
+    },
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_131726_lono_BC20241011_HZ_Nozzle6",
+    "mlp_metrics": {
+      "n_points": 29449,
+      "rmse_mm": 13.763578727633465,
+      "mae_mm": 10.820138841465964,
+      "bias_mm": -9.411920633992366,
+      "p95_abs_err_mm": 28.00897739999999,
+      "coverage_1sigma": 0.3609290638052226,
+      "coverage_2sigma": 0.548168019287582,
+      "mean_pred_std_mm": 7.740332836938435
+    },
+    "ha_metrics": {
+      "n_points": 23491,
+      "rmse_mm": 10.7261743462774,
+      "mae_mm": 8.533637440938254,
+      "bias_mm": 6.180315748146039,
+      "p95_abs_err_mm": 20.474386214816544,
+      "coverage_1sigma": 0.5437401558043506,
+      "coverage_2sigma": 0.7785534885700907,
+      "mean_pred_std_mm": 8.379936673382701
+    },
+    "ns_metrics": {
+      "n_points": 23491,
+      "rmse_mm": 10.01554527028061,
+      "mae_mm": 8.193571095402596,
+      "bias_mm": 6.682158862284861,
+      "p95_abs_err_mm": 18.736514699778848,
+      "coverage_1sigma": 0.5440807117619514,
+      "coverage_2sigma": 0.850879060065557,
+      "mean_pred_std_mm": 8.600305074442232
+    },
+    "mlp_uncensored_metrics": {
+      "n_points": 20758,
+      "rmse_mm": 14.181736843470912,
+      "mae_mm": 11.50542477057547,
+      "bias_mm": -10.839865192443774,
+      "p95_abs_err_mm": 27.648726272582994,
+      "coverage_1sigma": 0.2781578186723191,
+      "coverage_2sigma": 0.45852201560844014,
+      "mean_pred_std_mm": 7.647659862227541
+    },
+    "q1_oracle_metrics": {
+      "n_conditions": 27,
+      "rmse_mm": 0.9462793100686017,
+      "mae_mm": 0.7480664760453002,
+      "bias_mm": 0.214463663628811,
+      "rmse_mm_median": 0.8910939019823136
+    }
+  }
+]

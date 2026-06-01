@@ -1,0 +1,17 @@
+{
+  "student_run": "MLP\\runs_mlp\\lono_residual_fh_anchor_off_20260601_145626",
+  "nozzle": "BC20220627_HZ_Nozzle0",
+  "family_id": 0,
+  "k_list": "0,1,2,5,10,20,50,all",
+  "repeats": 5,
+  "test_frac": 0.4,
+  "epochs": 300,
+  "lr": 0.003,
+  "delta_l2": 0.0001,
+  "loss_mode": "mse",
+  "seed": 42,
+  "n_conditions": 338,
+  "n_test_conditions": 135,
+  "n_train_pool": 203,
+  "n_test_points": 120292
+}

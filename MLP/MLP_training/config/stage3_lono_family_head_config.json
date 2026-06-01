@@ -1,0 +1,38 @@
+{
+  "common": {
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "eval_kind": "point_tables",
+    "eval_fast": true,
+    "eval_save_points": false,
+    "eval_save_plots": false,
+    "eval_batch_points": 262144,
+    "eval_max_traj_plots": 0,
+    "skip_post_train_eval": false
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "anchor_off",
+      "enabled": true,
+      "run_name_prefix": "lono_family_head_anchor_off",
+      "args": {
+        "lambda_anchor": 0.0
+      }
+    }
+  ]
+}

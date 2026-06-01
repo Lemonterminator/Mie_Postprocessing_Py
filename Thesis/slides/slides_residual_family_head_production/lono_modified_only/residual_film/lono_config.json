@@ -1,0 +1,23 @@
+{
+  "seed": 42,
+  "device": "cuda",
+  "min_groups": 50,
+  "n_folds": 5,
+  "nozzles": [
+    "BC20241017_HZ_Nozzle2",
+    "BC20241003_HZ_Nozzle1",
+    "BC20241010_HZ_Nozzle5",
+    "BC20241007_HZ_Nozzle4",
+    "BC20241011_HZ_Nozzle6"
+  ],
+  "skip_folds": null,
+  "stage3_config": "MLP\\MLP_training\\config\\stage3_lono_residual_film_config.json",
+  "stage3_only": "anchor_off",
+  "variant": "a_dp050_plus_pressures",
+  "stage1_passthrough": {
+    "architecture_mode": "family_head"
+  },
+  "stage2_passthrough": {
+    "architecture_mode": "family_head"
+  }
+}

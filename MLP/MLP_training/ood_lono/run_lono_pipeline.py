@@ -296,11 +296,16 @@ def oracle_metrics_for_holdout(
     if not oracle_csv.exists() or not uncensored_csv.exists():
         return {}
     fm = pd.read_csv(oracle_csv)
-    cond_to_exp = (
-        pd.read_csv(uncensored_csv, low_memory=False, usecols=["condition_id", "experiment_name"])
-        .drop_duplicates()
-    )
-    fm = fm.merge(cond_to_exp, on="condition_id", how="left")
+    # The oracle fit table may already carry experiment_name (newer lv2/lv3
+    # exports do); only fall back to merging it in from the uncensored points
+    # when it is genuinely absent, to avoid an _x/_y collision that drops the
+    # plain column.
+    if "experiment_name" not in fm.columns:
+        cond_to_exp = (
+            pd.read_csv(uncensored_csv, low_memory=False, usecols=["condition_id", "experiment_name"])
+            .drop_duplicates()
+        )
+        fm = fm.merge(cond_to_exp, on="condition_id", how="left")
     sub = fm[fm["experiment_name"].astype(str) == str(holdout)]
     if sub.empty:
         return {}

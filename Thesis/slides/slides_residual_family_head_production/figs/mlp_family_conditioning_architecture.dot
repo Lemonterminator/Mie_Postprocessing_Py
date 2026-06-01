@@ -1,0 +1,130 @@
+digraph MLPFamilyConditioning {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    pad="0.20",
+    nodesep="0.45",
+    ranksep="0.70",
+    splines=ortho,
+    pack=true,
+    packmode="array_u3",
+    outputorder=edgesfirst,
+    fontname="Arial",
+    label="MLP family-conditioning variants",
+    labelloc=t,
+    fontsize=22
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Arial",
+    fontsize=12,
+    color="#52616b",
+    penwidth=1.3,
+    fillcolor="#f8fafc",
+    margin="0.09,0.06"
+  ];
+
+  edge [
+    color="#52616b",
+    arrowsize=0.75,
+    penwidth=1.3,
+    fontname="Arial",
+    fontsize=10
+  ];
+
+  subgraph cluster_family_head {
+    label="A. Family Head MLP";
+    color="#d7dde5";
+    penwidth=1.2;
+    style="rounded";
+    fontname="Arial";
+    fontsize=15;
+
+    fh_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
+    fh_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
+    fh_trunk [label="shared trunk", fillcolor="#e8f0fe", color="#4e79a7"];
+    fh_heads [label="family-specific\nmean head mu_f", fillcolor="#fff7ed", color="#c96f1a"];
+    fh_var [label="shared\nlog-var head", fillcolor="#f1f5f9", color="#64748b"];
+    fh_out [label="prediction\nmu_f, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
+    fh_note [label="unseen family needs fallback\nor a newly trained head", fillcolor="#fef2f2", color="#b85c5c"];
+
+    { rank=same; fh_input; fh_family; }
+    fh_input:e -> fh_trunk:w;
+    fh_family:e -> fh_heads:w [color="#c96f1a", constraint=false];
+    fh_trunk:e -> fh_heads:w;
+    fh_trunk:e -> fh_var:w;
+    fh_heads:e -> fh_out:w;
+    fh_var:e -> fh_out:w;
+    // No deployment arrow here: the absence of a clean unseen-family fallback
+    // is the family-head caveat.
+  }
+
+  subgraph cluster_residual_fh {
+    label="B. Residual Family Head";
+    color="#d7dde5";
+    penwidth=1.2;
+    style="rounded";
+    fontname="Arial";
+    fontsize=15;
+
+    rfh_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
+    rfh_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
+    rfh_trunk [label="shared trunk", fillcolor="#e8f0fe", color="#4e79a7"];
+    rfh_shared [label="shared mean\nmu_shared", fillcolor="#eaf7ef", color="#4c9a45"];
+    rfh_delta [label="family residual\nDelta_f", fillcolor="#fff7ed", color="#c96f1a"];
+    rfh_sum [label="add", shape=diamond, fillcolor="#ffffff", color="#52616b"];
+    rfh_var [label="shared\nlog-var head", fillcolor="#f1f5f9", color="#64748b"];
+    rfh_out [label="prediction\nmu, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
+    rfh_note [label="unseen family:\nDelta = 0 fallback", fillcolor="#fef2f2", color="#b85c5c"];
+
+    { rank=same; rfh_input; rfh_family; }
+    rfh_input:e -> rfh_trunk:w;
+    rfh_family:e -> rfh_delta:w [color="#c96f1a", constraint=false];
+    rfh_trunk:e -> rfh_shared:w;
+    rfh_trunk:e -> rfh_delta:w;
+    rfh_shared:e -> rfh_sum:w;
+    rfh_delta:e -> rfh_sum:w;
+    rfh_sum:e -> rfh_out:w;
+    rfh_trunk:e -> rfh_var:w;
+    rfh_var:e -> rfh_out:w;
+    rfh_note:e -> rfh_sum:w [style=dashed, color="#b85c5c", constraint=false, xlabel="Delta=0"];
+  }
+
+  subgraph cluster_residual_film {
+    label="C. Residual-FiLM";
+    color="#d7dde5";
+    penwidth=1.2;
+    style="rounded";
+    fontname="Arial";
+    fontsize=15;
+
+    film_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
+    film_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
+    film_trunk_a [label="shared trunk", fillcolor="#e8f0fe", color="#4e79a7"];
+    film_adapter [label="FiLM adapter\ngamma_f * h + beta_f", fillcolor="#f5edff", color="#7c5cc4"];
+    film_trunk_b [label="modulated\nrepresentation h'", fillcolor="#e8f0fe", color="#4e79a7"];
+    film_shared [label="shared mean\nmu_shared(h')", fillcolor="#eaf7ef", color="#4c9a45"];
+    film_delta [label="family residual\nDelta_f(h')", fillcolor="#fff7ed", color="#c96f1a"];
+    film_sum [label="add", shape=diamond, fillcolor="#ffffff", color="#52616b"];
+    film_var [label="shared\nlog-var head", fillcolor="#f1f5f9", color="#64748b"];
+    film_out [label="prediction\nmu, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
+    film_note [label="unseen family:\nidentity FiLM + Delta = 0", fillcolor="#fef2f2", color="#b85c5c"];
+
+    { rank=same; film_input; film_family; }
+    film_input:e -> film_trunk_a:w;
+    film_family:e -> film_adapter:w [color="#7c5cc4", constraint=false];
+    film_family:e -> film_delta:w [color="#c96f1a", constraint=false];
+    film_trunk_a:e -> film_adapter:w;
+    film_adapter:e -> film_trunk_b:w;
+    film_trunk_b:e -> film_shared:w;
+    film_trunk_b:e -> film_delta:w;
+    film_shared:e -> film_sum:w;
+    film_delta:e -> film_sum:w;
+    film_sum:e -> film_out:w;
+    film_trunk_b:e -> film_var:w;
+    film_var:e -> film_out:w;
+    film_note:e -> film_adapter:w [style=dashed, color="#b85c5c", constraint=false, xlabel="identity"];
+  }
+}

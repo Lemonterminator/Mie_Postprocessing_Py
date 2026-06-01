@@ -120,6 +120,14 @@ An unseen family with zero residual naturally predicts
 \end{frame}
 
 % ------------------------------------------------------------------
+\begin{frame}{Architecture: Family Head vs Residual vs FiLM}
+\small
+\begin{center}
+\includegraphics[width=0.98\textwidth]{figs/mlp_family_conditioning_architecture.png}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
 \begin{frame}{Training Log Read}
 \small
 \begin{center}
@@ -424,6 +432,74 @@ Residual-FiLM & \texttt{1e-4} & \texttt{1e-3} & \textbf{4.510} & \textbf{0.0404}
   \item The best point-accuracy setting is lightly regularized FiLM plus medium delta shrinkage.
   \item Stronger FiLM shrinkage is competitive and slightly helps Q1 extrapolation, but gives back CDF RMSE.
 \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{LONO Validation: Residual Deployment Family}
+\small
+\begin{block}{Protocol}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Hold out Nozzle1, 2, 4, 5, 6 one at a time; Nozzle0 stays in train as
+        the sole first-generation injector-family anchor.
+  \item Each fold trains Stage-1 $\to$ Stage-2 $\to$ Stage-3 from scratch with
+        the held-out nozzle removed; no production-checkpoint leakage.
+  \item Arms: family-head teacher, residual FH (\texttt{delta\_L2=1e-4}),
+        residual-FiLM (\texttt{film\_L2=1e-4}, \texttt{delta\_L2=1e-3}).
+\end{itemize}
+\end{block}
+
+\vspace{0.15em}
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Aggregation} & \textbf{Family head} & \textbf{Residual FH} & \textbf{Residual-FiLM} & \textbf{HA / NS} \\
+\midrule
+All 5 folds & 8.32 $\pm$ 2.33 & 6.95 $\pm$ 4.05 & 6.96 $\pm$ 4.08 & 11.69 / 11.10 \\
+\rowcolor{winrow}
+4 folds excl. N6 & 7.44 $\pm$ 1.46 & \textbf{5.16 $\pm$ 0.65} & \textbf{5.15 $\pm$ 0.67} & 11.93 / 11.37 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.25em}
+\footnotesize
+The residual win survives LONO on every in-family fold; N6 is reported as an
+OOD stress fold rather than hidden inside the mean.
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{LONO Validation: Per-Fold Read}
+\small
+\begin{center}
+\includegraphics[width=0.94\textwidth]{figs/lono_modified_only_rmse_by_fold.png}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{LONO Validation: Verdict}
+\small
+\begin{itemize}\setlength\itemsep{3pt}
+  \item On in-family held-out nozzles, residual FH improves family-head RMSE
+        on every fold: N2 \good{-3.37 mm}, N1 \good{-1.64 mm},
+        N4 \good{-0.68 mm}, N5 \good{-3.43 mm}.
+  \item The residual conversion also repairs the family-head over-prediction
+        bias: the 4-fold mean bias moves from \(+5.07\) mm to \(+0.78\) mm.
+  \item Residual FH and residual-FiLM are statistically indistinguishable under
+        LONO. FiLM's in-distribution edge does not translate into unseen-nozzle
+        transfer.
+  \item N6 is a true stress fold: all MLP arms fail against HA/NS, and the
+        residual arms under-predict severely. This motivates a separate
+        OOD/nozzle-family study rather than another adapter sweep.
+\end{itemize}
+
+\vspace{0.35em}
+\scriptsize
+\textbf{Artifacts:}
+\texttt{lono\_modified\_only/lono\_modified\_only\_summary.md};
+\texttt{lono\_modified\_only/lono\_modified\_only\_comparison.csv}.
 \end{frame}
 
 % ------------------------------------------------------------------
