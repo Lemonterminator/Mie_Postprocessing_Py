@@ -1,0 +1,38 @@
+{
+  "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\gp_baseline_stage3_20260521_112229\\per_seed\\seed_42\\model.pt",
+  "split": "clean",
+  "lono_holdout": null,
+  "eval_mode": {
+    "fast": false,
+    "save_points": true,
+    "batch_points": 262144
+  },
+  "feature_columns": [
+    "time_norm_0_5ms",
+    "tilt_angle_radian_z",
+    "plumes_z",
+    "injection_duration_us_z",
+    "control_backpressure_bar_z",
+    "log_injection_pressure_bar_z",
+    "log_chamber_pressure_bar_z"
+  ],
+  "overall": {
+    "n_points": 692942,
+    "rmse_mm": 4.628069877624512,
+    "mae_mm": 3.172598123550415,
+    "bias_mm": -0.07034408301115036,
+    "median_abs_err_mm": 2.2123727798461914,
+    "p90_abs_err_mm": 6.957179069519043,
+    "p95_abs_err_mm": 9.242124557495117,
+    "coverage_1sigma": 0.7033806581214589,
+    "coverage_2sigma": 0.9394451483673958,
+    "mean_pred_std_mm": 3.9995579719543457,
+    "n_trajectories": 24316,
+    "mean_rel_err": 0.12352955051846465,
+    "median_rel_err": 0.0614612734761783,
+    "truth_min_mm": 0.0,
+    "truth_max_mm": 95.8797378540039,
+    "truth_range_mm": 95.8797378540039,
+    "nrmse_range": 0.04826952994668878
+  }
+}

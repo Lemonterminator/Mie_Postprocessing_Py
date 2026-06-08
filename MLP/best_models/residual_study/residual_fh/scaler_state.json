@@ -1,0 +1,52 @@
+{
+  "time": {
+    "type": "fixed_minmax",
+    "min_ms": 0.0,
+    "max_ms": 5.0
+  },
+  "zscore": {
+    "tilt_angle_radian_z": {
+      "mean": 0.34492415638024443,
+      "std": 0.04675472112264529
+    },
+    "plumes_z": {
+      "mean": 10.218253968253968,
+      "std": 0.5875562510930666
+    },
+    "injection_duration_us_z": {
+      "mean": 681.4742857142857,
+      "std": 197.38620247139133
+    },
+    "control_backpressure_bar_z": {
+      "mean": 2.7142857142857144,
+      "std": 1.4846149779161804
+    },
+    "log_injection_pressure_bar_z": {
+      "mean": 7.545964432419732,
+      "std": 0.16462082057759922
+    },
+    "log_chamber_pressure_bar_z": {
+      "mean": 2.4375234162483244,
+      "std": 0.7387877306274636
+    }
+  },
+  "fill_defaults": {
+    "injection_pressure_bar": 2000.0,
+    "control_backpressure_bar": 4.0
+  },
+  "canonicalization": {
+    "reference_pressure_bar": 4.42,
+    "reference_density_kg_m3": 5.0
+  },
+  "target": {
+    "scale_mode": "a_scale",
+    "a_scale_delta_pressure_exp": 0.5,
+    "a_scale_density_exp": -0.25,
+    "a_scale_diameter_exp": 0.5
+  },
+  "feature_variant": "a_dp050_plus_pressures",
+  "extra_routing_channels": {
+    "family_id": true,
+    "nozzle_id": false
+  }
+}

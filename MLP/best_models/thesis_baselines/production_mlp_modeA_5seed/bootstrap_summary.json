@@ -1,0 +1,172 @@
+{
+  "mode": "A",
+  "seeds": [
+    7,
+    17,
+    42,
+    99,
+    2024
+  ],
+  "parent_run_ids": {
+    "fit": "",
+    "audit": ""
+  },
+  "data_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_20260509",
+  "shared_stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+  "shared_stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_a_plus_pressures_20260519_161304",
+  "per_seed": [
+    {
+      "seed": 7,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+      "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_a_plus_pressures_20260519_161304",
+      "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260519_162231.json",
+      "winner_name": "anchor_off",
+      "winner_run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162249",
+      "winner_metrics": {
+        "rmse_mm": 4.826025485992432,
+        "mae_mm": 3.3170785903930664,
+        "bias_mm": 1.0518308877944946,
+        "p95_abs_err_mm": 9.23951530456543,
+        "coverage_1sigma": 0.8716660268824807,
+        "coverage_2sigma": 0.9848674203613,
+        "n_points": 692942
+      }
+    },
+    {
+      "seed": 17,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+      "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_a_plus_pressures_20260519_161304",
+      "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260519_162512.json",
+      "winner_name": "anchor_off",
+      "winner_run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162530",
+      "winner_metrics": {
+        "rmse_mm": 4.84406852722168,
+        "mae_mm": 3.3229260444641113,
+        "bias_mm": 1.1242830753326416,
+        "p95_abs_err_mm": 9.367830276489258,
+        "coverage_1sigma": 0.8646986327860052,
+        "coverage_2sigma": 0.9839149596935963,
+        "n_points": 692942
+      }
+    },
+    {
+      "seed": 42,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+      "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_a_plus_pressures_20260519_161304",
+      "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260519_162752.json",
+      "winner_name": "anchor_off",
+      "winner_run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162811",
+      "winner_metrics": {
+        "rmse_mm": 4.7861199378967285,
+        "mae_mm": 3.2522542476654053,
+        "bias_mm": 0.8956378102302551,
+        "p95_abs_err_mm": 9.257774353027344,
+        "coverage_1sigma": 0.8619509280719021,
+        "coverage_2sigma": 0.9830837212926912,
+        "n_points": 692942
+      }
+    },
+    {
+      "seed": 99,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+      "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_a_plus_pressures_20260519_161304",
+      "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260519_163216.json",
+      "winner_name": "anchor_off",
+      "winner_run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_163234",
+      "winner_metrics": {
+        "rmse_mm": 4.76399040222168,
+        "mae_mm": 3.245396137237549,
+        "bias_mm": 0.7221652865409851,
+        "p95_abs_err_mm": 9.238913536071777,
+        "coverage_1sigma": 0.8673352170888762,
+        "coverage_2sigma": 0.9841646198383126,
+        "n_points": 692942
+      }
+    },
+    {
+      "seed": 2024,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+      "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_a_plus_pressures_20260519_161304",
+      "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260519_163606.json",
+      "winner_name": "anchor_off",
+      "winner_run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_163624",
+      "winner_metrics": {
+        "rmse_mm": 4.794187545776367,
+        "mae_mm": 3.271820306777954,
+        "bias_mm": 0.7469403147697449,
+        "p95_abs_err_mm": 9.237764358520508,
+        "coverage_1sigma": 0.8627749508616883,
+        "coverage_2sigma": 0.9835152148376055,
+        "n_points": 692942
+      }
+    }
+  ],
+  "bootstrap": {
+    "n_seeds": 5,
+    "seeds": [
+      7,
+      17,
+      42,
+      99,
+      2024
+    ],
+    "winner_names": [
+      "anchor_off",
+      "anchor_off",
+      "anchor_off",
+      "anchor_off",
+      "anchor_off"
+    ],
+    "metrics": {
+      "rmse_mm": {
+        "mean": 4.802878379821777,
+        "std": 0.03201978896279228,
+        "ci_lo": 4.778881645202636,
+        "ci_hi": 4.82887020111084,
+        "n": 5
+      },
+      "mae_mm": {
+        "mean": 3.281895065307617,
+        "std": 0.03617206196836516,
+        "ci_lo": 3.2534242153167723,
+        "ci_hi": 3.310365915298462,
+        "n": 5
+      },
+      "bias_mm": {
+        "mean": 0.9081714749336243,
+        "std": 0.17895050475592375,
+        "ci_lo": 0.766769802570343,
+        "ci_hi": 1.0495731472969054,
+        "n": 5
+      },
+      "p95_abs_err_mm": {
+        "mean": 9.268359565734864,
+        "std": 0.056217425670042544,
+        "ci_lo": 9.23857421875,
+        "ci_hi": 9.319805908203126,
+        "n": 5
+      },
+      "coverage_1sigma": {
+        "mean": 0.8656851511381906,
+        "std": 0.003933207925078574,
+        "ci_lo": 0.8628300781306372,
+        "ci_hi": 0.8688790692438906,
+        "n": 5
+      },
+      "coverage_2sigma": {
+        "mean": 0.983909187204701,
+        "std": 0.0006745550630364816,
+        "ci_lo": 0.9834162166530532,
+        "ci_hi": 0.9844457400475075,
+        "n": 5
+      },
+      "n_points": {
+        "mean": 692942.0,
+        "std": 0.0,
+        "ci_lo": 692942.0,
+        "ci_hi": 692942.0,
+        "n": 5
+      }
+    }
+  }
+}

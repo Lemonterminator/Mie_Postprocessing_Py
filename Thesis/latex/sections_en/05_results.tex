@@ -267,7 +267,7 @@ What the data can directly support are modeling inferences. The reduced-order fi
 \label{fig:failure-mode-nozzle3}
 \end{figure}
 
-\subsection{MLP Ablation Evidence and Screening Demonstration}
+\subsection{MLP Ablation Evidence}
 
 The preceding sections established cross-architecture results: the SVGP currently prevails in point accuracy (especially under the LONO transfer protocol), whereas the selected MLP serves as a more conservative in-domain screening surrogate. The subsequent evidence explains why the MLP tech stack is retained as an operational workflow: its training curriculum can be cheaply ablated, its injection onset auxiliary output supports GUI prototypes, and its regime-aware distillation makes the conservative screening behavior traceable rather than accidental.
 
@@ -433,7 +433,152 @@ A direct consequence of choosing the MLP as the penetration surrogate architectu
 
 The core argument lies not in the run time of a single training pass, but rather in the alignment between the task structure and the architectural inductive biases. The objective of this surrogate model is to regress $(\mu,\sigma)$ as point-wise functions of low-dimensional condition descriptors (time, scaled amplitude, log pressure residual, one-hot nozzle family indicators), with inputs exhibiting neither regular spatial grids nor long-range sequence dependencies. The local translation-invariance bias that motivates CNN designs and the long-range attention bias driving Transformers are mismatched with such a point-wise low-dimensional regression task structure; they would inject unwarranted expressiveness and parameter footprints. Building upon this, the combinatorial scan of feature engineering, anchor schedules, regime weights, and KD formulations mandated by our ablation design—amounting to dozens of configurations~$\times$~5-fold LONO~$\times$~multiple seeds—requires independent full training for every variant. Introducing more complex spatio-temporal backbones would simultaneously inflate single-run costs and restrict the number of comparable configurations, ultimately meaning that within a Master's-level compute budget, one could only report a single configuration rather than disentangle the marginal contributions of various design choices. Thus, the architecture-task alignment and ablation affordability collectively establish the MLP as a principled choice, not a mere workaround adopted for convenience. Without this alignment, the systematic ablation evidence presented in Chapters~4 and 5 would remain inaccessible under a Master's-level compute budget. This qualitative conclusion does not hinge upon specific numerical assertions regarding CNN/Transformer training overhead, nor does this thesis conduct direct benchmarking of them.
 
-\subsubsection{Prototype Screening Outputs and Evidence Boundaries}
+\subsection{Post-Training Residual Family-Head Extension}
+\label{sec:residual-family-head-en}
+
+The screening surrogate established above conditions on injector family through a one-hot family indicator in its input feature set. Two questions the preceding sections leave open motivate a post-training extension. First, \textbf{deployment and extensibility}: a one-hot family input offers no clean structural answer for a genuinely new injector, requiring either a hard-coded fallback identity or a freshly retrained head. Second, the \textbf{accuracy frontier}: the strongest single model on the conservative uncensored CDF table (Table~\ref{tab:external-clean-headline}) is the SVGP at \SI{4.193}{mm}; can the same censoring-aware protocol be pushed further without abandoning the deployed backbone? This section reports an extension that addresses both. It is a self-contained research follow-up evaluated on the identical conservative uncensored CDF point table (\num{542565} points; the protocol of Section~\ref{sec:evaluation-protocol-en}); it does \emph{not} revise the deployed-surrogate verdict established above.
+
+The construction common to every variant is an \textbf{additive per-family residual on a frozen, hot-started backbone}:
+\begin{equation}
+\mu(x,f) = \underbrace{\mu_{\mathrm{shared}}(h(x))}_{\text{frozen, hot-started}} + \underbrace{\Delta_f(h(x))}_{\text{trained, zero-initialised}}, \qquad \Delta_f \equiv 0 \ \text{at initialisation.}
+\label{eq:residual-family-head-en}
+\end{equation}
+The shared backbone is copied from the deployed Stage~3 checkpoint and frozen; only small per-family residual heads and the log-variance head are trained (\num{49923} trainable parameters against \num{351361} frozen backbone parameters). Because $\Delta_f$ is zero at initialisation, an unseen family defaults to the shared model---a structural fallback with no hand-coded identity---and a shrinkage prior (an $L_2$ penalty on $\Delta_f$, weight $\lambda_\Delta$) trades per-family fit against proximity to the shared map.
+
+\subsubsection{Family Conditioning: One-Hot Input, Per-Family Head, and Residual Head}
+\label{sec:residual-family-designs-en}
+
+Three ways to make the surrogate family-aware were compared on the uncensored CDF table (Table~\ref{tab:residual-family-designs}). Feeding the family as a one-hot input to a single shared head---the deployed configuration---scores \SI{4.265}{mm}, but has no structural answer for an unseen injector. Splitting into independent per-family decoders, the obvious extensible design, fragments the training data and degrades to \SI{5.010}{mm} while still lacking a fallback. The residual head of Equation~\eqref{eq:residual-family-head-en} recovers most of that gap, to \SI{4.631}{mm}, \emph{and} supplies the structural fallback: each family learns only a correction on top of the shared map. Figure~\ref{fig:residual-architecture} contrasts the three designs.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{@{}L{0.40\linewidth}rL{0.34\linewidth}@{}}
+\toprule
+Family-conditioning design & RMSE [mm] & Fallback for unseen family \\
+\midrule
+One-hot family input (deployed) & 4.265 & none (needs hard-coded identity) \\
+Independent per-family heads & 5.010 & none (training data fragmented) \\
+Residual head (zero-init.\ $\Delta_f$) & 4.631 & structural (defaults to shared model) \\
+\bottomrule
+\end{tabular}
+\caption{Three injector-family conditioning designs on the conservative uncensored CDF table (\num{542565} points). The residual head trades a small accuracy cost against the one-hot input for a structural fallback to the shared model on unseen families, and recovers the accuracy lost by the independent per-family heads.}
+\label{tab:residual-family-designs}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/mlp_family_conditioning_architecture.png}
+\caption{Injector-family conditioning designs: independent per-family head, additive residual head, and FiLM modulation. Grey blocks are frozen (hot-started from the deployed Stage~3 checkpoint); green blocks are the small trainable per-family components.}
+\label{fig:residual-architecture}
+\end{figure}
+
+\subsubsection{In-Distribution Climb: Residual Head, FiLM, and Multi-Task SVGP}
+\label{sec:residual-climb-en}
+
+Starting from the residual head, two richer instantiations of the same frozen-backbone-plus-zero-init-residual principle were evaluated under the identical protocol; Table~\ref{tab:residual-climb} collects the progression. \emph{(Step~1)} The residual head improves the extensible per-family-head deployment from \SI{5.010}{mm} to \SI{4.631}{mm} CDF RMSE, with calibration improving in step (ECE $0.072\to0.060$, CRPS $2.72\to2.38$) and condition-level P50 dropping from \SI{3.93}{mm} to \SI{3.40}{mm}; a shrinkage sweep $\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$ (Figure~\ref{fig:residual-delta-sweep}) shows every setting beats the deployed head, with $10^{-4}$ winning on primary RMSE. \emph{(Step~2)} A FiLM adapter that modulates the final trunk representation per family ($h' = \gamma_f \odot h + \beta_f$, identity-initialised) rather than only offsetting the output lowers RMSE further to \SI{4.510}{mm} and ECE to $0.040$---evidence that the family signal is partly representational, not merely an output offset, and now below the deployed one-hot model. \emph{(Step~3)} Replacing the MLP backbone with an additive-residual multi-task SVGP---the shared sparse GP hot-started from the deployed checkpoint, per-family residual processes with a zero-residual fallback, family identity kept outside the kernel feature vector---reaches \SI{3.987}{mm} CDF RMSE, halves the calibration error to ECE $0.026$, and cuts P50 to \SI{2.08}{mm}. This is a new best on the primary table: \SI{0.206}{mm} ($\approx$5\%) below the thesis' strongest predictor (SVGP, \SI{4.193}{mm}) and \SI{0.57}{mm} below it on P50. Figure~\ref{fig:residual-svgp-climb} visualises the residual-SVGP gain against the prior best.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.30\linewidth}rrrrrr@{}}
+\toprule
+Model (uncensored CDF, \num{542565} pts) & RMSE & MAE & ECE & CRPS & P50 & QC-g. \\
+\midrule
+Naber--Siebers (physics ref.) & 9.286 & --- & --- & --- & --- & --- \\
+Production MLP, one-hot (deployed) & 4.265 & 3.032 & --- & --- & 2.848 & --- \\
+Stage~3 SVGP (thesis best) & 4.193 & 2.894 & --- & --- & 2.649 & --- \\
+\midrule
+Deployed per-family head & 5.010 & 3.559 & 0.0722 & 2.720 & --- & --- \\
+Residual head & 4.631 & 3.188 & 0.0604 & 2.382 & 3.395 & 4.701 \\
+Residual-FiLM & 4.510 & 3.074 & 0.0404 & 2.242 & 3.166 & 4.511 \\
+Residual multi-task SVGP & \textbf{3.987} & \textbf{2.827} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{3.922} \\
+\bottomrule
+\end{tabular}
+\caption{In-distribution climb on the conservative uncensored CDF table. RMSE, MAE, CRPS, and P50 RMSE are in mm; ECE is the expected calibration error. The first block lists reference models from Table~\ref{tab:external-clean-headline}; the second block is the residual extension. ``QC-g.'' is the RMSE after a QC-gated dataset retrain (Section~\ref{sec:residual-robustness-en}), reported as a dataset-sensitivity column. Bold marks the new best.}
+\label{tab:residual-climb}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/delta_l2_sweep.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/residual_svgp_context_rmse_comparison.png}
+\end{minipage}
+\caption{Left: shrinkage sweep for the residual head ($\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$); every setting beats the deployed family head on uncensored CDF RMSE. Right: the additive-residual multi-task SVGP against the prior best on the same table.}
+\label{fig:residual-svgp-climb}
+\label{fig:residual-delta-sweep}
+\end{figure}
+
+\subsubsection{Robustness: LONO Transfer and Dataset Sensitivity}
+\label{sec:residual-robustness-en}
+
+Two robustness checks frame the climb. \textbf{LONO transfer.} Re-running the leave-one-nozzle-out protocol of Section~\ref{sec:svgp-lono-comparison-en} with the residual conversion applied to the MLP arms---holding out the modified-family nozzles N1, N2, N4, N5, N6 one at a time, with N0 kept in training and each fold trained from scratch---shows the residual head also generalises to unseen \emph{in-family} nozzles. Across the four in-family folds (excluding N6), the deployed family head averages $\SI{7.44}{mm}\pm\SI{1.46}{mm}$ RMSE; the residual head and residual-FiLM both drop to $\approx\SI{5.16}{mm}\pm\SI{0.65}{mm}$, a $\approx$31\% reduction with a much tighter spread (Table~\ref{tab:residual-lono}, Figure~\ref{fig:residual-lono}). The improvement is largely \textbf{bias repair}: the family head's mean bias of $+\SI{5.07}{mm}$ collapses to $+\SI{0.78}{mm}$, with the largest per-fold gains on N5 ($-\SI{3.43}{mm}$) and N2 ($-\SI{3.37}{mm}$). Notably, the in-distribution edge of FiLM over the plain residual head (\num{4.510} vs \SI{4.631}{mm}) does \emph{not} transfer: under LONO the two arms are within \SI{0.01}{mm}, so the cheap output residual is as good as the representation adapter for unseen in-family nozzles. \textbf{Dataset sensitivity.} Re-evaluating the curated checkpoints on an explicit lv3 QC-gated data root and decomposing the change into a data-cleanup term and a model-retrain term shows the residual SVGP benefits most from QC gating: a $-\SI{0.067}{mm}$ cleanup plus a $-\SI{0.073}{mm}$ retrain gain compound to a $-\SI{0.140}{mm}$ net improvement (to \SI{3.922}{mm}), against near-flat retrain gains for the MLP arms---so the new best is not an artefact of the data root.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{tabular}{@{}L{0.30\linewidth}rrr@{}}
+\toprule
+Arm & In-family RMSE & All-5 RMSE & In-family bias \\
+ & (4 folds, mm) & (5 folds, mm) & (mm) \\
+\midrule
+Deployed family head & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
+Residual head & \textbf{5.16 $\pm$ 0.65} & 6.95 $\pm$ 4.05 & +0.78 \\
+Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
+\bottomrule
+\end{tabular}
+\caption{LONO transfer of the residual conversion on the MLP arms (hold out N1/N2/N4/N5/N6 one at a time, N0 in training, trained from scratch per fold). The in-family aggregate excludes the out-of-design-family N6 stress fold. The residual conversion cuts in-family RMSE by $\approx$31\% and repairs the mean bias; FiLM and the plain residual head are indistinguishable under transfer.}
+\label{tab:residual-lono}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/residual_family_head_20260608/lono_modified_only_rmse_by_fold.png}
+\caption{Per-fold LONO RMSE for the deployed family head versus the residual head and residual-FiLM. The four in-family folds (N1, N2, N4, N5) improve by \SIrange{0.68}{3.43}{mm}; the out-of-design-family N6 fold regresses by $\approx\SI{2.3}{mm}$, marking the boundary of the cheap adapter.}
+\label{fig:residual-lono}
+\end{figure}
+
+\subsubsection{Boundary: Where the Cheap Adapter Stops (Nozzle6 and Nozzle0)}
+\label{sec:residual-boundary-en}
+
+The residual win is bounded by injector design family, and two cases mark the edge. \textbf{Nozzle6} is a data-sparse (\num{20758}-point) fold on which every MLP arm collapses to \SIrange{12}{14}{mm}; the residual arms are $\approx\SI{2.3}{mm}$ \emph{worse} than the plain family head there and systematically under-predict (bias $\approx-\SI{10.5}{mm}$)---over-specialisation rather than transfer. \textbf{Nozzle0} is the only first-generation injector (BC2022); even after momentum normalisation its early-time penetration response is $\approx$2.5$\times$ that of the modified family and never crosses below it (Figure~\ref{fig:injector-comparison}), so it occupies an early-time envelope the frozen trunk never represented (Figure~\ref{fig:injector-scatter} isolates this branch). Held out entirely, N0 is a genuine zero-shot case: the residual surrogate scores \SI{33.16}{mm} RMSE, consistent with the \SI{34.76}{mm} Nozzle0 LONO failure of the deployed MLP reported in Section~\ref{sec:svgp-lono-comparison-en}.
+
+A few-shot study quantifies how far a cheap per-family correction can recover N0 (Figure~\ref{fig:n0-fewshot}). Freezing the entire N0-held-out model except the N0 residual head and fine-tuning only that head on $k$ N0 conditions, RMSE falls from \SI{33.16}{mm} ($k=0$) but plateaus at $\approx\SI{15.7}{mm}$ even with all 203 conditions---far above the $\approx\SI{5}{mm}$ the same architecture reaches on in-family LONO folds. Two effects bound it. First, the frozen log-variance head, badly mis-scaled on out-of-design-family N0 features, throttles the NLL fine-tune, which plateaus $\approx\SI{4}{mm}$ higher than an MSE fit that bypasses it; a deployable adapter must therefore also adapt the variance head. Second, even with the mean fit unthrottled, the delta head removes the global bias ($-27\to\approx0$ mm by $k=2$) but cannot close the residual spread---a per-family output offset cannot synthesise a trunk-level representation the backbone never learned. An out-of-design-family injector therefore needs trunk-level capacity (unfreezing, FiLM across all trunk blocks, or retraining), not merely a new output head.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
+\end{minipage}
+\caption{Why Nozzle0 is out-of-design-family. Left: normalised early-time penetration response of Nozzle0 ($\approx$2.5$\times$ the modified family and never crossing below it). Right: the full scatter separates Nozzle0's early-time branch, which the frozen trunk never represented.}
+\label{fig:injector-comparison}
+\label{fig:injector-scatter}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
+\caption{Nozzle0 few-shot adaptation of the frozen-trunk residual head. Uncensored RMSE versus the number of adapted N0 conditions $k$, for the MSE fine-tune (mean, unthrottled) and the NLL fine-tune (throttled by the frozen variance head). Both plateau far above the $\approx\SI{5}{mm}$ in-family LONO band: delta-only adaptation removes the bias but cannot close the spread.}
+\label{fig:n0-fewshot}
+\end{figure}
+
+In summary, the additive residual on a frozen backbone upgrades the deployed surrogate on both axes raised at the start of this section. The residual multi-task SVGP sets a new best on the primary uncensored CDF table (\SI{3.987}{mm} RMSE, \SI{2.08}{mm} P50, ECE $0.026$), below the thesis' strongest predictor on both point error and calibration; the deployment and extensibility gap is closed structurally \emph{within the injector design family} by the zero-initialised residual and its automatic shared-model fallback; and the MLP's LONO weakness is partly repaired ($\approx$31\% in-family). The Nozzle6 and Nozzle0 cases draw the boundary honestly: the cheap adapter works inside the design family and signals, rather than hides, when a genuinely new injector family needs trunk-level capacity. This extension is a post-training research follow-up---LONO transfer was measured only on the MLP residual arms, so the residual-SVGP's cross-family behaviour is not yet established---and it does not alter the deployed-surrogate verdict of the preceding sections; it is reported as the current accuracy frontier of the same censoring-aware protocol.
+
+\subsection{Prototype Screening Outputs and Evidence Boundaries}
 
 The final surrogate can be coupled with a simplified wall-proximity screening geometry. The current GUI prototype leverages the MLP because it natively exposes the injection onset auxiliary output required for temporal screening displays; an SVGP could substitute the $\mu,\sigma$ penetration channels, but it inherently lacks a direct replacement for this onset prediction head. Under the default toy inputs:
 \[

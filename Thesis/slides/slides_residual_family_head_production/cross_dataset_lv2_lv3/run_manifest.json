@@ -1,0 +1,318 @@
+{
+  "created_at": "2026-06-08T18:44:20",
+  "project_root": ".",
+  "smoke": false,
+  "device": "auto",
+  "eval_sets": [
+    "cdf_uncensored",
+    "p50_observed",
+    "q1_grid_all"
+  ],
+  "dataset_report": {
+    "lv2": {
+      "root": "MLP/synthetic_data_clean_lv2",
+      "required_files": {
+        "cdf_right_censoring_points/cdf_points_uncensored.csv": {
+          "exists": true,
+          "rows": 542565
+        },
+        "p50_q1_oracle/p50_q1_observed_fit_points.csv": {
+          "exists": true,
+          "rows": 4213
+        },
+        "p50_q1_oracle/p50_q1_predictions.csv": {
+          "exists": true,
+          "rows": 25245
+        }
+      }
+    },
+    "lv3_qc_gated": {
+      "root": "MLP/synthetic_data_clean_lv3_qc_gated",
+      "required_files": {
+        "cdf_right_censoring_points/cdf_points_uncensored.csv": {
+          "exists": true,
+          "rows": 540367
+        },
+        "p50_q1_oracle/p50_q1_observed_fit_points.csv": {
+          "exists": true,
+          "rows": 4215
+        },
+        "p50_q1_oracle/p50_q1_predictions.csv": {
+          "exists": true,
+          "rows": 25245
+        }
+      }
+    }
+  },
+  "checkpoints": [
+    {
+      "model_label": "thesis_mlp_seed_07",
+      "model_family": "thesis_mlp_modeA",
+      "kind": "mlp",
+      "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_07",
+      "training_dataset": "pre_qc_thesis",
+      "seed": 7
+    },
+    {
+      "model_label": "thesis_mlp_seed_17",
+      "model_family": "thesis_mlp_modeA",
+      "kind": "mlp",
+      "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_17",
+      "training_dataset": "pre_qc_thesis",
+      "seed": 17
+    },
+    {
+      "model_label": "thesis_mlp_seed_42",
+      "model_family": "thesis_mlp_modeA",
+      "kind": "mlp",
+      "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_42",
+      "training_dataset": "pre_qc_thesis",
+      "seed": 42
+    },
+    {
+      "model_label": "thesis_mlp_seed_99",
+      "model_family": "thesis_mlp_modeA",
+      "kind": "mlp",
+      "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_99",
+      "training_dataset": "pre_qc_thesis",
+      "seed": 99
+    },
+    {
+      "model_label": "thesis_mlp_seed_2024",
+      "model_family": "thesis_mlp_modeA",
+      "kind": "mlp",
+      "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_2024",
+      "training_dataset": "pre_qc_thesis",
+      "seed": 2024
+    },
+    {
+      "model_label": "thesis_svgp_seed_42",
+      "model_family": "thesis_svgp_singleoutput",
+      "kind": "single_svgp",
+      "path": "MLP/best_models/thesis_baselines/svgp_stage3_singleoutput/per_seed/seed_42/model.pt",
+      "training_dataset": "pre_qc_thesis",
+      "seed": 42
+    },
+    {
+      "model_label": "family_head_baseline",
+      "model_family": "family_head_baseline",
+      "kind": "mlp",
+      "path": "MLP/best_models/residual_study/family_head_baseline",
+      "training_dataset": "pre_qc_production",
+      "seed": 42
+    },
+    {
+      "model_label": "residual_fh",
+      "model_family": "residual_fh",
+      "kind": "mlp",
+      "path": "MLP/best_models/residual_study/residual_fh",
+      "training_dataset": "pre_qc_production",
+      "seed": 42
+    },
+    {
+      "model_label": "residual_film",
+      "model_family": "residual_film",
+      "kind": "mlp",
+      "path": "MLP/best_models/residual_study/residual_film",
+      "training_dataset": "pre_qc_production",
+      "seed": 42
+    },
+    {
+      "model_label": "residual_svgp",
+      "model_family": "residual_svgp",
+      "kind": "residual_svgp",
+      "path": "MLP/best_models/residual_study/residual_svgp",
+      "training_dataset": "pre_qc_production",
+      "seed": 42
+    },
+    {
+      "model_label": "qc_retrained_residual_fh",
+      "model_family": "residual_fh",
+      "kind": "mlp",
+      "path": "MLP/best_models/qc_gated_retrains/residual_fh",
+      "training_dataset": "lv3_qc_gated",
+      "seed": 42
+    },
+    {
+      "model_label": "qc_retrained_residual_film",
+      "model_family": "residual_film",
+      "kind": "mlp",
+      "path": "MLP/best_models/qc_gated_retrains/residual_film",
+      "training_dataset": "lv3_qc_gated",
+      "seed": 42
+    },
+    {
+      "model_label": "qc_retrained_residual_svgp",
+      "model_family": "residual_svgp",
+      "kind": "residual_svgp",
+      "path": "MLP/best_models/qc_gated_retrains/residual_svgp",
+      "training_dataset": "lv3_qc_gated",
+      "seed": 42
+    }
+  ],
+  "results": [
+    {
+      "dataset_version": "lv2",
+      "model_label": "thesis_mlp_seed_07",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183751_lv2__thesis_mlp_seed_07"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "thesis_mlp_seed_17",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183807_lv2__thesis_mlp_seed_17"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "thesis_mlp_seed_42",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183823_lv2__thesis_mlp_seed_42"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "thesis_mlp_seed_99",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183839_lv2__thesis_mlp_seed_99"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "thesis_mlp_seed_2024",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183854_lv2__thesis_mlp_seed_2024"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "thesis_svgp_seed_42",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/fixed_eval_20260608_183910_lv2__thesis_svgp_seed_42"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "family_head_baseline",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183915_lv2__family_head_baseline"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "residual_fh",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183931_lv2__residual_fh"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "residual_film",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_183946_lv2__residual_film"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "residual_svgp",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184002_lv2__residual_svgp"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "qc_retrained_residual_fh",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184018_lv2__qc_retrained_residual_fh"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "qc_retrained_residual_film",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184034_lv2__qc_retrained_residual_film"
+    },
+    {
+      "dataset_version": "lv2",
+      "model_label": "qc_retrained_residual_svgp",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184050_lv2__qc_retrained_residual_svgp"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "thesis_mlp_seed_07",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184106_lv3_qc_gated__thesis_mlp_seed_07"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "thesis_mlp_seed_17",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184122_lv3_qc_gated__thesis_mlp_seed_17"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "thesis_mlp_seed_42",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184138_lv3_qc_gated__thesis_mlp_seed_42"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "thesis_mlp_seed_99",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184153_lv3_qc_gated__thesis_mlp_seed_99"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "thesis_mlp_seed_2024",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184209_lv3_qc_gated__thesis_mlp_seed_2024"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "thesis_svgp_seed_42",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/fixed_eval_20260608_184225_lv3_qc_gated__thesis_svgp_seed_42"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "family_head_baseline",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184229_lv3_qc_gated__family_head_baseline"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "residual_fh",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184244_lv3_qc_gated__residual_fh"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "residual_film",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184300_lv3_qc_gated__residual_film"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "residual_svgp",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184316_lv3_qc_gated__residual_svgp"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "qc_retrained_residual_fh",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184332_lv3_qc_gated__qc_retrained_residual_fh"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "qc_retrained_residual_film",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184348_lv3_qc_gated__qc_retrained_residual_film"
+    },
+    {
+      "dataset_version": "lv3_qc_gated",
+      "model_label": "qc_retrained_residual_svgp",
+      "eval_dir": "MLP/eval/cross_dataset_lv2_lv3/eval_dirs/point_eval_20260608_184404_lv3_qc_gated__qc_retrained_residual_svgp"
+    }
+  ],
+  "aggregates": {
+    "all_model_dataset_metrics": "MLP/eval/cross_dataset_lv2_lv3/all_model_dataset_metrics.csv",
+    "headline_cdf_uncensored": "MLP/eval/cross_dataset_lv2_lv3/headline_cdf_uncensored.csv",
+    "post_training_gain_lv2": "MLP/eval/cross_dataset_lv2_lv3/post_training_gain_lv2.csv",
+    "qc_decomposition": "MLP/eval/cross_dataset_lv2_lv3/qc_decomposition.csv",
+    "n_rows": 130,
+    "n_headline_rows": 26,
+    "nonzero_skipped_feature_group_rows": 0,
+    "skipped_feature_group_rows": []
+  },
+  "known_number_checks": [
+    {
+      "model_label": "residual_film",
+      "dataset_version": "lv3_qc_gated",
+      "eval_set": "cdf_uncensored",
+      "metric": "rmse_mm",
+      "actual": 4.401078718507559,
+      "expected": 4.401,
+      "tolerance": 0.08,
+      "ok": true
+    },
+    {
+      "model_label": "qc_retrained_residual_svgp",
+      "dataset_version": "lv3_qc_gated",
+      "eval_set": "cdf_uncensored",
+      "metric": "rmse_mm",
+      "actual": 3.8476757499952337,
+      "expected": 3.848,
+      "tolerance": 0.08,
+      "ok": true
+    }
+  ],
+  "regenerated_aggregates_at": "2026-06-08T18:45:47"
+}

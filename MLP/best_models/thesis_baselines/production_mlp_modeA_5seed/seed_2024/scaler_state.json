@@ -1,0 +1,42 @@
+{
+  "time": {
+    "type": "fixed_minmax",
+    "min_ms": 0.0,
+    "max_ms": 5.0
+  },
+  "zscore": {
+    "tilt_angle_radian_z": {
+      "mean": 0.3425416434330776,
+      "std": 0.049951856242978696
+    },
+    "plumes_z": {
+      "mean": 10.226984126984126,
+      "std": 0.6022988630098582
+    },
+    "injection_duration_us_z": {
+      "mean": 675.6819841269842,
+      "std": 196.48053052106974
+    },
+    "control_backpressure_bar_z": {
+      "mean": 2.7,
+      "std": 1.4866068747318506
+    },
+    "log_injection_pressure_bar_z": {
+      "mean": 7.5512496825757385,
+      "std": 0.1626872744248386
+    },
+    "log_chamber_pressure_bar_z": {
+      "mean": 2.4163481622839176,
+      "std": 0.7353329252249817
+    }
+  },
+  "fill_defaults": {
+    "injection_pressure_bar": 2000.0,
+    "control_backpressure_bar": 4.0
+  },
+  "canonicalization": {
+    "reference_pressure_bar": 4.42,
+    "reference_density_kg_m3": 5.0
+  },
+  "feature_variant": "a_plus_pressures"
+}

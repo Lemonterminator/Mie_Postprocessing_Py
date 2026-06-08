@@ -1,0 +1,109 @@
+{
+  "stage": "stage3",
+  "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162811",
+  "metric_target": "raw_cdf_with_kd_regimes",
+  "parent_run_ids": {},
+  "source_files": [
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162811\\post_train_rmse_eval.json",
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162811\\test_summary.csv",
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\distill_cdf_onset_v2_ablate_anchor_off_20260519_162811\\epoch_loss.csv"
+  ],
+  "metrics": {
+    "n_points": {
+      "value": 692942,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "rmse_mm": {
+      "value": 4.7861199378967285,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "mae_mm": {
+      "value": 3.2522542476654053,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "bias_mm": {
+      "value": 0.8956378102302551,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "median_abs_err_mm": {
+      "value": 2.3302974700927734,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "p90_abs_err_mm": {
+      "value": 6.862770080566406,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "p95_abs_err_mm": {
+      "value": 9.257774353027344,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "coverage_1sigma": {
+      "value": 0.8619509280719021,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "coverage_2sigma": {
+      "value": 0.9830837212926912,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "mean_pred_std_mm": {
+      "value": 5.898172378540039,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "n_trajectories": {
+      "value": 24316,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "mean_rel_err": {
+      "value": 0.13631374827151888,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "median_rel_err": {
+      "value": 0.062479361439477174,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "truth_min_mm": {
+      "value": 0,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "truth_max_mm": {
+      "value": 95.8797378540039,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "truth_range_mm": {
+      "value": 95.8797378540039,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "nrmse_range": {
+      "value": 0.04991794976728612,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "loss": {
+      "value": 2.3283772084822156,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "raw_nll": {
+      "value": 2.0004041027558612,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "kd_kl": {
+      "value": 0.29407454122083626,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "onset_bce": {
+      "value": 0.3389856301581072,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "anchor": {
+      "value": 31.96806503747763,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "d1_penalty": {
+      "value": 0,
+      "target": "raw_cdf_with_kd_regimes"
+    },
+    "d2_penalty": {
+      "value": 1.8592013407470453e-06,
+      "target": "raw_cdf_with_kd_regimes"
+    }
+  }
+}

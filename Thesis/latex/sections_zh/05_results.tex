@@ -267,7 +267,7 @@
 \label{fig:failure-mode-nozzle3}
 \end{figure}
 
-\subsection{MLP 消融证据与筛查演示}
+\subsection{MLP 消融证据}
 
 前文章节确立了跨架构结果：SVGP 目前在点精度上是赢家（尤其在 LONO 转移协议下），而选定 MLP 则是域内更为保守的筛查代理模型。接下来的证据解释了为何 MLP 技术栈仍被保留作为运行工作流：它的训练课程可以被廉价地消融，其喷射起始辅助输出支持 GUI 原型，且它的区制感知蒸馏使得保守筛查行为具有可追溯性而非偶然。
 
@@ -433,7 +433,152 @@ KD-only（合并） & 143{,}643 & 5.08 & +0.93 & 0.32 \\
 
 更核心的论证不在单次训练耗时，而在任务结构与架构归纳偏置的匹配关系。本文代理模型的目标是把 $(\mu,\sigma)$ 作为低维工况描述子（时间、缩放后的幅值、对数压力残差、喷嘴族独热指示）的逐点函数进行回归，输入既无规则空间网格、也无长程序列依赖。激发 CNN 设计的局部平移不变性偏置和驱动 Transformer 的长程注意力偏置都与此种逐点低维回归任务结构不匹配；两者会引入任务并不需要的表达能力与参数量。在此基础上，本文设计归因所要求的特征工程、anchor schedule、区制权重、KD 损失形式的组合扫描——共数十种配置~$\times$~五折 LONO~$\times$~多个种子——需要在每个变体上独立完整训练；引入更复杂的时空主干会同时放大单次成本与可比配置数量，结果是硕士级别算力预算下只能报告单一配置而无法分离各设计选择的边际贡献。因此，架构-任务匹配与消融可负担性共同使 MLP 成为有原则性的选择，而不是仅仅为省事而做出的权宜之计；本文第~4 章与第~5 章呈现的系统化消融证据，若没有这种匹配，在硕士级别算力预算下是无法触及的。这一定性结论不依赖对 CNN/Transformer 训练成本的具体数值断言，本文也未对此进行直接基准测试。
 
-\subsubsection{原型筛查输出与证据边界}
+\subsection{后训练残差族头扩展}
+\label{sec:residual-family-head-zh}
+
+上文确立的筛查代理模型通过输入特征中的喷嘴族 one-hot 指示符对喷嘴族进行条件化。前述各节遗留了两个问题，促成一次后训练扩展。其一，\textbf{部署与可扩展性}：one-hot 族输入对一个全新喷嘴没有干净的结构化答案，只能依赖硬编码的 fallback 身份或重新训练一个头。其二，\textbf{精度前沿}：在保守 uncensored CDF 表（表~\ref{tab:external-clean-headline}）上最强的单一模型是 SVGP，为 \SI{4.193}{mm}；能否在不放弃已部署主干的前提下，把同一套 censoring-aware 协议进一步推进？本节报告一个同时回应这两点的扩展。它是一个自洽的研究性后续，在完全相同的保守 uncensored CDF 点表（\num{542565} 点；协议见第~\ref{sec:evaluation-protocol-en} 小节）上评估，\emph{并不}修改上文已确立的部署模型结论。
+
+所有变体共有的构造是\textbf{在冻结、热启动的骨干之上叠加逐族加性残差}：
+\begin{equation}
+\mu(x,f) = \underbrace{\mu_{\mathrm{shared}}(h(x))}_{\text{frozen, hot-started}} + \underbrace{\Delta_f(h(x))}_{\text{trained, zero-initialised}}, \qquad \Delta_f \equiv 0 \ \text{at init.}
+\label{eq:residual-family-head-zh}
+\end{equation}
+共享骨干从已部署的 Stage~3 检查点复制并冻结；仅训练小的逐族残差头与对数方差头（可训练参数 \num{49923}，冻结骨干参数 \num{351361}）。由于 $\Delta_f$ 在初始化时为零，未见过的族会回退到共享模型——一个无需硬编码身份的结构性 fallback；收缩先验（对 $\Delta_f$ 施加 $L_2$ 惩罚，权重 $\lambda_\Delta$）在逐族拟合与靠近共享映射之间做权衡。
+
+\subsubsection{喷嘴族条件化：One-Hot 输入、逐族头与残差头}
+\label{sec:residual-family-designs-zh}
+
+在 uncensored CDF 表上比较了三种让代理模型感知喷嘴族的方式（表~\ref{tab:residual-family-designs}）。把族作为 one-hot 输入喂给单一共享头——即已部署配置——得到 \SI{4.265}{mm}，但对未见喷嘴没有结构化答案。拆分为独立逐族解码头这一最直接的可扩展设计，会切碎训练数据，退化到 \SI{5.010}{mm}，且仍无 fallback。式~\eqref{eq:residual-family-head-zh} 的残差头把这一差距大部分补回到 \SI{4.631}{mm}，\emph{并且}提供了结构性 fallback：每个族只在共享映射之上学习一个修正。图~\ref{fig:residual-architecture} 对比了三种设计。
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{@{}L{0.40\linewidth}rL{0.30\linewidth}@{}}
+\toprule
+喷嘴族条件化设计 & RMSE [mm] & 未见族的 fallback \\
+\midrule
+One-hot 族输入（已部署） & 4.265 & 无（需硬编码身份） \\
+独立逐族头 & 5.010 & 无（训练数据被切碎） \\
+残差头（零初始化 $\Delta_f$） & 4.631 & 结构性（回退到共享模型） \\
+\bottomrule
+\end{tabular}
+\caption{保守 uncensored CDF 表（\num{542565} 点）上的三种喷嘴族条件化设计。残差头相对 one-hot 输入只付出很小的精度代价，换来对未见族回退到共享模型的结构性 fallback，并补回独立逐族头损失的精度。}
+\label{tab:residual-family-designs}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/mlp_family_conditioning_architecture.png}
+\caption{喷嘴族条件化设计：独立逐族头、加性残差头与 FiLM 调制。灰色块为冻结（从已部署 Stage~3 检查点热启动），绿色块为小的可训练逐族部件。}
+\label{fig:residual-architecture}
+\end{figure}
+
+\subsubsection{域内爬升：残差头、FiLM 与 multi-task SVGP}
+\label{sec:residual-climb-zh}
+
+从残差头出发，在相同协议下评估了同一“冻结骨干 + 零初始化残差”原则的两个更强版本；表~\ref{tab:residual-climb} 汇总了这一爬升。\emph{（Step~1）}残差头把可扩展的逐族头部署从 \SI{5.010}{mm} 改进到 \SI{4.631}{mm} CDF RMSE，校准同步改善（ECE $0.072\to0.060$，CRPS $2.72\to2.38$），工况级 P50 从 \SI{3.93}{mm} 降到 \SI{3.40}{mm}；收缩 sweep $\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$（图~\ref{fig:residual-delta-sweep}）显示每个设置都超过部署头，其中 $10^{-4}$ 在主 RMSE 上最优。\emph{（Step~2）}逐族调制最后一层主干表示的 FiLM adapter（$h' = \gamma_f \odot h + \beta_f$，恒等初始化），而非只对输出做偏移，把 RMSE 进一步降到 \SI{4.510}{mm}、ECE 降到 $0.040$——表明族信息部分是表示性的，而不仅是输出偏移，此时已低于部署的 one-hot 模型。\emph{（Step~3）}把 MLP 主干换成加性残差 multi-task SVGP——共享稀疏 GP 从已部署检查点热启动，逐族残差过程带零残差 fallback，族身份保持在核特征向量之外——达到 \SI{3.987}{mm} CDF RMSE，把校准误差减半至 ECE $0.026$，并把 P50 降到 \SI{2.08}{mm}。这是主表上的新最优：比论文最强预测器（SVGP，\SI{4.193}{mm}）低 \SI{0.206}{mm}（$\approx$5\%），P50 低 \SI{0.57}{mm}。图~\ref{fig:residual-svgp-climb} 展示了 residual-SVGP 相对此前最优的增益。
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.30\linewidth}rrrrrr@{}}
+\toprule
+模型（uncensored CDF，\num{542565} 点） & RMSE & MAE & ECE & CRPS & P50 & QC \\
+\midrule
+Naber--Siebers（物理参考） & 9.286 & --- & --- & --- & --- & --- \\
+生产 MLP，one-hot（已部署） & 4.265 & 3.032 & --- & --- & 2.848 & --- \\
+Stage~3 SVGP（论文最强） & 4.193 & 2.894 & --- & --- & 2.649 & --- \\
+\midrule
+部署版逐族头 & 5.010 & 3.559 & 0.0722 & 2.720 & --- & --- \\
+残差头 & 4.631 & 3.188 & 0.0604 & 2.382 & 3.395 & 4.701 \\
+Residual-FiLM & 4.510 & 3.074 & 0.0404 & 2.242 & 3.166 & 4.511 \\
+Residual multi-task SVGP & \textbf{3.987} & \textbf{2.827} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{3.922} \\
+\bottomrule
+\end{tabular}
+\caption{保守 uncensored CDF 表上的域内爬升。RMSE、MAE、CRPS 与 P50 RMSE 单位为 mm；ECE 为期望校准误差。第一组为表~\ref{tab:external-clean-headline} 的参考模型，第二组为残差扩展。“QC” 列为 QC 门控数据重训后的 RMSE（第~\ref{sec:residual-robustness-zh} 小节），作为数据敏感性列。粗体为新最优。}
+\label{tab:residual-climb}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/delta_l2_sweep.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/residual_svgp_context_rmse_comparison.png}
+\end{minipage}
+\caption{左：残差头的收缩 sweep（$\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$），每个设置都在 uncensored CDF RMSE 上超过部署版 family head。右：加性残差 multi-task SVGP 与同一表上此前最优的对比。}
+\label{fig:residual-svgp-climb}
+\label{fig:residual-delta-sweep}
+\end{figure}
+
+\subsubsection{鲁棒性：LONO 转移与数据敏感性}
+\label{sec:residual-robustness-zh}
+
+两项鲁棒性检查为这次爬升划定边界。\textbf{LONO 转移。}把残差转换应用到 MLP 各臂、按第~\ref{sec:svgp-lono-comparison-zh} 小节的 leave-one-nozzle-out 协议重跑——逐一留出改型族喷嘴 N1、N2、N4、N5、N6，N0 保留在训练中，每个 fold 从头训练——显示残差头同样能泛化到未见的\emph{族内}喷嘴。在四个族内 fold（不含 N6）上，部署版 family head 平均 $\SI{7.44}{mm}\pm\SI{1.46}{mm}$ RMSE；残差头与 residual-FiLM 都降到 $\approx\SI{5.16}{mm}\pm\SI{0.65}{mm}$，约 31\% 的下降且离散度大幅收紧（表~\ref{tab:residual-lono}、图~\ref{fig:residual-lono}）。改进主要来自\textbf{偏差修复}：family head 的均值偏差 $+\SI{5.07}{mm}$ 收缩到 $+\SI{0.78}{mm}$，逐 fold 最大增益在 N5（$-\SI{3.43}{mm}$）与 N2（$-\SI{3.37}{mm}$）。值得注意的是，FiLM 在域内相对纯残差头的优势（\num{4.510} vs \SI{4.631}{mm}）\emph{并不}转移：在 LONO 下两臂相差不到 \SI{0.01}{mm}，因此对未见族内喷嘴，廉价的输出残差与表示型 adapter 一样好。\textbf{数据敏感性。}把整理后的检查点在显式 lv3 QC 门控数据 root 上重新评估，并把变化分解为数据清洗项与模型重训项，显示 residual SVGP 从 QC 门控中获益最多：$-\SI{0.067}{mm}$ 清洗加 $-\SI{0.073}{mm}$ 重训，复合为 $-\SI{0.140}{mm}$ 的净改进（到 \SI{3.922}{mm}），而 MLP 各臂的重训增益近乎持平——因此新最优并非数据 root 的产物。
+
+\begin{table}[t]
+\centering
+\footnotesize
+\begin{tabular}{@{}L{0.30\linewidth}rrr@{}}
+\toprule
+臂 & 族内 RMSE & 全 5-fold RMSE & 族内偏差 \\
+ & （4 fold，mm） & （5 fold，mm） & （mm） \\
+\midrule
+部署版 family head & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
+残差头 & \textbf{5.16 $\pm$ 0.65} & 6.95 $\pm$ 4.05 & +0.78 \\
+Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
+\bottomrule
+\end{tabular}
+\caption{残差转换在 MLP 各臂上的 LONO 转移（逐一留出 N1/N2/N4/N5/N6，N0 在训练中，每 fold 从头训练）。族内汇总排除超出设计族的 N6 stress fold。残差转换把族内 RMSE 降低约 31\% 并修复均值偏差；在转移下 FiLM 与纯残差头不可区分。}
+\label{tab:residual-lono}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/residual_family_head_20260608/lono_modified_only_rmse_by_fold.png}
+\caption{部署版 family head 与残差头、residual-FiLM 的逐 fold LONO RMSE。四个族内 fold（N1、N2、N4、N5）改进 \SIrange{0.68}{3.43}{mm}；超出设计族的 N6 fold 回退约 \SI{2.3}{mm}，标记出廉价 adapter 的边界。}
+\label{fig:residual-lono}
+\end{figure}
+
+\subsubsection{边界：廉价 adapter 在哪里停止（Nozzle6 与 Nozzle0）}
+\label{sec:residual-boundary-zh}
+
+残差的胜势受喷嘴设计族的限制，两个案例标出了这条边界。\textbf{Nozzle6} 是一个数据稀疏（\num{20758} 点）的 fold，所有 MLP 臂都坍缩到 \SIrange{12}{14}{mm}；残差臂在此比纯 family head 还差 $\approx\SI{2.3}{mm}$，并系统性低估（偏差 $\approx-\SI{10.5}{mm}$）——属过度专用化而非转移。\textbf{Nozzle0} 是唯一的第一代喷油器（BC2022）；即便做了动量归一化，其 early-time 贯穿响应仍约为改型族的 2.5 倍且始终不低于后者（图~\ref{fig:injector-comparison}），因此占据了冻结主干从未表示过的 early-time 包络（图~\ref{fig:injector-scatter} 将该分支分离）。完全留出时，N0 是真正的 zero-shot 情形：残差代理得到 \SI{33.16}{mm} RMSE，与第~\ref{sec:svgp-lono-comparison-zh} 小节报告的部署版 MLP 在 Nozzle0 上 \SI{34.76}{mm} 的 LONO 失效一致。
+
+一项 few-shot 研究量化了廉价逐族修正能把 N0 恢复到何种程度（图~\ref{fig:n0-fewshot}）。冻结整个 N0-留出模型、仅微调 N0 残差头于 $k$ 个 N0 工况上，RMSE 从 \SI{33.16}{mm}（$k=0$）下降，但即便用上全部 203 个工况也停在 $\approx\SI{15.7}{mm}$——远高于同一架构在族内 LONO fold 上达到的 $\approx\SI{5}{mm}$。两个效应限制了它。其一，冻结的对数方差头在超出设计族的 N0 特征上严重失配，扼制了 NLL 微调，使其停在比绕开它的 MSE 拟合高 $\approx\SI{4}{mm}$ 处；因此可部署的 adapter 必须同时适配方差头。其二，即便均值拟合不被扼制，delta 头能移除全局偏差（$k=2$ 时 $-27\to\approx0$ mm），却无法收紧残差离散——逐族输出偏移无法合成主干从未学到的表示。因此一个超出设计族的喷油器需要主干级容量（解冻、跨所有主干块的 FiLM，或重训），而不只是一个新的输出头。
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
+\end{minipage}
+\caption{为何 Nozzle0 超出设计族。左：Nozzle0 的归一化 early-time 贯穿响应（约为改型族的 2.5 倍且始终不低于后者）。右：全喷嘴散点把 Nozzle0 的 early-time 分支分离出来，而冻结主干从未表示过该分支。}
+\label{fig:injector-comparison}
+\label{fig:injector-scatter}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
+\caption{Nozzle0 在冻结主干残差头上的 few-shot 适配。uncensored RMSE 随适配 N0 工况数 $k$ 的变化，分别为 MSE 微调（均值，不被扼制）与 NLL 微调（被冻结方差头扼制）。两者都停在远高于 $\approx\SI{5}{mm}$ 族内 LONO 带之上：delta-only 适配移除了偏差，却无法收紧离散。}
+\label{fig:n0-fewshot}
+\end{figure}
+
+总之，冻结骨干上的加性残差在本节开头提出的两个轴上都提升了已部署的代理模型。Residual multi-task SVGP 在主 uncensored CDF 表上刷新最优（\SI{3.987}{mm} RMSE，\SI{2.08}{mm} P50，ECE $0.026$），在点误差与校准两方面都优于论文最强预测器；部署与可扩展性的缺口被零初始化残差及其自动的共享模型 fallback 在\emph{喷嘴设计族内}结构性地闭合；MLP 的 LONO 弱点也被部分修复（族内约 31\%）。Nozzle6 与 Nozzle0 两个案例诚实地划出边界：廉价 adapter 在设计族内有效，并会在一个真正全新的喷嘴族需要主干级容量时发出信号，而非将其掩盖。本扩展是一次后训练研究性后续——LONO 转移只在 MLP 残差臂上测量，因此 residual-SVGP 的跨族行为尚未确立——它并不改变前述各节的部署模型结论；它作为同一套 censoring-aware 协议当前的精度前沿被报告。
+
+\subsection{原型筛查输出与证据边界}
 
 最终 surrogate 可以与一个简化的壁面接近筛查几何耦合。当前的 GUI 原型使用 MLP，因为它已经暴露出时间筛查显示所需的喷射起始（onset）辅助输出；SVGP 可以替代穿深的 $\mu,\sigma$ 通道，但它本身不能直接替代该起始预测头。在默认的玩具输入下：
 \[

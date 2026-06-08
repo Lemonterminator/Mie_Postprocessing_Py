@@ -1,0 +1,7 @@
+{
+  "phase": "stage1",
+  "run_id": "stage1_engineered_mse_a_plus_pressures_20260519_161130",
+  "updated_at": "2026-05-19T16:36:06.233815",
+  "parent_run_ids": {},
+  "orchestrator_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\full_pipeline_A_20260519_161129"
+}

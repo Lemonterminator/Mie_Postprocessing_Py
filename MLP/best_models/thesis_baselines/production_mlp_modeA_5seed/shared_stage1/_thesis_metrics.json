@@ -1,0 +1,44 @@
+{
+  "stage": "stage1",
+  "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+  "metric_target": "representative_q1_fits",
+  "parent_run_ids": {},
+  "source_files": [
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130\\test_summary.csv",
+    "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130\\epoch_loss.csv"
+  ],
+  "metrics": {
+    "epoch": {
+      "value": 236,
+      "target": "representative_q1_fits"
+    },
+    "points": {
+      "value": 138240,
+      "target": "representative_q1_fits"
+    },
+    "loss": {
+      "value": 0.07165901638843396,
+      "target": "representative_q1_fits"
+    },
+    "mse_scaled": {
+      "value": 0.07165901638843396,
+      "target": "representative_q1_fits"
+    },
+    "physical_mae": {
+      "value": 2.909221244741369,
+      "target": "representative_q1_fits"
+    },
+    "var_reg": {
+      "value": 3.763743254507572e-09,
+      "target": "representative_q1_fits"
+    },
+    "d1_penalty": {
+      "value": 0,
+      "target": "representative_q1_fits"
+    },
+    "d2_penalty": {
+      "value": 1.3434880029460238e-10,
+      "target": "representative_q1_fits"
+    }
+  }
+}

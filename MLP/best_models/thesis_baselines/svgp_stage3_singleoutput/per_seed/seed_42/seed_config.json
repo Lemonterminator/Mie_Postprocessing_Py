@@ -1,0 +1,110 @@
+{
+  "method": "svgp_heteroscedastic_two_stage",
+  "mode": "stage3",
+  "lono_holdout": null,
+  "val_ratio": 0.15,
+  "mlp_bootstrap": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\full_pipeline_A_20260519_161129\\bootstrap_summary.json",
+  "requested_variant": null,
+  "feature_source": "stage1_train_config",
+  "variant": "a_plus_pressures",
+  "feature_columns": [
+    "time_norm_0_5ms",
+    "tilt_angle_radian_z",
+    "plumes_z",
+    "injection_duration_us_z",
+    "control_backpressure_bar_z",
+    "log_injection_pressure_bar_z",
+    "log_chamber_pressure_bar_z"
+  ],
+  "feature_spec_by_seed": [
+    {
+      "seed": 42,
+      "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+      "variant": "a_plus_pressures",
+      "stage1_variant": "a_plus_pressures",
+      "feature_columns": [
+        "time_norm_0_5ms",
+        "tilt_angle_radian_z",
+        "plumes_z",
+        "injection_duration_us_z",
+        "control_backpressure_bar_z",
+        "log_injection_pressure_bar_z",
+        "log_chamber_pressure_bar_z"
+      ],
+      "feature_source": "stage1_train_config"
+    }
+  ],
+  "time_feature": "time_norm_0_5ms",
+  "n_points": 512,
+  "batch_points": 1024,
+  "eval_batch_points": 65536,
+  "num_inducing": 256,
+  "kmeans_samples": 50000,
+  "epochs": 80,
+  "var_epochs": 80,
+  "learning_rate": 0.01,
+  "var_learning_rate": 0.01,
+  "early_stopping_patience": 12,
+  "early_stopping_min_delta": 0.0001,
+  "log_interval": 5,
+  "num_workers": 0,
+  "time_min_ms": 0.0,
+  "time_max_ms": 5.0,
+  "residual_eps": 1e-06,
+  "std_floor_scaled": 1e-06,
+  "logvar_clamp_min": -20.0,
+  "logvar_clamp_max": 10.0,
+  "mean_only": false,
+  "include_mean_posterior_var": false,
+  "calibrate_logvar_bias": true,
+  "max_curves_per_split": null,
+  "allow_a_scale_mismatch": false,
+  "latency_points": 10000,
+  "latency_repeats": 5,
+  "device": "cuda",
+  "seed": 42,
+  "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+  "input_dim": 7,
+  "stage1_variant": "a_plus_pressures",
+  "stage1_feature_columns": [
+    "time_norm_0_5ms",
+    "tilt_angle_radian_z",
+    "plumes_z",
+    "injection_duration_us_z",
+    "control_backpressure_bar_z",
+    "log_injection_pressure_bar_z",
+    "log_chamber_pressure_bar_z"
+  ],
+  "split_curve_counts": {
+    "train": 1260,
+    "val": 270,
+    "test": 270
+  },
+  "a_scale_check": {
+    "checked": true,
+    "delta_pressure_exp": 0.5,
+    "max_relative_error": 1.9684378426213705e-16,
+    "passed": true
+  },
+  "logvar_bias_correction": 1.423172116279602,
+  "real_cdf_info": {
+    "cdf_split": "clean",
+    "lono_holdout": null,
+    "n_rows_total": 24316,
+    "n_rows_after_holdout": 24316,
+    "n_rows_used": 24316,
+    "n_train_points": 589741,
+    "n_val_points": 103201,
+    "val_ratio": 0.15
+  },
+  "synth_point_counts": {
+    "train": 645120,
+    "val": 138240,
+    "test": 138240
+  },
+  "combined_point_counts": {
+    "train": 1234861,
+    "val": 241441,
+    "test": 138240
+  }
+}

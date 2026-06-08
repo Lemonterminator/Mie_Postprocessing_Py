@@ -1,0 +1,34 @@
+{
+  "eval_output_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260529_213755_distill_cdf_family_head_v3_FROZEN_anchor_off_20260529_213346",
+  "metrics_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260529_213755_distill_cdf_family_head_v3_FROZEN_anchor_off_20260529_213346\\metrics_summary.json",
+  "split": "clean",
+  "overall": {
+    "n_points": 692704,
+    "rmse_mm": 8.535017013549805,
+    "mae_mm": 6.660959243774414,
+    "bias_mm": -3.534688949584961,
+    "median_abs_err_mm": 5.420871734619141,
+    "p90_abs_err_mm": 14.000883102416992,
+    "p95_abs_err_mm": 16.320552825927734,
+    "coverage_1sigma": 0.5717665842841965,
+    "coverage_2sigma": 0.9238159444726752,
+    "mean_pred_std_mm": 6.839600086212158,
+    "n_trajectories": 24307,
+    "mean_rel_err": 0.20796086197584318,
+    "median_rel_err": 0.16840855480273867,
+    "truth_min_mm": 0.0,
+    "truth_max_mm": 95.8797378540039,
+    "truth_range_mm": 95.8797378540039,
+    "nrmse_range": 0.08901794273307335
+  },
+  "calibration_summary": {
+    "points_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260529_213755_distill_cdf_family_head_v3_FROZEN_anchor_off_20260529_213346\\points.csv",
+    "n_points": 692704,
+    "n_sigma_bins": 10,
+    "coverage_1sigma": 0.5717665842841965,
+    "coverage_2sigma": 0.9238159444726752,
+    "mean_pred_std_mm": 6.839599712829288,
+    "mean_abs_err_mm": 6.660958806483178,
+    "plot": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260529_213755_distill_cdf_family_head_v3_FROZEN_anchor_off_20260529_213346\\calibration\\calibration_coverage.png"
+  }
+}

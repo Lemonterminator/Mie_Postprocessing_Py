@@ -1,0 +1,24 @@
+{
+  "eval_output_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260519_162509_distill_cdf_onset_v2_ablate_anchor_off_20260519_162249",
+  "metrics_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260519_162509_distill_cdf_onset_v2_ablate_anchor_off_20260519_162249\\metrics_summary.json",
+  "split": "clean",
+  "overall": {
+    "n_points": 692942,
+    "rmse_mm": 4.826025485992432,
+    "mae_mm": 3.3170785903930664,
+    "bias_mm": 1.0518308877944946,
+    "median_abs_err_mm": 2.4454212188720703,
+    "p90_abs_err_mm": 6.834203243255615,
+    "p95_abs_err_mm": 9.23951530456543,
+    "coverage_1sigma": 0.8716660268824807,
+    "coverage_2sigma": 0.9848674203613,
+    "mean_pred_std_mm": 6.240805149078369,
+    "n_trajectories": 24316,
+    "mean_rel_err": 0.14917519267376286,
+    "median_rel_err": 0.06319082031616173,
+    "truth_min_mm": 0.0,
+    "truth_max_mm": 95.8797378540039,
+    "truth_range_mm": 95.8797378540039,
+    "nrmse_range": 0.050334153951703764
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "seed": 42,
+  "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_plus_pressures_20260519_161130",
+  "checkpoint": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\residual_multitask_svgp_prod_existing_full_svgp_l2_1em04_20260531_025634\\per_seed\\seed_42\\model.pt",
+  "test_metrics": {
+    "n_points": 138240,
+    "rmse_mm": 3.40507173538208,
+    "mae_mm": 2.3725943565368652,
+    "bias_mm": -0.6016176342964172,
+    "median_abs_err_mm": 1.560760498046875,
+    "p90_abs_err_mm": 5.586751937866211,
+    "p95_abs_err_mm": 7.445516586303711,
+    "coverage_1sigma": 0.7122974537037037,
+    "coverage_2sigma": 0.958470775462963,
+    "mean_pred_std_mm": 3.2000479698181152,
+    "nll_scaled": -1.1650663614273071
+  },
+  "val_metrics": {
+    "n_points": 241245,
+    "rmse_mm": 3.7347960472106934,
+    "mae_mm": 2.6174309253692627,
+    "bias_mm": -0.09183420240879059,
+    "median_abs_err_mm": 1.8261775970458984,
+    "p90_abs_err_mm": 5.933335304260254,
+    "p95_abs_err_mm": 7.852672100067139,
+    "coverage_1sigma": 0.7124209828182968,
+    "coverage_2sigma": 0.9474434703309913,
+    "mean_pred_std_mm": 3.5278162956237793,
+    "nll_scaled": -1.0086157321929932
+  },
+  "best_epochs": {
+    "shared": null,
+    "delta_0": 22,
+    "delta_1": 6,
+    "logvar": 8
+  },
+  "best_val_losses": {
+    "shared": null,
+    "delta_0": -0.15856859044297258,
+    "delta_1": 0.23364482288029795,
+    "logvar": 2.2207491097705927
+  },
+  "trained_family_ids": [
+    0,
+    1
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "mode": "A",
+  "mode_spec": {
+    "description": "Stage 3 reseeded across config.seeds; Stage 1/2 trained once and shared.",
+    "rerun_stage1_per_seed": false,
+    "rerun_stage2_per_seed": false,
+    "rerun_stage3_per_seed": true,
+    "single_seed_only": false
+  },
+  "seeds": [
+    7,
+    17,
+    42,
+    99,
+    2024
+  ],
+  "variant": "a_plus_pressures",
+  "requested_device": "auto",
+  "device": "cuda",
+  "suite_config": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\MLP_training\\stage3_anchor_off_only_config.json",
+  "include_sensitivity": false,
+  "config_source": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\MLP_training\\full_pipeline_pressures_config.json",
+  "dry_run": false,
+  "fit_run_dir": null,
+  "audit_run_dir": null,
+  "data_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_20260509"
+}
