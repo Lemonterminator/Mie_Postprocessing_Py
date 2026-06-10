@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -19,9 +20,17 @@ STAGE2_CSV = PROJECT_ROOT / "MLP" / "runs_mlp" / "stage2_lono_ablation_20260520_
 STAGE3_CSV = PROJECT_ROOT / "MLP" / "runs_mlp" / "stage3_lono_ablation_20260521_092405" / "per_fold.csv"
 GP_LONO_ROOT = PROJECT_ROOT / "MLP" / "runs_mlp"
 
-FOLD_ORDER = ["BC20220627_HZ_Nozzle0", "BC20241017_HZ_Nozzle2",
-              "BC20241003_HZ_Nozzle1", "BC20241010_HZ_Nozzle5",
-              "BC20241007_HZ_Nozzle4"]
+# Sanitized fold names. Legacy run artifacts (CSV holdout columns, SVGP run-dir
+# names, metrics JSON payloads) may still carry the confidential
+# "BC<date>_HZ_" campaign prefix; _strip_bc() normalises both worlds.
+_BC_PREFIX_RE = re.compile(r"BC\d{8}_HZ_")
+
+
+def _strip_bc(value: Any) -> str:
+    return _BC_PREFIX_RE.sub("", str(value))
+
+
+FOLD_ORDER = ["Nozzle0", "Nozzle2", "Nozzle1", "Nozzle5", "Nozzle4"]
 FOLD_LABELS = ["Nozzle0\n(311k pts)", "Nozzle2\n(60k)", "Nozzle1\n(26k)", "Nozzle5\n(33k)", "Nozzle4\n(28k)"]
 
 STAGE2_ABLATIONS = ["no_anchor", "mu_anchor", "mu_sigma_anchor"]
@@ -116,7 +125,9 @@ def make_lono_figure(df: pd.DataFrame,
 
 def latest_svgp_uncensored_metrics(holdout: str) -> Path:
     candidates: list[Path] = []
-    for run_dir in GP_LONO_ROOT.glob(f"gp_baseline_stage3_lono_{holdout}_*"):
+    # `*{holdout}_` also matches legacy run dirs named after the unsanitized
+    # campaign (gp_baseline_stage3_lono_BC..._HZ_NozzleN_<ts>).
+    for run_dir in GP_LONO_ROOT.glob(f"gp_baseline_stage3_lono_*{holdout}_*"):
         candidates.extend(run_dir.glob("external_eval_uncensored/*/metrics_summary.json"))
     valid: list[Path] = []
     for path in candidates:
@@ -124,7 +135,7 @@ def latest_svgp_uncensored_metrics(holdout: str) -> Path:
             payload = read_json(path)
         except (OSError, json.JSONDecodeError):
             continue
-        if str(payload.get("lono_holdout")) == holdout and "overall" in payload:
+        if _strip_bc(payload.get("lono_holdout")) == holdout and "overall" in payload:
             valid.append(path)
     if not valid:
         raise FileNotFoundError(f"No SVGP uncensored metrics_summary.json found for {holdout}")
@@ -307,7 +318,7 @@ def plot_cross_arch_lono_single(table: pd.DataFrame, metric: str, out_path: Path
 def print_cross_arch_summary(table: pd.DataFrame) -> None:
     print("\nCurrent uncensored LONO summary:")
     for include_nozzle0, label in [(True, "all folds"), (False, "excluding Nozzle0")]:
-        sub = table if include_nozzle0 else table.loc[table["holdout"] != "BC20220627_HZ_Nozzle0"]
+        sub = table if include_nozzle0 else table.loc[table["holdout"] != "Nozzle0"]
         for model in CROSS_ARCH_MODELS:
             vals = sub.loc[sub["model_group"] == model, "rmse_mm"].astype(float)
             cov = sub.loc[sub["model_group"] == model, "coverage_1sigma"].astype(float)
@@ -320,6 +331,8 @@ def print_cross_arch_summary(table: pd.DataFrame) -> None:
 def main() -> None:
     df2 = pd.read_csv(STAGE2_CSV)
     df3 = pd.read_csv(STAGE3_CSV)
+    df2["holdout"] = df2["holdout"].map(_strip_bc)
+    df3["holdout"] = df3["holdout"].map(_strip_bc)
 
     make_lono_figure(
         df2, STAGE2_ABLATIONS, STAGE2_LABELS, STAGE2_COLORS,

@@ -258,8 +258,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--ref",
-        default="BC20220627_HZ_Nozzle0",
-        help="Reference experiment name (default: N0)",
+        default="Nozzle0",
+        help="Reference experiment name (default: N0; sanitized dataset naming)",
     )
     ap.add_argument(
         "--compare",

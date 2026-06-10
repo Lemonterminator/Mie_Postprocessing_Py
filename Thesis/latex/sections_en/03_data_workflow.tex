@@ -196,6 +196,30 @@ where \(\varepsilon\) is a small constant to prevent log-zero, \(t_{\mathrm{SOI}
 The result is then rescaled with robust quantiles before entering the geometric processing.
 This sequence is critical for Mie videos, as the raw intensity is not a direct measure of liquid volume fraction; the actual goal is to stably extract geometry under non-uniform illumination, glare, and background textures, rather than performing a rigorous optical inversion \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}.
 
+\textbf{Fixed Preprocessing Parameters.} The intensity-gate, threshold, and rescaling parameters introduced above are held fixed across the batch archive rather than tuned per recording; Table~\ref{tab:ch3-preproc-params} lists the values written by the batch script.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}L{0.29\linewidth}cL{0.20\linewidth}L{0.30\linewidth}@{}}
+\toprule
+Parameter & Symbol & Value & Role \\
+\midrule
+Intensity-gate multiplier & $\alpha$ & 3 (Nozzle0: 4) & background gate $M_t=\mathbf{1}[V_t>\alpha B]$ \\
+Soft threshold & $\tau$ & 0.02 & background-noise suppression in $F_t$ \\
+Pre-injection baseline & $R_0$ & per-pixel, from 10 pre-SOI frames & residual baseline subtracted in $F_t$ \\
+Foreground rescale percentiles & $q_{\min},q_{\max}$ & 5, 99.99 & robust min--max before geometry \\
+High-pass strip percentiles & $q_{\min},q_{\max}$ & 5, 99.9 & per-plume strip normalization \\
+Binary edge threshold & $T_{\mathrm{BW}}$ & 0.01 & edge-occupancy gate on normalized strips \\
+CDF front quantile & $q$ & 0.995 & leading-edge penetration definition \\
+\bottomrule
+\end{tabular}
+\caption{Fixed preprocessing parameters used across the batch archive (\codepath{mie\_multi\_hole.py}). The percentiles clip detector hot pixels and saturated glare while preserving plume edges; all values are fixed batch-wide rather than tuned per recording.}
+\label{tab:ch3-preproc-params}
+\end{table}
+
 The necessity of this robust preprocessing is visually apparent, but the display enhancement itself does not enter the quantitative chain.
 Figure~\ref{fig:gui-gain-halo} compares the appearance of the same spray frame under two display gains, with other GUI parameters held constant.
 At a lower gain, the plume core is relatively compact; at a higher gain, a bright halo diffuses along the spray core, occupying a much larger image region.
@@ -241,7 +265,7 @@ K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf
 \]
 where \(\mathbf{g}\) is a discrete Gaussian envelope and \(\mathbf{d}_g\) is its derivative.
 The outer product matrix is exactly rank-1, rendering the 2D convolution equivalent to two sequential 1D convolutions along the spatial axes.
-The \textbf{rank-1 separability test} automatically verifies this and switches to the separable path when the condition is met, reducing the per-pixel multiply-add overhead for a \(k\times k\) kernel from \(O(2k)\) instead of \(O(k^2)\).
+The \textbf{rank-1 separability test} automatically verifies this and switches to the separable path when the condition is met, reducing the per-pixel multiply-add complexity for a \(k\times k\) kernel from \(O(k^2)\) to \(O(k)\). On the GPU, this separation additionally lowers shared-memory traffic and improves the effective execution bandwidth, since each 1D pass reuses cached neighbours along a single axis.
 Since Sobel kernels are rank-1 by construction, \(K_x\) and \(K_y\) are always applied as pairs of 1D convolutions over the entire video cube.
 
 This is followed by another robust rescaling and the application of an annular geometric mask.
@@ -263,7 +287,7 @@ The contribution here lies not in the Sobel operator itself, but in its integrat
 \end{figure}
 
 The high-pass strips are no longer binarized using triangle thresholding, because that rule is highly sensitive to near-zero peaks, long-tailed intensity distributions, and the proportion of zeros introduced by masking.
-The current implementation first applies percentile-based min-max normalization to each plume's \((t,y,x)\) high-pass strip volume, mapping the \(q_{\min}\) and \(q_{\max}\) percentiles to 0 and 1, and clipping values outside the range.
+The current implementation first applies percentile-based min-max normalization to each plume's \((t,y,x)\) high-pass strip volume, mapping the \(q_{\min}=5\) and \(q_{\max}=99.9\) percentiles to 0 and 1, and clipping values outside the range.
 A single fixed threshold \(T_{\mathrm{BW}}=0.01\) is then applied to the normalized strips:
 \[
 B_p(t,y,x)=\mathbf{1}\!\left[\tilde{H}_p(t,y,x)>T_{\mathrm{BW}}\right].
@@ -308,7 +332,7 @@ The \textbf{FFT-based phase alignment function} computes the real FFT of \(\bar{
 -\frac{\arg\!\left(\mathcal{F}\{\bar{A}\}[P]\right)}{P}\frac{180^\circ}{\pi}.
 \]
 This is exactly what makes the alignment adaptive: the code uses the harmonic phase observed in the current dataset, rather than manually assuming a reference angle for each recording.
-The \textbf{multi-hole geometry construction script} then constructs the plume directions
+The multi-hole geometry construction script then constructs the plume directions
 \[
 \phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
 \]
@@ -391,7 +415,7 @@ Subsequently, the penetration front \(\hat{x}_p(t)\) is defined as the minimum p
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
 where the quantile threshold is fixed at \(q=0.995\) across the entire batch archive in this work, corresponding to \texttt{upper\_quantile\_cdf = 1 - 5e-3} in \codepath{mie\_multi\_hole.py}.
-The reusable library function defaults to a lower value during interactive testing; all quantitative results herein use the \(q=0.995\) written into the archive by the batch script.
+The reusable library function defaults to a lower value during interactive testing; all quantitative results herein use the \(q=0.995\) written into the archive by the batch script. Because the column-summed intensity CDF rises steeply at the leading edge, the recovered front is insensitive to \(q\) within a neighbourhood of this value; \(q=0.995\) is chosen as a conservative leading-edge definition that excludes the faint scattered-light halo beyond the liquid core, rather than as a tuned hyperparameter.
 The inner radius is then subtracted, expressing the distance relative to the nozzle annulus, followed by explicit trajectory cleaning.
 This cleaning step does not elevate all receding values via a cumulative maximum, but directly truncates the tail upon detecting the first non-physical backward jump:
 \[

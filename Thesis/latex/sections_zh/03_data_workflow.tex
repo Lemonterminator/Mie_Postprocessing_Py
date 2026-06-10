@@ -196,6 +196,30 @@ F_t(x,y)=\max\!\left(M_t(x,y)R_t(x,y)-R_0(x,y)-\tau,\,0\right),
 随后再用稳健分位数对结果重新缩放，然后才进入几何处理。
 这一序列对 Mie 视频很重要，因为原始强度并不是液体体积分数的直接度量，而实际目标是在非均匀照明、眩光和背景纹理下稳定提取几何，而不是做精确光学反演 \cite{BohrenHuffman2004,Linne2013SprayImaging,GonzalezWoodsDIP}。
 
+\textbf{固定的预处理参数。} 上述强度门、阈值与缩放参数在整个批量归档中固定，而非逐录像调参；表~\ref{tab:ch3-preproc-params-zh} 列出批处理脚本写入的取值。
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}L{0.20\linewidth}cL{0.21\linewidth}L{0.33\linewidth}@{}}
+\toprule
+参数 & 符号 & 取值 & 作用 \\
+\midrule
+强度门乘子 & $\alpha$ & 3（Nozzle0：4） & 背景门 $M_t=\mathbf{1}[V_t>\alpha B]$ \\
+软阈值 & $\tau$ & 0.02 & $F_t$ 中抑制背景噪声 \\
+喷射前基线 & $R_0$ & 逐像素，由 10 帧喷射前帧估计 & $F_t$ 中减去的残余基线 \\
+前景缩放百分位 & $q_{\min},q_{\max}$ & 5, 99.99 & 进入几何前的稳健最小--最大缩放 \\
+高通条带百分位 & $q_{\min},q_{\max}$ & 5, 99.9 & 逐羽流条带归一化 \\
+二值边缘阈值 & $T_{\mathrm{BW}}$ & 0.01 & 归一化条带上的边缘占据门 \\
+CDF 前沿分位 & $q$ & 0.995 & 前沿穿深定义 \\
+\bottomrule
+\end{tabular}
+\caption{整个批量归档使用的固定预处理参数（\codepath{mie\_multi\_hole.py}）。百分位用于剔除探测器热像素与饱和眩光，同时保留羽流边缘；所有取值在批量层面固定，而非逐录像调参。}
+\label{tab:ch3-preproc-params-zh}
+\end{table}
+
 这种鲁棒预处理的必要性在可视化层面已经很明显，但显示增强本身并不进入定量链。
 图~\ref{fig:gui-gain-halo} 比较了同一喷雾帧在两种显示增益下的样子，其余 GUI 参数保持不变。
 在较低增益下，羽流核心相对紧凑；在较高增益下，明亮光晕沿着喷雾核心扩散，占据了更大的一片图像区域。
@@ -263,7 +287,7 @@ K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf
 \end{figure}
 
 高通条带不再使用 triangle threshold 进行二值化，因为该规则对接近零的峰值、长尾强度分布以及掩码引入的零值比例都很敏感。
-当前实现首先对每个羽流的 \((t,y,x)\) 高通条带体做基于百分位数的最小--最大归一化，把 \(q_{\min}\) 和 \(q_{\max}\) 百分位映射到 0 和 1，并截断范围外的值。
+当前实现首先对每个羽流的 \((t,y,x)\) 高通条带体做基于百分位数的最小--最大归一化，把 \(q_{\min}=5\) 和 \(q_{\max}=99.9\) 百分位映射到 0 和 1，并截断范围外的值。
 随后在归一化条带上使用单一固定阈值 \(T_{\mathrm{BW}}=0.01\)：
 \[
 B_p(t,y,x)=\mathbf{1}\!\left[\tilde{H}_p(t,y,x)>T_{\mathrm{BW}}\right].
@@ -391,7 +415,7 @@ C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
 的最小位置，其中分位数阈值在本文整个批量归档中固定为 \(q=0.995\)，即 \codepath{mie\_multi\_hole.py} 中的 \texttt{upper\_quantile\_cdf = 1 - 5e-3}。
-可复用库函数在交互式测试时保留一个更低的默认值；本文所有定量结果都使用批处理脚本写入归档的 \(q=0.995\)。
+可复用库函数在交互式测试时保留一个更低的默认值；本文所有定量结果都使用批处理脚本写入归档的 \(q=0.995\)。由于按列求和的强度 CDF 在前沿处急剧上升，恢复出的前沿在该取值的邻域内对 \(q\) 不敏感；\(q=0.995\) 被选作一个保守的前沿定义，用以排除液核之外微弱的散射光晕，而非作为调过的超参数。
 随后减去内半径，把距离表达成相对于喷嘴环面的量，并进行显式轨迹清理。
 这一步清理不是通过 cumulative maximum 把所有回退值抬高，而是在检测到第一个非物理后退跳跃后直接截断尾部：
 \[

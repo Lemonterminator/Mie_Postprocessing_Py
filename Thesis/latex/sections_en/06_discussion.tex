@@ -8,13 +8,13 @@ Stage~1 extracts stable representative mean trajectories condition by condition 
 However, because only one representative trajectory is retained per operating condition, utilizing Stage~1 in isolation neglects plume-to-plume and shot-to-shot variability, rendering it unsuitable as a definitive screening model.
 
 Stage~2 extends the supervision to the entire synthetic dataset, concurrently learning the conditional mean and conditional dispersion within the extrapolation window via two output heads.
-This also elucidates its slightly higher MAE compared to Stage~1: Stage~2 confronts a more challenging supervision problem that more closely approximates the ultimate screening requirement.
+This also explains its slightly higher MAE compared to Stage~1: Stage~2 faces a harder supervision problem that more closely matches the final screening requirement.
 
-Stage~3 amalgamates the advantages of the preceding two stages.
+Stage~3 combines the advantages of the preceding two stages.
 During the early temporal periods where raw observations are relatively dense, it learns directly from the measured CDF data;
 in the late temporal periods where observations become sparse as time progresses, it aligns with the conditional mean and variance furnished by the Stage~2 teacher according to the right-censoring rationale established in Chapter~2, utilizing a mixed distillation loss comprising mean MSE and log-variance MSE (see Section~\ref{sec:kd-form-fix-en}).
 Given that both teacher and student output unimodal Gaussian distributions, this distillation loss possesses a closed-form solution, eliminating the need for Monte Carlo sampling and avoiding the introduction of additional sampling noise.
-This hybrid supervision elucidates the early-stage fidelity and the more conservative late-stage behavior of Stage~3.
+This hybrid supervision explains the early-stage fidelity and the more conservative late-stage behavior of Stage~3.
 
 \subsection{Validated Findings and Boundaries of Applicability}
 
@@ -46,7 +46,7 @@ This extrapolation hypothesis still lacks direct comparative validation.
 The originally planned validation pathway was to utilize wide-field single-plume Mie videos with an approximately twofold field of view, identical nozzle types, and similar operating conditions provided by an industrial collaborator, to comprehensively observe the penetration trajectory until the plateau region;
 subsequently, the field of view would be artificially truncated, fitting the \(q_1\) model solely with the pre-truncation time series, and comparing the extrapolated curve pointwise with the full measured trajectory that remains visible post-truncation.
 This experiment would directly scrutinize the core hypothesis of the knowledge distillation (KD) chain in this thesis: that the parametric form \(\sigma\!\left((t-t_0)/s\right)\cdot k_{1/4}\,t^{1/4}\) remains a credible extension beyond the boundary of the field of view, rather than a deviation primarily governed by shape priors.
-Due to the collaborator's inability to provide such single-plume data, this validation could not be consummated within the scope of this thesis; therefore, the reliable time range for extrapolation utilizing the \(q_1\) hypothesis remains an open empirical question.
+Due to the collaborator's inability to provide such single-plume data, this validation could not be completed within the scope of this thesis; therefore, the reliable time range for extrapolation using the \(q_1\) hypothesis remains an open empirical question.
 
 The aforementioned boundaries are critical for downstream wall-impingement screening.
 The interaction between the spray and the wall is not invariably deleterious: if the majority of the liquid phase has evaporated prior to reaching the wall, the residual wall interaction might be less detrimental, and under certain conditions, it might even facilitate entrainment and mixing.
@@ -73,24 +73,32 @@ Therefore, the half-cone angle \(\alpha\) in the downstream wall-interaction mod
 Existing spray literature indicates that the spreading angle varies with transient development, ambient gas density, injection conditions, and nozzle geometry \cite{NaberSiebers1996,JungManinSkeenPickett2015}.
 The current geometric screening solely learns the uncertainty in the axial penetration direction; the transverse envelope determined by \(\alpha\) remains postulated rather than predicted.
 
-Finally, the results also prescribe the following specific boundaries:
+Finally, the results also prescribe the following specific boundaries, grouped below by the type of constraint they impose.
+
+\subsubsection*{Generalization and Out-of-Distribution Bounds}
 \begin{itemize}
 	\item The surrogate is strictly trained within the operating condition domain jointly supported by experimental and synthetic data.
 	      Under genuinely out-of-distribution pressures, nozzle geometries, ambient temperatures, or injection strategies, its predictions should not be accorded equivalent credibility.
 
-	\item The leave-one-nozzle-family-out evaluation yields a five-fold mean RMSE of \SI{12.55}{mm}, entirely dominated by the Nozzle0 fold (the sole factory-fresh reference nozzle in this experiment, with injector-to-injector variation not modeled; every Stage~3 variant collapses to an RMSE of \(\sim\SI{35}{mm}\) with systemic underestimation).
-	      Excluding this fold that deviates from the design family, the four-fold mean RMSE narrows to the \SIrange{7.0}{7.2}{mm} range, which is demonstrably lower than the physical baselines under the identical protocol (Hiroyasu--Arai \(\SI{10.713}{mm}\pm\SI{1.542}{mm}\), Naber--Siebers \(\SI{9.784}{mm}\pm\SI{2.102}{mm}\)).
+	\item The leave-one-nozzle-family-out evaluation is dominated by the Nozzle0 fold---the sole factory-fresh reference nozzle, with injector-to-injector variation not modeled---on which every Stage~3 variant collapses (RMSE \(\sim\SI{35}{mm}\), systemic underestimation); the five-fold mean RMSE of \SI{12.55}{mm} is therefore a worst-case figure carried by this one out-of-design-family fold.
+	      With that fold excluded, the in-family four-fold mean (\SIrange{7.0}{7.2}{mm}) falls below both physical baselines under the identical protocol (Chapter~5). The interpretive point is that the model's cross-family risk is localized to genuinely off-design geometry, not to in-family penetration prediction.
 	      The image evidence of Nozzle~3 further correlates the residual errors within the design family to leading liquid slugs, chasing and overtaking main jets, inter-hole asymmetry, and step-wise penetration. This trajectory morphology is consistent with the wake-driven chasing/overtaking mechanism reported in the split/multiple-injection literature.
 	      However, as this thesis possesses neither synchronous gas velocity measurements nor internal flow visualization or liquid slug identity tracking, it can only interpret Nozzle~3 as image evidence consistent with this mechanism; mechanical causes such as needle wobble or transient nozzle hole throttling remain equally viable candidate explanations that the data cannot exclude.
 	      The principal cross-family risk of the current model is the inadequate generalization to geometries genuinely outside the design family (Nozzle0), rather than a holistic failure to support average penetration prediction within the design family.
+\end{itemize}
 
-	\item The full cleansed CDF evaluation reports five anchor-off repeated training runs (seeds 7/17/42/99/2024), exhibiting a seed-to-seed RMSE standard deviation of \SI{0.037}{mm} and a range of \SIrange{4.689}{4.768}{mm}.
-	      This mean is more reliable than a single point estimate, but it is still not equivalent to a full statistical certification, as bootstrap confidence bands have not yet been reported.
+\subsubsection*{Statistical and Sample-Independence Constraints}
+\begin{itemize}
+	\item Seed-to-seed RMSE is stable across the five anchor-off repeated training runs (std \SI{0.040}{mm}, Chapter~5), so the headline mean is not a single-seed artefact.
+	      It is still not a full statistical certification, however: bootstrap confidence bands have not yet been reported.
 
-	\item The held-out RMSE and MAE are computed based on 692,942 point-wise samples from 24,316 trajectories, but the temporal point errors within the same trajectory are mutually correlated.
+	\item The held-out RMSE and MAE are computed based on 542,565 point-wise samples, but the temporal point errors within the same trajectory are mutually correlated.
 	      Thus, the number of independent samples is significantly smaller than the number of point-wise samples, and any confidence statements based on point-wise counts should be understood in conjunction with this correlation.
 	      Condition-level confidence intervals, preferably clustered by recording, condition, and nozzle family, are still required before the tool can support formal acceptance thresholds.
+\end{itemize}
 
+\subsubsection*{Comparative-Baseline Boundaries}
+\begin{itemize}
 	\item The staged surrogate has been juxtaposed with the calibrated Hiroyasu--Arai, the delayed Naber--Siebers, the sparse heteroscedastic Gaussian-process baseline, and its own Stage~3 ablations under the same external cleansing protocol.
 	      These comparisons encompass the primary disparities between physical correlations, non-parametric probabilistic regression, and the supervision strategy of this thesis.
 	      Nonetheless, lightweight tabular regressors such as random forest, gradient boosting, or quantile boosting have not been systematically incorporated;
@@ -99,16 +107,13 @@ Finally, the results also prescribe the following specific boundaries:
 
 \subsubsection*{Structural Trade-off Between the Staged MLP and SVGP Baselines}
 
-The comparison between MLP and SVGP in Chapter~5 supports a structural rather than a unilateral interpretation.
-On the in-distribution full clean CDF protocol, SVGP emerges as a stronger point predictor (RMSE \SI{4.628}{mm} vs. \SI{4.735}{mm}), yet the selected MLP screening surrogate is distinctly more conservative in its coverage (uncensored 1$\sigma$/2$\sigma$ \(0.887/0.989\) vs. \(0.716/0.945\)).
-Under the leave-one-nozzle-family-out protocol, the SVGP's advantage in point error further widens: on the held-out folds of the four nozzle families from the same test campaign (Nozzle1--8), the MLP average RMSE is \(\SI{7.00}{mm}\), while the SVGP is \(\SI{5.95}{mm}\); on the worst (out-of-design-family) fold, the SVGP similarly degrades more gracefully (RMSE \SI{27.0}{mm} vs. \SI{34.8}{mm}, bias \(-19\) vs. \(-27\) mm).
-Once the Nozzle0 fold is excluded, the coverage gap closes (1$\sigma$ \(0.697\) vs. \(0.696\); 2$\sigma$ \(0.890\) vs. \(0.923\)), indicating that the MLP's conservative coverage advantage is indeed solely an in-distribution effect, not a general property.
-This pattern is precisely the anticipated manifestation of the separation of inductive biases discussed in Section~\ref{sec:kernel-vs-nn-ood-en}: the kernel function of the SVGP reverts to the prior outside the training support, whereas the staged MLP carries the structure of the training distribution---including the beneficial \(\mu\)-anchor---along with it to the held-out folds.
+The comparison between MLP and SVGP in Chapter~5 supports a structural rather than a unilateral interpretation, and the structure reads most clearly backwards from the deployment decision. The MLP is retained as the screening backbone not because it is the stronger regressor---it is not---but because of three components the kernel baselines do not provide: the onset-CDF output head required for the probabilistic screening interface of Section~4.7; the regime-aware raw/KD distillation chain, which lets one network combine censoring-aware synthetic targets with right-censored raw observations within their respective reliable intervals; and the lightweight backbone that makes the design-attribution ablations of Sections~4.4/4.7 affordable (Section~\ref{sec:mlp-ablation-affordability-en}).
 
-Therefore, this trade-off should be articulated as structural (adhering to the terminology established at the beginning of Section~4):
-The SVGP is a stronger point-wise regressor under both protocols, and its out-of-distribution collapse is milder;
-The residual structural value of the MLP does not reside in the point RMSE, but in the components that the three kernel method baselines cannot provision---the onset CDF output head required for the probabilistic screening interface in Section~4.7, the regime-aware raw/KD distillation chain (enabling the same network to utilize censoring-aware synthetic targets and right-censored raw observations within their respective reliable intervals), and the lightweight backbone that guarantees the affordability of the design attribution ablations in Sections 4.4/4.7 (Section~\ref{sec:mlp-ablation-affordability-en}).
-Hence, the staged surrogate model should be perceived as a regressor-agnostic instantiation of the censoring-aware learning protocol: the identical protocol can similarly accommodate a kernel mean function, and would very likely benefit from it in out-of-distribution accuracy; this thesis opted for the MLP backbone for the structural extensions it supports and the ablation affordability it brings, rather than positing an absolute superiority at the architectural level.
+The price for these structural affordances is point accuracy. On the in-distribution uncensored CDF protocol the SVGP is the stronger point predictor (RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}); the one axis on which the MLP leads is uncertainty coverage (1$\sigma$/2$\sigma$ \(0.887/0.989\) vs.\ \(0.716/0.945\)). Under leave-one-nozzle-family-out transfer the SVGP's point-error advantage widens and it degrades more gracefully on the worst fold (Chapter~5, Section~\ref{sec:svgp-lono-comparison-en}). Crucially, once the off-design Nozzle0 fold is excluded the coverage gap also closes, so the MLP's coverage advantage is an in-distribution effect, not a general property.
+
+This pattern is precisely the anticipated manifestation of the separation of inductive biases discussed in Section~\ref{sec:kernel-vs-nn-ood-en}: the SVGP kernel reverts to the prior outside the training support, whereas the staged MLP carries the structure of the training distribution---including the beneficial \(\mu\)-anchor---to the held-out folds. The staged surrogate should therefore be read as a regressor-agnostic instantiation of the censoring-aware learning protocol: the same protocol can host a kernel mean function and would likely gain out-of-distribution accuracy from it; the MLP was chosen for the structural extensions it supports and the ablation affordability it brings, not for an absolute architectural superiority.
+
+These structural commitments also dictate how the frozen screening backbone is adapted at deployment. Because the trunk carries the training distribution, a new injector family can be fitted with a small additive residual head rather than a full retrain: on the uncensored CDF table this recovers the accuracy that independent per-family heads lose (RMSE \SI{4.631}{mm} vs.\ \SI{5.010}{mm}, Chapter~5) while retaining a structural fallback to the shared model for unseen families, and under LONO transfer it cuts in-family RMSE by \(\approx31\%\) (\(7.44\rightarrow\SI{5.16}{mm}\)) and repairs the mean bias. This is the operational payoff of a parametric backbone over the stronger SVGP regressor: cheap, warm-started family conditioning. Its limit is equally informative for positioning---delta-only adaptation of the frozen trunk removes the bias but cannot recover the genuinely off-design Nozzle0 family (few-shot RMSE plateaus far above the \(\approx\SI{5}{mm}\) in-family band, Chapter~5), marking the boundary at which the screening layer needs new trunk capacity rather than a new head. The deployed positioning is therefore a shared censoring-aware trunk plus a cheap per-family residual adapter for in-design nozzles, with off-design families flagged as out-of-scope rather than silently adapted.
 
 \subsection{Time-Varying Nature of Empirical Scaling Exponents and Its Implications for Feature Engineering}
 

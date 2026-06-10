@@ -1,6 +1,6 @@
 \section{Introduction}
 
-The international shipping industry is simultaneously facing multiple pressures, including greenhouse gas emission reduction, fuel diversification, and operational reliability assurance.
+The international shipping industry faces concurrent pressures to reduce greenhouse gas emissions, diversify fuels, and ensure operational reliability.
 The International Maritime Organization (IMO) 2023 strategy and industry order trends indicate that alternative fuel propulsion systems have gradually transitioned from long-term concepts to engineering realities
 \cite{imo2023ghgstrategy,classnk2025alternativefuels}.
 As fuels such as liquefied natural gas (LNG), methanol, and ammonia are adopted to mitigate carbon emission intensity, marine dual-fuel and multi-fuel engines have emerged as a vital trajectory in the research and development of large-scale power systems
@@ -10,10 +10,10 @@ However, the introduction of alternative fuels also creates novel challenges for
 Low-reactivity main fuels are difficult to auto-ignite under practical compression ignition conditions; therefore, the engine persistently necessitates a highly reactive and robust ignition source.
 While the fuel system becomes more low-carbon and adaptable due to alternative fuels, the combustion process remains contingent upon a small-scale yet critical localized event: diesel pilot injection
 \cite{wingd_xdf_manual_2021,classnk_methanol_2024}.
-For injector development, the core control problem thus resides in the spatial development of the pilot spray itself: penetration length, cone angle, and morphology dictate the spatial location and volume of the ignition kernel, which subsequently influence main fuel mixing, flame propagation, and overarching combustion efficiency
+For injector development, the core control problem thus resides in the spatial development of the pilot spray itself. Penetration length, cone angle, and morphology dictate the spatial location and volume of the ignition kernel, which in turn influence main fuel mixing, flame propagation, and overall combustion efficiency
 \cite{Karim2015DualFuel,WeiGeng2016DualFuelReview,Sahoo2009DualFuelReview}.
 If the pilot penetration is excessively short, the ignition kernel may lack sufficient volume or emerge in an unfavorable region; conversely, if the penetration is overly long, the spray may deviate from the design intent and elevate the risk of spray-wall interactions.
-In an industrial development cycle, the value of such a predictor is therefore not to certify combustion performance directly, but to reduce the number of nozzle and operating-condition candidates that must proceed to costly engine tests or computational fluid dynamics (CFD) simulations, to flag wall-proximity risk early, and to reuse existing optical spray archives as a low-cost engineering evidence base.
+In an industrial development cycle, the value of such a predictor is therefore not to certify combustion performance directly. Instead, it is to reduce the number of nozzle and operating-condition candidates that must proceed to costly engine tests or computational fluid dynamics (CFD) simulations, to flag wall-proximity risk early, and to reuse existing optical spray archives as a low-cost engineering evidence base.
 
 When this control objective remains unfulfilled, the same pilot injection may also emerge as a source of operational risk.
 If the liquid-phase envelope reaches the piston crown or cylinder liner prior to the formation of an effective ignition kernel, it may induce wall wetting, lubricating oil dilution, deteriorated mixture preparation, and elevated unburned hydrocarbon emissions
@@ -33,7 +33,7 @@ Empirical models feature a compact structure and are readily interpretable, yet 
 \cite{ZhouLiYi2021,ZhouLiLaiWei2019}.
 Optical experiments provide image evidence, yet image post-processing outcomes remain discrete observation tables rather than predictive models directly applicable to rapid design iteration.
 
-Therefore, this thesis aims to bridge a specific intermediate-layer gap between high-throughput optical spray archives and higher-cost marine engine validation.
+Therefore, this thesis targets the intermediate-layer gap between high-throughput optical spray archives and higher-cost marine engine validation.
 This gap is shaped by three constraints: multi-hole nozzles produce nominally similar but physically different plumes; a finite field of view renders a fraction of the late-stage penetration history as right-censored observations; and the raw Mie intensity is susceptible to illumination, glare, and multiple scattering perturbations.
 If the visible end point of each observed trajectory is naively treated as the physical end point, the model risks learning that exiting the image window represents physical saturation.
 Consequently, what is missing is neither a novel physical theory of sprays nor an additional single-point diagnostic measurement, but rather a rapid, reproducible, uncertainty-aware, and well-scoped pre-screening layer situated between optical experimental archives and computationally or experimentally expensive validations.
@@ -41,8 +41,9 @@ Consequently, what is missing is neither a novel physical theory of sprays nor a
 Data-driven surrogate models offer a viable path toward this objective.
 Recent studies show that neural networks can predict macroscopic spray characteristics, such as penetration and cone angle, leveraging operating conditions
 \cite{VazKarathanasis2026,liu2020sprayreview}.
+However, these surrogates are typically trained as deterministic point predictors on uncensored laboratory penetration data, so they neither quantify input-dependent predictive uncertainty nor account for the right-censoring imposed by a finite imaging field of view---precisely the two requirements that an experimentally grounded pre-screening layer must satisfy.
 In this thesis, multi-batch Mie recordings acquired under identical optical configurations can be transformed into plume-wise temporal observables, which are then used to train a mapping from operating conditions to penetration trajectories.
-Accordingly, this thesis aims to design and evaluate an auditable workflow that turns large-scale Mie scattering spray video archives into an early-stage engineering prediction layer, bridging optical experiments and high-cost validations.
+Accordingly, this thesis aims to design and evaluate an auditable workflow that turns large-scale Mie scattering spray video archives into trajectory predictions usable for design triage.
 The workflow is deliberately framed as a design triage tool: it ranks candidate pilot-spray geometries by Mie-defined penetration and geometric wall-proximity risk, while leaving ignition quality, combustion efficiency, emissions, and harmful wall wetting to subsequent engine-representative validation.
 The objectives of the thesis encompass:
 \begin{enumerate}

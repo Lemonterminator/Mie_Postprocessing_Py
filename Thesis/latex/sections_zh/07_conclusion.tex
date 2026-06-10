@@ -4,11 +4,31 @@
 
 \subsection{已验证结果}
 
+表~\ref{tab:conclusions-scorecard-zh} 总结了最终已验证 surrogate 在主要的无删失 CDF 协议与留一喷嘴族（LONO）转移协议下的表现；以下要点给出解读。
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{三阶段 MLP} & \multicolumn{2}{c}{SVGP} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+评估协议 & RMSE [mm] & 1$\sigma$/2$\sigma$ & RMSE [mm] & 1$\sigma$/2$\sigma$ \\
+\midrule
+域内，无删失 CDF              & 4.265 & 0.887/0.989 & 4.193 & 0.716/0.945 \\
+LONO，五折均值               & 12.55 & 0.575/0.770 & 10.16 & 0.628/0.821 \\
+LONO，四折（剔除 Nozzle0）   & 7.00  & 0.696/0.923 & 5.95  & 0.697/0.890 \\
+\bottomrule
+\end{tabular}
+\caption{最终已验证 surrogate 记分卡：保守无删失 CDF 协议（542{,}565 个点；五种子均值，RMSE 种子标准差 $\le\SI{0.04}{mm}$）与留一喷嘴族（LONO）转移（五折均值）。MLP 在覆盖率上一致更保守；SVGP 是更强的点预测器。物理基线与逐折细节见第五章。}
+\label{tab:conclusions-scorecard-zh}
+\end{table}
+
 \begin{itemize}
-  \item 在刷新后的全清洗 CDF 评估协议上（692{,}942 个预测点、24{,}316 条轨迹，五次重复训练，seeds 7/17/42/99/2024），生产三阶段 MLP（anchor-off，\texttt{kd\_mse\_mu\_plus\_sigma} 损失，\(\lambda_\sigma=5.0\)）达到均值 RMSE \(\SI{4.735}{mm}\pm\SI{0.037}{mm}\)、MAE \(\SI{3.293}{mm}\pm\SI{0.039}{mm}\)、bias \(\SI{+0.626}{mm}\pm\SI{0.112}{mm}\)、P95 \SI{9.167}{mm}，以及 0.867/0.985 的保守 1$\sigma$/2$\sigma$ 覆盖率。
-  \item 将同一五次重复评估限制在保守无删失 CDF 子集（密度骤降和 FOV 饱和截断后剩余 542{,}565 个点）上，得到 RMSE \(\SI{4.265}{mm}\pm\SI{0.040}{mm}\)、MAE \(\SI{3.032}{mm}\pm\SI{0.048}{mm}\)、1$\sigma$/2$\sigma$ 覆盖率 0.887/0.989，证明主要结论不依赖右删失点的存在。
-  \item 相对同协议下校准后的 Hiroyasu--Arai（RMSE \SI{11.268}{mm}）和延迟 Naber--Siebers（RMSE \SI{10.545}{mm}），三阶段 MLP 分别降低 RMSE 58.0\% 和 55.1\%。稀疏异方差 Gaussian process 是更强的逐点回归器（RMSE \SI{4.628}{mm}），但 1$\sigma$/2$\sigma$ 覆盖率仅 \(0.703/0.939\)，对照 MLP 的 \(0.867/0.985\)；在无删失 CDF 子集上 MLP 的覆盖优势进一步扩大到 \(0.887/0.989\) 对 \(0.716/0.945\)。MLP 在分布内相对 SVGP 的结构性价值因此是保守覆盖率而非点精度。
-  \item 留一喷嘴族评估采用与 MLP LONO 消融相同的无删失 CDF 点集；MLP 五折均值 RMSE \SI{12.55}{mm}，SVGP 为 \SI{10.16}{mm}。排除两架构都会崩塌的脱离设计族 Nozzle0 折（MLP RMSE \(\sim\SI{35}{mm}\)，SVGP \(\sim\SI{27}{mm}\)）后，MLP 四折均值收窄至 \SIrange{7.0}{7.2}{mm}，SVGP 为 \SI{5.95}{mm}。两架构均明显低于物理基线 LONO 参考值（Hiroyasu--Arai \(\SI{10.713}{mm}\pm\SI{1.542}{mm}\)，Naber--Siebers \(\SI{9.784}{mm}\pm\SI{2.102}{mm}\)），但 SVGP 在五折中四折赢得点 RMSE，并且四折 1$\sigma$ 覆盖率差距已闭合（\(0.697\) 对 \(0.696\)）。这正是第~\ref{sec:kernel-vs-nn-ood-zh} 节所讨论的归纳偏置特征；困难喷嘴族的低覆盖说明对真正脱离设计族几何的外推风险仍需显式报告。
+  \item 在保守的无删失 CDF 协议（域内主要逐点指标）下，生产三阶段 MLP（anchor-off，\texttt{kd\_mse\_mu\_plus\_sigma} 损失，\(\lambda_\sigma=5.0\)，五种子 7/17/42/99/2024）相对校准后的 Hiroyasu--Arai 与延迟 Naber--Siebers 基线分别降低 RMSE 58\% 和 54\%（表~\ref{tab:conclusions-scorecard-zh}）。在全清洗集合（额外包含右删失点）上的含删失补充评估见第五章。
+  \item 分布内 SVGP 是更强的逐点回归器，但 MLP 在不确定度覆盖率上明显更保守（1$\sigma$/2$\sigma$ \(0.887/0.989\) 对 \(0.716/0.945\)）；MLP 相对 SVGP 的结构性价值因此在于保守覆盖率而非点精度。
+  \item 在留一喷嘴族转移下，SVGP 在五折中四折赢得点 RMSE；剔除两架构都会崩塌的脱离设计族 Nozzle0 折（MLP RMSE \(\sim\SI{35}{mm}\)，SVGP \(\sim\SI{27}{mm}\)）后，1$\sigma$ 覆盖率差距闭合（\(0.696\) 对 \(0.697\)）。相对物理基线 LONO 参考值（Hiroyasu--Arai \(\SI{10.713}{mm}\pm\SI{1.542}{mm}\)，Naber--Siebers \(\SI{9.784}{mm}\pm\SI{2.102}{mm}\)），情况是分裂的：在完整五折均值上 Nozzle0 折的崩塌占主导，因此 MLP（\(\SI{12.55}{mm}\)）高于两个基线，而 SVGP（\(\SI{10.16}{mm}\)）低于 Hiroyasu--Arai 但高于 Naber--Siebers；只有在剔除脱离设计族的 Nozzle0 折之后，两架构才双双明显低于两个基线（MLP \(\SI{7.00}{mm}\)，SVGP \(\SI{5.95}{mm}\)）。这正是第~\ref{sec:kernel-vs-nn-ood-zh} 节所讨论的归纳偏置特征；困难喷嘴族的低覆盖说明对真正脱离设计族几何的外推风险仍需显式报告。
 \end{itemize}
 
 \subsection{当前原型边界}

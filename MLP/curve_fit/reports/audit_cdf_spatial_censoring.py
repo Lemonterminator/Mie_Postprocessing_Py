@@ -82,6 +82,18 @@ def infer_nozzle(dataset_name: str) -> str:
     return f"Nozzle {match.group(1)}" if match else "Other"
 
 
+_BC_PREFIX_RE = re.compile(r"BC\d{8}_HZ_")
+
+
+def dataset_key(name: str) -> str:
+    """Normalize dataset dir names for raw<->synthetic joins.
+
+    The raw root still uses confidential campaign dir names
+    (BC<date>_HZ_NozzleN) while the sanitized synthetic roots use NozzleN.
+    """
+    return _BC_PREFIX_RE.sub("", name)
+
+
 def parse_float(value: object) -> float:
     if value is None:
         return math.nan
@@ -214,7 +226,7 @@ def collect_raw_inventory(
     folder_filter = set(folders or [])
 
     for dataset_dir in iter_dataset_dirs(raw_root, datasets):
-        dataset = dataset_dir.name
+        dataset = dataset_key(dataset_dir.name)
         nozzle = infer_nozzle(dataset)
         for csv_path in sorted(dataset_dir.glob("T*/*.csv")):
             folder = csv_path.parent.name
@@ -373,7 +385,7 @@ def collect_synthetic_series(
                     continue
                 time_cols, pen_cols = time_penetration_columns(reader.fieldnames)
                 for row in reader:
-                    key = row_key(dataset_dir.name, folder, row.get("file_stem"), row.get("plume_idx"))
+                    key = row_key(dataset_key(dataset_dir.name), folder, row.get("file_stem"), row.get("plume_idx"))
                     lookup[key] = synthetic_series_metrics(row, time_cols, pen_cols)
     return lookup
 
@@ -403,7 +415,7 @@ def collect_comparison_rows(
         fit_dir = dataset_dir / "cdf" / "all"
         if not fit_dir.exists():
             continue
-        dataset = dataset_dir.name
+        dataset = dataset_key(dataset_dir.name)
         nozzle = infer_nozzle(dataset)
         cap = caps.get(nozzle)
         if not cap:
