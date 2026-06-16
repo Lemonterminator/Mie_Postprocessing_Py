@@ -45,7 +45,7 @@ The extraction and fitting workflow generated 295 cleaned fitted trajectory file
 \label{fig:clean-fit-example}
 \end{figure}
 
-\subsection{In-Domain CDF Accuracy and Uncertainty}
+\subsection{In-Domain Penetration Accuracy and Uncertainty}
 
 Table~\ref{tab:model-summary} summarizes the roles and held-out set performance of the three learning stages. Stage~1 is trained using only one representative curve per condition, serving as a stable mean anchor; its test MAE is \SI{2.91}{mm}, measured on the corresponding representative test set. Stage~2 tackles a more challenging task---learning the conditional variance and traversing the intra-condition plume-to-plume variations across the full filtered archive; its test MAE is \SI{5.63}{mm}, evaluated on a larger and more heterogeneous test population. Thus, the two figures are not directly comparable: the higher Stage~2 MAE reflects a harder supervision target rather than a degradation in accuracy, which consequently makes Stage~2 a suitable uncertainty-aware teacher model.
 
@@ -92,7 +92,14 @@ Selected in-domain anchor-off screening surrogate, with better early-stage fidel
 \label{fig:pred-vs-actual-best}
 \end{figure}
 
-The above results are reported across five training repetitions. As a censoring-inclusive supplementary comparison, all models are additionally evaluated on the full cleaned CDF set, which contains 692,942 prediction points and 24,316 trajectories on the identical target set. Table~\ref{tab:external-clean-headline} summarizes the physical baselines, selected MLP variants, and a Stage~3 Sparse Variational Gaussian Process (SVGP) alternative backbone: the calibrated Hiroyasu--Arai empirical correlation, the Naber--Siebers correlation with a delay term, the selected multi-seed MLP screening surrogate, a diagnostic KD variant oriented toward extrapolation regularization (with only a $\mu$-anchor and raw NLL supervision in the uncertain regime), and the Stage~3 SVGP. The fitting protocol for the physical baselines is detailed in Section~\ref{sec:baseline-fitting-protocol-en}, and the construction of the SVGP is in Section~\ref{sec:svgp-alternative-backbone-en}. On this censoring-inclusive set the selected anchor-off configuration attains a five-seed average RMSE of \SI{4.735}{mm}, MAE \SI{3.293}{mm}, P95 absolute error \SI{9.167}{mm}, and a conservative 1$\sigma$/2$\sigma$ coverage of 0.867/0.985, reducing RMSE relative to Hiroyasu--Arai and Naber--Siebers by 58.0\% and 55.1\%, respectively. The SVGP holds the edge in point prediction RMSE/MAE (RMSE \SI{4.628}{mm}) and is later shown to transfer better under LONO; therefore, the conclusion is not that the MLP is the universally superior regressor, but that the selected MLP is a conservative in-domain screening surrogate embedded in a cheaper and more auditable operational workflow. Subsequently, the predictive distribution is projected onto a simplified 2D engine geometry model as shown in Figures~\ref{fig:impingement-preview-en}--\ref{fig:impingement-summary-en}, yielding rank-oriented geometric wall-proximity screening metrics instead of deterministic pass/fail thresholds or true probabilities of harmful liquid impingement.
+The above results are reported across five training repetitions. As a censoring-inclusive supplementary comparison, all models are additionally evaluated on the full cleaned CDF set, which contains 692,942 prediction points and 24,316 trajectories on the identical target set. Table~\ref{tab:external-clean-headline} summarizes the physical baselines, selected MLP variants, and a Stage~3 Sparse Variational Gaussian Process (SVGP) alternative backbone: the calibrated Hiroyasu--Arai empirical correlation, the Naber--Siebers correlation with a delay term, the selected multi-seed MLP screening surrogate, a diagnostic KD variant oriented toward extrapolation regularization (with only a $\mu$-anchor and raw NLL supervision in the uncertain regime), and the Stage~3 SVGP. The fitting protocol for the physical baselines is detailed in Section~\ref{sec:baseline-fitting-protocol-en}, and the construction of the SVGP is in Section~\ref{sec:svgp-alternative-backbone-en}. The production MLP achieves the following five-seed average results on this set:
+\begin{itemize}
+  \item RMSE: \SI{4.735}{mm} (\(-58\%\) vs.\ Hiroyasu--Arai, \(-55\%\) vs.\ Naber--Siebers)
+  \item MAE: \SI{3.293}{mm}
+  \item Bias: \SI{+0.626}{mm}
+  \item P95 absolute error: \SI{9.167}{mm}
+  \item Coverage: \(1\sigma/2\sigma = 86.7\%/98.5\%\) (conservative)
+\end{itemize} The SVGP holds the edge in point prediction RMSE/MAE (RMSE \SI{4.628}{mm}) and is later shown to transfer better under LONO; therefore, the conclusion is not that the MLP is the universally superior regressor, but that the selected MLP is a conservative in-domain screening surrogate embedded in a cheaper and more auditable operational workflow. Subsequently, the predictive distribution is projected onto a simplified 2D engine geometry model as shown in Figures~\ref{fig:impingement-preview-en}--\ref{fig:impingement-summary-en}, yielding rank-oriented geometric wall-proximity screening metrics instead of deterministic pass/fail thresholds or true probabilities of harmful liquid impingement.
 
 \begin{table}[t]
 \centering
@@ -136,7 +143,7 @@ The primary in-domain comparison uses the conservative uncensored CDF point tabl
 \label{fig:coverage-comparison}
 \end{figure}
 
-\subsection{P50/Q1 Condition-Level Checks}
+\subsection{Median and Lower-Quartile Condition-Level Checks}
 
 Beyond the point-wise CDF metrics, two additional protocols further sharpen the contrast between the SVGP and the MLP. On a condition-level P50 set containing 4,213 points, an oracle q1 directly fitted to the P50 observations achieved a lower bound RMSE of \SI{1.010}{mm} (undeployable); among the learning models, the SVGP led (RMSE \SI{2.649}{mm}), closely followed by the selected MLP (\(\SI{2.848}{mm}\pm\SI{0.059}{mm}\)), while the diagnostic KD variant oriented toward extrapolation regularization performed the worst (\(\SI{3.212}{mm}\pm\SI{0.245}{mm}\)). However, on a q1 extrapolated grid containing 21,527 points outside the observed P50 window, the ranking reversed: the diagnostic KD variant achieved the lowest RMSE (\(\SI{10.358}{mm}\pm\SI{0.106}{mm}\)) and the smallest positive extrapolation bias (\SI{+6.269}{mm}), leading the SVGP (\SI{10.591}{mm}, bias \SI{+6.410}{mm}) and the selected MLP (\(\SI{10.864}{mm}\pm\SI{0.064}{mm}\), bias \SI{+6.753}{mm}). These two MLP variants thus explore a genuine trade-off: the selected anchor-off model acts as a conservative in-distribution surrogate, while the diagnostic KD variant is retained as an extrapolation-regularized version, remaining closer to the SVGP-style smooth prior outside the observation window. Detailed per-seed numerical values and execution paths are provided in Appendix~\ref{app:implementation_mapping}.
 
@@ -168,7 +175,7 @@ To illustrate the error structure, Figure~\ref{fig:latest-pred-residual} utilize
 
 Since coverage checks only test a few confidence intervals, this study further employs reliability diagrams, the Continuous Ranked Probability Score (CRPS), and Probability Integral Transform histograms. The 5-seed selected anchor-off runs maintain significantly lower CRPS than the physical baselines, and this gain does not stem solely from widening the uncertainty intervals: it arises from a better joint trade-off between mean accuracy and uncertainty width.
 
-Figure~\ref{fig:calibration-current} overlays the reliability diagram and the CRPS--sharpness plane after adding the Stage~3 SVGP into the identical censoring-inclusive (full cleaned set) diagnostic protocol. The 1$\sigma$/2$\sigma$ coverage for the three-stage MLP (anchor-off) (5-seed mean 0.867/0.985) is higher than the nominal Gaussian values, meaning it is intentionally conservative on this set. The refreshed Stage~3 comparison in Table~\ref{tab:external-clean-headline} reveals that the SVGP is now the strongest point predictor (RMSE \SI{4.628}{mm}, 1$\sigma$/2$\sigma$ coverage 0.703/0.939) and achieves the lowest CRPS in the refreshed calibration diagnostics, whereas the selected MLP remains a more conservative in-domain screening surrogate (RMSE \SI{4.735}{mm}, coverage well above nominal). Therefore, these two models should be understood as distinct accuracy--coverage trade-offs rather than a single-winner scenario: the SVGP is closer to nominal coverage and stronger in point accuracy, whereas the MLP retains a wider uncertainty margin and a lower-overhead workflow for downstream screening.
+Figure~\ref{fig:calibration-current} shows the reliability diagram and the CRPS--sharpness plane for both models on the full cleaned set. Table~\ref{tab:external-clean-headline} compares the headline numbers. The SVGP achieves the lowest point error (RMSE \SI{4.628}{mm}) and the lowest CRPS; its coverage is close to the nominal Gaussian values ($1\sigma$/$2\sigma$: 0.703/0.939). The MLP has slightly higher point error (RMSE \SI{4.735}{mm}) but wider coverage (0.867/0.985), which is above nominal. These results reflect a deliberate accuracy--coverage trade-off: the SVGP is the better point predictor; the MLP provides more conservative uncertainty intervals for screening use.
 
 \begin{figure}[t]
 \centering
@@ -185,7 +192,7 @@ Figure~\ref{fig:calibration-current} overlays the reliability diagram and the CR
 \label{fig:calibration-current}
 \end{figure}
 
-\subsection{LONO Transfer and OOD Failures}
+\subsection{Cross-Family Transfer Performance and Out-of-Distribution Failures}
 
 The Leave-One-Nozzle-Out (LONO) evaluation checks whether the model is merely interpolating within the nozzle families seen during training. Locking the Stage~2 teacher to the $\mu$-anchor-only configuration and adopting the refreshed 5-fold LONO protocol (held-out nozzle families Nozzle0, Nozzle1, Nozzle2, Nozzle4, Nozzle5), the winning Stage~3 MLP variant (mixed raw/KD supervision in the uncertain regime) yields a 5-fold average RMSE of \(\SI{12.55}{mm}\pm\SI{12.46}{mm}\), an MAE of \(\SI{9.80}{mm}\pm\SI{10.18}{mm}\), and an average 1$\sigma$/2$\sigma$ coverage of 0.575/0.770. The identical uncensored LONO evaluation measured the Stage~3 SVGP's RMSE at \(\SI{10.16}{mm}\pm\SI{9.57}{mm}\), MAE at \(\SI{7.87}{mm}\pm\SI{7.55}{mm}\), and coverage at 0.628/0.821. The conclusions across nozzle families are thus conditional: the SVGP is a stronger backbone for point transfer, while the MLP is retained based on its in-domain conservative coverage, injection onset auxiliary output, and ablation affordability (understood per the terminology conventions in the beginning of \S4).
 
@@ -206,7 +213,7 @@ The exceptionally high standard deviation is primarily driven by the Nozzle0 fol
 \label{fig:lono-current}
 \end{figure}
 
-\subsubsection{Cross-Architecture LONO Comparison Against the SVGP Alternative Backbone}
+\subsubsection{Cross-Family Hold-Out: Neural Surrogate vs.\ Sparse Gaussian Process}
 \label{sec:svgp-lono-comparison-en}
 
 To test the performance of the same censoring-aware regression protocol across different model families, this study reran the evaluation using the Sparse Variational Gaussian Process (SVGP) alternative backbone (Stage~3 mode) under the identical 5-fold LONO split, trained on a synthetic target concatenated with raw CDF point observations to match the supervision mechanism of the Stage~3 MLP. Within the limits of saved model artifacts, all other axes (five held-out nozzle families, production input feature set, post-training uncensored evaluation scripts) were held constant. The physical LONO rows are retained solely as a legacy RMSE scale reference, as the current archive lacks MAE and coverage tables for these baselines under the same protocol.
@@ -315,7 +322,7 @@ What the data can directly support are modeling inferences. The reduced-order fi
 \label{fig:failure-mode-nozzle3}
 \end{figure}
 
-\subsection{MLP Ablation Evidence}
+\subsection{Neural Surrogate Ablation Study}
 
 The preceding sections established cross-architecture results: the SVGP currently prevails in point accuracy (especially under the LONO transfer protocol), whereas the selected MLP serves as a more conservative in-domain screening surrogate. The subsequent evidence explains why the MLP tech stack is retained as an operational workflow: its training curriculum can be cheaply ablated, its injection onset auxiliary output supports GUI prototypes, and its regime-aware distillation makes the conservative screening behavior traceable rather than accidental.
 
@@ -371,7 +378,7 @@ Verification of both hypotheses points to supporting the \(\mu\)-anchor only con
 
 Superimposing a \(\sigma\)-anchor further tightens the average predicted standard deviation from \SI{5.68}{mm} to \SI{5.49}{mm} but yields no compensatory gains: instead, the RMSE rises to \SI{13.05}{mm} and the 2\(\sigma\) coverage drops to 0.764. This phenomenon can be explained as follows: pushing \(\sigma\) toward a lower bound near \(t{=}0\) propagates through Stage~3 distillation into a more confident yet slightly biased \(\mu\) prediction, thereby simultaneously compromising both accuracy and calibration. Therefore, the Stage~3 ablation experiment reported in the next subsection fixes the Stage~2 teacher to the $\mu$-anchor-only configuration (\(\lambda_\mu=10^{-2}\), \(\lambda_\sigma=0\)); any conclusions regarding Stage~3 regime weighting or KD forms are predicated upon this anchor choice. Complete per-fold breakdowns and paths to raw aggregated file archives are found in Appendix~\ref{app:implementation_mapping}.
 
-\subsubsection{Stage-3 Regime Ablation}
+\subsubsection{Testing Different Supervision Mixes Between Raw Data and Teacher in Stage 3}
 
 Following the Stage~2 anchor ablation, the Stage~2 teacher is fixed to the $\mu$-anchor-only configuration, and the Stage~3 ablation is rerun under the identical 5-fold LONO protocol. This ablation compares four Stage~3 configurations:
 (i)~\textbf{Baseline configuration}, setting $w_{\mathrm{kd}}=0.25$ and $\lambda_{\mathrm{anchor}}=0.01$ in the reliable time bins;
@@ -408,7 +415,7 @@ The ablation trends also illuminate why Stage~3 should be viewed as a fine-tunin
 \label{fig:ablation-best}
 \end{figure}
 
-\subsubsection{Diagnostics on Distillation Loss Formulation and Near-FOV Fix}
+\subsubsection{Fixing Systematic Under-Prediction Near the Field-of-View Boundary}
 \label{sec:kd-form-fix-en}
 
 Upon switching to the "amplitude scaled plus pressure residual" feature variant—which takes the log pressure residual directly as an input—slicing Stage~3 residuals by the near-FOV indicator \(\mathrm{pen}\ge 0.9\,\mathrm{cap}_\mathrm{nozzle}\) exposed a systematic performance degradation in the high-penetration range: although the Stage~2 teacher was virtually unbiased near the FOV cap (bias \SI{-0.59}{mm}, RMSE \SI{4.82}{mm}), the distilled anchor-off student deteriorated to a bias of \SI{-2.70}{mm} and an RMSE of \SI{6.11}{mm} on the same slice. This drift cannot be attributed to the Stage 1/2 fitting—the robust cleaning pipeline employed (Hampel filtering and monotonic difference lower-bound detection, detailed in \S3) did not induce a downward drift in the teacher near the cap—hence, it must originate entirely within the Stage~3 distillation step.
@@ -474,7 +481,7 @@ Trajectory Censored \& Near Cap & 47{,}676 & 4.95 & \(-\)0.69 & 0.28 \\
 \label{fig:kd-sigma-calibration}
 \end{figure}
 
-\subsubsection{Methodological Addendum: Ablation Affordability as a Unique Advantage of the MLP Architecture}
+\subsubsection{Methodological Addendum: Ablation Affordability as a Unique Advantage of the Compact Neural Architecture}
 \label{sec:mlp-ablation-affordability-en}
 
 A direct consequence of choosing the MLP as the penetration surrogate architecture is that the systematic ablations reported in this thesis are computationally affordable on conventional hardware. There are three independent ablation matrices in this work: Stage~1's 5-fold LONO across 9 engineered feature variants (Section~\ref{sec:stage1-lono-ablation}), Stage~2's LONO comparison across 3 anchor schedules under the same protocol, and Stage~3's combinatorial search over 4 regime weighting variants and 7 univariate KD loss formulation ablations. The complete LONO~$\times$~Ablation~$\times$~Seed grid required to back the core tables consumes roughly tens of GPU hours on a single consumer-grade accelerator.
@@ -493,7 +500,7 @@ The construction common to every variant is an \textbf{additive per-family resid
 \end{equation}
 The shared backbone is copied from the deployed Stage~3 checkpoint and frozen; only small per-family residual heads and the log-variance head are trained (\num{49923} trainable parameters against \num{351361} frozen backbone parameters). Because $\Delta_f$ is zero at initialisation, an unseen family defaults to the shared model---a structural fallback with no hand-coded identity---and a shrinkage prior (an $L_2$ penalty on $\Delta_f$, weight $\lambda_\Delta$) trades per-family fit against proximity to the shared map.
 
-\subsubsection{Family Conditioning: One-Hot Input, Per-Family Head, and Residual Head}
+\subsubsection{Three Designs for Making the Model Aware of the Injector Family}
 \label{sec:residual-family-designs-en}
 
 Three ways to make the surrogate family-aware were compared on the uncensored CDF table (Table~\ref{tab:residual-family-designs}). Feeding the family as a one-hot input to a single shared head---the deployed configuration---scores \SI{4.265}{mm}, but has no structural answer for an unseen injector. Splitting into independent per-family decoders, the obvious extensible design, fragments the training data and degrades to \SI{5.010}{mm} while still lacking a fallback. The residual head of Equation~\eqref{eq:residual-family-head-en} recovers most of that gap, to \SI{4.631}{mm}, \emph{and} supplies the structural fallback: each family learns only a correction on top of the shared map. Figure~\ref{fig:residual-architecture} contrasts the three designs.
@@ -522,10 +529,10 @@ Residual head (zero-init.\ $\Delta_f$) & 4.631 & structural (defaults to shared 
 \label{fig:residual-architecture}
 \end{figure}
 
-\subsubsection{In-Distribution Climb: Residual Head, FiLM, and Multi-Task SVGP}
+\subsubsection{Progressive Accuracy Gains from Residual Adapters to Gaussian Processes}
 \label{sec:residual-climb-en}
 
-Starting from the residual head, two richer instantiations of the same frozen-backbone-plus-zero-init-residual principle were evaluated under the identical protocol; Table~\ref{tab:residual-climb} collects the progression. \emph{(Step~1)} The residual head improves the extensible per-family-head deployment from \SI{5.010}{mm} to \SI{4.631}{mm} CDF RMSE, with calibration improving in step (ECE $0.072\to0.060$, CRPS $2.72\to2.38$) and condition-level P50 dropping from \SI{3.93}{mm} to \SI{3.40}{mm}; a shrinkage sweep $\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$ (Figure~\ref{fig:residual-delta-sweep}) shows every setting beats the deployed head, with $10^{-4}$ winning on primary RMSE. \emph{(Step~2)} A FiLM adapter that modulates the final trunk representation per family ($h' = \gamma_f \odot h + \beta_f$, identity-initialised) rather than only offsetting the output lowers RMSE further to \SI{4.510}{mm} and ECE to $0.040$---evidence that the family signal is partly representational, not merely an output offset, and now below the deployed one-hot model. \emph{(Step~3)} Replacing the MLP backbone with an additive-residual multi-task SVGP---the shared sparse GP hot-started from the deployed checkpoint, per-family residual processes with a zero-residual fallback, family identity kept outside the kernel feature vector---reaches \SI{3.987}{mm} CDF RMSE, halves the calibration error to ECE $0.026$, and cuts P50 to \SI{2.08}{mm}. This is a new best on the primary table: \SI{0.206}{mm} ($\approx$5\%) below the thesis' strongest predictor (SVGP, \SI{4.193}{mm}) and \SI{0.57}{mm} below it on P50. This \SI{3.987}{mm} is an in-distribution figure only: the residual multi-task SVGP was not run through the LONO protocol (Table~\ref{tab:residual-lono} covers the MLP residual arms only), so its cross-family generalisation is unverified. Figure~\ref{fig:residual-svgp-climb} visualises the residual-SVGP gain against the prior best.
+Starting from the residual head, two richer instantiations of the same frozen-backbone-plus-zero-init-residual principle were evaluated under the identical protocol; Table~\ref{tab:residual-climb} collects the progression. \emph{(Step~1)} The residual head improves the extensible per-family-head deployment from \SI{5.010}{mm} to \SI{4.631}{mm} CDF RMSE, with calibration improving in step (ECE $0.072\to0.060$, CRPS $2.72\to2.38$) and condition-level P50 dropping from \SI{3.93}{mm} to \SI{3.40}{mm}; a shrinkage sweep $\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$ (Figure~\ref{fig:residual-delta-sweep}) shows every setting beats the deployed head, with $10^{-4}$ winning on primary RMSE. \emph{(Step~2)} A Feature-wise Linear Modulation (FiLM) adapter that modulates the final trunk representation per family ($h' = \gamma_f \odot h + \beta_f$, identity-initialised) rather than only offsetting the output lowers RMSE further to \SI{4.510}{mm} and ECE to $0.040$---evidence that the family signal is partly representational, not merely an output offset, and now below the deployed one-hot model. \emph{(Step~3)} Replacing the MLP backbone with an additive-residual multi-task SVGP---the shared sparse GP hot-started from the deployed checkpoint, per-family residual processes with a zero-residual fallback, family identity kept outside the kernel feature vector---reaches \SI{3.987}{mm} CDF RMSE, halves the calibration error to ECE $0.026$, and cuts P50 to \SI{2.08}{mm}. This is a new best on the primary table: \SI{0.206}{mm} ($\approx$5\%) below the thesis' strongest predictor (SVGP, \SI{4.193}{mm}) and \SI{0.57}{mm} below it on P50. This \SI{3.987}{mm} is an in-distribution figure only: the residual multi-task SVGP was not run through the LONO protocol (Table~\ref{tab:residual-lono} covers the MLP residual arms only), so its cross-family generalisation is unverified. Figure~\ref{fig:residual-svgp-climb} visualises the residual-SVGP gain against the prior best.
 
 \begin{table}[t]
 \centering
@@ -594,7 +601,7 @@ Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 \label{fig:residual-lono}
 \end{figure}
 
-\subsubsection{Boundary: Where the Cheap Adapter Stops (Nozzle6 and Nozzle0)}
+\subsubsection{Where the Residual Adapter Fails: Two Cases at the Edge of Its Scope}
 \label{sec:residual-boundary-en}
 
 The residual win is bounded by injector design family, and two cases mark the edge. \textbf{Nozzle6} is a data-sparse (\num{20758}-point) fold on which every MLP arm collapses to \SIrange{12}{14}{mm}; the residual arms are $\approx\SI{2.3}{mm}$ \emph{worse} than the plain family head there and systematically under-predict (bias $\approx-\SI{10.5}{mm}$)---over-specialisation rather than transfer. \textbf{Nozzle0} is the only first-generation injector (BC2022); even after momentum normalisation its early-time penetration response is $\approx$2.5$\times$ that of the modified family and never crosses below it (Figure~\ref{fig:injector-comparison}), so it occupies an early-time envelope the frozen trunk never represented (Figure~\ref{fig:injector-scatter} isolates this branch). Held out entirely, N0 is a genuine zero-shot case: the residual surrogate scores \SI{33.16}{mm} RMSE, consistent with the \SI{34.76}{mm} Nozzle0 LONO failure of the deployed MLP reported in Section~\ref{sec:svgp-lono-comparison-en}.

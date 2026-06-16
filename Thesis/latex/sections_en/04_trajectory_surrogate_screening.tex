@@ -33,10 +33,10 @@ Among the penetration descriptors exported by the image processing workflow, CDF
 
 This reframing also clarifies the role of uncertainty. The objective is not merely to fit a smooth mean curve through every measured point; the downstream screening task requires a distribution over plausible penetrations at each time point. Consequently, this chapter processes the archive in three complementary ways: as a collection of raw time-indexed measurements, as a statistically truncated point-level evaluation set, and as an archive of smoothed fitted trajectories that can serve as a smooth teacher. The remainder of this chapter will define these data populations, construct the fitting targets, and then compare neural network-based and kernel-based method backbones on the same scaled regression problem.
 
-\subsection{CDF Censoring and Three Derived Data Populations}
+\subsection{Right-Censoring in Penetration Targets and Three Derived Data Populations}
 \label{sec:cdf-populations-en}
 
-\subsubsection{Spatial Right-Censoring Audit of CDF Penetration Trajectories}
+\subsubsection{Quantifying How Many Trajectories Are Truncated by the Field of View}
 \label{sec:cdf-spatial-censoring-audit}
 \newcommand{\scrNTotal}{24316}%
 \newcommand{\scrNCensored}{9630}%
@@ -234,7 +234,7 @@ These correlations suggest that the three q1 parameters are not independent phys
 \label{fig:q1-identifiability}
 \end{figure}
 
-\subsubsection{Outlier Shielding and Filtration Selection Bias}
+\subsubsection{Quality Filtering and the Dataset Bias It Introduces}
 
 A stricter post-fit shielding stage is also an important component of the engineering contribution. The robust outlier mask first evaluates the fitted curve at \(t_{\mathrm{far}}=\SI{5}{ms}\) to form a far-time penetration surrogate. The row is retained only if this far-time value remains within a broad physical plausibility window, and if the fit parameters pass basic sanity checks on \(t_0\), \(s\), point count, and fit cost. Robust grouped outlier scores are then computed using the median absolute deviation,
 \[
@@ -326,7 +326,7 @@ Before any optimization, a scaling validation routine tests the scaling hypothes
 
 Stage 1 and Stage 2 also share a group-aware data split: the entire operating condition group defined by nozzle identity, injection pressure, chamber pressure, and injection duration is assigned together to the training, validation, or test set, preventing leakage between curves sharing the same operating point. Without this constraint, a random trajectory-level split would allow the network to interpolate between near-identical curves from the same operating condition seen during training, and the holdout error would reflect intra-condition smoothness rather than generalization across the condition space. Therefore, group assignment is a structural guarantee that the reported test metrics describe interpolation across different operating conditions, not intra-condition memorization. Stage 2 warm-starts from Stage 1's engineering run directory and reuses its scaler states, ensuring that variant selection and $A$ scaling remain consistent across the two stages.
 
-\subsubsection{Cross-Population Scaling Verification on Dataset \#2}
+\subsubsection{Validating the Physics Scaling Formula Against Uncensored Observations}
 \label{sec:pointlevel-scaling-verification}
 
 The construction of Dataset \#2 starts by unrolling the individual $(t,S)$ discrete observation points from the cleaned CDF wide-format sequence table. Even after excluding points from trajectories that reached the spatial FOV cap, the remaining discrete points still exhibit systematic right-censoring, and the onset of censoring varies by operating condition: although the spray plume remains within the field of view, the Mie scattering signal gradually falls below the detection threshold due to droplet breakup, spatial dilution, and local drops in droplet number density, until the signal becomes indistinguishable from the CV-subtracted background both mathematically and visually. Some conditions enter this signal-loss regime at $t<\SI{0.5}{ms}$, while others survive until significantly later. To address this, a point table generation tool was constructed (codebase identifiers listed in Appendix~\ref{app:implementation_mapping}) to automatically determine condition-level censoring thresholds for each of the \num{592} operating condition groups based on two statistical/optical metrics and assign binary censoring labels: (i)~the smoothed trajectory count per bin drops below a fixed fraction of its intra-condition peak (density drop criterion), and (ii)~the per-bin $p_{95}$ penetration reaches $95\%$ of the estimated FOV cap (FOV saturation criterion); Figure~\ref{fig:censor-mechanisms} illustrates one representative example of each. The first bin satisfying either criterion, along with all subsequent observation points, is discarded, leaving $N_{\mathrm{unc}}=\num{506634}$ uncensored points for downstream log-log regression use.
@@ -387,7 +387,7 @@ The injection pressure exponent $a$ stabilizes around $0.47$--$0.52$ in the $0.4
 \textbf{Diameter Exponent and H--A Prior.}
 The $c_{d_n}$ column in Table~\ref{tab:loglog-regression-uncensored} is extremely large, ranging from $1.7$ to $6.0$; these values lack physical meaning. Two structural reasons prevent the diameter exponent from being identified from this dataset. First, the range for the six nozzle hole diameters is only $0.333$--$\SI{0.384}{mm}$ (a ratio of $1.15$, yielding a log-leverage of $0.14$), which is roughly three times smaller than the log-leverage available across the injection pressure range ($0.45$). Second, pressure and diameter do not vary independently in the design matrix: the full six-diameter coverage occurs only within a single injection pressure family ($P_{\mathrm{inj}}=\SI{2000}{bar}$, $P_{\mathrm{cb}}=\SI{4}{bar}$), and within that family, the nozzle sets differ not only in hole diameter but also in hole count and umbrella angle. Running a controlled check within this matched-pressure family---regressing the per-condition median penetration against $\log d_n$ at fixed $\Delta P$ and $P_{\mathrm{ch}}$---yielded $c_{d_n}\approx 0$ and $R^2<0.01$ across the entire mid-trajectory window, confirming that causal diameter effects cannot be separated from geometric confounders in this dataset. Therefore, the $d_n^{0.5}$ term is retained in $A$ as a Hiroyasu--Arai physically motivated prior; the two empirically supported components, $\Delta P^{0.5}$ and $\rho_a^{-0.25}$, are corroborated by both the $k_{1/4}$ regressions and the current point-level checks on the right-censored dataset.
 
-\subsubsection{LONO Ablation of the Engineered Feature Design}
+\subsubsection{Which Input Features Help the Model Generalize to New Nozzle Families?}
 \label{sec:stage1-lono-ablation}
 
 The single-split improvements reported earlier in this section (Stage 1 test MAE dropping from \SI{8.05}{mm} to \SI{2.91}{mm}) confirm that within the same group-aware split, the seven-feature design outperforms the pure-scaling baseline. A more challenging test is whether the design choices generalize to nozzle families never seen during training. A dedicated leave-one-nozzle-out (LONO) ablation evaluated all nine variants of the engineered feature design in a five-fold split, each time holding out one of nozzle 0, nozzle 1, nozzle 2, nozzle 4, and nozzle 5, while the remaining four families formed the training pool. Every cell of the ablation used the same deterministic Stage 1 MSE objective (described in Section~\ref{sec:mlp-curriculum-en}), identical network architecture and optimizer, and a single fixed seed (42), so the only varying axis is the feature configuration.
@@ -453,7 +453,7 @@ Variant & Nozzle 0 & Nozzle 1 & Nozzle 4 & Nozzle 5 & Nozzle 2 & Mean \\
 
 The single-split improvements reported earlier in this section and the LONO ablation reported here are mutually consistent: amplitude scaling is the load-bearing element, log-pressure residuals provide modest further gains, and diameter is best left absorbed within \(A\) rather than re-exposed. The numerical values differ because the LONO protocol holds out an entire nozzle family rather than a stratified random subset; the LONO mean MAE (\SI{7.46}{mm}) is by design higher than the in-domain test MAE (\SI{2.91}{mm}) since it measures generalization to nozzle geometries never seen during training, rather than interpolation within a supported domain. The full-chapter reporting protocol introduced in Section~\ref{sec:evaluation-protocol-en} reuses these same LONO splits for the cross-model comparisons in Chapter 5.
 
-\subsection{MLP Curriculum: Stage 1 to Stage 3}
+\subsection{Three-Stage Neural Surrogate Training Curriculum}
 \label{sec:mlp-curriculum-en}
 
 The MLP surrogate model is trained as a curriculum across three data populations rather than a single monolithic regression. Stage 1 learns a stable condition-level mean from the representative q1 trajectories in Dataset \#3. Stage 2 expands to the full filtered q1 archive and learns the heteroscedastic inter-plume spread, yielding a clean teacher. Stage 3 then reintroduces the Dataset \#1 raw CDF observations where coverage is reliable, falling back to the Stage 2 teacher where FOV censoring and signal decay render direct raw supervision unsafe. Figure~\ref{fig:mlp-curriculum} summarizes the curriculum and the data population feeding each stage.
@@ -465,7 +465,7 @@ The MLP surrogate model is trained as a curriculum across three data populations
 \label{fig:mlp-curriculum}
 \end{figure}
 
-\subsubsection{Stage 1 MSE Baseline on Dimensionless Targets}
+\subsubsection{Stage 1: Deterministic Baseline on Dimensionless Targets}
 
 Stage 1 trains a deterministic mean model on a representative trajectory subset drawn from Dataset \#3. For each file-level operating condition group, the fitted curves are evaluated at \(t_{\mathrm{far}}=\SI{5}{ms}\), the group median penetration is calculated, and the nearest actual q1 fitted trajectory is retained as the Stage 1 representative. This is not the P50/q1 oracle from Dataset \#2. It yields 599 representative trajectories, divided by group into 421/89/89 training/validation/test trajectories.
 
@@ -491,7 +491,7 @@ where $c_0=-2$ is the log-variance prior center: since Stage 1 trains on a singl
 \label{fig:stage1-loss-curves}
 \end{figure}
 
-\subsubsection{Stage 2 Heteroscedastic NLL Expansion}
+\subsubsection{Stage 2: Learning the Full Plume Population and Its Conditional Spread}
 
 Stage 2 warm-starts from the Stage 1 checkpoint and expands the training set from the representative subset to the filtered q1 trajectories in Dataset \#3, replacing the MSE data-fitting term with a heteroscedastic Gaussian NLL over the scaled target:
 \[
@@ -552,7 +552,7 @@ Table~\ref{tab:stage2-epoch-loss} shows a holdout test MAE of \SI{5.63}{mm}, clo
 \label{fig:stage2-loss-curves}
 \end{figure}
 
-\subsubsection{Stage 3 Raw CDF Distillation and Onset Refinement}
+\subsubsection{Stage 3: Blending Direct Observations with Teacher Guidance}
 The NLL stage produces heteroscedastic predictions that closely track the fitted training targets, but the fitted curve is not equally faithful across the entire time axis. Near the start of injection, absolute penetration is small, so any timing offset, fit delay ambiguity, or smoothness prior yields a relatively large fractional error; the earliest portion of each predicted curve is shaped primarily by the fitted target prior rather than directly observed raw plume dynamics. Figure~\ref{fig:stage2-toy-inference-early-time} illustrates this in a representative toy inference sweep.
 
 \begin{figure}[t]

@@ -3,8 +3,8 @@
 \subsection{Workflow Overview}
 
 Figure~\ref{fig:surrogate-data-flow} illustrates the overall data flow of the surrogate modeling workflow used in this thesis, organized into four swimlanes.
-Raw inputs (high-speed Mie videos, calibration configurations, and test metadata) first undergo CUDA-accelerated image processing to generate 1D features and boundary points; based on this, BW-based (binary) and CDF-based penetration trajectories along with other geometric metrics are obtained.
-These observables are expanded into synthetic trajectories via non-parametric curve fitting and are used to drive a three-stage neural network training: Stage~1 (MSE), Stage~2 (NLL), and Stage~3 (Raw + KD).
+Raw inputs (high-speed Mie videos, calibration configurations, and test metadata) first undergo CUDA-accelerated image processing to generate 1D features and boundary points; based on this, binary-thresholded (BW) and CDF-based penetration trajectories along with other geometric metrics are obtained.
+These observables are expanded into synthetic trajectories via non-parametric curve fitting and are used to drive a three-stage neural network training: Stage~1 (MSE), Stage~2 (NLL), and Stage~3 (Raw + KD, knowledge distillation).
 The ultimately trained model is deployed in a wall impingement screening application, which outputs impingement probabilities and visualization animations in combination with piston geometry and physical parameters.
 Table~\ref{tab:workflow} summarizes these same stages in textual form.
 This chapter focuses on the first two swimlanes of Figure~\ref{fig:surrogate-data-flow}: how the OSCC video data undergoes calibration, preprocessing, registration, and conversion into plume-resolved geometric observables.
@@ -140,9 +140,9 @@ The most computationally expensive parts of this chain are kept strictly local t
 This implementation choice stems from practical limitations in early internal workflows. The legacy pipeline relied on frame-by-frame MATLAB processing and lacked effective batch parallelism: processing $\sim$50\,GB of videos typically took around a day and was prone to crashing.
 Therefore, migrating heavy image operations to a batch CUDA-oriented pipeline is considered a methodological design in this thesis rather than merely a software optimization.
 
-\subsubsection{Concurrency Architecture: Batch Scheduling, Memory Reuse, and Recovery Contract}\label{subsec:concurrency-architecture}
+\subsubsection{How the Pipeline Processes the Full Archive on a Single GPU}\label{subsec:concurrency-architecture}
 
-This CUDA pipeline is not a simple port of the frame-by-frame MATLAB script, but an end-to-end archive-processing scheduler in which four execution lanes---disk prefetch, GPU compute, CPU feature extraction, and asynchronous output---overlap behind a pool-reuse memory strategy and a resumable recovery contract (Figure~\ref{fig:ch3-pipeline-lanes}).
+The pipeline runs four lanes in parallel: disk prefetch, GPU compute, CPU feature extraction, and output writing (Figure~\ref{fig:ch3-pipeline-lanes}). While the GPU processes one recording, the disk worker loads the next. Output files are written in the background after the GPU finishes. If the process is interrupted, a checkpoint file allows it to resume from where it stopped.
 Video loading employs depth-1 producer-consumer prefetching: while recording \(N\) is processed on the GPU, a background worker reads recording \(N+1\) from disk, overlapping GPU computation with disk I/O rather than executing serially.
 Host-to-device transfers and CuPy array construction are deliberately kept in the main thread because the CuPy CUDA context is thread-bound; this allows kernel scheduling, synchronization, and memory pool states to be centrally managed by the same thread without locking overhead.
 Output writing is handled by a long-lived three-worker I/O pool: metrics CSVs, metadata JSONs, boundary archives, and optional preview video files are submitted as futures immediately after the GPU stage finishes, overlapping the GPU processing of the next recording with the disk writes of the previous one.
@@ -332,7 +332,7 @@ Quantitative computations use a robust background estimation from pre-injection 
 \label{fig:mie-preproc-background}
 \end{figure}
 
-\subsubsection{Rank-1 Separable Sobel High-Pass on CUDA Backend}
+\subsubsection{Edge Enhancement by Hardware-Accelerated Sobel Gradient Filtering}
 
 The second contribution is an explicit edge-enhancing high-pass stage acting directly on the entire video cube.
 In the \textbf{GPU-accelerated Sobel filter}, the Sobel kernels \(K_x\) and \(K_y\) are generated exactly once and applied via the \textbf{2D convolution routine}:
@@ -383,7 +383,7 @@ For each plume's \((t,y,x)\) binary volume, the routine first performs closing w
 The former leverages temporal adjacency to repair transient breaks, while the latter removes dangling fragments in individual frames.
 Figure~\ref{fig:threshold-mask-repair-summary}(d) shows the impact of this repair path on a single-frame support mask; it should be interpreted as a robustification step for binary geometric metrics rather than a physical restoration of the raw Mie intensity field.
 
-\subsubsection{Angular Density as Polar Resampling}
+\subsubsection{Locating Plume Directions from the Angular Intensity Signal}
 
 After preprocessing, the pipeline abandons contour tracking in Cartesian coordinates for finding plume directions.
 Instead, the \textbf{polar reparameterization routine} performs a polar reparameterization around the calibrated nozzle center.
@@ -400,7 +400,7 @@ where \(\mathcal{B}_k\) is the set of pixels falling into angle bin \(k\), \(I_t
 In the CuPy implementation, both binning and weighted summation are executed directly on GPU arrays, via the \textbf{GPU histogram binning operation} and the \textbf{GPU weighted sum operation}, respectively.
 Conceptually, this radially compresses the 2D image into a 1D angular occupancy signal; for multi-hole alignment, it is significantly more stable than edge fragments in the raw frames \cite{Szeliski2010Vision}.
 
-\subsubsection{FFT-based Adaptive Rotation Alignment}
+\subsubsection{Automatic Multi-Hole Plume Registration Using Fourier Analysis}
 
 Rather than proceeding from fixed offsets, the plume guide angles are estimated from the periodicity of the angular signal.
 Let
@@ -569,12 +569,11 @@ These metrics are important because they compress each aligned strip into a comp
 
 \subsection{Boundary Extraction Without Pixel-Level Ground Truth}
 
-This thesis does not formulate spray boundary extraction as a pixel-level supervised segmentation task, and therefore does not rely on metrics like IoU or F1 score---which require manually annotated ground-truth masks---as primary evaluation criteria.
-For high-speed Mie images, droplet scattering typically creates direct local contrast between the bright foreground and the dark background; compared to the background refractive index textures and large-scale grayscale variations common in Schlieren imaging, these imaging characteristics are better suited to extracting actionable boundaries using gradient enhancement and morphological cleaning.
-The spray boundary itself is also affected by atomization, breakup, and grayscale transitions, meaning no unique pixel-level ground truth exists.
-Establishing an IoU or F1 benchmark would require massive frame-by-frame manual annotation of time series, and these annotations would inherently carry the subjectivity of boundary judgments.
-Therefore, this work evaluates the reliability of the extracted boundaries through the physical mechanisms of Mie scattering imaging, overlay inspections, temporal continuity, and consistency across multiple geometric proxies.
-This evaluation approach aligns with the goals of this work: stably extracting penetration, cone angle, and boundary envelope observables, rather than training or comparing a generalized semantic segmenter.
+Boundary extraction in this thesis relies on gradient enhancement, morphological cleaning, and physical consistency checks. In Mie scattering images, droplet scattering creates strong local contrast between the spray and the background, which suits this approach well.
+
+No pixel-level ground-truth masks were annotated. Defining such masks for high-speed Mie time series requires extensive manual labelling, and the resulting labels would reflect subjective boundary judgments rather than a physical ground truth. The spray boundary shifts with atomization and breakup, so no unique pixel-level ground truth exists. Metrics like IoU or F1 are therefore not applicable here.
+
+Instead, boundary reliability is assessed through overlay inspection, temporal continuity, and agreement across multiple geometric proxies. This aligns with the goal of this work: extracting stable penetration, cone angle, and boundary envelope observables rather than training a semantic segmentation model.
 Quantitative downstream evidence for these CDF-based observables---in particular leave-one-nozzle-family-out (LONO) transfer diagnostics and censoring-controlled prediction behaviour---is presented in Chapter~5.
 
 \begin{figure}[t]

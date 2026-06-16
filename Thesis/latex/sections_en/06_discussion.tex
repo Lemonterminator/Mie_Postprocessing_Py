@@ -10,33 +10,35 @@ However, because only one representative trajectory is retained per operating co
 Stage~2 extends the supervision to the entire synthetic dataset, concurrently learning the conditional mean and conditional dispersion within the extrapolation window via two output heads.
 This also explains its slightly higher MAE compared to Stage~1: Stage~2 faces a harder supervision problem that more closely matches the final screening requirement.
 
-Stage~3 combines the advantages of the preceding two stages.
-During the early temporal periods where raw observations are relatively dense, it learns directly from the measured CDF data;
-in the late temporal periods where observations become sparse as time progresses, it aligns with the conditional mean and variance furnished by the Stage~2 teacher according to the right-censoring rationale established in Chapter~2, utilizing a mixed distillation loss comprising mean MSE and log-variance MSE (see Section~\ref{sec:kd-form-fix-en}).
-Given that both teacher and student output unimodal Gaussian distributions, this distillation loss possesses a closed-form solution, eliminating the need for Monte Carlo sampling and avoiding the introduction of additional sampling noise.
-This hybrid supervision explains the early-stage fidelity and the more conservative late-stage behavior of Stage~3.
+Stage~3 is designed around selecting different supervision signals based on the temporal period.
+In early periods, where measured data are relatively dense, the model learns directly from observed CDF data, preserving the details of the true distribution.
+In late periods, where right-censoring makes observations sparse, the model instead aligns with the conditional mean and variance from the Stage~2 teacher model, following the rationale established in Chapter~2.
+The two supervision signals are combined through a mixed KD loss that consists of a mean MSE term and a log-variance MSE term (see Section~\ref{sec:kd-form-fix-en}).
+Because both the teacher and student output unimodal Gaussian distributions, this loss has a closed-form solution, so Monte Carlo sampling is not needed and no additional sampling noise is introduced.
+This hybrid supervision explains why Stage~3 shows higher fidelity in early periods and more conservative behavior in late periods.
 
 \subsection{Validated Findings and Boundaries of Applicability}
 
-Within the scope articulated in this thesis, four conclusions are substantiated by the results.
-First, the optical workflow is capable of extracting repeatable penetration targets from multi-hole Mie videos at an archival scale, turning raw videos, configuration files, and metadata into a reproducible chain of CSV/JSON tables, checkpoints, fitted trajectories, saved models, loss curves, and screening visualizations.
-Second, the reduced-order fitting concurrently provides trajectory smoothing and target construction oriented towards censored observations.
-Third, the staged surrogate advances from representative mean prediction to uncertainty-aware full-dataset prediction, ultimately attaining a screening performance refined by the raw CDF.
-Fourth, the final uncertainty intervals are sufficiently conservative to support cautious early-stage engineering ranking, rather than mere point prediction.
+Within the scope of this thesis, the results support the following four conclusions.
+First, the optical workflow reliably extracts repeatable penetration targets from large-scale multi-hole Mie scattering video archives, with all processing steps traceable and reproducible.
+Second, the reduced-order fitting handles right-censored observations while providing trajectory smoothing and constructing the target quantities used in subsequent modelling.
+Third, the staged surrogate advances from mean prediction to full-dataset prediction with uncertainty quantification, with final screening performance validated against the raw CDF.
+Fourth, the final uncertainty intervals are conservative by design, supporting early-stage engineering design ranking and screening rather than precise point prediction.
 
-The industrial value proposition should therefore be stated narrowly.
-The workflow is a low-cost, auditable, uncertainty-aware pre-screening layer for pilot-spray geometric risk: it can reuse existing optical archives, reduce the number of nozzle and operating-condition candidates forwarded to CFD or engine tests, and prioritize cases whose Mie-defined liquid envelope approaches representative walls.
-It does not quantify return on investment by itself, because the current work does not measure downstream reductions in test-cell hours, CFD runs, prototype hardware, or redesign cycles.
-Those quantities are deployment metrics to be collected once the screening layer is embedded in an industrial decision process.
+The industrial value of this workflow lies in its role as an early screening layer: it reuses existing optical archives at low cost, reduces the set of nozzle and operating-condition candidates that must proceed to CFD simulation or bench testing, and flags high-risk cases where the liquid envelope approaches representative wall surfaces.
+Its scope should be stated clearly.
+The method does not directly estimate how much cost is saved, because the actual reduction in downstream testing and CFD resources can only be measured after the screening layer has been formally integrated into an industrial decision process and sufficient operational data have been collected.
+Estimating those savings is an engineering task that belongs to the deployment phase and falls outside the scope of this thesis.
 
-This thesis explicitly delineates the applicability domain of the conclusions.
-The extracted spray boundaries are interpreted as liquid-phase envelope observables defined by Mie imaging under a specific optical protocol, rather than the complete in-cylinder liquid-phase ground truth \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}.
+This section describes the scope of these conclusions.
+The extracted spray boundaries represent the liquid-phase envelope observed in Mie imaging under a specific optical protocol, not the complete in-cylinder liquid-phase ground truth \cite{ecn_liquid_penetration,ecn_liquid_penetration_accessory}.
 The model is primarily tailored for interpolative prediction within the training operating condition domain, as opposed to unconstrained extrapolation;
 moreover, it is not intended to supplant CFD, engine testing, or validated physical models of spray-wall impingement, but rather acts as an auditable early-stage engineering screening tool to narrow the design space before initiating higher-fidelity validation.
 
-The target definition itself inherently harbors limitations.
-The reduced-order fitting converges to an extension dominated by the quarter-power branch, and the neural surrogate is constrained to be monotonically increasing via regularization.
-These shape priors facilitate the acquisition of intuitively plausible trajectory growth and mend short-term extrapolations at the tail end of the observation window, yet they do not simulate the imaging mechanism of Mie scattering.
+The target definition itself has inherent limitations.
+The reduced-order fitting model extrapolates each spray penetration trajectory in time using growth dominated by the quarter-power law ($t^{1/4}$), and the neural surrogate is constrained to be monotonically increasing via regularization.
+Both are shape priors, not physical mechanisms derived from droplet evaporation or breakup.
+These shape priors make trajectory growth intuitively reasonable and correct short-term extrapolations at the tail end of the observation window, but they do not model the imaging mechanism of Mie scattering.
 This thesis further hypothesizes that, in room-temperature, non-reacting Mie experiments, the late-stage attenuation of the image signal primarily originates from droplet breakup, spatial diffusion, localized reduction in droplet number density, scattering intensity dropping below the detection threshold, and detection side-effects induced by the brightness multiplier mask, rather than the rapid evaporative disappearance of the fuel within a millisecond-scale window.
 Consequently, even if the plume leading edge progressively becomes invisible before reaching the boundary of the observation window, this thesis still interprets it as a decline in the visibility of the liquid-phase geometric envelope, rather than the physical termination of droplet motion.
 This interpretation accords with the physical intuition of relatively slow diesel evaporation at room temperature, though this thesis lacks synchronous measurements of droplet size, mass flux, or evaporation rate to validate it directly.
@@ -99,21 +101,74 @@ Finally, the results also prescribe the following specific boundaries, grouped b
 
 \subsubsection*{Comparative-Baseline Boundaries}
 \begin{itemize}
-	\item The staged surrogate has been juxtaposed with the calibrated Hiroyasu--Arai, the delayed Naber--Siebers, the SVGP baseline, and its own Stage~3 ablations under the same external cleansing protocol.
-	      These comparisons encompass the primary disparities between physical correlations, non-parametric probabilistic regression, and the supervision strategy of this thesis.
-	      Nonetheless, lightweight tabular regressors such as random forest, gradient boosting, or quantile boosting have not been systematically incorporated;
-	      hence, this thesis does not claim that the neural network architecture possesses optimal marginal utility relative to all deterministic machine learning alternative models.
+	\item Two categories of baselines are included in the comparison: physical empirical correlations (H-A and N-S) and a non-parametric probabilistic baseline (SVGP). Under the same evaluation protocol, both machine learning methods substantially outperform the physical correlations. Between the two, SVGP achieves slightly higher point accuracy (RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}), while the MLP produces more conservative uncertainty coverage ($1\sigma$/$2\sigma$ = 88.7\%/98.9\% vs.\ 71.6\%/94.5\%).
+
+	      Lightweight regressors such as random forest, gradient boosting, or NARX have not been systematically included in the comparison; this thesis therefore makes no claim that the MLP's point accuracy is superior to all machine learning alternatives.
+
+	      The choice of MLP, however, is not based on point accuracy. It rests on three structural capabilities: (1)~a joint mean-and-uncertainty output head that directly supports the probabilistic screening interface; (2)~a knowledge distillation chain that mixes synthetic right-censored targets with raw observations during forward propagation; and (3)~a lightweight backbone that makes a full grid of 60+ ablations $\times$ LONO $\times$ multiple training seeds feasible. None of these capabilities can be replicated at low cost by random forests, gradient boosting, or NARX---and without any one of them, the design rationale for the screening interface does not hold.
 \end{itemize}
 
-\subsubsection*{Structural Trade-off Between the Staged MLP and SVGP Baselines}
+\subsubsection*{MLP vs.\ SVGP: Accuracy Trade-off and Model Selection}
 
-The comparison between MLP and SVGP in Chapter~5 supports a structural rather than a unilateral interpretation, and the structure reads most clearly backwards from the deployment decision. The MLP is retained as the screening backbone not because it is the stronger regressor---it is not---but because of three components the kernel baselines do not provide: the onset-CDF output head required for the probabilistic screening interface of Section~4.7; the regime-aware raw/KD distillation chain, which lets one network combine censoring-aware synthetic targets with right-censored raw observations within their respective reliable intervals; and the lightweight backbone that makes the design-attribution ablations of Sections~4.4/4.7 affordable (Section~\ref{sec:mlp-ablation-affordability-en}).
+Table~\ref{tab:mlp-vs-svgp} summarises the accuracy trade-off and the structural capabilities that determined the model selection.
 
-The price for these structural affordances is point accuracy. On the in-distribution uncensored CDF protocol the SVGP is the stronger point predictor (RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}); the one axis on which the MLP leads is uncertainty coverage (1$\sigma$/2$\sigma$ \(0.887/0.989\) vs.\ \(0.716/0.945\)). Under leave-one-nozzle-family-out transfer the SVGP's point-error advantage widens and it degrades more gracefully on the worst fold (Chapter~5, Section~\ref{sec:svgp-lono-comparison-en}). Crucially, once the off-design Nozzle0 fold is excluded the coverage gap also closes, so the MLP's coverage advantage is an in-distribution effect, not a general property.
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}L{0.50\linewidth}L{0.21\linewidth}L{0.21\linewidth}@{}}
+\toprule
+ & \textbf{MLP} (selected) & \textbf{SVGP} \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Accuracy --- uncensored CDF protocol}} \\[2pt]
+RMSE (5-seed mean)                              & 4.265\,mm              & \textbf{4.193\,mm} \\
+Coverage (1$\sigma$ / 2$\sigma$)                & \textbf{88.7\%/98.9\%} & 71.6\%/94.5\%      \\
+LONO 5-fold mean RMSE                          & 12.55\,mm              & \textbf{10.16\,mm} \\
+LONO in-family mean (excl.\ Nozzle0)           & 7.00\,mm               & \textbf{5.95\,mm}  \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Structural capabilities}} \\[2pt]
+Onset-CDF output head (screening interface)    & \checkmark             & ---                \\
+Regime-aware censoring chain (raw + KD mixing) & \checkmark             & ---                \\
+Design-axis ablations (stage curriculum, KD form, family head type) & \checkmark & --- \\
+Explicit per-family adapter (FiLM / residual head) & \checkmark         & ---                \\
+\bottomrule
+\end{tabular}
+\caption{MLP vs.\ SVGP: accuracy trade-off and structural capabilities.
+Bold values indicate the stronger result in each accuracy row;
+dashes indicate a capability or design axis absent in the kernel baseline,
+not that training cost is prohibitive.}
+\label{tab:mlp-vs-svgp}
+\end{table}
 
-This pattern is precisely the anticipated manifestation of the separation of inductive biases discussed in Section~\ref{sec:kernel-vs-nn-ood-en}: the SVGP kernel reverts to the prior outside the training support, whereas the staged MLP carries the structure of the training distribution---including the beneficial \(\mu\)-anchor---to the held-out folds. The staged surrogate should therefore be read as a regressor-agnostic instantiation of the censoring-aware learning protocol: the same protocol can host a kernel mean function and would likely gain out-of-distribution accuracy from it; the MLP was chosen for the structural extensions it supports and the ablation affordability it brings, not for an absolute architectural superiority.
+On raw point accuracy, the SVGP holds a marginal advantage
+(RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}, a gap of \SI{0.072}{mm})
+and transfers more gracefully to unseen nozzle families under LONO.
+The MLP leads on uncertainty coverage
+(1$\sigma$/2$\sigma$: $0.887/0.989$ vs.\ $0.716/0.945$)
+and on modular family adaptation:
+an explicit residual head or FiLM layer can condition the model on a new nozzle family
+by training only a small set of additional parameters against a frozen trunk,
+without retraining from scratch.
+Kernel baselines do not naturally support this adapter paradigm---adapting an SVGP to a
+new family requires re-optimising the full set of variational parameters and inducing
+points, which is closer to a full retrain than a lightweight fine-tune.
+The MLP was therefore selected not for overall accuracy superiority, but for three
+structural capabilities the kernel baseline cannot easily provide:
+the onset-CDF output head required by the screening interface (Section~4.7),
+the regime-aware censoring chain that mixes fitted synthetic targets with right-censored
+raw observations,
+and the design-axis ablations covering stage curriculum, KD form, and family head
+type---structural choices that do not exist in the SVGP framework and therefore cannot
+be ablated there (Section~\ref{sec:mlp-ablation-affordability-en}).
 
-These structural commitments also dictate how the frozen screening backbone is adapted at deployment. Because the trunk carries the training distribution, a new injector family can be fitted with a small additive residual head rather than a full retrain: on the uncensored CDF table this recovers the accuracy that independent per-family heads lose (RMSE \SI{4.631}{mm} vs.\ \SI{5.010}{mm}, Chapter~5) while retaining a structural fallback to the shared model for unseen families, and under LONO transfer it cuts in-family RMSE by \(\approx31\%\) (\(7.44\rightarrow\SI{5.16}{mm}\)) and repairs the mean bias. This is the operational payoff of a parametric backbone over the stronger SVGP regressor: cheap, warm-started family conditioning. Its limit is equally informative for positioning---delta-only adaptation of the frozen trunk removes the bias but cannot recover the genuinely off-design Nozzle0 family (few-shot RMSE plateaus far above the \(\approx\SI{5}{mm}\) in-family band, Chapter~5), marking the boundary at which the screening layer needs new trunk capacity rather than a new head. The deployed positioning is therefore a shared censoring-aware trunk plus a cheap per-family residual adapter for in-design nozzles, with off-design families flagged as out-of-scope rather than silently adapted.
+The per-family residual adapter illustrates this payoff concretely.
+Adding a small correction head to the frozen trunk reduces in-family LONO RMSE by
+approximately 31\% ($7.44 \rightarrow \SI{5.16}{mm}$) and removes the mean bias.
+The limit is equally clear: a nozzle family outside the training design space cannot be
+recovered by a lightweight adapter---Nozzle0 plateaus well above the \SI{5}{mm}
+in-family band, marking the point at which new trunk capacity is required rather than
+a new head.
 
 \subsection{Time-Varying Nature of Empirical Scaling Exponents and Its Implications for Feature Engineering}
 
