@@ -21,8 +21,8 @@
     "nrmse_range": 0.048906935853151735
   },
   "best_trajectory": {
-    "traj_key": "BC20220627_HZ_Nozzle0|T4|28.csv|plume=0",
-    "folder": "BC20220627_HZ_Nozzle0",
+    "traj_key": "Nozzle0|T4|28.csv|plume=0",
+    "folder": "Nozzle0",
     "dataset_key": "ds300",
     "test_name": "T4",
     "row_idx": 7834,
@@ -38,8 +38,8 @@
     "is_censored": true
   },
   "worst_trajectory": {
-    "traj_key": "BC20241014_HZ_Nozzle3|T6|T6(1).csv|plume=4",
-    "folder": "BC20241014_HZ_Nozzle3",
+    "traj_key": "Nozzle3|T6|T6(1).csv|plume=4",
+    "folder": "Nozzle3",
     "dataset_key": "nozzle3",
     "test_name": "T6",
     "row_idx": 19736,

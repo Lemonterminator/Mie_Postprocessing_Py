@@ -87,6 +87,12 @@ SANITIZE_GLOBS = [
     "MLP/synthetic_data_20260509/spatial_censoring_audit/*.csv",
     # root-level fit reports (filter_survival figure labels nozzles from here)
     "MLP/synthetic_data_clean_lv2/*.csv",
+    # lv2 spatial-censoring audit (joined by seed99_assets / stage3_kd_sync)
+    "MLP/synthetic_data_clean_lv2/spatial_censoring_audit/*.csv",
+    # production stage3 run tables (raw_coverage heatmap input)
+    "MLP/runs_mlp/stage3_diag_kd_mse_mu_plus_sigma_w5p0_20260519_153706/*.csv",
+    # fallback input root used by raw_coverage_heatmap.find_input_csv
+    "MLP/figures/fit_bias_audit_cdf/*.csv",
 ]
 
 
@@ -100,6 +106,8 @@ class Step:
     # paths that must exist before running, else the step is skipped
     requires: list[Path] = field(default_factory=list)
     note: str = ""
+    # extra environment variables for the subprocess (e.g. PYTHONPATH)
+    extra_env: dict[str, str] = field(default_factory=dict)
 
 
 def _script(rel: str, *args: str) -> list[str]:
@@ -117,6 +125,14 @@ def _latest_impingement_npz() -> Path:
 
 FIT_REPORT_CSV = PROJECT_ROOT / "MLP/synthetic_data_clean_lv2/fit_report.csv"
 IMPINGEMENT_NPZ = _latest_impingement_npz()
+# The QC-gated tree behind the MLP/synthetic_data junction only keeps "clean"
+# subdirs; the spatial-censoring audit needs the full cdf/all + series_wide_all
+# layout, which survives in lv2.
+LV2_ROOT = PROJECT_ROOT / "MLP/synthetic_data_clean_lv2"
+LV2_AUDIT_DIR = LV2_ROOT / "spatial_censoring_audit"
+LV2_AUDIT_CSV = LV2_AUDIT_DIR / "plume_spatial_censoring_audit.csv"
+# Production stage-3 run whose cdf_regime_bins.csv feeds the B.5 coverage heatmap.
+PROD_STAGE3_RUN = PROJECT_ROOT / "MLP/runs_mlp/stage3_diag_kd_mse_mu_plus_sigma_w5p0_20260519_153706"
 
 
 STEPS: list[Step] = [
@@ -144,18 +160,30 @@ STEPS: list[Step] = [
     ),
     Step(
         name="spatial_censoring_audit",
-        desc="fig_spatial_censoring_fraction_by_nozzle_clean.png (scans raw + synthetic roots; slow-ish)",
-        cmds=[_script("MLP/curve_fit/reports/audit_cdf_spatial_censoring.py", "--plots")],
+        desc="fig_spatial_censoring_fraction_by_nozzle_clean.png (scans raw + lv2 roots; slow-ish)",
+        # the QC-gated junction lacks cdf/all + series_wide_all, so audit lv2
+        cmds=[_script(
+            "MLP/curve_fit/reports/audit_cdf_spatial_censoring.py", "--plots",
+            "--synthetic-root", str(LV2_ROOT),
+            "--out-dir", str(LV2_AUDIT_DIR),
+        )],
         copies=[(
-            PROJECT_ROOT / "MLP/synthetic_data/spatial_censoring_audit/spatial_censored_fraction_by_nozzle_clean.png",
+            LV2_AUDIT_DIR / "spatial_censored_fraction_by_nozzle_clean.png",
             IMAGES / "fig_spatial_censoring_fraction_by_nozzle_clean.png",
         )],
-        requires=[PROJECT_ROOT / "Mie_scattering_top_view_results"],
+        requires=[PROJECT_ROOT / "Mie_scattering_top_view_results", LV2_ROOT],
     ),
     Step(
         name="sparse_instability",
         desc="fig_sparse_support_topology.png / fig_sparse_diameter_interpolants.png",
         cmds=[_script("Thesis/slides/legacy_notebook_sources/slides_sparse_feature_instability/export_sparse_feature_instability_figures.py")],
+        # legacy export imports ood_sanity from the MLP package root
+        extra_env={"PYTHONPATH": str(PROJECT_ROOT / "MLP") + os.pathsep + str(PROJECT_ROOT)},
+        # needs the OLD (pathological) MLP checkpoints, deleted in cleanup; the
+        # step self-skips until they are restored. The existing PNGs carry no
+        # confidential labels (axes are pressures/diameters), so keeping them is safe.
+        requires=[PROJECT_ROOT / "MLP/runs_mlp/distill_cdf_onset_20260331_194213",
+                  PROJECT_ROOT / "MLP/runs_mlp/stage2_NLL_penetration_20260317_194155"],
         copies=[
             (THESIS / "slides/legacy_notebook_sources/slides_sparse_feature_instability/figures/support_topology.png",
              IMAGES / "fig_sparse_support_topology.png"),
@@ -176,16 +204,19 @@ STEPS: list[Step] = [
     Step(
         name="raw_coverage",
         desc="generated/current/raw_coverage_heatmap.png (B.5 heatmap, group labels were leaking)",
+        # cdf_regime_bins.csv from the production stage-3 run is the
+        # plume-coverage table the heatmap expects (the old by_bin output is a
+        # processed artifact with broken condition_group_x/_y columns)
         cmds=[_script(
             "pipelines/audit/raw_coverage_heatmap.py",
-            "--input-csv", str(GEN_CURRENT / "b5_raw_coverage/raw_coverage_by_bin.csv"),
+            "--fit-run-dir", str(PROD_STAGE3_RUN),
             "--out-dir", str(GEN_CURRENT / "b5_raw_coverage"),
         )],
         copies=[(
             GEN_CURRENT / "b5_raw_coverage/raw_coverage_heatmap_with_thresholds.png",
             GEN_CURRENT / "raw_coverage_heatmap.png",
         )],
-        requires=[GEN_CURRENT / "b5_raw_coverage/raw_coverage_by_bin.csv"],
+        requires=[PROD_STAGE3_RUN / "cdf_regime_bins.csv"],
     ),
     Step(
         name="alpha_sensitivity",
@@ -205,6 +236,16 @@ STEPS: list[Step] = [
         name="hermite",
         desc="hermite_crown_profile.png (writes directly into Thesis/images)",
         cmds=[_script("piston/generate_hermite_figure.py")],
+    ),
+    Step(
+        name="nozzle_geometry",
+        desc="nozzle_geometry_overview.png (Ch.03 nozzle design-space figure from Table 3.1 data)",
+        cmds=[_script("Thesis/generated/make_nozzle_geometry_figure.py")],
+    ),
+    Step(
+        name="mlp_diagrams",
+        desc="mlp_training_curriculum.png + mlp_architecture_overview.png (Ch.04 method diagrams)",
+        cmds=[_script("Thesis/generated/make_mlp_curriculum_figures.py")],
     ),
     # ───────────────────────────── Chapter 05 ─────────────────────────────
     Step(
@@ -229,8 +270,11 @@ STEPS: list[Step] = [
     Step(
         name="seed99_assets",
         desc="latest_pred_vs_actual_seed99 / latest_residual_histogram_seed99 (+ other latest_* assets)",
-        cmds=[_script("MLP/curve_fit/reports/pred_vs_actual_by_censoring.py")],
-        requires=[PROJECT_ROOT / "MLP/eval/rmse_eval_clean_20260509_215303_newdp_seed99_points/points.csv"],
+        # default --audit points at the deleted synthetic_data_20260509 snapshot
+        cmds=[_script("MLP/curve_fit/reports/pred_vs_actual_by_censoring.py",
+                      "--audit", str(LV2_AUDIT_CSV))],
+        requires=[PROJECT_ROOT / "MLP/eval/rmse_eval_clean_20260509_215303_newdp_seed99_points/points.csv",
+                  LV2_AUDIT_CSV],
         note="The old latest_worst_traj_seed99.png title contained a BC name; this rerun fixes it.",
     ),
     Step(
@@ -247,7 +291,10 @@ STEPS: list[Step] = [
     Step(
         name="stage3_kd_sync",
         desc="stage3_kd_mse_mu_plus_sigma_{overlay_baseline,residual_vs_truth,sigma_calibration}.png + metrics CSVs",
-        cmds=[_script("MLP/curve_fit/reports/eval_stage3_thesis_sync.py")],
+        # default --audit points at the deleted synthetic_data_20260509 snapshot
+        cmds=[_script("MLP/curve_fit/reports/eval_stage3_thesis_sync.py",
+                      "--audit", str(LV2_AUDIT_CSV))],
+        requires=[LV2_AUDIT_CSV],
     ),
     Step(
         name="lono_figures",
@@ -296,6 +343,10 @@ STEPS: list[Step] = [
 
 # Figures this script cannot regenerate — keep in sync with figure_provenance_ch04_05.md §4.
 MANUAL_ITEMS = [
+    "fig_sparse_support_topology.png / fig_sparse_diameter_interpolants.png — the legacy MLP checkpoints "
+    "they demonstrate (runs_mlp/distill_cdf_onset_20260331_194213, stage2_NLL_penetration_20260317_194155) "
+    "were deleted; the figures cannot be regenerated but contain no confidential labels — keep the "
+    "existing PNGs as historical artifacts.",
     "stage2_loss_curves.png / distillation_loss_curves.png — training-time artifacts (efc/checkpoint.py); "
     "only retraining regenerates them. They plot losses vs epoch, no campaign labels expected.",
     "stage2_toy_inference_2000bar_5bar.png — run manually: "
@@ -386,7 +437,7 @@ def run_step(step: Step, log_dir: Path, dry_run: bool) -> str:
             print(f"  (dry) copy {src.relative_to(PROJECT_ROOT)} -> {dst.relative_to(PROJECT_ROOT)}")
         return "DRY"
 
-    env = dict(os.environ, MPLBACKEND="Agg")
+    env = dict(os.environ, MPLBACKEND="Agg", **step.extra_env)
     log_path = log_dir / f"{step.name}.log"
     with log_path.open("w", encoding="utf-8", errors="replace") as log:
         for cmd in step.cmds:

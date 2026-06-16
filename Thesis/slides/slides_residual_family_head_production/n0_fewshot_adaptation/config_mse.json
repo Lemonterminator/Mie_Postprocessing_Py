@@ -1,6 +1,6 @@
 {
   "student_run": "MLP\\runs_mlp\\lono_residual_fh_anchor_off_20260601_145626",
-  "nozzle": "BC20220627_HZ_Nozzle0",
+  "nozzle": "Nozzle0",
   "family_id": 0,
   "k_list": "0,1,2,5,10,20,50,all",
   "repeats": 5,

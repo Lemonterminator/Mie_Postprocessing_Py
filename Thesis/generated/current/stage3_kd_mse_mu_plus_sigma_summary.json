@@ -2,11 +2,11 @@
   "run_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_diag_kd_mse_mu_plus_sigma_w5p0_20260519_153706",
   "eval_points": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260519_154036_stage3_diag_kd_mse_mu_plus_sigma_w5p0_20260519_153706\\points.csv",
   "n_points_total": 692942,
-  "n_raw_reliable": 549299,
-  "n_raw_uncertain": 64487,
-  "n_teacher_only": 79156,
-  "n_trace_censored": 299030,
-  "n_point_near_cap": 54704,
+  "n_raw_reliable": 266940,
+  "n_raw_uncertain": 31589,
+  "n_teacher_only": 394413,
+  "n_trace_censored": 175561,
+  "n_point_near_cap": 35811,
   "overall_rmse_mm": 4.763990740176308,
   "overall_bias_mm": 0.7221653186315883
 }

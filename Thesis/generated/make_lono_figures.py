@@ -167,7 +167,7 @@ def build_cross_arch_lono_table(stage3_df: pd.DataFrame) -> pd.DataFrame:
                 "coverage_2sigma": float(mlp_row["coverage_2sigma"]),
                 "mean_pred_std_mm": float(mlp_row.get("mean_pred_std_mm", float("nan"))),
                 "n_points": int(mlp_row.get("n_points", 0)),
-                "source": str(STAGE3_CSV.relative_to(PROJECT_ROOT)),
+                "source": _strip_bc(STAGE3_CSV.relative_to(PROJECT_ROOT)),
             }
         )
 
@@ -188,7 +188,9 @@ def build_cross_arch_lono_table(stage3_df: pd.DataFrame) -> pd.DataFrame:
                 "coverage_2sigma": float(overall["coverage_2sigma"]),
                 "mean_pred_std_mm": float(overall.get("mean_pred_std_mm", float("nan"))),
                 "n_points": int(overall["n_points"]),
-                "source": str(svgp_path.relative_to(PROJECT_ROOT)),
+                # provenance only — on-disk SVGP run dirs keep the BC prefix,
+                # but this CSV ships with the thesis so the name is stripped
+                "source": _strip_bc(svgp_path.relative_to(PROJECT_ROOT)),
             }
         )
 

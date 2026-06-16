@@ -80,9 +80,9 @@ Finally, the results also prescribe the following specific boundaries, grouped b
 	\item The surrogate is strictly trained within the operating condition domain jointly supported by experimental and synthetic data.
 	      Under genuinely out-of-distribution pressures, nozzle geometries, ambient temperatures, or injection strategies, its predictions should not be accorded equivalent credibility.
 
-	\item The leave-one-nozzle-family-out evaluation is dominated by the Nozzle0 fold---the sole factory-fresh reference nozzle, with injector-to-injector variation not modeled---on which every Stage~3 variant collapses (RMSE \(\sim\SI{35}{mm}\), systemic underestimation); the five-fold mean RMSE of \SI{12.55}{mm} is therefore a worst-case figure carried by this one out-of-design-family fold.
+	\item The leave-one-nozzle-family-out evaluation is dominated by the Nozzle0 fold---the sole factory-fresh reference nozzle, with injector-to-injector variation not modeled---on which every Stage~3 variant collapses (RMSE \(\sim\SI{35}{mm}\), systemic underestimation; per-fold breakdown in Figure~\ref{fig:svgp-lono-comparison}); the five-fold mean RMSE of \SI{12.55}{mm} is therefore a worst-case figure carried by this one out-of-design-family fold.
 	      With that fold excluded, the in-family four-fold mean (\SIrange{7.0}{7.2}{mm}) falls below both physical baselines under the identical protocol (Chapter~5). The interpretive point is that the model's cross-family risk is localized to genuinely off-design geometry, not to in-family penetration prediction.
-	      The image evidence of Nozzle~3 further correlates the residual errors within the design family to leading liquid slugs, chasing and overtaking main jets, inter-hole asymmetry, and step-wise penetration. This trajectory morphology is consistent with the wake-driven chasing/overtaking mechanism reported in the split/multiple-injection literature.
+	      The image evidence of Nozzle~3 (Figure~\ref{fig:failure-mode-nozzle3}) further correlates the residual errors within the design family to leading liquid slugs, chasing and overtaking main jets, inter-hole asymmetry, and step-wise penetration. This trajectory morphology is consistent with the wake-driven chasing/overtaking mechanism reported in the split/multiple-injection literature.
 	      However, as this thesis possesses neither synchronous gas velocity measurements nor internal flow visualization or liquid slug identity tracking, it can only interpret Nozzle~3 as image evidence consistent with this mechanism; mechanical causes such as needle wobble or transient nozzle hole throttling remain equally viable candidate explanations that the data cannot exclude.
 	      The principal cross-family risk of the current model is the inadequate generalization to geometries genuinely outside the design family (Nozzle0), rather than a holistic failure to support average penetration prediction within the design family.
 \end{itemize}
@@ -99,7 +99,7 @@ Finally, the results also prescribe the following specific boundaries, grouped b
 
 \subsubsection*{Comparative-Baseline Boundaries}
 \begin{itemize}
-	\item The staged surrogate has been juxtaposed with the calibrated Hiroyasu--Arai, the delayed Naber--Siebers, the sparse heteroscedastic Gaussian-process baseline, and its own Stage~3 ablations under the same external cleansing protocol.
+	\item The staged surrogate has been juxtaposed with the calibrated Hiroyasu--Arai, the delayed Naber--Siebers, the SVGP baseline, and its own Stage~3 ablations under the same external cleansing protocol.
 	      These comparisons encompass the primary disparities between physical correlations, non-parametric probabilistic regression, and the supervision strategy of this thesis.
 	      Nonetheless, lightweight tabular regressors such as random forest, gradient boosting, or quantile boosting have not been systematically incorporated;
 	      hence, this thesis does not claim that the neural network architecture possesses optimal marginal utility relative to all deterministic machine learning alternative models.

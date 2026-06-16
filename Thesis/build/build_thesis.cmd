@@ -3,6 +3,9 @@ setlocal
 
 cd /d "%~dp0.."
 
+set "MIKTEX_USER_BIN=%LOCALAPPDATA%\Programs\MiKTeX\miktex\bin\x64"
+if exist "%MIKTEX_USER_BIN%\pdflatex.exe" set "PATH=%MIKTEX_USER_BIN%;%PATH%"
+
 where pdflatex >nul 2>nul
 if errorlevel 1 (
     echo ERROR: pdflatex was not found. Install MiKTeX and make sure its bin folder is on PATH.

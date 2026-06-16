@@ -1,7 +1,7 @@
 \section{Literature Review and Technical Basis}
 
 The purpose of this chapter is not to preemptively repeat the subsequent implementation details, but to clarify the origins of these methodological choices.
-Centering on Mie geometric observables, short-pulse penetration behaviors, multi-plume registration, right-censored targets, uncertainty-aware surrogate models, and probabilistic wall-impingement risk screening, this thesis outlines the support provided by existing research while highlighting the gaps that have not been comprehensively covered by any single literature thread.
+Centering on Mie geometric observables, short-injection-pulse penetration behaviour, multi-plume registration, right-censored targets, uncertainty-aware surrogate models, and probabilistic wall-impingement risk screening, this thesis outlines the support provided by existing research while highlighting the gaps that have not been comprehensively covered by any single literature thread.
 Therefore, this chapter serves as a transitional bridge:
 before delving into the specific workflows, it elucidates the logical chain between existing knowledge and the engineering design decisions in this thesis.
 Readers with a primary background in fluid mechanics and mechanical design, who wish to first familiarize themselves with the terminology of computer vision, robust optimization, GPU parallel computing, and neural network training involved in this thesis, are referred to Appendix~\ref{app:ml-primer-en}.
@@ -32,6 +32,8 @@ While all these methods have their respective values, their alignment with the t
 LIF, PIV, and PDPA lean toward component, flow field, or single-point size-velocity measurements, which struggle to directly support the high-temporal-resolution liquid-phase envelope tracking required here;
 Although Schlieren and Shadowgraph can provide spray shape information, their specificity for liquid-phase boundaries is not as explicit as that of droplet scattering methods;
 DBI and Mie are much closer to the tasks of extracting liquid-phase contours, penetration, and cone angles that this thesis concerns \cite{Linne2013SprayImaging}.
+The comparison also has a hardware-cost dimension: time-resolved planar laser diagnostics such as PIV and planar LIF require high-repetition-rate pulsed lasers to follow an individual injection event, and with conventional low-repetition-rate pulsed lasers they degrade to phase-locked ensemble sampling at one frame per injection, losing the single-shot transient penetration history.
+Volume-illuminated Mie imaging instead operates with continuous illumination, shifting the temporal-resolution burden from the laser onto the high-speed camera and avoiding the cost of a high-repetition-rate pulsed laser system altogether \cite{Linne2013SprayImaging}.
 
 This positioning is consistent with existing research.
 Early two-dimensional Mie scattering work conducted inside optical diesel engines treated the jet tip penetration and cone angle as practical outputs for image analysis, rather than pursuing complete liquid-phase state reconstruction \cite{MuenchLeipertz1992};
@@ -116,7 +118,7 @@ S(\mathbf{x})=A\,f(\mathbf{x}),
 \]
 where \(A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}\) is the same Hiroyasu--Arai post-breakup amplitude mentioned above, and \(\mathbf{x}\) includes standardized features such as time, spray inclination angle, number of nozzle holes, injection duration, and control back pressure.
 The adjustable objects of a GP are not a few physical coefficients, but kernel function hyperparameters: amplitude, length scales, noise level, and the individual length scales for each input dimension under the Automatic Relevance Determination (ARD) setting.
-The sparse heteroscedastic GP baseline in this thesis further provides \(\mu_S(t)\) and \(\sigma_S(t)\) jointly using a mean GP and a log-residual-variance GP, and is extended to large sample tables via sparse variational approximation \cite{HensmanFusiLawrence2013}, making it a strong statistical baseline rather than a traditional empirical correlation.
+The sparse variational GP (SVGP) baseline in this thesis further uses a heteroscedastic output structure: a mean GP and a log-residual-variance GP jointly provide \(\mu_S(t)\) and \(\sigma_S(t)\), while sparse variational approximation extends the model to large sample tables \cite{HensmanFusiLawrence2013}, making it a strong statistical baseline rather than a traditional empirical correlation.
 The commonality of these three baselines is that they do not directly read image pixels, but rather read the penetration observations and test matrix features exported by the same image processing chain; the difference lies in that Hiroyasu--Arai and Naber--Siebers restrict the penetration to explicit physical function families, while the GP learns a more flexible conditional function in the feature space through kernel functions.
 The advantage of these three baselines is their ability to provide interpretable or statistically controlled references for the overall penetration history.
 Their limitations, however, mainly emerge during short injection events.
@@ -138,7 +140,10 @@ before the needle valve is fully lifted, the effective flow area varies with tim
 Internal nozzle flow under high pressure and potential cavitation further alter the jet structure and atomization state, mechanisms which classical penetration correlations do not attempt to characterize \cite{liu2020sprayreview}.
 For short-pulse pre-injections, the opening and closing transients themselves may occupy a considerable proportion of the injection event, rendering the quasi-steady assumption valid only fleetingly in the middle segment at best.
 This leads to the modeling judgment in this thesis: rigid empirical power laws remain valuable physical baselines but do not constitute the complete target form for the dataset in this thesis.
-Constrained by physical scaling and auditable preprocessing, data-driven models can absorb the synthetic effects of multiple overlapping physical mechanisms on the observed trajectories without needing to pre-identify and parameterize various transient segments.
+At the same time, these empirical models are not discarded once they fail as complete predictors.
+The Hiroyasu--Arai post-breakup amplitude \(A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}\) is reused as the dimensionless target scaling \(\hat S=S/A\), and the momentum-scaling variables it is built from---pressure drop, ambient density, and nozzle diameter---also motivate the surrogate feature set, while the residual pressure, duration, plume-count, and inclination dependences are left for the statistical model to learn.
+This is also why the subsequent surrogate inherits that functional form, modelling penetration as a smooth, physically scaled function \(S(\mathbf{x},t)\) rather than a rigid closed-form law or a free fixed-grid sequence; the architectural consequences of this choice are taken up below where the surrogate architecture is selected.
+Constrained by physical scaling and auditable preprocessing, data-driven models can absorb the combined effects of multiple overlapping physical mechanisms on the observed trajectories without needing to pre-identify and parameterize every transient segment.
 
 \subsection{Image-to-Data Workflow for Mie Videos: Processing, Metric Extraction, and Plume Registration}
 
@@ -217,7 +222,11 @@ The aforementioned studies collectively demonstrate that compact regressors, rep
 Particularly crucial for this thesis is that what the models truly need to learn is not the raw video volumes or high-dimensional spatiotemporal textures, but the low-dimensional engineering features and temporal parameterizations obtained after image processing.
 Therefore, once the inputs are structured into operating parameters, time, and physically constrained observables or their scaled representations, the problem is much closer to low-dimensional nonlinear regression rather than an end-to-end video understanding task that must rely on recurrent networks, long short-term memory, or large-scale attention mechanisms.
 Based on this judgment, the Multilayer Perceptron (MLP) is adopted as a reasonable baseline architecture in this thesis:
-it retains universal function approximation capabilities \cite{Hornik1989UAT}, while providing a secure compromise among training cost, implementation complexity, and engineering auditability \cite{BishopPRML2006}.
+it retains universal function approximation capabilities \cite{Hornik1989UAT}, while providing a practical compromise among training cost, implementation complexity, and engineering auditability \cite{BishopPRML2006}.
+This choice is also matched to the experimental budget rather than being merely a preference for simple models.
+The thesis requires ablations, group-aware holdout checks, leave-one-nozzle-family tests, and multiple random seeds; therefore each training run must remain computationally inexpensive enough to repeat.
+More importantly, an MLP over \((\mathbf{x},t)\) gives stable first- and second-order derivatives with respect to continuous time through automatic differentiation, which is exactly the representation needed by the shape-constraint terms discussed below.
+Recurrent, long-memory, or attention-based sequence models could in principle be regularised, but they would tie supervision more tightly to a chosen time grid and would make arbitrary-time distillation targets and derivative priors less direct.
 
 However, there remain key gaps between existing data-driven spray research and this thesis.
 Most existing studies treat the training targets as fully observable spray macroscopic quantities and focus primarily on the point prediction accuracy of penetration or cone angle;
@@ -227,6 +236,10 @@ The constraints in this thesis are stricter:
 the visible trajectories of short-pulse pre-injections are dominated by SOI and EOI transients, a restricted field of view renders a significant portion of trajectories as right-censored samples, and plume-to-plume as well as shot-to-shot dispersions are themselves engineering-relevant information that cannot be simply averaged away.
 Thus, this thesis does not aim to re-prove that neural networks can predict spray macroscopic quantities, but rather introduces three targeted components atop existing pathways:
 censoring-aware target construction, heteroscedastic uncertainty quantification, and a distillation-based refinement stage.
+The three stages should therefore be read as a curriculum rather than as three unrelated training recipes.
+Curriculum learning formalises the idea of first fitting an easier or more stable target before exposing the model to the full, noisier learning problem \cite{BengioCurriculumLearning2009}.
+For this thesis, the deterministic Stage~1 mean fit is a stabilising step: training a heteroscedastic Gaussian head from scratch can let the variance branch absorb mean errors, down-weight difficult samples, and slow or destabilise the mean fit, a failure mode documented in variance-network and \(\beta\)-NLL studies \cite{Detlefsen2019VarianceNetworks,Seitzer2022PitfallsHeteroscedastic}.
+Stage~1 therefore first anchors a representative conditional mean; Stage~2 then expands to the full filtered reduced-order fit archive and learns input-dependent spread; Stage~3 finally reintroduces raw CDF observations only where coverage makes direct supervision defensible.
 
 \subsubsection{Right-Censoring and Stable Target Construction}
 
@@ -278,6 +291,10 @@ Given the data conditions of this thesis, this information structure is unsuitab
 The broader survival regression literature offers additional tools for censored outcomes: Accelerated Failure Time (AFT) models parameterise the censored outcome under distributional assumptions more flexible than the Gaussian Tobit; inverse probability of censoring weighting (IPCW) approaches re-weight complete cases to account for the censoring mechanism; and Gaussian process regression with censored likelihoods has been developed for exactly this combination of GP modelling and right-censored targets \cite{Groot2012CensoredGP}.
 However, all of these handle censored scalar outcomes at a fixed time, not censored trajectory shapes.
 The key challenge here is that ``how the trajectory continues after crossing the boundary'' requires shape information that one-sided likelihood constraints cannot provide; the teacher-guided stage described below addresses this gap specifically by learning the trajectory continuation from manually extrapolated synthetic data.
+That synthetic continuation is not treated as a hidden ground truth.
+It is a conservative bridge between two known-biased alternatives: raw field-of-view-capped endpoints underestimate the continuation, while imposing a rigid Hiroyasu--Arai-style law can overestimate late short-pulse penetration because it does not represent the delayed-clock post-EOI deceleration branch \cite{HiroyasuArai1990,ZhouLiLaiWei2019}.
+The reduced-order fit used later therefore inherits empirical penetration scaling, but limits its role to a smooth and differentiable continuation prior with explicit filtering and residual diagnostics.
+Stage~3 then pulls the student back toward raw CDF observations in the well-covered intervals, so the teacher serves as a censoring-aware anchor rather than an oracle replacing the measurements.
 
 The motivation for uncertainty-aware extensions is that not every operating point or extracted trajectory holds the same reliability.
 Heteroscedastic Gaussian negative log-likelihood is a standard approach, allowing the network to simultaneously predict the mean and an input-dependent variance \cite{KendallGal2017}.
@@ -305,7 +322,7 @@ D_{\mathrm{KL}}\!\left(\mathcal{N}(\mu_1,\sigma_1^2)\,\|\,\mathcal{N}(\mu_2,\sig
 \]
 meaning the distillation loss can be calculated precisely without Monte Carlo sampling, and without introducing extra gradient variance to the training process \cite{BishopPRML2006,KendallGal2017}.
 The direction of the KL divergence itself remains a design choice requiring explanation.
-This thesis adopts the forward KL direction from teacher to student, \(D_{\mathrm{KL}}(p_{\mathrm{teacher}}\|p_{\mathrm{student}})\), primarily because it is algebraically consistent with the Stage~1--2 NLL objective: minimising NLL for a Gaussian model is equivalent to minimising \(D_{\mathrm{KL}}(p_{\mathrm{data}}\|p_{\mathrm{model}})\), and applying the same forward direction in Stage~3 maintains this training-objective consistency.
+This thesis initially considered the forward KL direction from teacher to student, \(D_{\mathrm{KL}}(p_{\mathrm{teacher}}\|p_{\mathrm{student}})\), primarily because it is algebraically consistent with the Stage~2 NLL objective: minimising NLL for a Gaussian model is equivalent to minimising \(D_{\mathrm{KL}}(p_{\mathrm{data}}\|p_{\mathrm{model}})\), and applying the same forward direction in Stage~3 would maintain this training-objective consistency.
 The qualitative mass-covering versus mode-seeking distinction between forward and reverse KL is a general argument from variational inference. For Gaussian teacher--student pairs, that distinction reduces to quantitative differences in the $\sigma$ terms of the closed-form expression above.
 In practice, however, this forward direction opens a subtle optimisation loophole.
 The teacher--student mean mismatch enters only through \((\mu_1-\mu_2)^2/(2\sigma_2^2)\). In other words, the penalty is divided by the student's own predicted variance \(\sigma_2^2\) (with teacher \(\equiv 1\) and student \(\equiv 2\)).

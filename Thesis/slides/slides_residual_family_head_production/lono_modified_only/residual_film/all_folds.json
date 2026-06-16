@@ -1,6 +1,6 @@
 [
   {
-    "holdout": "BC20241017_HZ_Nozzle2",
+    "holdout": "Nozzle2",
     "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_121422",
     "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_121529",
     "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_121934.json",
@@ -11,7 +11,7 @@
       "stage3_s": 464.31251287460327,
       "eval_s": 6.736236333847046
     },
-    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_122725_lono_BC20241017_HZ_Nozzle2",
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_122725_lono_Nozzle2",
     "mlp_metrics": {
       "n_points": 80327,
       "rmse_mm": 4.664766109978184,
@@ -61,7 +61,7 @@
     }
   },
   {
-    "holdout": "BC20241003_HZ_Nozzle1",
+    "holdout": "Nozzle1",
     "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_122733",
     "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_122827",
     "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_123335.json",
@@ -72,7 +72,7 @@
       "stage3_s": 354.3063826560974,
       "eval_s": 4.62959885597229
     },
-    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_123933_lono_BC20241003_HZ_Nozzle1",
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_123933_lono_Nozzle1",
     "mlp_metrics": {
       "n_points": 36159,
       "rmse_mm": 5.359368353591307,
@@ -122,7 +122,7 @@
     }
   },
   {
-    "holdout": "BC20241010_HZ_Nozzle5",
+    "holdout": "Nozzle5",
     "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_123942",
     "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_124051",
     "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_124543.json",
@@ -133,7 +133,7 @@
       "stage3_s": 325.82313799858093,
       "eval_s": 4.825100898742676
     },
-    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_125114_lono_BC20241010_HZ_Nozzle5",
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_125114_lono_Nozzle5",
     "mlp_metrics": {
       "n_points": 46929,
       "rmse_mm": 5.938274428352502,
@@ -183,7 +183,7 @@
     }
   },
   {
-    "holdout": "BC20241007_HZ_Nozzle4",
+    "holdout": "Nozzle4",
     "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_125122",
     "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_125228",
     "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_125744.json",
@@ -194,7 +194,7 @@
       "stage3_s": 418.989266872406,
       "eval_s": 4.655569076538086
     },
-    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_130447_lono_BC20241007_HZ_Nozzle4",
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_130447_lono_Nozzle4",
     "mlp_metrics": {
       "n_points": 38604,
       "rmse_mm": 5.487905084284152,
@@ -244,7 +244,7 @@
     }
   },
   {
-    "holdout": "BC20241011_HZ_Nozzle6",
+    "holdout": "Nozzle6",
     "stage1_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage1_engineered_mse_a_dp050_plus_pressures_20260601_130455",
     "stage2_run": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage2_engineered_nll_mu_anchor_a_dp050_plus_pressures_20260601_130608",
     "stage3_suite_summary": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\runs_mlp\\stage3_ablation_suites\\suite_20260601_131103.json",
@@ -255,7 +255,7 @@
       "stage3_s": 379.82768869400024,
       "eval_s": 4.056612730026245
     },
-    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_131726_lono_BC20241011_HZ_Nozzle6",
+    "eval_dir": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\eval\\rmse_eval_clean_20260601_131726_lono_Nozzle6",
     "mlp_metrics": {
       "n_points": 29449,
       "rmse_mm": 13.763578727633465,

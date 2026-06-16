@@ -62,7 +62,7 @@ GPU加权求和操作 & \texttt{cp.bincount} \\
 正向仿射变换构建器 & \texttt{build\_rotation\_affine} \\
 逆向仿射映射生成器 & \texttt{build\_affine\_inverse\_maps\_cupy} \\
 GPU视频重采样程序 & \texttt{remap\_video\_cupy} \\
-基于喷束的CDF穿深估计器 & \texttt{penetration\_cdf\_all\_plumes} \\
+基于喷束的CDF贯穿距离估计器 & \texttt{penetration\_cdf\_all\_plumes} \\
 轴向CDF前沿定位器 & \texttt{penetration\_cdf\_front} \\
 次级特征提取器 & \texttt{extract\_single\_plume\_features} \\
 二值 plume 视频修补函数 & \texttt{repair\_binary\_plume\_video} \\
@@ -84,9 +84,9 @@ GPU视频重采样程序 & \texttt{remap\_video\_cupy} \\
 \midrule
 水平坐标逆映射图 / 垂直坐标逆映射图 & \texttt{mapx}, \texttt{mapy} \\
 标准化条带尺寸 & \texttt{OUT\_SHAPE} \\
-轴向二值穿深度量 & \texttt{penetration\_bw\_x} \\
-极坐标二值穿深度量 & \texttt{penetration\_bw\_polar} \\
-清洗后的CDF穿深 & \texttt{penetration\_cdf clean} \\
+轴向二值贯穿距离度量 & \texttt{penetration\_bw\_x} \\
+极坐标二值贯穿距离度量 & \texttt{penetration\_bw\_polar} \\
+清洗后的CDF贯穿距离 & \texttt{penetration\_cdf clean} \\
 开启延迟回归点数参数 & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
 归一化时间坐标 & \texttt{time\_norm\_0\_5ms} \\
 腔内气体密度特征 & \texttt{chamber\_density\_kg\_per\_m3} \\
@@ -141,4 +141,4 @@ GPU视频重采样程序 & \texttt{remap\_video\_cupy} \\
 CPU 通常拥有较少但复杂的核心，适合串行逻辑；GPU 拥有大量较简单的核心，适合对许多数据元素同时执行相同运算。图像处理中的卷积、阈值化、角度分箱和逐帧聚合正好符合这种模式。CUDA 是 NVIDIA 的并行计算平台；CuPy 提供与 NumPy 相近的 Python 接口，使本文的处理链可以把主要数组运算转移到 GPU。其工程意义在于把 TB 级视频归档处理从难以反复迭代的长任务，转化为可随着标定、阈值和目标定义调整而重复运行的工作流 \cite{NickollsBuckGarlandSkadron2008}。
 
 \paragraph{神经网络与深度学习。}
-本文使用的多层感知机（MLP）由若干线性层和非线性激活函数组成，以工况特征和时间为输入，输出穿深预测。Dropout 在训练中随机屏蔽部分神经元，降低稀疏工况支持下的过拟合风险 \cite{Srivastava2014Dropout}。AdamW 将权重衰减从自适应梯度更新中解耦，有助于改善泛化 \cite{LoshchilovHutter2019AdamW}。SiLU/Swish 等平滑激活函数使导数传递更连续，便于使用物理导数惩罚 \cite{Ramachandran2017Swish}。均方误差（MSE）对应条件均值回归；异方差高斯负对数似然（NLL）让网络同时输出条件均值和条件方差，为不同工况提供不同宽度的误差带 \cite{KendallGal2017}。知识蒸馏先训练一个在干净数据上表现稳定的教师模型，再用其软输出引导学生模型在标签稀疏或不可靠区域学习 \cite{HintonVinyalsDean2015}。
+本文使用的多层感知机（MLP）由若干线性层和非线性激活函数组成，以工况特征和时间为输入，输出贯穿距离预测。Dropout 在训练中随机屏蔽部分神经元，降低稀疏工况支持下的过拟合风险 \cite{Srivastava2014Dropout}。AdamW 将权重衰减从自适应梯度更新中解耦，有助于改善泛化 \cite{LoshchilovHutter2019AdamW}。SiLU/Swish 等平滑激活函数使导数传递更连续，便于使用物理导数惩罚 \cite{Ramachandran2017Swish}。均方误差（MSE）对应条件均值回归；异方差高斯负对数似然（NLL）让网络同时输出条件均值和条件方差，为不同工况提供不同宽度的误差带 \cite{KendallGal2017}。知识蒸馏先训练一个在干净数据上表现稳定的教师模型，再用其软输出引导学生模型在标签稀疏或不可靠区域学习 \cite{HintonVinyalsDean2015}。

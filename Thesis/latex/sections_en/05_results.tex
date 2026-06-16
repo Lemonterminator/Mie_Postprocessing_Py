@@ -106,7 +106,7 @@ Calibrated Hiroyasu--Arai & 11.268 & 8.658 & 0.288 & 22.891 & 0.615 & 0.912 \\
 Naber--Siebers with delay term & 10.545 & 8.177 & -0.442 & 21.253 & 0.637 & 0.919 \\
 Three-stage MLP, selected anchor-off screening surrogate, 5-seed mean & 4.735 & 3.293 & 0.626 & \textbf{9.167} & 0.867 & 0.985 \\
 Three-stage MLP, diagnostic KD variant ($\mu$-anchor, raw sup. in uncertain regime), 5-seed mean & 5.200 & 3.654 & -0.585 & 10.525 & 0.834 & 0.985 \\
-Sparse Heteroscedastic GP, Stage~3 mode & \textbf{4.628} & \textbf{3.173} & -0.070 & 9.242 & 0.703 & 0.939 \\
+SVGP, Stage~3 mode & \textbf{4.628} & \textbf{3.173} & -0.070 & 9.242 & 0.703 & 0.939 \\
 \bottomrule
 \end{tabular}
 \caption{Supplementary censoring-inclusive results on the full cleaned CDF set, which includes the right-censored points. Error units are in mm; P95 refers to the 95\% absolute error. Both MLP rows represent the mean of five training repetitions (seeds 7/17/42/99/2024), and the SVGP row is the trained Stage~3 seed-42 reference model. The nominal Gaussian coverage is approximately 0.683 / 0.954. Details on raw data archival paths are provided in Appendix~\ref{app:implementation_mapping}.}
@@ -120,7 +120,21 @@ Sparse Heteroscedastic GP, Stage~3 mode & \textbf{4.628} & \textbf{3.173} & -0.0
 \label{fig:metric-bars-current}
 \end{figure}
 
-The primary in-domain comparison uses the conservative uncensored CDF point table, on which the fitted HA/NS physical baselines are also re-evaluated (data archival paths detailed in Appendix~\ref{app:implementation_mapping}). On this subset of 542,565 points, the selected MLP achieves an RMSE of \SI{4.265}{mm} and the SVGP achieves \SI{4.193}{mm}, while the two physical curve fitting baselines remain significantly higher: Hiroyasu--Arai at \SI{10.261}{mm} and Naber--Siebers at \SI{9.286}{mm}. Under the identical protocol, the 1$\sigma$/2$\sigma$ coverage for the selected MLP is 0.887/0.989, compared to 0.716/0.945 for the SVGP, confirming that the MLP's compensating advantage lies in conservative coverage rather than lower point error. Across the five selected training repetitions, the uncensored RMSE standard deviation is \SI{0.040}{mm}, ranging from \SIrange{4.217}{4.310}{mm} (the censoring-inclusive full set gives \SI{0.037}{mm}, ranging from \SIrange{4.689}{4.768}{mm}). This extremely narrow range indicates that although the SVGP remains the strongest point predictor in this fixed-table comparison, the selected MLP result is not an artifact of random seed flukes.
+The primary in-domain comparison uses the conservative uncensored CDF point table, on which the fitted HA/NS physical baselines are also re-evaluated (data archival paths detailed in Appendix~\ref{app:implementation_mapping}). On this subset of 542,565 points, the selected MLP achieves an RMSE of \SI{4.265}{mm} and the SVGP achieves \SI{4.193}{mm}, while the two physical curve fitting baselines remain significantly higher: Hiroyasu--Arai at \SI{10.261}{mm} and Naber--Siebers at \SI{9.286}{mm}. Under the identical protocol, the 1$\sigma$/2$\sigma$ coverage for the selected MLP is 0.887/0.989, compared to 0.716/0.945 for the SVGP, confirming that the MLP's compensating advantage lies in conservative coverage rather than lower point error. Across the five selected training repetitions, the uncensored RMSE standard deviation is \SI{0.040}{mm}, ranging from \SIrange{4.217}{4.310}{mm} (the censoring-inclusive full set gives \SI{0.037}{mm}, ranging from \SIrange{4.689}{4.768}{mm}). This extremely narrow range indicates that although the SVGP remains the strongest point predictor in this fixed-table comparison, the selected MLP result is not an artifact of random seed flukes. Figure~\ref{fig:coverage-comparison} visualizes the coverage side of this trade-off on both evaluation sets against the nominal Gaussian levels.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/baseline_comparison_20260521/cdf_uncensored_coverage_comparison.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/baseline_comparison_20260521/full_clean_coverage_comparison.png}
+\end{minipage}
+\caption{Empirical $1\sigma$/$2\sigma$ coverage of the physical baselines, the two MLP variants, and the SVGP on the primary uncensored CDF table (left) and the censoring-inclusive full cleaned set (right). Dashed lines mark the nominal Gaussian levels (0.683/0.954). The selected MLP sits conservatively above both nominal levels on both sets, whereas the SVGP tracks the nominal levels and the physical baselines undercover.}
+\label{fig:coverage-comparison}
+\end{figure}
 
 \subsection{P50/Q1 Condition-Level Checks}
 
@@ -207,9 +221,9 @@ Model & RMSE [mm] & MAE [mm] & 1$\sigma$ Coverage & 2$\sigma$ Coverage \\
 Calibrated Hiroyasu--Arai, legacy LONO ref & 10.713 \(\pm\) 1.542 & --- & --- & --- \\
 Naber--Siebers with delay term, legacy LONO ref & 9.784 \(\pm\) 2.102 & --- & --- & --- \\
 Three-stage MLP, Stage~3 LONO winning variant & 12.55 \(\pm\) 12.46 & 9.80 \(\pm\) 10.18 & 0.575 & 0.770 \\
-Sparse Heteroscedastic GP, Stage~3 mode & \textbf{10.16 \(\pm\) 9.57} & \textbf{7.87 \(\pm\) 7.55} & \textbf{0.628} & \textbf{0.821} \\
+SVGP, Stage~3 mode & \textbf{10.16 \(\pm\) 9.57} & \textbf{7.87 \(\pm\) 7.55} & \textbf{0.628} & \textbf{0.821} \\
 Three-stage MLP, excluding Nozzle0 & 7.00 \(\pm\) 1.18 & 5.25 \(\pm\) 0.81 & 0.696 & \textbf{0.923} \\
-Sparse Heteroscedastic GP, excluding Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \textbf{4.55 \(\pm\) 1.55} & \textbf{0.697} & 0.890 \\
+SVGP, excluding Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \textbf{4.55 \(\pm\) 1.55} & \textbf{0.697} & 0.890 \\
 \bottomrule
 \end{tabular}
 \caption{Cross-architecture LONO comparison. The MLP and SVGP rows report the unweighted mean and standard deviation across five leave-one-nozzle-family folds using the current uncensored evaluation artifacts. Dashes indicate that corresponding MAE and coverage data could not be traced in the current archive. Bold font denotes the optimal Stage~3 architecture in the respective column.}
@@ -219,7 +233,7 @@ Sparse Heteroscedastic GP, excluding Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \tex
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{images/svgp_lono_comparison.png}
-\caption{Comprehensive diagnostics for the Stage~3 MLP and the Sparse Heteroscedastic GP under the current uncensored LONO protocol. Left: RMSE for each held-out nozzle family; Right: Empirical 1$\sigma$ coverage, with the dashed line representing the nominal Gaussian level.}
+\caption{Comprehensive diagnostics for the Stage~3 MLP and the SVGP under the current uncensored LONO protocol. Left: RMSE for each held-out nozzle family; Right: Empirical 1$\sigma$ coverage, with the dashed line representing the nominal Gaussian level.}
 \label{fig:svgp-lono-comparison}
 \end{figure}
 

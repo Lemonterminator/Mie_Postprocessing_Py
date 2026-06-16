@@ -175,7 +175,8 @@ def build_context(project_root: Path):
 
 def main() -> None:
     slides_dir = Path(__file__).resolve().parent
-    project_root = slides_dir.parents[2]
+    # slides_dir = <repo>/Thesis/slides/legacy_notebook_sources/slides_sparse_feature_instability
+    project_root = slides_dir.parents[3]
     figures_dir = slides_dir / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
 

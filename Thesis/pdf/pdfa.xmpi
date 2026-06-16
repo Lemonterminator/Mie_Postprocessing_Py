@@ -62,14 +62,14 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"> 
    <dc:format>application/pdf</dc:format> 
-   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">基于 Mie 散射成像的数据驱动穿深预测与概率性碰壁筛查</rdf:li></rdf:Alt></dc:title>
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">基于 Mie 散射成像的数据驱动贯穿距离预测与概率性撞壁筛查</rdf:li></rdf:Alt></dc:title>
    <dc:creator><rdf:Seq><rdf:li>Linan Jiang</rdf:li></rdf:Seq></dc:creator>
    <dc:language><rdf:Bag><rdf:li>en</rdf:li></rdf:Bag></dc:language>
    <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></dc:rights>
-   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">多燃料船用发动机中的柴油预喷具有持续时间短、瞬态特征强等特点。若液相包络在形成有效点火核之前即到达活塞顶或缸壁，可能引发壁面润湿、润滑油稀释以及混合准备恶化等问题。本文建立了一套基于实验证据的筛查工作流，将高速 Mie 散射视频转化为以穿深为核心的几何观测量，并构建用于早期喷雾撞壁风险筛查的代理模型。研究数据来自 Wärtsilä 光学喷雾燃烧舱的室温、非反应、顶视 Mie 记录，覆盖多种工况与喷嘴几何。该工作流结合人工喷嘴标定、CUDA 加速的多孔视频处理、逐喷油束特征提取，以及一种用于平滑噪声标签并缓解视场边界右删失低估偏差的降阶轨迹拟合方法。基于拟合目标，本文训练了三阶段神经网络代理模型：阶段一学习确定性代表轨迹基线；阶段二扩展至完整过滤数据集，并预测异方差均值与方差；阶段三在早期观测可靠时对齐原始 CDF 数据，在晚期观测稀疏时保留保守的教师引导，以避免将离开视场误判为物理饱和。在来自 9 个喷嘴试验批次的 542,565 个预测点上（未删失 CDF 评估协议），最终无锚点阶段三模型（均值 MSE 与对数方差 MSE 的混合蒸馏，方差权重 5.0）在五种随机种子自举下的 RMSE 为 4.27 mm（标准差 0.04 mm），MAE 为 3.03 mm（标准差 0.04 mm），并保持 88.7 percent / 98.9 percent 的 1-sigma / 2-sigma 不确定性覆盖率，相对校准后的 Hiroyasu--Arai 和 Naber--Siebers 物理基线 RMSE 降低超过 54 percent。本文同时在相同协议下评估了稀疏异方差 Gaussian process（SVGP）作为替代主干：分布内与留一喷嘴族协议上 SVGP 是更强的逐点回归器（RMSE 4.19 mm 与跨族 5.95 mm 对 MLP 的 7.00 mm），而本文 MLP 的结构性留任理由是更保守的不确定性覆盖、用于碰壁筛查接口的喷射起始辅助输出，以及消融实验在硕士级算力预算下的可负担性；二者应被理解为同一删失感知学习协议下不同的精度-覆盖率权衡，而非主干层面的一边倒优势。本文进一步通过简化几何投影，将预测穿深分布映射为概率性撞壁筛查代理指标。需要强调的是，该工作流的适用范围限于测量域内的早期工程筛查，不能替代 CFD、发动机试验或经验证的缸内撞壁物理模型。</rdf:li></rdf:Alt></dc:description>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">多燃料船用发动机中的柴油预喷具有持续时间短、瞬态特征强等特点。若液态喷雾在着火形成之前即到达活塞顶或缸壁，可能引发壁面润湿、润滑油稀释以及混合气准备恶化等问题。本文建立了一套工程筛查工作流，将高速 Mie 散射喷雾视频转化为贯穿距离测量结果与训练后的代理模型，用于早期喷雾撞壁风险评估。研究数据来自 Wärtsilä 光学喷雾燃烧舱的室温、非反应、顶视记录，覆盖多种工况与喷嘴几何。 该工作流结合多孔视频处理、逐喷油束特征提取，以及一种降阶轨迹拟合方法，后者在平滑噪声标签的同时，缓解相机视场边界右删失造成的低估偏差。基于这些拟合目标，本文通过三阶段课程式训练得到一个神经网络，用于预测贯穿距离均值及异方差不确定性估计；分阶段设计的目的在于避免将喷雾离开视场误判为物理饱和。 在来自 9 个喷嘴试验批次、未删失评估协议下的 542,565 个评估点上，最终多层感知机（MLP）模型在五个随机种子下的平均均方根误差（RMSE）为 4.27 mm、平均绝对误差（MAE）为 3.03 mm，并保持 88.7%/98.9% 的保守一倍/两倍标准差不确定性覆盖率，相对校准后的 Hiroyasu--Arai 与 Naber--Siebers 基线，RMSE 降低超过 54%。作为替代主干的稀疏变分高斯过程（SVGP）点精度更优（分布内 4.19 mm；留一喷嘴族测试中 5.95 mm 对 7.00 mm），但不确定性覆盖率明显不及前者保守；二者应被理解为同一删失感知协议下精度与覆盖率之间不同的权衡。最后，本文通过简化几何投影，将预测贯穿距离分布映射为概率性撞壁筛查评分。该工作流定位为测量域内的早期工程筛查工具，先于——而非替代——计算流体力学（CFD）仿真与发动机试验。</rdf:li></rdf:Alt></dc:description>
    <dc:subject><rdf:Bag><rdf:li>Mie 散射</rdf:li>
      <rdf:li>喷雾成像</rdf:li>
-     <rdf:li>穿深</rdf:li>
+     <rdf:li>贯穿距离</rdf:li>
      <rdf:li>计算机视觉</rdf:li>
      <rdf:li>代理模型</rdf:li></rdf:Bag></dc:subject>
   </rdf:Description> 
@@ -83,9 +83,9 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"> 
    <xmp:CreatorTool>LaTeX with hyperref</xmp:CreatorTool> 
-   <xmp:ModifyDate>2026-06-10T00:07:55+03:00</xmp:ModifyDate> 
-   <xmp:CreateDate>2026-06-10T00:07:55+03:00</xmp:CreateDate> 
-   <xmp:MetadataDate>2026-06-10T00:07:55+03:00</xmp:MetadataDate> 
+   <xmp:ModifyDate>2026-06-16T10:11:50+03:00</xmp:ModifyDate> 
+   <xmp:CreateDate>2026-06-16T10:11:50+03:00</xmp:CreateDate> 
+   <xmp:MetadataDate>2026-06-16T10:11:50+03:00</xmp:MetadataDate> 
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmpRights = "http://ns.adobe.com/xap/1.0/rights/"> 
    <xmpRights:Marked>True</xmpRights:Marked>
@@ -94,7 +94,7 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"> 
    <xmpMM:DocumentID>uuid:F78D18BF-7FBF-2447-F37B-95D09FF822DB</xmpMM:DocumentID> 
-   <xmpMM:InstanceID>uuid:1BF8F08A-6F12-EE21-F23F-431FFFDCF1DE</xmpMM:InstanceID> 
+   <xmpMM:InstanceID>uuid:9684F768-565C-69BB-309D-3733AA20BD41</xmpMM:InstanceID> 
   </rdf:Description> 
  </rdf:RDF> 
 </x:xmpmeta> 
