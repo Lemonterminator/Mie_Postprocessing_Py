@@ -171,7 +171,7 @@ def make_architecture(out_png: Path) -> None:
     box(ax, hx, 0.44, 0.13, 0.10, r"$\log\hat{\sigma}^2$", "#FDF3E7", STAGE_EDGE, fontsize=10)
     arrow(ax, (tx + 0.07, 0.42), (hx - 0.068, 0.66))
     arrow(ax, (tx + 0.07, 0.32), (hx - 0.068, 0.44))
-    ax.text(hx, 0.80, "dimensionless heads", ha="center", fontsize=9.5, weight="bold")
+    ax.text(hx, 0.80, "scaled output heads", ha="center", fontsize=9.5, weight="bold")
 
     # ── A-scaling reconstruction ────────────────────────────────────────
     ax_x = 0.71

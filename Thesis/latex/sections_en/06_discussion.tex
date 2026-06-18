@@ -82,7 +82,7 @@ Finally, the results also prescribe the following specific boundaries, grouped b
 	\item The surrogate is strictly trained within the operating condition domain jointly supported by experimental and synthetic data.
 	      Under genuinely out-of-distribution pressures, nozzle geometries, ambient temperatures, or injection strategies, its predictions should not be accorded equivalent credibility.
 
-	\item The leave-one-nozzle-family-out evaluation is dominated by the Nozzle0 fold---the sole factory-fresh reference nozzle, with injector-to-injector variation not modeled---on which every Stage~3 variant collapses (RMSE \(\sim\SI{35}{mm}\), systemic underestimation; per-fold breakdown in Figure~\ref{fig:svgp-lono-comparison}); the five-fold mean RMSE of \SI{12.55}{mm} is therefore a worst-case figure carried by this one out-of-design-family fold.
+	\item The leave-one-nozzle-out evaluation is dominated by the Nozzle0 fold---the sole factory-fresh reference nozzle, with injector-to-injector variation not modeled---on which every Stage~3 variant collapses (RMSE \(\sim\SI{35}{mm}\), systemic underestimation; per-fold breakdown in Figure~\ref{fig:svgp-lono-comparison}); the five-fold mean RMSE of \SI{12.55}{mm} is therefore a worst-case figure carried by this one out-of-design-family fold.
 	      With that fold excluded, the in-family four-fold mean (\SIrange{7.0}{7.2}{mm}) falls below both physical baselines under the identical protocol (Chapter~5). The interpretive point is that the model's cross-family risk is localized to genuinely off-design geometry, not to in-family penetration prediction.
 	      The image evidence of Nozzle~3 (Figure~\ref{fig:failure-mode-nozzle3}) further correlates the residual errors within the design family to leading liquid slugs, chasing and overtaking main jets, inter-hole asymmetry, and step-wise penetration. This trajectory morphology is consistent with the wake-driven chasing/overtaking mechanism reported in the split/multiple-injection literature.
 	      However, as this thesis possesses neither synchronous gas velocity measurements nor internal flow visualization or liquid slug identity tracking, it can only interpret Nozzle~3 as image evidence consistent with this mechanism; mechanical causes such as needle wobble or transient nozzle hole throttling remain equally viable candidate explanations that the data cannot exclude.
@@ -96,7 +96,7 @@ Finally, the results also prescribe the following specific boundaries, grouped b
 
 	\item The held-out RMSE and MAE are computed based on 542,565 point-wise samples, but the temporal point errors within the same trajectory are mutually correlated.
 	      Thus, the number of independent samples is significantly smaller than the number of point-wise samples, and any confidence statements based on point-wise counts should be understood in conjunction with this correlation.
-	      Condition-level confidence intervals, preferably clustered by recording, condition, and nozzle family, are still required before the tool can support formal acceptance thresholds.
+	      Condition-level confidence intervals, preferably clustered by recording, condition, and nozzle, are still required before the tool can support formal acceptance thresholds.
 \end{itemize}
 
 \subsubsection*{Comparative-Baseline Boundaries}
@@ -130,8 +130,8 @@ LONO in-family mean (excl.\ Nozzle0)           & 7.00\,mm               & \textb
 \multicolumn{3}{@{}l}{\textit{Structural capabilities}} \\[2pt]
 Onset-CDF output head (screening interface)    & \checkmark             & ---                \\
 Regime-aware censoring chain (raw + KD mixing) & \checkmark             & ---                \\
-Design-axis ablations (stage curriculum, KD form, family head type) & \checkmark & --- \\
-Explicit per-family adapter (FiLM / residual head) & \checkmark         & ---                \\
+Design-axis ablations (stage curriculum and KD form) & \checkmark & --- \\
+Optional per-family adapter follow-up                & evaluated             & ---                \\
 \bottomrule
 \end{tabular}
 \caption{MLP vs.\ SVGP: accuracy trade-off and structural capabilities.
@@ -143,14 +143,13 @@ not that training cost is prohibitive.}
 
 On raw point accuracy, the SVGP holds a marginal advantage
 (RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}, a gap of \SI{0.072}{mm})
-and transfers more gracefully to unseen nozzle families under LONO.
+and transfers more gracefully to unseen nozzles under LONO.
 The MLP leads on uncertainty coverage
-(1$\sigma$/2$\sigma$: $0.887/0.989$ vs.\ $0.716/0.945$)
-and on modular family adaptation:
-an explicit residual head or FiLM layer can condition the model on a new nozzle family
-by training only a small set of additional parameters against a frozen trunk,
-without retraining from scratch.
-Kernel baselines do not naturally support this adapter paradigm---adapting an SVGP to a
+(1$\sigma$/2$\sigma$: $0.887/0.989$ vs.\ $0.716/0.945$).
+An optional residual/FiLM follow-up further suggests that a frozen MLP trunk can support
+lightweight in-family adaptation by training only a small set of additional parameters,
+but this evidence is not part of the deployed-surrogate verdict.
+Kernel baselines do not naturally support the same adapter paradigm---adapting an SVGP to a
 new family requires re-optimising the full set of variational parameters and inducing
 points, which is closer to a full retrain than a lightweight fine-tune.
 The MLP was therefore selected not for overall accuracy superiority, but for three
@@ -158,14 +157,14 @@ structural capabilities the kernel baseline cannot easily provide:
 the onset-CDF output head required by the screening interface (Section~4.7),
 the regime-aware censoring chain that mixes fitted synthetic targets with right-censored
 raw observations,
-and the design-axis ablations covering stage curriculum, KD form, and family head
-type---structural choices that do not exist in the SVGP framework and therefore cannot
+and the design-axis ablations covering stage curriculum and KD form---structural
+choices that do not exist in the SVGP framework and therefore cannot
 be ablated there (Section~\ref{sec:mlp-ablation-affordability-en}).
 
-The per-family residual adapter illustrates this payoff concretely.
+The optional per-family residual adapter illustrates a possible extension of this payoff.
 Adding a small correction head to the frozen trunk reduces in-family LONO RMSE by
 approximately 31\% ($7.44 \rightarrow \SI{5.16}{mm}$) and removes the mean bias.
-The limit is equally clear: a nozzle family outside the training design space cannot be
+The limit is equally clear: a nozzle outside the training design space cannot be
 recovered by a lightweight adapter---Nozzle0 plateaus well above the \SI{5}{mm}
 in-family band, marking the point at which new trunk capacity is required rather than
 a new head.

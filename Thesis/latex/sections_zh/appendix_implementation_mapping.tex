@@ -2,7 +2,7 @@
 \section{实现映射表}
 \label{app:implementation_mapping}
 
-为了提高方法论描述的可读性，正文中的代码特定变量名、函数名和脚本名已被替换为具有描述性的语义短语。对于意图复现本研究或查阅项目代码库的实践者，以下表格将正文中使用的描述性短语映射回其在代码库中的确切标识符。
+为了提高方法论描述的可读性，正文中不直接使用代码特定的变量名、函数名和脚本名，而是使用方法性短语和文档/产物短语。对于意图复现本研究或查阅项目代码库的实践者，以下表格将这些短语映射回其在代码库中的确切标识符。
 
 \subsection{文档与脚本}
 
@@ -10,12 +10,12 @@
 \centering
 \begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{语义短语} & \textbf{代码库标识符} \\
+\textbf{论文中使用的文档或产物短语} & \textbf{代码库标识符} \\
 \midrule
 数据清洗与拟合程序 & \texttt{fit\_raw\_data.py} \\
 交互式标定界面 & \texttt{GUI.py} \\
-多孔几何构建脚本 & \codepath{mie\_multi\_hole.py} \\
-数据集统计脚本 & \texttt{MLP/summarize\_dataset.py} \\
+多孔图像处理驱动程序 & \codepath{mie\_multi\_hole.py} \\
+数据集统计工具 & \texttt{MLP/summarize\_dataset.py} \\
 标定配置文件 & \texttt{config.json} \\
 训练日志文件 & \codepath{epoch\_loss.csv} \\
 第一阶段模型检查点 & \codepath{best\_model\_stage1.pt} \\
@@ -31,7 +31,7 @@ Hermite样条几何模块 & \codepath{design\_hermite.py} \\
 拟合统计分析笔记本 & \texttt{fitted\_stats\_analysis.ipynb} \\
 合成数据导出目录 & \codepath{MLP/synthetic\_data} \\
 最终选择的第三阶段蒸馏存档 & \codepath{distill\_cdf\_onset\_v2...} \\
-空间右删失审计脚本 & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
+空间右删失审计工具 & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
 Mie 图像处理输出目录 & \codepath{Mie\_scattering\_top\_view\_results} \\
 \bottomrule
 \end{tabular}
@@ -44,31 +44,31 @@ Mie 图像处理输出目录 & \codepath{Mie\_scattering\_top\_view\_results} \\
 \centering
 \begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{语义短语} & \textbf{代码库标识符} \\
+\textbf{论文中使用的方法短语} & \textbf{代码库标识符} \\
 \midrule
-视频处理循环 & \texttt{\_process\_cine\_file} \\
-多孔预处理程序 & \texttt{mie\_multihole\_preprocessing} \\
-多孔后处理程序 & \texttt{mie\_multihole\_postprocessing} \\
-代数圆拟合函数 & \texttt{calc\_circle} \\
-前景提取滤波器 & \texttt{refined\_log\_subtraction} \\
-GPU加速的Sobel滤波器 & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
+逐记录视频处理步骤 & \texttt{\_process\_cine\_file} \\
+多孔预处理步骤 & \texttt{mie\_multihole\_preprocessing} \\
+多孔后处理步骤 & \texttt{mie\_multihole\_postprocessing} \\
+最小二乘喷嘴圆拟合 & \texttt{calc\_circle} \\
+对数比前景提取 & \texttt{refined\_log\_subtraction} \\
+Sobel 梯度幅值计算 & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
 卷积核构建函数 & \texttt{build\_2d\_kernel} \\
 秩-1可分离性测试 & \texttt{\_separable\_factors\_cupy} \\
 2D卷积程序 & \texttt{convolution\_2D\_cupy} \\
-极坐标重参数化程序 & \texttt{angle\_signal\_density\_auto} \\
-GPU直方图装箱操作 & \texttt{cp.digitize} \\
-GPU加权求和操作 & \texttt{cp.bincount} \\
-基于FFT的相位对齐函数 & \texttt{estimate\_offset\_from\_fft} \\
-正向仿射变换构建器 & \texttt{build\_rotation\_affine} \\
-逆向仿射映射生成器 & \texttt{build\_affine\_inverse\_maps\_cupy} \\
-GPU视频重采样程序 & \texttt{remap\_video\_cupy} \\
-基于喷束的CDF贯穿距离估计器 & \texttt{penetration\_cdf\_all\_plumes} \\
-轴向CDF前沿定位器 & \texttt{penetration\_cdf\_front} \\
-次级特征提取器 & \texttt{extract\_single\_plume\_features} \\
-二值 plume 视频修补函数 & \texttt{repair\_binary\_plume\_video} \\
-鲁棒异常值过滤程序 & \texttt{apply\_filter\_masking} \\
-分组数据集划分程序 & \texttt{assign\_splits\_by\_group} \\
-物理标度验证程序 & \texttt{run\_pretrain\_collapse\_check} \\
+极坐标角度强度重参数化 & \texttt{angle\_signal\_density\_auto} \\
+角度分箱赋值 & \texttt{cp.digitize} \\
+角度强度累加 & \texttt{cp.bincount} \\
+基于傅里叶的羽流取向对齐 & \texttt{estimate\_offset\_from\_fft} \\
+正向仿射变换构造 & \texttt{build\_rotation\_affine} \\
+逆仿射重映射图构造 & \texttt{build\_affine\_inverse\_maps\_cupy} \\
+视频立方体重映射与重采样 & \texttt{remap\_video\_cupy} \\
+轴向累积强度穿深估计 & \texttt{penetration\_cdf\_all\_plumes} \\
+轴向累积分布前沿定位 & \texttt{penetration\_cdf\_front} \\
+边界与几何描述符提取 & \texttt{extract\_single\_plume\_features} \\
+时间体与逐帧二值支持修补 & \texttt{repair\_binary\_plume\_video} \\
+鲁棒轨迹与异常值过滤 & \texttt{apply\_filter\_masking} \\
+按组数据集划分 & \texttt{assign\_splits\_by\_group} \\
+物理标度验证 & \texttt{run\_pretrain\_collapse\_check} \\
 \bottomrule
 \end{tabular}
 \caption{算法与核心函数名称映射表}
@@ -80,13 +80,13 @@ GPU视频重采样程序 & \texttt{remap\_video\_cupy} \\
 \centering
 \begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{语义短语} & \textbf{代码库标识符} \\
+\textbf{论文中使用的方法短语} & \textbf{代码库标识符} \\
 \midrule
-水平坐标逆映射图 / 垂直坐标逆映射图 & \texttt{mapx}, \texttt{mapy} \\
-标准化条带尺寸 & \texttt{OUT\_SHAPE} \\
-轴向二值贯穿距离度量 & \texttt{penetration\_bw\_x} \\
-极坐标二值贯穿距离度量 & \texttt{penetration\_bw\_polar} \\
-清洗后的CDF贯穿距离 & \texttt{penetration\_cdf clean} \\
+逆采样坐标图 & \texttt{mapx}, \texttt{mapy} \\
+标准化羽流条带输出尺寸 & \texttt{OUT\_SHAPE} \\
+轴向二值支持穿深 & \texttt{penetration\_bw\_x} \\
+基于边界的极坐标穿深 & \texttt{penetration\_bw\_polar} \\
+清洗后的累积分布穿深列 & \texttt{penetration\_cdf(mm)\_plume\_*}；历史前缀为 \texttt{penetration\_cdf\_plume\_*} \\
 开启延迟回归点数参数 & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
 归一化时间坐标 & \texttt{time\_norm\_0\_5ms} \\
 腔内气体密度特征 & \texttt{chamber\_density\_kg\_per\_m3} \\

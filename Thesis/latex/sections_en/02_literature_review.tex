@@ -64,7 +64,8 @@ inter-facility comparisons of nominally identical injectors (Spray~A and Spray~D
 Separately, Magnotti and Genzale showed that even within a single dataset, contrasting metrics such as maximum liquid penetration, path-integrated liquid volume, and projected spray area can lead to substantially different model validation conclusions \cite{MagnottiGenzale2013}, explicitly establishing the optical liquid-phase boundary as a quantity defined by a specific measurement protocol rather than an absolute representation of the true liquid-phase distribution.
 The experimental conditions in this thesis differ from the high-temperature, high-pressure evaporating conditions of ECN Spray~A, and also from the baseline settings of Spray~D:
 This thesis uses top-view data of multi-hole marine nozzles under room-temperature pressurized environments, involving no fuel evaporation.
-However, the methodological principles of ECN still apply:
+These non-evaporating conditions make liquid-phase geometric boundary tracking appropriate for the penetration and cone-angle observables used here, but they do not turn the optical boundary into a protocol-independent physical surface.
+The methodological principles of ECN therefore still apply:
 Penetration and boundary values depend on post-processing rules, and this dependency must be incorporated into the interpretation of the results.
 
 \subsection{Empirical Models of Transient Nozzle Penetration Physics and Their Limitations}
@@ -141,7 +142,7 @@ Internal nozzle flow under high pressure and potential cavitation further alter 
 For short-pulse pre-injections, the opening and closing transients themselves may occupy a considerable proportion of the injection event, rendering the quasi-steady assumption valid only fleetingly in the middle segment at best.
 This leads to the modeling judgment in this thesis: rigid empirical power laws remain valuable physical baselines but do not constitute the complete target form for the dataset in this thesis.
 At the same time, these empirical models are not discarded once they fail as complete predictors.
-The Hiroyasu--Arai post-breakup amplitude \(A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}\) is reused as the dimensionless target scaling \(\hat S=S/A\), and the momentum-scaling variables it is built from---pressure drop, ambient density, and nozzle diameter---also motivate the surrogate feature set, while the residual pressure, duration, plume-count, and inclination dependences are left for the statistical model to learn.
+The Hiroyasu--Arai post-breakup amplitude \(A=(\Delta P/\rho_a)^{1/4}d_n^{1/2}\) is reused as an empirical amplitude-scaling prior for the scale-normalized target \(\hat S=S/A\), and the momentum-scaling variables it is built from---pressure drop, ambient density, and nozzle diameter---also motivate the surrogate feature set, while the residual pressure, duration, plume-count, and inclination dependences are left for the statistical model to learn. This reuse of \(A\) is a target-preconditioning step, not a strict non-dimensionalization of \(S\).
 This is also why the subsequent surrogate inherits that functional form, modelling penetration as a smooth, physically scaled function \(S(\mathbf{x},t)\) rather than a rigid closed-form law or a free fixed-grid sequence; the architectural consequences of this choice are taken up below where the surrogate architecture is selected.
 Constrained by physical scaling and auditable preprocessing, data-driven models can absorb the combined effects of multiple overlapping physical mechanisms on the observed trajectories without needing to pre-identify and parameterize every transient segment.
 
@@ -186,7 +187,7 @@ This judgment is consistent with boundary extraction experience in existing spra
 Johnson et al. pointed out that traditional threshold-based cone angle estimation from back-scattered diesel images is highly sensitive to the chosen intensity threshold, proposing contour-based methods to reduce this subjectivity \cite{JohnsonNaberLee2012}.
 Existing studies thereby indicate that spray boundary and cone angle estimations cannot be defined independently of the specific imaging modality, post-processing rules, and research objectives.
 Accordingly, this thesis treats boundary metrics as operational geometric descriptors rather than direct measurements of a precise liquid-phase envelope;
-the penetration front is established on the cumulative distribution support of the spray plume, supplemented by multiple boundary proxy metrics, avoiding reliance on a single breakup pixel at the very front or a single global fixed threshold.
+the penetration front is established as a CDF-front quantile on the axial cumulative distribution obtained after transverse summation of each cleaned plume strip (formalized in Section~\ref{subsec:penetration-measurement}), supplemented by multiple boundary proxy metrics, avoiding reliance on a single breakup pixel at the very front or a single global fixed threshold.
 
 \subsubsection{Multi-Plume Registration and Symmetry Utilization}
 
@@ -224,7 +225,7 @@ Therefore, once the inputs are structured into operating parameters, time, and p
 Based on this judgment, the Multilayer Perceptron (MLP) is adopted as a reasonable baseline architecture in this thesis:
 it retains universal function approximation capabilities \cite{Hornik1989UAT}, while providing a practical compromise among training cost, implementation complexity, and engineering auditability \cite{BishopPRML2006}.
 This choice is also matched to the experimental budget rather than being merely a preference for simple models.
-The thesis requires ablations, group-aware holdout checks, leave-one-nozzle-family tests, and multiple random seeds; therefore each training run must remain computationally inexpensive enough to repeat.
+The thesis requires ablations, group-aware holdout checks, leave-one-nozzle-out tests, and multiple random seeds; therefore each training run must remain computationally inexpensive enough to repeat.
 More importantly, an MLP over \((\mathbf{x},t)\) gives stable first- and second-order derivatives with respect to continuous time through automatic differentiation, which is exactly the representation needed by the shape-constraint terms discussed below.
 Recurrent, long-memory, or attention-based sequence models could in principle be regularised, but they would tie supervision more tightly to a chosen time grid and would make arbitrary-time distillation targets and derivative priors less direct.
 
@@ -236,6 +237,7 @@ The constraints in this thesis are stricter:
 the visible trajectories of short-pulse pre-injections are dominated by SOI and EOI transients, a restricted field of view renders a significant portion of trajectories as right-censored samples, and plume-to-plume as well as shot-to-shot dispersions are themselves engineering-relevant information that cannot be simply averaged away.
 Thus, this thesis does not aim to re-prove that neural networks can predict spray macroscopic quantities, but rather introduces three targeted components atop existing pathways:
 censoring-aware target construction, heteroscedastic uncertainty quantification, and a distillation-based refinement stage.
+In this sense, the gap is not merely the absence of a more expressive neural architecture, but the absence of a trajectory-level learning formulation that jointly accounts for optical right-censoring, extrapolative continuation, and the aleatoric plume-to-plume and shot-to-shot dispersion that remains relevant to engineering screening.
 The three stages should therefore be read as a curriculum rather than as three unrelated training recipes.
 Curriculum learning formalises the idea of first fitting an easier or more stable target before exposing the model to the full, noisier learning problem \cite{BengioCurriculumLearning2009}.
 For this thesis, the deterministic Stage~1 mean fit is a stabilising step: training a heteroscedastic Gaussian head from scratch can let the variance branch absorb mean errors, down-weight difficult samples, and slow or destabilise the mean fit, a failure mode documented in variance-network and \(\beta\)-NLL (negative log-likelihood, NLL) studies \cite{Detlefsen2019VarianceNetworks,Seitzer2022PitfallsHeteroscedastic}.
@@ -327,7 +329,7 @@ The qualitative mass-covering versus mode-seeking distinction between forward an
 In practice, however, this forward direction opens a subtle optimisation loophole.
 The teacher--student mean mismatch enters only through \((\mu_1-\mu_2)^2/(2\sigma_2^2)\). In other words, the penalty is divided by the student's own predicted variance \(\sigma_2^2\) (with teacher \(\equiv 1\) and student \(\equiv 2\)).
 If the means are held fixed, minimising the divergence over \(\sigma_2\) yields the stationary point \((\sigma_2^{\star})^{2}=\sigma_1^{2}+(\mu_1-\mu_2)^{2}\). Forward KL can therefore reward the student for absorbing uncorrected mean error into inflated variance rather than reducing the mean error itself.
-Near the field-of-view boundary, the surviving raw observations pull the student mean downward. This "sigma-arbitrage" makes it cheaper to widen \(\sigma_2\) than to lift \(\mu_2\) back toward the teacher mean. The optimum can then drift toward an over-broad student with a systematically under-predicted late-stage mean, a pattern confirmed empirically by the Stage~3 distillation diagnostics in Chapter~5.
+Near the field-of-view boundary, the surviving raw observations pull the student mean downward. This variance inflation under teacher--student mean mismatch, an uncertainty-hedging behaviour, makes it cheaper to widen \(\sigma_2\) than to lift \(\mu_2\) back toward the teacher mean. The optimum can then drift toward an over-broad student with a systematically under-predicted late-stage mean, a pattern confirmed empirically by the Stage~3 distillation diagnostics in Chapter~5.
 
 The production Stage~3 loss removes this shortcut. It replaces the KL term with two direct penalties: a mean squared error (MSE) term \((\mu_1-\mu_2)^2\) and a log-variance MSE \((\log\sigma_1^2-\log\sigma_2^2)^2\), both defined in Chapter~4. Because the mean term no longer divides by \(\sigma_2^2\), inflating the variance can no longer discount the mean penalty. The separate log-variance term also pins \(\sigma_2\) directly to the teacher \(\sigma_1\) instead of leaving it as a free slack variable.
 Kang and Kang (2024) showed specifically for regression tasks that teacher-generated soft targets substantially reduce student errors in under-labelled regions \cite{KangKang2024KDRegression}, which provides direct empirical support for the distillation design adopted here.
@@ -352,7 +354,7 @@ In this way, partial differential equations or empirical physical laws can serve
 This thesis does not attempt to use neural networks to solve full Navier--Stokes equations.
 Rather, it borrows the constraint concept of PINNs:
 first- and second-order temporal derivatives of the penetration mean are obtained via automatic differentiation, and corresponding soft penalties are added to the loss.
-The first-order derivative constraint is used to suppress unphysical negative velocities, while the second-order derivative constraint encourages concavity throughout the injection and post-injection deceleration phases, meaning the penetration growth rate decays with time.
+The first-order derivative constraint is used to suppress unphysical negative velocities, while the second-order derivative constraint is applied as a gated soft penalty that encourages concavity only after the initial acceleration-dominated transient, including the later injection and post-injection deceleration phases, meaning the penetration growth rate decays with time.
 This also explains why smooth activation functions like Swish/SiLU mentioned earlier are necessary:
 only when the second-order derivatives can be stably and smoothly propagated is a curvature-based physical shape constraint suitable for gradient descent optimization.
 
@@ -373,7 +375,7 @@ In the context of this thesis, a simply trained heteroscedastic network might yi
 causing the actual observations to fall outside the prediction intervals more frequently than the nominal level indicates.
 Therefore, a surrogate model aimed at early design screening must verify uncertainty calibration on a hold-out set;
 for out-of-distribution (OOD) generalization, empirical coverage (e.g., $1\sigma$ and $2\sigma$ coverage) should also be checked via spatial cross-validation, such as holding out complete hardware families.
-This constitutes the basis for adopting CRPS, reliability diagrams, and Leave-One-Nozzle-Family-Out (OOD) diagnostics in the subsequent results evaluation.
+This constitutes the basis for adopting CRPS, reliability diagrams, and Leave-One-Nozzle-Out (LONO) diagnostics in the subsequent results evaluation.
 
 \subsubsection{Differences Between Kernel Methods Baselines and Neural Surrogates Outside the Distribution}
 \label{sec:kernel-vs-nn-ood-en}
@@ -385,8 +387,8 @@ Neural surrogates have no equivalent fallback mechanism: a trained network is a 
 From the perspective of Bayesian Deep Learning, Wilson and Izmailov point out that this is a general disparity rather than an architectural quirk: kernel methods naturally achieve mild generalization via their priors, whereas neural networks require explicit calibration to approximate similar behaviors \cite{WilsonIzmailov2020BDL}.
 Large-scale empirical studies by Ovadia et al. confirmed the practical consequences under distribution shifts: deep models, including heteroscedastic forms, often exhibit overconfidence or inherit the biases of the training distribution when the test distribution shifts, whereas probabilistic baselines lose accuracy much more gracefully \cite{Ovadia2019Trust}.
 For this thesis, these references serve merely as general background rather than core arguments, as the contribution of this thesis lies in right-censoring-aware learning protocols and screening interfaces, not in the choice of regressors itself.
-The significance is methodological: the Leave-One-Nozzle-Family-Out evaluation in Chapter 5 should not be read as an architectural showdown with only one winner.
-When the held-out nozzle family indeed falls outside the training support, the kernel method baseline will be more conservative a priori, while the phased MLP will more aggressively fit the structure of the training distribution and carry this structure to the hold-out folds.
+The significance is methodological: the Leave-One-Nozzle-Out evaluation in Chapter 5 should not be read as an architectural showdown with only one winner.
+When the held-out nozzle indeed falls outside the training support, the kernel method baseline will be more conservative a priori, while the phased MLP will more aggressively fit the structure of the training distribution and carry this structure to the hold-out folds.
 Therefore, the empirical results in Chapter 5 are a consistent manifestation of this "prior versus likelihood" separation, not an accident requiring post hoc explanation, and the thesis presents them in this spirit.
 
 \subsection{Spray Wall Impingement Mechanisms and Probabilistic Impingement Risk Screening}
@@ -435,10 +437,11 @@ The approach taken in this thesis represents penetration as a conditional Gaussi
 Under the premise that lateral expansion is controlled by the spray half-cone angle and approximated by a normal distribution, the probability density of the spray front can be written as a rotated 2D Gaussian.
 With this simplified geometry, the wall-impingement risk score can be expressed as the integral of the probability mass falling within the geometric mask regions of the wall and piston.
 This output should be understood as a probabilistic screening proxy metric intended for early design ranking, rather than a fully validated production-grade impingement prediction.
+The detailed cone-width convention, piston-mask parameterization, and piston-kinematic assumptions are therefore deferred to the screening interface in Section~\ref{sec:screening-interface-en}, rather than expanded in this literature-review chapter.
 
 The intended engineering application context for this screening output encompasses several complementary use cases:
 \begin{itemize}
-  \item \textbf{Nozzle geometry pre-screening:} ranking candidate nozzle families (varying hole diameter, count, and umbrella angle) by impingement probability before committing to prototype manufacture;
+  \item \textbf{Nozzle geometry pre-screening:} ranking candidate nozzles (varying hole diameter, count, and umbrella angle) by impingement probability before committing to prototype manufacture;
   \item \textbf{Injection timing sweep:} evaluating how the risk score varies with pilot start-of-injection timing for a given nozzle, without requiring a separate test campaign for each timing point;
   \item \textbf{Ambient condition sensitivity:} estimating how changes in back pressure or charge density (e.g.\ from alternative fuel blends or different engine load points) shift the impingement risk margin for an existing nozzle design;
   \item \textbf{Operational margin quantification:} expressing the safety margin between the $P_{90}$ penetration envelope and the wall geometry to support pre-injection strategy decisions and fleet-level parameter monitoring.

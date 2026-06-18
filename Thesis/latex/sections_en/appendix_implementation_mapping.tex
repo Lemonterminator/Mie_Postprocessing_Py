@@ -2,7 +2,7 @@
 \section{Implementation Mapping}
 \label{app:implementation_mapping}
 
-To improve the readability of the methodology description, specific variable names, function names, and script names in the code have been replaced with descriptive semantic phrases in the main text. For practitioners intending to reproduce this study or consult the project codebase, the following tables map the descriptive phrases used in the text back to their exact identifiers in the codebase.
+To improve the readability of the methodology description, code-specific variable names, function names, and script names are replaced in the main text by methodological and artifact phrases. For practitioners intending to reproduce this study or consult the project codebase, the following tables map those phrases back to their exact identifiers in the codebase.
 
 \subsection{Documents and Scripts}
 
@@ -10,12 +10,12 @@ To improve the readability of the methodology description, specific variable nam
 \centering
 \begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{Semantic Phrase} & \textbf{Codebase Identifier} \\
+\textbf{Document or artifact phrase used in the thesis} & \textbf{Codebase identifier} \\
 \midrule
 Data cleaning and fitting program & \texttt{fit\_raw\_data.py} \\
 Interactive calibration interface & \texttt{GUI.py} \\
-Multi-hole geometry construction script & \codepath{mie\_multi\_hole.py} \\
-Dataset summary script & \texttt{MLP/summarize\_dataset.py} \\
+Multi-hole image-processing driver & \codepath{mie\_multi\_hole.py} \\
+Dataset summary utility & \texttt{MLP/summarize\_dataset.py} \\
 Calibration configuration file & \texttt{config.json} \\
 Training log file & \codepath{epoch\_loss.csv} \\
 Stage one model checkpoint & \codepath{best\_model\_stage1.pt} \\
@@ -31,7 +31,7 @@ Interpretable surrogate model prototype folder & \codepath{MLP/interpretatable\_
 Fitting statistics analysis notebook & \texttt{fitted\_stats\_analysis.ipynb} \\
 Synthetic data export directory & \codepath{MLP/synthetic\_data} \\
 Final selected stage three distillation archive & \codepath{distill\_cdf\_onset\_v2...} \\
-Spatial right-censored audit script & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
+Spatial right-censoring audit utility & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
 Mie image processing output directory & \codepath{Mie\_scattering\_top\_view\_results} \\
 \bottomrule
 \end{tabular}
@@ -44,31 +44,31 @@ Mie image processing output directory & \codepath{Mie\_scattering\_top\_view\_re
 \centering
 \begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{Semantic Phrase} & \textbf{Codebase Identifier} \\
+\textbf{Methodological phrase used in the thesis} & \textbf{Codebase identifier} \\
 \midrule
-Video processing loop & \texttt{\_process\_cine\_file} \\
-Multi-hole preprocessing program & \texttt{mie\_multihole\_preprocessing} \\
-Multi-hole postprocessing program & \texttt{mie\_multihole\_postprocessing} \\
-Algebraic circle fitting function & \texttt{calc\_circle} \\
-Foreground extraction filter & \texttt{refined\_log\_subtraction} \\
-GPU-accelerated Sobel filter & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
+Per-recording video processing step & \texttt{\_process\_cine\_file} \\
+Multi-hole preprocessing step & \texttt{mie\_multihole\_preprocessing} \\
+Multi-hole postprocessing step & \texttt{mie\_multihole\_postprocessing} \\
+Least-squares nozzle-circle fitting & \texttt{calc\_circle} \\
+Log-ratio foreground extraction & \texttt{refined\_log\_subtraction} \\
+Sobel gradient-magnitude computation & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
 Convolution kernel builder function & \texttt{build\_2d\_kernel} \\
 Rank-1 separability test & \texttt{\_separable\_factors\_cupy} \\
 2D convolution program & \texttt{convolution\_2D\_cupy} \\
-Polar coordinate reparameterization program & \texttt{angle\_signal\_density\_auto} \\
-GPU histogram binning operation & \texttt{cp.digitize} \\
-GPU weighted summation operation & \texttt{cp.bincount} \\
-FFT-based phase alignment function & \texttt{estimate\_offset\_from\_fft} \\
-Forward affine transformation builder & \texttt{build\_rotation\_affine} \\
-Inverse affine mapping generator & \texttt{build\_affine\_inverse\_maps\_cupy} \\
-GPU video resampling program & \texttt{remap\_video\_cupy} \\
-Plume-based CDF penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
-Axial CDF front locator & \texttt{penetration\_cdf\_front} \\
-Secondary feature extractor & \texttt{extract\_single\_plume\_features} \\
-Binary plume video repair function & \texttt{repair\_binary\_plume\_video} \\
-Robust outlier filtering program & \texttt{apply\_filter\_masking} \\
-Grouped dataset splitting program & \texttt{assign\_splits\_by\_group} \\
-Physical scaling verification program & \texttt{run\_pretrain\_collapse\_check} \\
+Polar angular-intensity reparameterization & \texttt{angle\_signal\_density\_auto} \\
+Angular-bin assignment & \texttt{cp.digitize} \\
+Angular intensity accumulation & \texttt{cp.bincount} \\
+Fourier-based plume-orientation alignment & \texttt{estimate\_offset\_from\_fft} \\
+Forward affine transform construction & \texttt{build\_rotation\_affine} \\
+Inverse affine remapping map construction & \texttt{build\_affine\_inverse\_maps\_cupy} \\
+Video-cube remapping and resampling & \texttt{remap\_video\_cupy} \\
+Cumulative axial-intensity penetration estimator & \texttt{penetration\_cdf\_all\_plumes} \\
+Axial cumulative-distribution front locator & \texttt{penetration\_cdf\_front} \\
+Boundary and geometric descriptor extraction & \texttt{extract\_single\_plume\_features} \\
+Temporal and frame-wise binary support repair & \texttt{repair\_binary\_plume\_video} \\
+Robust trajectory and outlier filtering & \texttt{apply\_filter\_masking} \\
+Group-wise dataset splitting & \texttt{assign\_splits\_by\_group} \\
+Physical scaling verification & \texttt{run\_pretrain\_collapse\_check} \\
 \bottomrule
 \end{tabular}
 \caption{Mapping table for algorithm and core function names}
@@ -80,13 +80,13 @@ Physical scaling verification program & \texttt{run\_pretrain\_collapse\_check} 
 \centering
 \begin{tabular}{p{0.4\linewidth} p{0.55\linewidth}}
 \toprule
-\textbf{Semantic Phrase} & \textbf{Codebase Identifier} \\
+\textbf{Methodological phrase used in the thesis} & \textbf{Codebase identifier} \\
 \midrule
-Horizontal coordinate inverse map / Vertical coordinate inverse map & \texttt{mapx}, \texttt{mapy} \\
-Standardized crop size & \texttt{OUT\_SHAPE} \\
-Axial binary penetration metric & \texttt{penetration\_bw\_x} \\
-Polar binary penetration metric & \texttt{penetration\_bw\_polar} \\
-Cleaned CDF penetration & \texttt{penetration\_cdf clean} \\
+Inverse sampling coordinate maps & \texttt{mapx}, \texttt{mapy} \\
+Standardized plume-strip output size & \texttt{OUT\_SHAPE} \\
+Axial binary-support penetration & \texttt{penetration\_bw\_x} \\
+Polar boundary-based penetration & \texttt{penetration\_bw\_polar} \\
+Cleaned cumulative-distribution penetration columns & \texttt{penetration\_cdf(mm)\_plume\_*}; legacy prefix \texttt{penetration\_cdf\_plume\_*} \\
 Onset delay regression points parameter & \texttt{NUM\_POINTS\_SOI\_LINEAR\_REGRESSION} \\
 Normalized time coordinate & \texttt{time\_norm\_0\_5ms} \\
 Chamber gas density feature & \texttt{chamber\_density\_kg\_per\_m3} \\

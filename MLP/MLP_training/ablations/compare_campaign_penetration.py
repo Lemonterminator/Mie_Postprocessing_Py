@@ -1,16 +1,16 @@
 """
-Compare injector penetration across campaigns in A_scale-normalised coordinates.
+Compare injector penetration across campaigns in A_scale-normalized coordinates.
 
-Reads the quality-filtered wide series table (split='clean'), computes dimensionless
-penetration S* = S_mm / A_scale and normalised time t* = t_onset_us / inj_duration_us,
+Reads the quality-filtered wide series table (split='clean'), computes scale-normalized
+penetration S* = S_mm / A_scale and normalized time t* = t_onset_us / inj_duration_us,
 then compares a reference campaign (default: N0) against one or all other campaigns.
 
-Normalisation:
+Normalization:
     A_scale = (delta_pressure_bar / ambient_density_kg_m3)^0.25 * sqrt(diameter_mm)
     S*      = S_mm / A_scale
     t*      = t_ms_from_onset * 1000 / injection_duration_us
 
-After A_scale normalisation all operating-condition variation (pressure, density,
+After A_scale normalization all operating-condition variation (pressure, density,
 diameter) is collapsed.  Residual systematic offset between campaigns is attributable
 solely to injector characteristics (Cd, aging state, needle dynamics).
 
@@ -45,12 +45,12 @@ import data_io  # noqa: E402
 # ── constants ──────────────────────────────────────────────────────────────────
 FOV_LIMIT_MM = 92.0          # readings at or above this are FOV-censored
 MIN_PEN_MM   = 0.1           # ignore near-zero (pre-onset) points
-T_STAR_BINS  = np.linspace(0.0, 2.5, 51)   # normalised time grid for stats
+T_STAR_BINS  = np.linspace(0.0, 2.5, 51)   # normalized time grid for stats
 T_STAR_MIN_N = 5             # minimum points per bin to include in plot
 
 
 # ── data loading ──────────────────────────────────────────────────────────────
-def load_normalised(source: str = "cdf", dp_exp: float = 0.25) -> pd.DataFrame:
+def load_normalized(source: str = "cdf", dp_exp: float = 0.25) -> pd.DataFrame:
     """Return long-format table with S* and t* columns.
 
     ``dp_exp`` is the ΔP exponent in A_scale = ΔP^dp_exp · ρ^-0.25 · √d.
@@ -102,7 +102,7 @@ def load_normalised(source: str = "cdf", dp_exp: float = 0.25) -> pd.DataFrame:
         long["S_mm"].notna()
     ].copy()
 
-    # Dimensionless coordinates
+    # Scale-normalized coordinates
     long["S_star"] = long["S_mm"] / long["A_scale"]
     long["t_us"]   = long["t_ms"] * 1000.0
     long["t_star"] = long["t_us"] / long["injection_duration_us"]
@@ -190,7 +190,7 @@ def plot_comparison(
     ax.axvline(1.0, ls="--", lw=0.8, color="k", alpha=0.5, label="t* = 1 (EOI)")
     ax.set_xlabel(r"$t^* = t_{\rm onset} \;/\; t_{\rm inj}$", fontsize=12)
     ax.set_ylabel(r"$S^* = S_{\rm mm} \;/\; A_{\rm scale}$", fontsize=12)
-    ax.set_title("Dimensionless penetration: mean ± 1 std")
+    ax.set_title("Scale-normalized penetration: mean ± 1 std")
     ax.legend(fontsize=10)
     ax.grid(True, lw=0.4, alpha=0.5)
 
@@ -201,7 +201,7 @@ def plot_comparison(
     ax2.axhline(1.0, ls="--", lw=1, color="k", alpha=0.6, label="ratio = 1 (identical)")
     ax2.set_xlabel(r"$t^* = t_{\rm onset} \;/\; t_{\rm inj}$", fontsize=12)
     ax2.set_ylabel(r"$S^*_{\rm N0} \;/\; S^*_{\rm N1\text{-}N8}$", fontsize=12)
-    ax2.set_title(f"Penetration ratio after A_scale normalisation")
+    ax2.set_title(f"Penetration ratio after A_scale normalization")
     ax2.legend(fontsize=10)
     ax2.grid(True, lw=0.4, alpha=0.5)
     ax2.set_ylim(bottom=0)
@@ -243,7 +243,7 @@ def plot_raw_scatter(
     ax.axvline(1.0, ls="--", lw=0.8, color="k", alpha=0.4)
     ax.set_xlabel(r"$t^* = t_{\rm onset} / t_{\rm inj}$", fontsize=12)
     ax.set_ylabel(r"$S^* = S_{\rm mm} / A_{\rm scale}$", fontsize=12)
-    ax.set_title("All campaigns – dimensionless penetration scatter")
+    ax.set_title("All campaigns – scale-normalized penetration scatter")
     ax.legend(markerscale=4, fontsize=9, ncol=3)
     ax.grid(True, lw=0.3, alpha=0.4)
     plt.tight_layout()
@@ -288,7 +288,7 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     print("Loading data …")
-    long = load_normalised(source=args.source, dp_exp=args.dp_exp)
+    long = load_normalized(source=args.source, dp_exp=args.dp_exp)
     print(f"  {len(long):,} valid (non-censored) data points across "
           f"{long['experiment_name'].nunique()} experiments")
 
@@ -320,7 +320,7 @@ def main() -> None:
 
     # Ratio table
     ratio = build_ratio_table(stats, "N0 (new)", "N1–N8 (used)", label_col="campaign")
-    print(f"\nRatio S*(N0) / S*(N1-N8) at selected t* (after A_scale normalisation):")
+    print(f"\nRatio S*(N0) / S*(N1-N8) at selected t* (after A_scale normalization):")
     mask = ratio["t_star"].between(0.1, 2.0)
     display = ratio[mask].iloc[::5]   # every ~0.5 in t*
     print(display[["t_star", "S_star_ref", "S_star_cmp", "ratio", "n_ref", "n_cmp"]].to_string(index=False))
