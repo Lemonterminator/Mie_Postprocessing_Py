@@ -1,0 +1,4 @@
+Run directory: C:\Users\Jiang\Documents\Mie_Py\Mie_Postprocessing_Py\MLP\runs_mlp\penetration_hetero_20251017_144952
+Best epoch: 47
+Validation loss: -0.2567
+Test metrics: {'loss': -0.26399624224525425, 'loss_uncensored': -0.3331237308698512, 'loss_censored': 0.1448752836056376, 'mae_raw': 16.363933563232422, 'rmse_raw': 22.508588719911103, 'samples': 43798, 'n_uncensored': 37464, 'n_censored': 6334}
