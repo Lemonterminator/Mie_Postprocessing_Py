@@ -921,6 +921,44 @@ $1\sigma$ / $2\sigma$ coverage & $0.867$ / $0.985$ & $0.887$ / $0.989$ \\
 (teacher $\to$ student); same idea, transferred to a regression surrogate.}
 \end{frame}
 
+% ---------------------------------------------------------------------
+\begin{frame}{SVGP alternative: same target, different inductive bias}
+\footnotesize
+\textbf{Role:} not a weak baseline --- a kernel surrogate for the same
+low-dimensional, $A$-scaled penetration task.
+
+\vspace{0.45em}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.48\linewidth}
+\textbf{Same physical objective}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Target: $\hat S=S/A$; report $\mu_S=A\hat\mu$, $\sigma_S=A\hat\sigma$.
+  \item Same CDF observations, same fixed evaluation tables.
+  \item Difference is \emph{model bias}, not the measured quantity.
+\end{itemize}
+\end{column}
+\begin{column}{0.49\linewidth}
+\textbf{Implemented SVGP}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Seven-feature \texttt{a\_plus\_pressures} input
+        (alias: \texttt{a\_dp050\_plus\_pressures}).
+  \item Five $A$-scaled base features + log injection/chamber pressure residuals.
+  \item Two sparse GP heads: mean and log-residual variance.
+  \item Mat\'ern-$5/2$ ARD kernel; $M{=}256$ inducing points, $k$-means initialized.
+\end{itemize}
+\end{column}
+\end{columns}
+
+\vspace{0.15em}
+\textbf{Interpretation}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item Kernel + inducing-point posterior behaves like a smooth local averager:
+        support-thin regions shrink instead of freely extrapolating.
+  \item SVGP wins point RMSE; MLP is retained for conservative coverage,
+        onset output, regime-aware KD, and cheap ablations.
+\end{itemize}
+\end{frame}
+
 % =====================================================================
 % ACT 5: Evaluation
 % =====================================================================
@@ -1180,8 +1218,9 @@ QC-gated retrain                    & \good{3.922} & sensitivity re-score \\
 \end{center}
 \vspace{0.3em}
 \textbf{Mechanism:} identity warm-start + frozen trunk + a light
-residual/FiLM/SVGP family adapter. The additive-residual multitask SVGP is the
-new best \emph{and} the only variant that also repairs the extrapolated-$Q_1$ tail.
+residual/FiLM/SVGP family adapter. The residual multitask SVGP replaces the
+shared/residual map with sparse GP processes and keeps zero-residual fallback;
+it is the new in-domain best, but \warn{not LONO-tested}.
 \src{Uncensored CDF RMSE, lv2, 542k points.}
 \end{frame}
 

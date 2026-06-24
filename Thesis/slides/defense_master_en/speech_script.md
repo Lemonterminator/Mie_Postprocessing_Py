@@ -1,7 +1,7 @@
 # Defense speech script — full master deck (tightened)
 
 *Spoken English, ~1 slide/minute. Bracketed cues are delivery notes, not to be read aloud.*
-*Slide numbers match the 55-page `defense_master_en.pdf`. LLM-lab analogy kept light at Slides 1, 3, and 53 (opening frame + closing callback).*
+*Slide numbers match the 56-page `defense_master_en.pdf`. LLM-lab analogy kept light at Slides 1, 3, and 54 (opening frame + closing callback).*
 
 ---
 
@@ -251,98 +251,107 @@ Final numbers: uncensored CDF RMSE about 4.265 millimetres; one- and two-sigma c
 
 ---
 
-### Slide 41 — Stage 5: Evaluation protocols
+### Slide 41 — SVGP alternative backbone
+This is where the SVGP enters. It is not a weak baseline; it solves the same low-dimensional penetration problem as the MLP.
+
+Same target: amplitude-scaled penetration, S over A. At inference, both mean and sigma are multiplied back by A, so the comparison is in physical millimetres on the same CDF tables. The production Stage-3 SVGP uses the seven-feature `a_plus_pressures` set: the five A-scaled base features plus log injection pressure and log chamber pressure residual inputs. What changes is the inductive bias: two sparse GP heads, one for the mean and one for log residual variance, with a Matern five-halves ARD kernel and 256 inducing points.
+
+Why does it win point prediction? The kernel posterior behaves like a smooth local averager. When support gets thin, it shrinks instead of freely extrapolating. That is good for RMSE and LONO transfer. But the MLP remains the deployment model because it carries conservative coverage, the onset output, the KD curriculum, and cheap ablation capacity.
+
+---
+
+### Slide 42 — Stage 5: Evaluation protocols
 Four protocols. Full-clean CDF: headline accuracy. Uncensored CDF: censoring-robust check. P50 observed: condition-level robustness. Q1 extrapolated: lower-quantile continuation outside the raw window.
 
 Don't collapse into one number — a model can look good on average but fail on censoring, OOD injectors, or calibration. [Beat.]
 
 ---
 
-### Slide 42 — Headline accuracy
+### Slide 43 — Headline accuracy
 Both solvers cut the physics baselines roughly in half. Hiroyasu–Arai: 10.261 millimetres. Naber–Siebers: 9.286. MLP: 4.265. SVGP: 4.193.
 
 Fifty-eight percent below Hiroyasu–Arai, fifty-four below Naber–Siebers. The two solvers land within 0.07 millimetres of each other. [Point to bars.] The GP is slightly sharper as a point predictor; the MLP brings advantages in calibration and flexibility.
 
 ---
 
-### Slide 43 — Calibration: the MLP's real edge
+### Slide 44 — Calibration: the MLP's real edge
 The SVGP is slightly better on point RMSE but under-covers its own uncertainty. The MLP over-covers: 0.887 for one-sigma and 0.989 for two-sigma.
 
 For screening, conservative bias is useful. A sharp but overconfident model passes risky designs too early. A conservative one sends more to CFD, but is less likely to miss a dangerous wall impact. [Beat.]
 
 ---
 
-### Slide 44 — Qualitative fit and honest failure
+### Slide 45 — Qualitative fit and honest failure
 Left: excellent fit, sub-millimetre RMSE. Middle: worst trajectory, Nozzle3 T6 plume4, over forty millimetres. Right: Nozzle3 is the residual-risk family.
 
 Fit quality is excellent for most cases, but Nozzle3 is a real failure mode — reason to keep OOD checks in the deployment loop, not to discard the surrogate. [Beat.]
 
 ---
 
-### Slide 45 — Anatomy of the failure
+### Slide 46 — Anatomy of the failure
 The Nozzle3 failure is *physical*. Cross-referencing Phantom high-speed images with plume-by-plume curves: strong inter-hole asymmetry — bottom-right plumes eject a low-momentum detached leading mass that decelerates, then the main jet overtakes it, producing a step-like rise after one millisecond.
 
 My reduced-order target is monotonic and concave by construction — it cannot envelope a trajectory whose second derivative flips sign. Forcing a smooth prior onto a step distorts the target. The failure is identifiable, not mysterious.
 
 ---
 
-### Slide 46 — Out-of-distribution: LONO, MLP vs SVGP
+### Slide 47 — Out-of-distribution: LONO, MLP vs SVGP
 Leave-one-nozzle-out: five-fold mean, MLP 12.55 millimetres, SVGP 10.16. Excluding Nozzle0: 7.00 and 5.95. Nozzle0 alone dominates — roughly thirty-five for MLP, twenty-seven for SVGP.
 
-SVGP is the stronger point predictor on four of five folds. MLP's value: conservative coverage, onset head, and speed enabling a large ablation study. Main conclusion: Nozzle0 is genuinely out of design family.
+SVGP is the stronger point predictor on four of five folds, for the same reason as the previous slide: the sparse kernel posterior is more constrained outside dense support. MLP's value is different: conservative coverage, onset head, regime-aware KD, and speed enabling a large ablation study. Main conclusion: Nozzle0 is genuinely out of design family.
 
 ---
 
-### Slide 47 — Stage 6: injector-family conditioning
+### Slide 48 — Stage 6: injector-family conditioning
 Even after amplitude scaling, families don't fully collapse. Nozzle0 runs about 2.4–2.5 times higher at early time; the gap shrinks post end-of-injection but never disappears.
 
 A single shared model leaves structured residual error. The fix: condition on injector family with a light adaptation layer — frozen shared trunk plus a per-family mean head. [Point to bullets.]
 
 ---
 
-### Slide 48 — Family-aware head
+### Slide 49 — Family-aware head
 The family-aware head fixes catastrophic folds without penalizing in-family ones.
 
 Aggregate LONO RMSE: 11.44 down to 7.35 millimetres. Nozzle0: 30.58 to 11.57. Nozzle6: 36.91 to 7.61. In-family folds move less than one millimetre. [Point to bar chart.] The gain specifically repairs OOD-family failure.
 
 ---
 
-### Slide 49 — Model lineage
+### Slide 50 — Model lineage
 The climb: Naber–Siebers at 9.286. Production MLP and SVGP at around 4.2. The family-head variant introduces the adaptation mechanism.
 
-Follow-on variants push further: residual family heads, residual FiLM, residual multitask SVGP, QC-gated retrain. Best numbers around 3.99 and 3.92. Consistent mechanism: identity warm-start, frozen trunk, light family adapter. The residual multitask SVGP also repairs the extrapolated q1 tail.
+Follow-on variants push further: residual family heads, residual FiLM, residual multitask SVGP, QC-gated retrain. Best numbers around 3.99 and 3.92. Consistent mechanism: identity warm-start, frozen trunk, light family adapter. The residual multitask SVGP is a different use of SVGP: shared sparse GP plus per-nozzle residual processes, with zero-residual fallback. It is the best in-domain follow-up, but I do not claim it as LONO-validated.
 
 ---
 
-### Slide 50 — Nozzle0 few-shot limit
+### Slide 51 — Nozzle0 few-shot limit
 The boundary condition. Delta head fine-tuned, trunk frozen, Nozzle0 held out. Zero-shot: about 33 millimetres. Two examples: 22. Ten: 20.7. Twenty: 19.2. All examples: roughly 15.7, NLL plateaus around 19.5.
 
 Nozzle0 is genuinely out of design family. A head adapter floors around sixteen millimetres — closing that gap needs trunk capacity, not just a new head.
 
 ---
 
-### Slide 51 — From checkpoint to product
+### Slide 52 — From checkpoint to product
 Deployment ends with the screening GUI — the same tkinter wizard from the calibration slides. It collects piston-bowl geometry and spray conditions page by page, reproduces the full training feature pipeline at inference, runs the MLP, and overlays the prediction on crank-driven piston kinematics.
 
 Outputs: peak piston-impact probability, cumulative exposure, wall-impact probability. Solver swappable between MLP and SVGP. Checkpoint to product.
 
 ---
 
-### Slide 52 — The screening tool, live
+### Slide 53 — The screening tool, live
 Here it is running. [Let it play.] Mean penetration, uncertainty band, and onset overlaid on crank-driven piston motion. The numbers an engineer actually wants. [Pause — don't over-explain.]
 
 This is the practical closure: raw Mie archive became trajectories; trajectories became targets; targets trained solvers; the solver returns here, in a visual interface. The pipeline runs end to end.
 
 ---
 
-### Slide 53 — The whole pipeline, one more time
+### Slide 54 — The whole pipeline, one more time
 The left column is the thesis pipeline; the right is the frontier-lab analogy. [Let it register.]
 
 To be precise: I'm not saying spray-wall impingement is language modelling. The scale and modality are completely different. The claim is that the engineering discipline transfers: data acquisition, filtering, target construction, staged training, robust evaluation, and deployment adaptation. The final solvers reach about 4.2 millimetres uncensored RMSE — roughly fifty-eight and fifty-four percent below the two physics baselines — with conservative calibration and a deployed GUI.
 
 ---
 
-### Slide 54 — Contributions, limitations, future work
+### Slide 55 — Contributions, limitations, future work
 Six contributions: a CUDA video-to-observable workflow; a reduced-order q1 fit for right-censored targets; a three-stage uncertainty-aware MLP via knowledge distillation; an onset-CDF head with regime-aware censoring; a probabilistic screening GUI; and a large ablation-by-LONO-by-seed study.
 
 Limitations: OOD families degrade badly, especially Nozzle0. The q1 continuation beyond FOV is unvalidated. GUI impingement geometry is a prototype. Half-cone angle is fixed. Points are correlated — clustered CIs still needed. SVGP is the stronger point predictor in-distribution.
@@ -351,7 +360,7 @@ Future work: validate hit probability against matching optical or CFD runs, lear
 
 ---
 
-### Slide 55 — Thank you
+### Slide 56 — Thank you
 That is the thesis: one person, one machine, an end-to-end AI pipeline for spray-wall impingement screening.
 
 Thank you for listening. I welcome your questions.
