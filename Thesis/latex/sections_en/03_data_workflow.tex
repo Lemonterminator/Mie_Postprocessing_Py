@@ -404,6 +404,8 @@ Subsequently, the penetration front \(\hat{x}_p(t)\) is defined as the minimum p
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
 where the quantile threshold is fixed at \(q=0.995\) across the entire batch archive in this work.
+Intuitively, this treats the normalised axial intensity profile as a distribution of where the liquid phase resides along the spray axis: \(C_p(t,x)\) is its cumulative distribution, and the front \(\hat{x}_p(t)\) is simply its \(99.5\%\) quantile---the axial distance behind which \(99.5\%\) of the column-summed brightness has accumulated.
+A quantile is governed by the bulk of the distribution rather than its extreme, so an isolated bright speckle or a detached scattered-light halo ahead of the front contributes negligibly to the cumulative sum and cannot displace the recovered tip, unlike a brightest- or outermost-pixel rule that a single outlier can capture.
 Because the column-summed intensity CDF rises steeply at the leading edge, the recovered front is insensitive to \(q\) within a neighbourhood of this value; \(q=0.995\) is chosen as a conservative leading-edge definition that excludes the faint scattered-light halo beyond the liquid core, rather than as a tuned hyperparameter.
 The inner radius is then subtracted, expressing the distance relative to the nozzle annulus, followed by explicit trajectory cleaning.
 This cleaning step does not elevate all receding values via a cumulative maximum, but directly truncates the tail upon detecting the first non-physical backward jump:
@@ -425,6 +427,21 @@ This CDF front is one of the pipeline's primary practical contributions: it is f
 \includegraphics[width=0.92\linewidth]{../images/penetration_td.png}
 \caption{Time-distance (TD) intensity maps illustrating the CDF penetration extraction on a representative single plume (single-hole recording; the same processing applies to all nozzles). Top: the TD map compresses the plume strip transversely, yielding a 2D view of axial spray development over time; hydraulic delay (white dashed) and nozzle closing (black dashed) are annotated. Bottom: the CDF penetration front $\hat{x}_p(t)$ (pink curve) overlaid on the gain-corrected TD map, extracted at quantile $q=0.995$.}
 \label{fig:td-map-penetration}
+\end{figure}
+
+The practical payoff of this cumulative-support definition becomes clearest when the CDF front is placed beside the two binary-projection alternatives that the same pipeline also exports---a maximum-index axial penetration (\texttt{bw\_x}) and an outermost-boundary polar penetration (\texttt{bw\_polar}), both defined in Section~\ref{subsec:boundary-features}.
+Figure~\ref{fig:penetration-metric-comparison} overlays all ten plumes of two representative top-view recordings under the three definitions and exposes the two raw-output behaviours that the subsequent cleaning stage must absorb.
+In the first recording (top), the CDF front rises to a stable plateau for every plume, whereas the two binary metrics fragment and collapse toward zero once the late-time Mie signal weakens: a faded leading edge no longer forms a connected rightmost column or a clean outer boundary, so the maximum-index and outermost-point rules lose the front entirely while the cumulative-support front stays intact.
+In the second recording (bottom), all three metrics instead climb together and flatten at a common $\approx 92$\,mm ceiling---not a physical end of penetration but the spray crossing the finite camera field-of-view boundary, a structural right-censoring of the observation.
+These two behaviours---late-time signal loss and field-of-view censoring---are precisely the structures that the explicit trajectory cleaning of this section, and the censoring-aware target construction that follows, are designed to handle.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/raw_cv_signal_loss.png}
+\vspace{3pt}
+\includegraphics[width=0.92\linewidth]{../images/raw_cv_fov_censoring.png}
+\caption{Raw per-recording CV output for the three penetration definitions---cumulative-distribution front (\texttt{penetration\_cdf}), maximum-index axial (\texttt{penetration\_bw\_x}), and outermost-boundary polar (\texttt{penetration\_bw\_polar})---with all ten plumes overlaid in each panel (top-view multi-hole recordings; batch identifiers removed). Top (signal loss): the CDF front holds a stable plateau while the two binary metrics fragment and collapse as the late-time Mie signal fades. Bottom (field-of-view censoring): all three metrics flatten at a common $\approx 92$\,mm ceiling as the spray crosses the camera window boundary, rather than reaching a physical penetration limit.}
+\label{fig:penetration-metric-comparison}
 \end{figure}
 
 \subsubsection{Spray Boundary Features and Equivalent-Volume Descriptors}\label{subsec:boundary-features}

@@ -1,0 +1,10 @@
+% Minimal local stub for siunitx, used only because the verification
+% sandbox's TeX Live install lacks the real siunitx package.
+% Provides just the two macros this deck actually uses: \num{x} and \SI{x}{unit}.
+% Safe to delete once compiling on a machine with real siunitx (MiKTeX auto-installs it).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{siunitx}[2024/01/01 local stub]
+\newcommand{\num}[1]{#1}
+\newcommand{\si}[1]{\text{#1}}
+\newcommand{\SI}[2]{#1\,\text{#2}}
+\endinput

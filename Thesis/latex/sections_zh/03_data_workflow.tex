@@ -400,6 +400,7 @@ C_p(t,x)=\frac{\sum_{\xi \le x} \tilde{H}_p(t,\xi)}{\sum_{\xi} \tilde{H}_p(t,\xi
 \hat{x}_p(t)=\min \{x : C_p(t,x)\ge q\},
 \]
 的最小位置，其中分位数阈值在本文整个批量归档中固定为 \(q=0.995\)。
+直观地说，这等价于把归一化后的轴向强度剖面视为液相沿喷雾轴向所在位置的一个分布：\(C_p(t,x)\) 即其累积分布，而穿深前沿 \(\hat{x}_p(t)\) 只是它的 \(99.5\%\) 分位数——即其后侧恰好累积了按列求和强度的 \(99.5\%\) 的那个轴向距离。分位数由分布的主体而非极端值决定，因此前沿之前一个孤立的亮斑点或脱离的散射光晕对累积和贡献甚微，无法把恢复出的尖端向外拉动；相比之下，仅取最亮或最外层像素的定义会被单个离群点劫持。
 由于按列求和的强度 CDF 在前沿处急剧上升，恢复出的前沿在该取值的邻域内对 \(q\) 不敏感；\(q=0.995\) 被选作一个保守的前沿定义，用以排除液核之外微弱的散射光晕，而非作为调过的超参数。
 随后减去内半径，把距离表达成相对于喷嘴环面的量，并进行显式轨迹清理。
 这一步清理不是通过 cumulative maximum 把所有回退值抬高，而是在检测到第一个非物理后退跳跃后直接截断尾部：
@@ -421,6 +422,21 @@ j_p^\star=\min\{j:\Delta \hat{x}_p(j)<0\},
 \includegraphics[width=0.92\linewidth]{../images/penetration_td.png}
 \caption{代表性单羽流的时间--距离（TD）强度图，展示 CDF 穿深提取过程（单孔录像，仅用于说明；相同处理流程适用于全部喷嘴）。上图：TD 图将羽流条带沿横向折叠，以二维形式呈现轴向喷雾随时间的发展；液压延迟（白色虚线）和喷嘴关闭（黑色虚线）已标注。下图：在增益校正 TD 图上叠加 CDF 穿深前沿 $\hat{x}_p(t)$（粉色曲线），分位数阈值 $q=0.995$。}
 \label{fig:td-map-penetration}
+\end{figure}
+
+这一基于累积支持的定义，其实际价值在与同一流水线导出的两种二值投影替代定义并置时最为明显——一种是最大索引轴向穿深（\texttt{bw\_x}），另一种是最外层边界极坐标穿深（\texttt{bw\_polar}），二者均在第~\ref{subsec:boundary-features}~节定义。
+图~\ref{fig:penetration-metric-comparison} 在三种定义下叠加了两段代表性顶视录像的全部十个羽流，揭示出后续清理阶段必须吸收的两种原始输出行为。
+在第一段录像（上图）中，CDF 前沿对每个羽流都升至稳定的平台，而两种二值度量在后期 Mie 信号减弱后便断裂并塌缩至零：褪色的前缘不再构成连通的最右列或干净的外边界，于是最大索引规则和最外层点规则完全丢失前沿，而累积支持前沿仍保持完整。
+在第二段录像（下图）中，三种度量却一起攀升，并在共同的 $\approx 92$\,mm 上限处趋平——这并非穿深的物理终点，而是喷雾越过了有限的相机视场边界，是一种对观测的结构性右删失。
+这两种行为——后期信号丢失与视场删失——正是本节的显式轨迹清理以及随后基于删失感知的目标构造所要处理的结构。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{../images/raw_cv_signal_loss.png}
+\vspace{3pt}
+\includegraphics[width=0.92\linewidth]{../images/raw_cv_fov_censoring.png}
+\caption{三种穿深定义的原始逐录像 CV 输出——累积分布前沿（\texttt{penetration\_cdf}）、最大索引轴向（\texttt{penetration\_bw\_x}）与最外层边界极坐标（\texttt{penetration\_bw\_polar}）——每个面板中叠加全部十个羽流（顶视多孔录像；已去除批次标识）。上图（信号丢失）：CDF 前沿保持稳定平台，而两种二值度量随后期 Mie 信号褪去而断裂、塌缩。下图（视场删失）：三种度量在共同的 $\approx 92$\,mm 上限处趋平，对应喷雾越过相机窗口边界，而非到达穿深的物理极限。}
+\label{fig:penetration-metric-comparison}
 \end{figure}
 
 \subsubsection{喷雾边界特征与等效体积描述符}\label{subsec:boundary-features}
