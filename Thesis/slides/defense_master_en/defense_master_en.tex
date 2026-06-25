@@ -68,30 +68,154 @@
 % ACT 0 -- FRAMING
 % =====================================================================
 
-\begin{frame}{The result, up front: two interchangeable solvers}
+% --- Engineering motivation (single opening page): why this app exists.
+%     Establishes the pilot-injection design problem + the CFD cost wall.
+%     The *quantified* CFD cost (48k core-hrs) lives in "Why a surrogate at all".
+\begin{frame}{Motivation: design diesel pilot injection without a CFD run per candidate}
+\footnotesize
+\textbf{The engine context.} Multi-fuel marine and dual-fuel engines burn methanol, ammonia or gas, yet
+still light each cycle with a small \blue{diesel pilot injection}. How that pilot spray \blue{penetrates in
+time} fixes where the ignition kernel forms and how the main fuel mixes --- and, if it over-penetrates,
+whether liquid fuel \warn{impinges on the moving piston crown or the cylinder bore}.
+
+\smallskip
+\textbf{The design task.} Tune the pilot --- injection timing, rail pressure, nozzle geometry, chamber
+density --- so it ignites reliably \emph{and} stays off the wall. Every candidate asks: \emph{how far, how
+fast, does it hit?}
+
+\smallskip
+\textbf{The cost wall.} High-fidelity CFD and engine tests are accurate but \warn{unaffordable to sweep}:
+one reacting diesel-spray LES ran \warn{$\sim$48{,}000 CPU core-hours and up to 20 days} of wall-clock for
+only \warn{\SI{2}{ms}} after start of injection.\footnote{\tiny Curtis, Niemeyer \& Sung (2017), as cited in the introduction.}
+
+\smallskip
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.55\linewidth}
+\begin{block}{This thesis --- the app}
+A fast \blue{surrogate} learned from optical (Mie) spray videos \good{folds the costly CFD out of the inner
+tuning loop}: rank pilot settings in \good{milliseconds}, send only finalists to full CFD or the test cell.
+\emph{``Not to supplant CFD, but a low-cost, auditable upstream layer to \good{narrow the design space}
+before higher-fidelity validation.''}
+\end{block}
+\end{column}
+\begin{column}{0.43\linewidth}
+\textbf{\blue{Uncertainty is the point.}} A screener must not bluff: the surrogate is \blue{heteroscedastic}
+--- it emits \blue{$\mu(t)\pm\sigma(t)$}, kept \good{deliberately conservative} --- so wall contact comes
+out as a \blue{probability} $P(\text{piston}),P(\text{bore})$ and a rankable score, \warn{not} a binary
+pass/fail.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------
+% [MOVED UP] Dataset intro right after Motivation: the imaged subject
+% (injector geometry & design space) then the end-to-end data-flow diagram.
+\begin{frame}{The imaged subject: multi-hole injector geometry \& design space}
 \small
-The deployed screener can run \blue{either} regressor as its solver -- same inputs,
-same physical output, different inductive prior. Both are reported.
+\begin{columns}[T]
+\begin{column}{0.46\linewidth}
+\begin{itemize}\small
+  \item Several injector families; top-view Mie captures \blue{all $N$ plumes at once} ($N=9,10,11$).
+  \item Five repetitions per condition $\Rightarrow$ $45$/$50$/$55$ penetration series per condition.
+  \item Hole diameter spans only $0.333$--$\SI{0.384}{mm}$ (ratio $1.15$) --- why it cannot be a standalone feature (ACT~3).
+  \item This geometry defines the input space, and later the out-of-design boundary.
+\end{itemize}
+\end{column}
+\begin{column}{0.54\linewidth}
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio]{nozzle_geometry_overview.png}
+\includegraphics[width=\linewidth,height=0.55\textheight,keepaspectratio]{mie_decay_strip.png}
+\end{column}
+\end{columns}
+\end{frame}
+
+% --- The actual end-to-end data flow (concrete twin of the "thesis in one
+%     picture" pipeline table, which now appears later in ACT 0).
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{surrogate_modelling_data_flow.png}
+\end{frame}
+
+% --- Mechanical-engineering opening: the impingement screener is the product;
+%     the DL surrogate is just its solver / "brain". (RMSE table now lives in \S Evaluation.)
+\begin{frame}{The product: a CFD-free spray-impingement screener}
+\small
+The motivation made concrete: a live tool that scores wall-impingement risk in \good{milliseconds},
+with the penetration surrogate as its solver.
+\smallskip
+
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.62\linewidth}
+\centering
+\animategraphics[autoplay,loop,controls,poster=last,width=\linewidth]{15}{imp/imp_}{0}{107}\\[-0.2em]
+{\scriptsize Live 2-D scene: spray Gaussian PDF vs.\ the moving piston \& bore
+--- 15\,fps loop, plays in Adobe Acrobat/Reader (static frame in other viewers).}
+\end{column}
+\begin{column}{0.36\linewidth}
+\footnotesize
+\textbf{\blue{The GUI is the product.}} Under the hood, an interchangeable \blue{MLP\,/\,SVGP}
+penetration surrogate (RMSE $\approx 4.27$\,mm, \S\,Evaluation) is the ``brain''.
+\smallskip
+
+It \good{couples} to the 2-D piston kinematics yet \good{decouples} from the swirl that motion stirs
+up --- \emph{how} it turns $\mu(t)\pm\sigma(t)$ into $P(\text{piston})$ comes next.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------
+\begin{frame}{What the screener computes}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.50\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.84\textheight,keepaspectratio]{imp_hermite_summary}
+\end{column}
+\begin{column}{0.48\linewidth}
+\footnotesize
+\textbf{A 3-step pipeline --- read it bottom-up:}
 \medskip
 
-\begin{center}
-\begin{tabular}{L{0.30\linewidth}R{0.16\linewidth}R{0.18\linewidth}R{0.20\linewidth}}
-\toprule
-Solver (uncensored CDF) & RMSE [mm] & \makebox[0pt]{$1\sigma$ cov.} & \makebox[0pt]{$2\sigma$ cov.} \\
-\midrule
-\good{Production MLP} (5-seed) & $4.265 \pm 0.040$ & $0.887$ & $0.989$ \\
-\good{Stage-3 SVGP}           & $4.193$           & $0.716$ & $0.945$ \\
-\midrule
-Hiroyasu--Arai (calibrated)   & $10.261$ & -- & -- \\
-Naber--Siebers (delay)        & $9.286$  & -- & -- \\
-\bottomrule
-\end{tabular}
-\end{center}
+\textbf{\good{Bottom = the brain.}} The DL surrogate emits penetration
+$\mu(t)\pm\sigma(t)$ (mean tip $+$ uncertainty).
 \medskip
 
-\good{$\approx$58\% / 54\% lower RMSE} than the Hiroyasu--Arai / Naber--Siebers physics
-correlations. The MLP trades $\sim$0.07~mm of RMSE for markedly more conservative,
-better-calibrated uncertainty -- the right bias for a \emph{screening} tool.
+\textbf{\blue{Top = the collision integral.}} A 2-D anisotropic Gaussian
+$(\sigma_\parallel,\sigma_\perp)$ is laid along the spray-cone axis and integrated over
+the \emph{moving} piston / bore geometry $\Rightarrow P(\text{piston}),\,P(\text{bore})$.
+\medskip
+
+\textbf{\warn{Middle = the screening scalar.}} $\int P(\text{piston})\,\mathrm{d}t$ ---
+a single number to rank candidate designs.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------
+\begin{frame}{Coupled to piston motion, decoupled from in-cylinder swirl}
+\footnotesize
+One solver, three designs --- the verdict flips with \blue{bowl geometry} and
+\blue{piston speed}, yet the flow field is never solved.
+\smallskip
+
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.33\linewidth}\centering
+\includegraphics[width=\linewidth,height=0.46\textheight,keepaspectratio]{imp_a_summary}\\
+{\scriptsize \textbf{A} -- bowl, 250\,rpm\\$\int P\,\mathrm{d}t = 2.48$\,ms}
+\end{column}
+\begin{column}{0.33\linewidth}\centering
+\includegraphics[width=\linewidth,height=0.46\textheight,keepaspectratio]{imp_b_summary}\\
+{\scriptsize \textbf{B} -- wider bowl, 250\,rpm\\$\int P\,\mathrm{d}t = 3.36$\,ms \warn{(worst)}}
+\end{column}
+\begin{column}{0.33\linewidth}\centering
+\includegraphics[width=\linewidth,height=0.46\textheight,keepaspectratio]{imp_hermite_summary}\\
+{\scriptsize \textbf{Hermite} -- 2250\,rpm\\window \emph{opens then closes}; $\int P\,\mathrm{d}t = 1.45$\,ms}
+\end{column}
+\end{columns}
+\smallskip
+
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{Geometry} (A vs.\ B, same rpm): bowl shape alone shifts cumulative impact $2.48 \to 3.36$\,ms.
+  \item \textbf{Kinematics} (Hermite, 2250\,rpm): the fast piston \good{opens then re-closes} the impact window --- $P(\text{piston})$ peaks ${\sim}59\%$ then falls. That coupling is captured; the \warn{swirl it induces is deliberately not modelled}.
+\end{itemize}
 \end{frame}
 
 % ---------------------------------------------------------------------
@@ -121,31 +245,25 @@ and applying that discipline at the scale this problem actually calls for.
 \begin{center}\small\blue{This deck walks these six stages -- each with its LLM-lab parallel.}\end{center}
 \end{frame}
 
+% [MOVED UP] The end-to-end data-flow diagram now follows the Motivation +
+% "imaged subject" dataset intro near the start of the deck (before "The product").
 
-% ---------------------------------------------------------------------
-\begin{frame}{Why a surrogate at all: screen, do not replace}
-\small
-High-fidelity routes are accurate but unaffordable for design-space sweeps:
-\begin{itemize}
-  \item One reacting diesel-spray LES example: \warn{$\sim$48{,}000 CPU core-hours and up to 20 days} of wall-clock for only \warn{\SI{2}{ms}} after start of injection.\footnote{\tiny Curtis, Niemeyer \& Sung (2017), as cited in the introduction.}
-\end{itemize}
-\medskip
-\begin{block}{Positioning (from the discussion)}
-\emph{``Not to supplant CFD, but to serve as a low-cost upstream screening layer\ldots an
-auditable early-stage engineering screening tool to \good{narrow the design space} before
-initiating higher-fidelity validation.''}
-\end{block}
-\end{frame}
+
+% [MERGED] "Why a surrogate at all: screen, do not replace" was folded into the
+% opening Motivation frame (48k core-hours hard number + positioning quote + UQ).
 
 % =====================================================================
 % ACT 1 -- DATA MINING : COMPUTER VISION + PARALLEL PROGRAMMING
 % =====================================================================
 \section{Data mining}
 
-\begin{frame}{Stage 1 --- Data mining: a four-lane streaming assembly line}
+\begin{frame}{Stage 1 --- Batch Image Processing as Data mining: CUDA/CuPy $\gg$ per-frame MATLAB loop (CPU)}
 \small
-Raw multi-hole Mie video $\to$ plume-wise 1D penetration trajectories; full archive in
-\good{$\approx$\SI{28.25}{min}} --- GPU compute, a CPU thread pool, and hidden disk I/O kept busy at once.
+Extracting plume-wise 1D penetration trajectories and other features(currently unused) from raw multi-hole Mie videos. 
+One \texttt{xp} backend provides identical code on CPU/GPU; geometry registers all holes into a $(P,F,H,W)$ plume tensor.
+A naive per-frame MATLAB CPU loop is hopeless at archive scale --- the four lanes below keep
+GPU compute, a CPU thread pool, and hidden disk I/O busy at once, clearing the
+\good{full archive in $\approx$\SI{28.25}{min}}.
 \smallskip
 
 \begin{center}
@@ -191,29 +309,6 @@ Raw multi-hole Mie video $\to$ plume-wise 1D penetration trajectories; full arch
 \end{center}
 \end{frame}
 
-\begin{frame}[plain]
-  \centering
-  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png} % {mie_video_to_1d_dataflow.png}
-\end{frame}
-% ---------------------------------------------------------------------
-\begin{frame}{The imaged subject: multi-hole injector geometry \& design space}
-\small
-\begin{columns}[T]
-\begin{column}{0.46\linewidth}
-\begin{itemize}\small
-  \item Several injector families; top-view Mie captures \blue{all $N$ plumes at once} ($N=9,10,11$).
-  \item Five repetitions per condition $\Rightarrow$ $45$/$50$/$55$ penetration series per condition.
-  \item Hole diameter spans only $0.333$--$\SI{0.384}{mm}$ (ratio $1.15$) --- why it cannot be a standalone feature (ACT~3).
-  \item This geometry defines the input space, and later the out-of-design boundary.
-\end{itemize}
-\end{column}
-\begin{column}{0.54\linewidth}
-\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio]{nozzle_geometry_overview.png}
-\includegraphics[width=\linewidth,height=0.55\textheight,keepaspectratio]{mie_decay_strip.png}
-\end{column}
-\end{columns}
-\end{frame}
-
 % ---------------------------------------------------------------------
 \begin{frame}{CV step 0 --- Manual calibration of Nozzle center}
 \small
@@ -247,12 +342,17 @@ where $(c_x, c_y)$ is the nozzle center and $r$ is the fitted radius.
   \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{GUI_calibration_result.png}
 \end{frame}
 
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png} % {mie_video_to_1d_dataflow.png}
+\end{frame}
+
 % ---------------------------------------------------------------------
 \begin{frame}{CV step 1 --- Robust log-domain background subtraction}
 \small
-Raw Mie intensity is corrupted by glare, vignetting and uneven illumination
-(multiplicative effects). Work in log space, estimate a stable background from
-pre-injection frames, then reconstruct a gated foreground.
+Raw Mie intensity is corrupted by glare, uneven illumination, multiple scattering and chamber wall reflections,
+(assumed as dominantly multiplicative effects). Estimate a stable background from
+pre-injection frames in log space, then reconstruct a gated foreground.
 \smallskip
 \begin{columns}[T]
 \begin{column}{0.50\linewidth}
@@ -373,7 +473,7 @@ support; its outline is the segmented plume boundary used for all downstream geo
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{CV step 4b --- The detected boundary, in motion}
+\begin{frame}{CV step 4c --- The detected boundary, in motion}
 \centering
 \animategraphics[autoplay,loop,controls,height=0.70\textheight]{15}{seg/seg_}{0}{99}
 
@@ -381,62 +481,10 @@ support; its outline is the segmented plume boundary used for all downstream geo
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{CUDA acceleration via CuPy $\gg$ loop execution in MATLAB (CPU)}
-\small
-At archive scale, a naive per-frame loop is hopeless. The pipeline is layered so the
-three resources never idle:
-\smallskip
-\begin{center}
-\begin{tabular}{L{0.16\linewidth} L{0.78\linewidth}}
-\toprule
-Layer & Role \\
-\midrule
-Backend  & One \texttt{xp} array abstraction $\to$ same code on CPU or GPU. \\
-GPU      & Log-ratio, Sobel, masking, CDF reductions as batched tensor ops. \\
-Geometry & Multi-hole registration into a $(P,F,H,W)$ plume tensor. \\
-CPU pool & \texttt{ThreadPoolExecutor} for plume-wise metric extraction. \\
-I/O      & 3-worker prefetch / write-behind hides disk behind compute. \\
-\bottomrule
-\end{tabular}
-\end{center}
-\end{frame}
-
 % =====================================================================
 % ACT 2: Data cleaning / right-censoring
 % =====================================================================
 \section{Data cleaning}
-
-% ---------------------------------------------------------------------
-\begin{frame}{Stage 2 --- Data cleaning: from raw records to curated populations}
-\small
-The cleaned archive is not one table. It splits into three derived populations, each with its own role downstream:
-\smallskip
-\begin{center}
-\renewcommand{\arraystretch}{1.15}
-\footnotesize
-\begin{tabular}{@{}L{4.6cm}L{6.1cm}@{}}
-\toprule
-\textbf{Population} & \textbf{Size / role} \\
-\midrule
-\#1 Raw cleaned per-frame observations &
-$\sim$\num{24316} accepted trajectories, $\sim$\num{703592} frame observations \\
-\#2 Uncensored points + p50/q1 oracle &
-\num{506634} points, 592 conditions; oracle covers 495 conditions, median fit RMSE \SI{0.85}{mm} \\
-\#3 Per-trajectory q1 params ($\log k_{1/4}$, $\log t_0$, $\log s$) &
-\num{24316} trajectories \\
-\bottomrule
-\end{tabular}
-\end{center}
-\smallskip
-\llmparallel{Data curation \& quality filtering, \blue{``data is the moat''}: what you keep, and how you label it, bounds everything that trains downstream.}
-\end{frame}
-
-% ---------------------------------------------------------------------
-\begin{frame}[plain]
-  \centering
-  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{Data_Ontology.png}
-\end{frame}
-
 
 % ---------------------------------------------------------------------
 % Raw CV output -> sets up the two right-censoring mechanisms
@@ -453,6 +501,134 @@ Three penetration definitions per recording --- CDF vs.\ binary axial / polar --
 {\scriptsize \textbf{FOV censoring:} all three flatten at a common $\approx$\,\SI{92}{mm} ceiling --- the spray exits the camera window, not a physical stop.}
 \end{center}
 \end{frame}
+
+% ---------------------------------------------------------------------
+\begin{frame}{Stage 2 --- Data cleaning: from raw records to curated populations}
+\small
+The cleaned archive is not one table. It splits into three derived populations, each with its own role downstream:
+\smallskip
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\scriptsize
+\begin{tabular}{@{}L{4.4cm}L{5.6cm}L{3.0cm}@{}}
+\toprule
+\textbf{Population} & \textbf{Size} & \textbf{Role} \\
+\midrule
+\#1 Raw cleaned per-frame observations &
+$\sim$\num{24316} accepted trajectories, $\sim$\num{703592} frame observations & Aligning to SOI, denoising\\
+\#2 Uncensored points + p50/q1 oracle &
+\num{506634} points, 592 conditions; oracle covers 495 conditions, median fit RMSE \SI{0.85}{mm} & Removing right-censored subset\\
+\#3 Per-trajectory q1 params ($\log k_{1/4}$, $\log t_0$, $\log s$) &
+\num{24316} trajectories & Un-censoring --- extrapolate \& interpolate on time axis\\
+\bottomrule
+\end{tabular}
+\end{center}
+\smallskip
+{\footnotesize Same archive, three uses: \textbf{\#1} feeds the raw fits; \textbf{\#2} is the censoring-free
+subset behind the oracle; \textbf{\#3} is what every downstream training stage actually consumes.}
+\smallskip
+\llmparallel{Data curation \& quality filtering, \blue{``data is the moat''}: what you keep, and how you label it, bounds everything that trains downstream.}
+\end{frame}
+
+% ---------------------------------------------------------------------
+% [MOVED UP from the Training act] Dataset lineage diagram (TikZ): the
+% visual twin of the Stage 2 three-population table above. Definitions per
+% thesis Ch.4 sec:cdf-populations-en / sec:three-derived-populations-en.
+\begin{frame}{Where the training data comes from: three populations, one archive}
+\centering
+\resizebox{!}{0.50\textheight}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw=aaltoBlue, very thick, rounded corners, fill=aaltoBlue!8,
+              align=center, text width=3.3cm, minimum height=1.25cm, inner sep=4pt},
+  oraclebox/.style={draw=goodGreen, very thick, rounded corners, fill=goodGreen!8,
+              align=center, text width=3.6cm, minimum height=1.25cm, inner sep=4pt},
+  lbl/.style={font=\tiny, align=center, text width=3.9cm, fill=white, inner sep=1pt},
+  arr/.style={-{Latex[length=2.2mm]}, thick, aaltoBlue}
+]
+
+\node[box] (d1) at (4.6,6.0)
+  {\textbf{Dataset \#1}\\Raw cleaned CDF obs.\\$\sim$24{,}316 traj.\ /\ $\sim$703{,}592 pts};
+
+\node[box] (d2) at (1.0,2.6)
+  {\textbf{Dataset \#2}\\Uncensored points\\$\sim$506{,}634 pts\ /\ 592 conds};
+
+\node[box] (d3) at (8.2,2.6)
+  {\textbf{Dataset \#3}\\$q_1$ fitted archive\\24{,}316 per-traj.\ fits};
+
+\node[oraclebox] (oracle) at (1.0,-0.3)
+  {P50/$q_1$ oracle\\(synthetic trajectory)\\495 conds --- \textbf{\textcolor{goodGreen}{eval only}}};
+
+\draw[arr] (d1.south) to[out=210,in=90] node[lbl,midway,xshift=-1.55cm,yshift=0.1cm]
+  {$\Delta t{=}0.1$\,ms time bins, 0--5\,ms;\\density-drop \emph{or} FOV-saturation\\$\to$ truncate \& remove censored tail} (d2.north);
+\draw[arr] (d1.south) to[out=-30,in=90] node[lbl,midway,xshift=1.7cm,yshift=0.1cm]
+  {fit $q_1$ to \emph{each}\\trajectory independently} (d3.north);
+\draw[arr] (d2.south) -- node[lbl,midway,xshift=-1.85cm]
+  {per-bin median (P50)\\$\to$ refit one $q_1$ curve} (oracle.north);
+
+\end{tikzpicture}%
+}
+
+\vspace{0.2em}
+{\scriptsize Three structurally distinct populations read from the \emph{same} cleaned CDF archive (Ch.~4, ``Right-Censoring \dots Three Derived Data Populations''). \warn{Dataset \#3 branches directly off Dataset \#1} --- it does \emph{not} pass through Dataset \#2. The P50/$q_1$ oracle is never trained on; it is the reference curve behind the ``Q1 extrapolated'' / LONO evaluation protocols.}
+\end{frame}
+
+% ---------------------------------------------------------------------
+% [NEW] Four-up: population scatter (Dataset #1, A-scaled) + three
+% per-condition q1 reconstructions (Dataset #3). Consolidates the three
+% former standalone q1_fit_example plain slides; the scatter is the figure
+% moved off the Stage 2 table slide above.
+\begin{frame}{Dataset \#1 \emph{vs.}\ \#3: population scatter \& three operating-condition subsets}
+\centering
+\setlength{\tabcolsep}{2pt}\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{C{0.47\linewidth}C{0.47\linewidth}}
+\includegraphics[width=\linewidth,height=0.28\textheight,keepaspectratio]{injector_scatter_all_nozzles.png} &
+\includegraphics[width=\linewidth,height=0.28\textheight,keepaspectratio]{q1_fit_example_1.png} \\[-0.3em]
+{\scriptsize \textbf{Population overview} --- every campaign, $A$-scaled (\#1).} &
+{\scriptsize \textbf{T1} --- solid $=$ raw (\#1), dashed $= q_1$ to \SI{5}{ms} (\#3).} \\[0.5em]
+\includegraphics[width=\linewidth,height=0.28\textheight,keepaspectratio]{q1_fit_example_2.png} &
+\includegraphics[width=\linewidth,height=0.28\textheight,keepaspectratio]{q1_fit_example_3.png} \\[-0.3em]
+{\scriptsize \textbf{T6} --- deeper condition; raw and $q_1$ agree where covered.} &
+{\scriptsize \textbf{T24} --- raw exhausted by $\sim$\SI{2}{ms}; $q_1$ carries the tail.}
+\end{tabular}
+\par\smallskip
+{\scriptsize Solid $=$ raw observations (\#1); dashed $= q_1$ reconstructions to a uniform horizon (\#3). \blue{Full-size detail on the next four slides.}}
+\end{frame}
+
+% ---------------------------------------------------------------------
+% [NEW] Full-size detail views for close reading (the four-up overview
+% above is only a thumbnail). One plain slide per figure.
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{injector_scatter_all_nozzles.png}
+\end{frame}
+
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{q1_fit_example_1.png}
+\end{frame}
+
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{q1_fit_example_2.png}
+\end{frame}
+
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{q1_fit_example_3.png}
+\end{frame}
+
+
+
+
+
+% ---------------------------------------------------------------------
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{Data_Ontology.png}
+\end{frame}
+
+
 
 % ---------------------------------------------------------------------
 \begin{frame}{Right-censoring I: a structural field-of-view ceiling}
@@ -520,7 +696,7 @@ Max penetration at censor onset is only $\approx$\SI{74}{mm} ($\approx$\SI{7}{mm
 \begin{frame}{Designing for redundancy: a 5\,ms horizon + q1 extrapolation}
 \small
 \begin{columns}[T]
-\begin{column}{0.45\linewidth}
+\begin{column}{0.47\linewidth}
 Raw observations are effectively exhausted by $\approx$\SI{2}{ms} after spatial censoring.
 
 The q1 reconstruction --- a sigmoid-gated quarter-root single-branch reduced-order fit ---
@@ -534,26 +710,17 @@ is deliberately extended to a \blue{\SI{5}{ms}} horizon for design redundancy an
 \smallskip
 Censoring causes severe time-bin imbalance ($\sim$\num{65000} frames/bin at $t=\SI{0.15}{ms}$ $\to$ $<200$ by \SI{1.55}{ms}); per-bin count CV \good{0.52 $\to$ 0.052} after truncation.
 \end{column}
-\begin{column}{0.52\linewidth}
-\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{fig_q1_residual_structure.png}
+\begin{column}{0.50\linewidth}
+\textbf{But the fit is not temporally unbiased.} The residual carries time structure (diagnostic in backup), and the onset/slope pair $(t_0,s)$ is \warn{correlated with the amplitude $k_{1/4}$}: different $(t_0,s,k_{1/4})$ triples reconstruct the \emph{same} trajectory about equally well --- a \blue{soft redundancy}, not an identifiable physical law.
+
+\vspace{0.5em}
+\textbf{Consequence.} The q1 protocol serves \emph{each individual trajectory} (per-curve smoothing $+$ \SI{5}{ms} extrapolation); it \warn{cannot be lifted as a physical formula}. The scaling exponents are therefore validated separately --- against pooled data, not the q1 coefficients (next act).
 \end{column}
 \end{columns}
 \end{frame}
 
-\begin{frame}[plain]
-  \centering
-  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{q1_fit_example_1.png}
-\end{frame}
-
-\begin{frame}[plain]
-  \centering
-  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{q1_fit_example_2.png}
-\end{frame}
-
-\begin{frame}[plain]
-  \centering
-  \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{q1_fit_example_3.png}
-\end{frame}
+% [NOTE] The three standalone q1_fit_example plain slides were consolidated
+% into the four-up "Dataset #1 vs #3" slide in the Data-cleaning act.
 
 % =====================================================================
 % ACT 3: Target construction / feature engineering
@@ -561,167 +728,62 @@ Censoring causes severe time-bin imbalance ($\sim$\num{65000} frames/bin at $t=\
 \section{Target construction}
 
 % ---------------------------------------------------------------
-\begin{frame}{Stage 3 --- Target construction: engineer the feature, let data choose the regime}
-\footnotesize
-\textbf{Motivation:} classical spray correlations already encode physically-motivated scaling exponents for pressure, density, and diameter; we keep that prior as a hard divisor and let the data choose \emph{which} regime's exponent actually fits the training window --- instead of re-deriving the law or trusting the asymptote blindly.
-
-\vspace{0.3em}
-\textbf{This act, in one sentence:} construct one engineered amplitude feature $A_{\mathrm{scale}}$ from $\Delta P,\rho_a,d_n$; use it to reparameterize the target $S(t)\to S(t)/A$; validate the exponent choice with data, ablation, and a collapse check.
-
-\vspace{0.3em}
-\textbf{Two uncertainties, in our context:} \emph{aleatoric} --- irreducible plume-to-plume / shot-to-shot dispersion at fixed conditions, carried by the heteroscedastic $\sigma$ head (kept deliberately over-dispersed for screening); \emph{epistemic} --- model uncertainty over thinly-sampled regions (OOD nozzle families, the extrapolated tail), reducible only with more data or trunk capacity. \blue{Feature engineering moves both:} $A$-scaling strips deterministic nuisance scale so structured variation is not read as noise (lower apparent aleatoric spread); folding $d_n$ into $A$ rather than feeding it raw blocks the nozzle-identity memorization that would fake epistemic confidence over just 6 discrete diameters.
-
-\end{frame}
-
-% ---------------------------------------------------------------
-\begin{frame}{Physical priors meet a data-driven regression}
-\begin{columns}[T]
-\column{0.45\linewidth}
+% [COMPRESSED 6->2] ACT 3 used to be six frames (motivation; priors-vs-regression;
+% per-bin exponent table; diameter-fold + pooled OLS; feature-set ablation; collapse
+% check). The detailed numbers/comparisons now live in the appendix backup section;
+% the main flow states only the adopted feature/target and a three-line defence.
+\begin{frame}{Stage 3 --- Target construction: one engineered feature, three decisions}
 \small
-\textbf{Physical prior} --- classical reference exponents:
+\textbf{Adopted.} Fold the classical scaling prior in as a hard divisor; learn the target in
+$A$-scaled space, with log-pressures kept as residual inputs:
 \[
-\Delta P^{1/4},\quad \rho_a^{-1/4},\quad d_n^{1/2}.
+  A=\Delta P^{0.5}\,\rho_a^{-0.25}\,d_n^{0.5},\qquad \hat S(t)=S(t)/A.
 \]
-
-\medskip
-\textbf{Data-driven regression} --- re-estimate them by an OLS log-log fit in each \SI{0.1}{ms} bin:
-\[
-\log S = a\,\log\Delta P + b\,\log P_{\mathrm{ch}} + c\,\log d_n + \mathrm{const}.
-\]
-{\footnotesize($\Delta P=P_{\mathrm{inj}}-P_{\mathrm{ch}}$, $P_{\mathrm{ch}}\propto\rho_a$.)}\ The fitted slopes \blue{$a,b,c$ \emph{are} the exponents} --- read directly against the classical $1/4,-1/4,1/2$.
-
-\column{0.52\linewidth}
-\centering
-\includegraphics[width=\linewidth,height=0.54\textheight,keepaspectratio]{time_windowed_exponents.png}
-
-{\scriptsize Per-\SI{0.1}{ms} log-log OLS of $\log S$ on $(\log\Delta P,\log P_{\mathrm{ch}},\log d_n)$ (window $\pm\SI{0.05}{ms}$); each curve is a fitted exponent vs.\ time, shaded $=$ 95\% CI, dashed $=$ Bernoulli ($0.5$) / H--A ($0.25,-0.25$) references.}
-\end{columns}
-
-\vspace{0.3em}
-\footnotesize
-\textbf{What it shows} --- pressure scaling is real but \emph{time-varying} (drifts toward H--A as $t$ grows), chamber-density scaling matches H--A, and \warn{diameter is not identifiable}. The numbers, next.
-\end{frame}
-
-% ---------------------------------------------------------------
-\begin{frame}{Reading the exponents: a time-binned log-log regression}
-\small
-\textbf{Classical laws under test.}\; Hiroyasu--Arai \& Naber--Siebers both scale as $S\propto(\Delta P/\rho_a)^{1/4} d_n^{1/2}\,t^{1/2}$ (N--S adds a $k_{NS}$ prefactor and onset shift $t\!\to\!t-\tau$). \textbf{Time-binning.} Each condition is truncated at its censor onset $\to$ near-uniform per-bin counts (count CV \good{$0.52\to0.052$}); the log-log OLS from the previous slide is fit \emph{independently} in every \SI{0.1}{ms} bin ($\pm\SI{0.05}{ms}$) on the \num{506634}-point uncensored set.
-
-\smallskip
-\begin{columns}[T,onlytextwidth]
-\column{0.49\linewidth}
-\centering
-\footnotesize
-\renewcommand{\arraystretch}{1.0}
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrr}
-\toprule
-$t$\,[ms] & $a_{\Delta P}$ & $b_{P_{\mathrm{ch}}}$ & $c_{d_n}$ & $R^2$ \\
-\midrule
-0.30 & 0.682 & $-0.232$ & \warn{6.02} & 0.351 \\
-0.40 & \good{0.523} & $-0.247$ & \warn{4.46} & 0.392 \\
-0.50 & \good{0.472} & $-0.229$ & \warn{3.06} & 0.398 \\
-0.60 & \good{0.521} & $-0.189$ & \warn{2.18} & 0.418 \\
-0.70 & 0.447 & $-0.153$ & \warn{1.69} & 0.354 \\
-\midrule
-H--A & 0.25 & $-0.25$ & 0.50 & --- \\
-$k_{1/4}^{\ast}$ & \good{0.52} & $-0.23$ & \warn{0.26} & 0.27 \\
-\bottomrule
-\end{tabular}
-
-{\scriptsize $^\ast$pooled per-traj.\ OLS of $\log k_{1/4}$ (\num{24316} fits); rows above: per-bin $S(t)$ (\num{506634} pts).}
-\column{0.49\linewidth}
-\footnotesize
-\begin{itemize}\setlength\itemsep{1.5pt}
-  \item $a_{\Delta P}$ holds at \good{0.47--0.52} --- the \blue{Bernoulli/orifice} value $0.5$, far above H--A's $0.25$ --- drifting toward H--A as $t$ grows.
-  \item $b_{P_{\mathrm{ch}}}\approx\good{-0.23\text{ to }-0.25}$, matching H--A; $R^2\approx\good{0.35\text{--}0.42}$ (single-bin scatter large, exponents stable).
-  \item $c_{d_n}=\warn{1.7\text{--}6.0}$, physically impossible $\Rightarrow$ diameter \warn{not identifiable} (6 diameters, ratio 1.15, confounded with hole count).
-\end{itemize}
-\end{columns}
-
-\vspace{2pt}
-{\footnotesize\textbf{Verdict:} the $k_{1/4}$ row confirms the same law ($a\!\approx\!0.5$, $b\!\approx\!-0.25$); keep $\Delta P^{0.5}\rho_a^{-0.25}$ from data, fold $d_n^{0.5}$ in as an H--A prior.}
-\end{frame}
-
-% ---------------------------------------------------------------
-\begin{frame}{Why diameter is folded in, not fed raw + the amplitude feature}
-\small
-\textbf{Facts:} only 6 discrete hole diameters spanning \num{0.333}--\SI{0.384}{mm} (ratio 1.15, log-leverage 0.14 vs.\ 0.45 for injection pressure); diameter is confounded with hole count and umbrella angle in the design matrix $\Rightarrow$ its exponent is unidentifiable.
-
-\textbf{Move:} retain $d_n^{0.5}$ inside the amplitude as an H--A prior instead:
-\[
-A=\Delta P^{0.5}\,\rho_a^{-0.25}\,d_n^{0.5}.
-\]
-
-\vspace{0.3em}
-\footnotesize
-\textbf{Confirmed on the production model's own coefficient} --- one pooled OLS of $\log k_{1/4}$ over all \num{24316} accepted q1 fits, $\log k_{1/4}=a\log\Delta P+b\log\rho_a+c\log d_n+\text{const}$:
-\renewcommand{\arraystretch}{1.05}
-\begin{center}
-\begin{tabular}{C{0.20\linewidth}C{0.15\linewidth}C{0.15\linewidth}C{0.34\linewidth}}
-\toprule
-Predictor & Exponent & H--A ref. & Verdict \\
-\midrule
-$\log\Delta P$ & \good{0.52} & 0.25 & data $>$ H--A $\Rightarrow$ use $\Delta P^{0.5}$ \\
-$\log\rho_a$   & \good{$-0.23$} & $-0.25$ & matches H--A \\
-$\log d_n$     & \warn{0.26} & 0.50 & weak ($R^2$ 0.27), unstable $\Rightarrow$ fold in \\
-\bottomrule
-\end{tabular}
-\end{center}
-\smallskip
-The $d_n$ exponent is unstable across cuts (\warn{$\sim$0} matched-pressure family, \warn{0.26} pooled $k_{1/4}$, \warn{1.7--6.0} per-time-bin) --- so $d_n^{0.5}$ is kept as a fixed H--A prior, not a fitted term.
-\end{frame}
-
-% ---------------------------------------------------------------
-\begin{frame}{Ablation: the cost of getting the feature set wrong}
-\begin{columns}[T]
-\column{0.52\linewidth}
-\centering
-\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{fig_sparse_diameter_interpolants.png}
-
-\column{0.45\linewidth}
-\small
-\textbf{Raw diameter as input:} predicted mean undergoes \warn{5--6 gradient sign reversals per slice}, with autodiff gradient spikes $\sim\!10^4$ over a $\sim$\SI{0.05}{mm} support span --- the network memorizes nozzle identity, not physics.
-
-\vspace{0.3em}
-Under LONO: adding diameter as an independent input \warn{increases mean MAE by 4--6 mm}.
-\end{columns}
+\centerline{\footnotesize input \texttt{a\_dp050\_plus\_pressures} $=$ 5 $A$-scaled bases $+$ log $P_{\mathrm{inj}},P_{\mathrm{ch}}$ residuals.}
 
 \vspace{0.4em}
-\small
-\textbf{Conversely:} \emph{removing} the residual pressure terms hurts --- Stage-1 test MAE \(8.05\to2.91\)\,mm and Stage-2 \(9.28\to5.63\)\,mm when log-pressures are kept.
+\textbf{Three decisions, each data-checked} {\footnotesize(numbers $\to$ backup)}\textbf{:}
+\begin{enumerate}\setlength\itemsep{3pt}\footnotesize
+  \item \blue{$\Delta P^{0.5}$, not $0.25$} --- a per-bin log-log regression puts the pressure exponent at
+        the orifice/Bernoulli value $\approx0.5$ (above H--A's $0.25$), with $\rho_a^{-0.25}$ matching H--A.
+        \emph{Keep the prior as a divisor; let the data pick the exponent.}
+  \item \blue{$d_n$ folded in, not fed raw} --- over 6 diameters (ratio $1.15$, confounded with hole
+        count) the exponent is unidentifiable ($\sim\!0$ to $6$ across cuts); raw $d_n$ memorizes nozzle
+        identity (\warn{LONO MAE $+4$--$6$\,mm}). \emph{Keep $d_n^{0.5}$ as a fixed H--A prior.}
+  \item \blue{Pressures kept as residual inputs} --- removing the log-pressure residuals hurts both
+        early stages; they carry the part of the scaling the divisor cannot.
+\end{enumerate}
 
-\vspace{0.2em}
-\textbf{Takeaway:} fold diameter into $A$; keep pressures as residual inputs.
+\vspace{0.3em}
+{\footnotesize\blue{Why it matters --- both uncertainties:} $A$-scaling strips deterministic nuisance
+scale so structured variation is not read as noise (lower apparent \emph{aleatoric} spread); folding
+$d_n$ blocks the nozzle-identity memorization that would fake \emph{epistemic} confidence over just 6 diameters.}
 \end{frame}
 
 % ---------------------------------------------------------------
-\begin{frame}{Target reparameterization + collapse check}
+\begin{frame}{Does the feature do its job? Family collapse under $A$-scaling}
 \small
-The target is learned in $A$-scaled space:
-\[
-\hat S(t)=S(t)/A.
-\]
+The engineered target removes deterministic scale \emph{before} the network sees it. The check:
+does $\hat S=S/A$ collapse the different operating conditions onto one curve?
 
+\smallskip
 \begin{columns}[T,onlytextwidth]
 \column{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{collapse_dp_exp_0p25.png}
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{collapse_dp_exp_0p25.png}
 
-\footnotesize $\Delta P^{0.25}$
+\footnotesize $\Delta P^{0.25}$ (classical H--A prior)
 \column{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{collapse_dp_exp_0p50.png}
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{collapse_dp_exp_0p50.png}
 
-\footnotesize $\Delta P^{0.5}$
+\footnotesize $\Delta P^{0.5}$ (adopted)
 \end{columns}
 
 \vspace{0.3em}
-\footnotesize
-Median post-\SI{0.5}{ms} collapse ratio: \warn{0.378} ($\Delta P^{0.25}$) vs.\ \good{0.057} ($\Delta P^{0.5}$) --- lower = better collapse onto one curve.
-
-\textbf{Payoff:} this feature/target choice cut the 5-seed RMSE \good{10.72 $\to$ 8.92 mm (16.8\%)} on the mode-C check.
-
+\footnotesize The data-chosen $\Delta P^{0.5}$ collapses the families far tighter than the textbook
+$\Delta P^{0.25}$ --- the single visual that justifies the exponent choice.
+{\textcolor{gray!70!black}{Collapse ratio and the 5-seed RMSE payoff $\to$ backup.}}
 \end{frame}
 
 % =====================================================================
@@ -735,11 +797,11 @@ Median post-\SI{0.5}{ms} collapse ratio: \warn{0.378} ($\Delta P^{0.25}$) vs.\ \
 \begin{columns}[T]
 \column{0.50\textwidth}
 \textbf{Architecture:} 512--512--128 MLP, dropout \num{0.30}, $\sim$150 epochs;
-heads $(\mu, \log\sigma^2, \text{onset})$; 5 seeds $\{7,17,42,99,2024\}$.
+heads $(\hat\mu, \log\hat\sigma^2)$; optional onset auxiliary not production; 5 seeds $\{7,17,42,99,2024\}$.
 
-\vspace{0.3em}
+\vspace{0.1em}
 \textbf{Three stages} (training data $\rightarrow$ loss):
-\begin{itemize}\setlength\itemsep{2pt}\footnotesize
+\begin{itemize}\setlength\itemsep{1pt}\footnotesize
   \item \textbf{S1} --- \emph{representative} rows (1/condition) $\rightarrow$ MSE on $\hat S{=}S/A$ + log-var prior + shape
   \item \textbf{S2} --- all \emph{filtered} rows, warm-start from S1 $\rightarrow$ Gaussian NLL + $\mu$-anchor + shape
   \item \textbf{S3} --- raw CDF series + S2 teacher $\rightarrow$ regime raw-NLL + KD$(\mu,\sigma)$ + shape
@@ -750,157 +812,99 @@ heads $(\mu, \log\sigma^2, \text{onset})$; 5 seeds $\{7,17,42,99,2024\}$.
 \includegraphics[width=\linewidth,height=0.56\textheight,keepaspectratio]{mlp_architecture_overview.png}
 \end{columns}
 
-\vspace{0.2em}
+\vspace{0.1em}
 {\scriptsize Shared shape penalties $P_{d1}$ (monotone front) / $P_{d2}$ (gated-concave); explicit per-stage losses on the next three slides.}
 
-\vspace{0.2em}
-\llmparallel{Exactly the frontier recipe: pretrain $\to$ distill $\to$ fine-tune, run as a
-staged curriculum rather than one monolithic fit.}
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{Stage 1 validation: leave-one-nozzle-out feature ablation}
-\scriptsize
-\textbf{Data:} \emph{representative} rows (one per injection condition) in $A$-scaled space.
-\textbf{Loss} ($A$-scaled $\hat S{=}S/A$, $m_0{=}-2$):
-\[
-\resizebox{\linewidth}{!}{$\displaystyle
-\mathcal{L}_1=
-\underbrace{\mathrm{MSE}(\hat\mu,\hat S)}_{\text{data fit (median traj.)}}
-+\underbrace{\lambda_v\,\mathrm{MSE}(\log\hat\sigma^2,m_0)}_{\text{variance warm-up}\,\to\,m_0}
-+\underbrace{\lambda_{d1}P_{d1}}_{\text{monotone (no recoil)}}
-+\underbrace{\lambda_{d2}\,P_{d2}}_{\blue{\text{gated}}\ \text{concavity}}
-$}
-\]
-\vspace{-5pt}
-\resizebox{\linewidth}{!}{\scriptsize $P_{d1}{=}\langle\mathrm{ReLU}(-\partial_t\mu_S)^2\rangle$, $P_{d2}{=}\langle\blue{g(t)}\,\mathrm{ReLU}(\partial_t^2\mu_S)^2\rangle$, \blue{gate} $g(t){=}\sigma(\tfrac{t-t_c}{\tau_c})$ --- concavity \blue{off in the early acceleration}, on only past $t_c$.}
-\smallskip
+% [COMPRESSED] Stages 1/2/3 merged into one table slide (was 3 slides:
+% "Stage 1 validation: leave-one-nozzle-out feature ablation",
+% "Stage 2: an early-time physics anchor stabilizes OOD",
+% "Stage 3: raw-CDF refinement with regime-aware supervision").
+% Per-rank ablation tables / regime-trigger tables dropped to backup if needed.
+\begin{frame}{Three training stages, compressed: data, loss, purpose}
+\footnotesize
+\renewcommand{\arraystretch}{1.5}
 \begin{center}
-\renewcommand{\arraystretch}{0.95}
-\begin{tabular}{@{}rlr@{}}
+\begin{tabular}{@{}C{0.7cm}L{3.3cm}L{5.0cm}L{3.6cm}@{}}
 \toprule
-\textbf{Rank} & \textbf{Variant} & \textbf{Mean MAE [mm]} \\
+& \textbf{Data} & \textbf{Loss} & \textbf{Purpose} \\
 \midrule
-1 & \texttt{a\_dp050\_plus\_pressures} & \good{\textbf{7.46}} \\
-2 & \texttt{a\_dp025\_plus\_pressures} & 8.22 \\
-3 & \texttt{a\_dp050} & 8.27 \\
-4 & \texttt{a\_dp025} & 9.83 \\
-5 & \texttt{a\_dp050\_plus\_diameter} & 12.06 \\
-6 & \texttt{a\_dp025\_plus\_diameter} & 13.41 \\
-7 & \texttt{a\_dp050\_plus\_pressures\_diameter} & 14.26 \\
-8 & \texttt{legacy\_9\_no\_scale} & \warn{14.42} \\
-9 & \texttt{a\_dp025\_plus\_pressures\_diameter} & 14.48 \\
+\textbf{S1} &
+Representative rows (1/condition), $A$-scaled $\hat S{=}S/A$ &
+\resizebox{4.9cm}{!}{$\mathcal{L}_1{=}\mathrm{MSE}(\hat\mu,\hat S)+\lambda_v\mathrm{MSE}(\log\hat\sigma^2,m_0)+\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}$} &
+Fit median trajectory; validate feature set (\good{best 7.46\,mm MAE}, \texttt{a\_dp050\_plus\_pressures}) \\
+\midrule
+\textbf{S2} &
+All filtered rows (full QC set); warm-start from S1 checkpoint &
+\resizebox{4.9cm}{!}{$\mathcal{L}_2{=}\mathrm{NLL}_{\text{Gauss}}(\hat\mu,\hat\sigma^2,\hat S)+\lambda_\mu A_\mu+\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}$} &
+Stabilize OOD generalization via early-$t$ $\mu$-anchor (\good{Nozzle2: 19.18$\to$7.76\,mm}) \\
+\midrule
+\textbf{S3} &
+Raw empirical CDF series + S2 teacher; regime-aware by coverage (reliable/uncertain/teacher-only) &
+\resizebox{4.9cm}{!}{$\mathcal{L}_3{=}\text{regime-wtd raw NLL}+\mathrm{KD}(\mu,\sigma)+\lambda_\mu A_\mu+\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}$} &
+Refine on raw signal via distillation from S2 teacher; \good{production model (RMSE 4.265\,mm)} \\
 \bottomrule
 \end{tabular}
 \end{center}
-
-\vspace{2pt}
-\textbf{Takeaways:} $\Delta P^{0.5}$ beats $\Delta P^{0.25}$; pressures help;
-\warn{adding diameter hurts +4--6 mm}; production variant
-(\texttt{a\_dp050\_plus\_pressures}) is validated. \quad (seed 42, 5 LONO folds)
-\end{frame}
-
-% ---------------------------------------------------------------------
-\begin{frame}{Stage 2: an early-time physics anchor stabilizes OOD}
-\small
-\textbf{Data:} all \emph{filtered} rows (full QC set), warm-started from the Stage-1
-checkpoint (scaler and feature space reused, not refit). \textbf{Loss:} Gaussian NLL
-in $A$-scaled space plus a soft early-time $\mu$-anchor:
-\[
-\resizebox{\linewidth}{!}{$\displaystyle
-\mathcal{L}_2=\underbrace{\tfrac12\big\langle \log\hat\sigma^2+(\hat\mu-\hat S)^2/\hat\sigma^2\big\rangle}_{\text{Gaussian NLL}}
-+\underbrace{\lambda_\mu A_\mu}_{\text{early-}t\ \mu\text{-anchor}}
-+\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}
-$}
-\]
-\vspace{-4pt}
-{\scriptsize The new term is the early-$t$ anchor $\lambda_\mu A_\mu$ ($\lambda_\mu{=}10^{-2}$); shape priors $P_{d1},P_{d2}$ as in Stage 1.}
-
-\vspace{0.3em}
-\begin{columns}[T,onlytextwidth]
-\column{0.53\linewidth}
-\footnotesize
-\renewcommand{\arraystretch}{1.05}
-\begin{tabular}{@{}lr@{}}
-\toprule
-\textbf{Ablation (mean $\pm$ std, 5 folds)} & \textbf{RMSE [mm]} \\
-\midrule
-\texttt{mu\_anchor} & \good{\textbf{12.73}} \\
-\texttt{mu\_sigma\_anchor} & 13.05 \\
-\texttt{no\_anchor} & \warn{14.54} \\
-\bottomrule
-\end{tabular}
-\column{0.45\linewidth}
-\scriptsize
-\setlength{\abovedisplayskip}{1pt}
-\setlength{\belowdisplayskip}{1pt}
-\textbf{Anchor form} (physical $\mu_S{=}A\hat\mu$, mm):
-\[
-\begin{aligned}
-A_\mu &=
-\frac{\sum_{n=1}^{N}\sum_t w(t)\,\mu_{S,n}(t)^2}
-     {N\sum_t w(t)},\\[-2pt]
-w(t)&=\max(0,1-t/\tau),\quad \tau=\SI{0.15}{ms}.
-\end{aligned}
-\]
-\vspace{-8pt}
-{\tiny One-sided linearly tapered ramp; $\lambda_\mu=10^{-2}$, $\lambda_\sigma=0$.}
-\end{columns}
 
 \vspace{0.4em}
-\begin{itemize}\setlength\itemsep{2pt}
-  \item Excluding the hardest fold (Nozzle0): \texttt{mu\_anchor} 7.18 vs.\ \texttt{no\_anchor} 9.61 mm
-  \item On Nozzle2 the anchor turns a \warn{19.18 mm} collapse into \good{7.76 mm}
-  \item Anchoring $\sigma$ too does \textbf{not} help; production = \texttt{mu\_anchor}
-\end{itemize}
+{\scriptsize Shared shape priors carried through all stages: $P_{d1}$ monotone front (no recoil), $P_{d2}$ gated concavity. Each stage warm-starts from the previous stage's checkpoint -- pretrain $\to$ distill $\to$ fine-tune, as a staged curriculum rather than one monolithic fit (same frontier-lab recipe noted on the previous slide).}
 \end{frame}
 
+
 % ---------------------------------------------------------------------
-\begin{frame}{Stage 3: raw-CDF refinement with regime-aware supervision}
-\small
-\textbf{Data:} the \emph{raw empirical CDF series} (per-frame penetration) plus the
-Stage-2 teacher; the student warm-starts from the teacher with its trunk frozen.
-Each \SI{0.1}{ms} bin is labelled by CDF coverage into three regimes:
+% [NOTE] "Where the training data comes from" (three-population lineage
+% diagram) was moved up to the Data-cleaning act, right after the Stage 2
+% table. This slide ("...goes") stays here as its training-side companion.
+\begin{frame}{Where the training data goes: feeding the three training stages}
+\centering
+\resizebox{!}{0.50\textheight}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw=aaltoBlue, very thick, rounded corners, fill=aaltoBlue!8,
+              align=center, text width=3.3cm, minimum height=1.1cm, inner sep=4pt},
+  stagebox/.style={draw=goodGreen, very thick, rounded corners, fill=goodGreen!12,
+              align=center, text width=2.6cm, minimum height=1.1cm, inner sep=4pt},
+  lbl/.style={font=\tiny, align=center, text width=3.6cm, fill=white, inner sep=1pt},
+  arr/.style={-{Latex[length=2.2mm]}, thick, aaltoBlue},
+  kdarr/.style={-{Latex[length=2.2mm]}, thick, dashed, warnRed}
+]
 
-\vspace{0.3em}
-\begin{center}
-\footnotesize
-\renewcommand{\arraystretch}{1.0}
-\begin{tabular}{@{}L{3.2cm}L{8.5cm}@{}}
-\toprule
-\textbf{Regime} & \textbf{Trigger} \\
-\midrule
-\texttt{raw\_reliable} & coverage $\geq 70\%$ \\
-\texttt{raw\_uncertain} & coverage 20--70\% \\
-\texttt{teacher\_only} & coverage $<20\%$ or $<4$ samples \\
-\bottomrule
-\end{tabular}
-\end{center}
+\node[box] (d1) at (0.6,5.6) {\textbf{Dataset \#1}\\raw, reliable-coverage\\intervals};
+\node[box] (d3) at (7.0,6.0) {\textbf{Dataset \#3}\\$q_1$ fitted archive};
 
-\vspace{0.3em}
-\textbf{Composite loss} (physical mm, summed over the time grid):
-\[
-\resizebox{\linewidth}{!}{$\displaystyle
-\mathcal{L}_3=
-\underbrace{\sum_t w^{\mathrm{raw}}_t\,\tfrac12\!\Big[\log\sigma^2+\tfrac{(\mu-y_t)^2}{\sigma^2}\Big]}_{\text{regime-weighted raw NLL}}
-+\underbrace{\sum_t w^{\mathrm{kd}}_t\,\Big[(\mu-\mu_T)^2+\lambda_\sigma(\log\sigma^2-\log\sigma_T^2)^2\Big]}_{\text{KD}(\mu,\sigma)\ \text{from teacher}}
-+\lambda_\mu A_\mu+\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}
-$}
-\]
-\vspace{-4pt}
-{\scriptsize The two new terms are the \emph{mixed supervision}: per-bin weights $w^{\mathrm{raw}}_t,w^{\mathrm{kd}}_t$ shift each \SI{0.1}{ms} bin from raw $y_t$ to the teacher $(\mu_T,\sigma_T)$ as coverage falls (KD form \texttt{mse\_mu\_plus\_sigma}, $\lambda_\sigma{=}5$). Anchor $A_\mu$ and shape priors $P_{d1},P_{d2}$ carried over from Stages 1--2 ($\lambda_\mu{=}0$ in production).}
+\node[lbl] (rep) at (4.4,4.7) {representative traj.\\(1/condition group,\\closest to median @5\,ms)};
+\node[lbl] (qc)  at (9.6,4.6) {robust $z$-score QC gate\\($|z|{>}3$ on $t_0$, RMSE,\\cost/pt $\to$ drop) $\Rightarrow$\\filtered $q_1$ trajectories};
 
-\vspace{0.3em}
-Once Stage 2 is locked, the Stage-3 variant separation is small
-(\num{0.21} mm RMSE spread) --- the heavy lifting is already done upstream.
+\node[stagebox] (s1) at (4.4,2.6) {\textbf{Stage 1}\\MSE fit};
+\node[stagebox] (s2) at (9.6,2.6) {\textbf{Stage 2}\\Gaussian NLL};
+\node[stagebox] (s3) at (4.4,0.2) {\textbf{Stage 3}\\raw NLL + KD};
+
+\draw[arr] (d3.south) to[out=250,in=90] (rep.north);
+\draw[arr] (rep.south) -- (s1.north);
+\draw[arr] (d3.south) to[out=-20,in=130] (qc.north);
+\draw[arr] (qc.south) -- (s2.north);
+\draw[arr] (d1.south) to[out=270,in=160] (s3.west);
+\draw[kdarr] (s2.south) to[out=200,in=20] node[lbl,midway,xshift=0.9cm,yshift=-0.3cm]
+  {distill $(\mu,\sigma)$\\teacher $\to$ student} (s3.east);
+
+\end{tikzpicture}%
+}
+
+\vspace{0.2em}
+{\scriptsize Solid arrows = direct data feed; \warn{dashed red} = knowledge distillation from the Stage-2 teacher (not raw data). Stage 1 and Stage 2 both draw exclusively from Dataset \#3; Stage 3's raw supervision term comes straight from Dataset \#1, blended per-bin with the Stage-2 teacher as coverage falls.}
 \end{frame}
 
 % ---------------------------------------------------------------------
 \begin{frame}{Knowledge distillation: the same algorithm the labs use}
 \small
-Production KD form: \texttt{mse\_mu\_plus\_sigma} --- an MSE on the student mean
-\textbf{plus} an MSE on the log-variance (\(\sigma\) weight \num{5.0}), distilling
-the Stage-2 teacher into the Stage-3 student blended with raw targets.
+\textbf{The idea --- teacher $\to$ student.} Fine-tune the Stage-3 student on the raw,
+uncensored CDF points (Dataset \#2); where the raw signal runs out --- the \warn{censored
+late-time tail} --- the \emph{frozen} Stage-2 model acts as the \blue{teacher} and supplies
+\blue{soft labels}, indirectly carrying its $q_1$-extrapolated knowledge (Dataset \#3) into
+the region with no real data.
 
 \vspace{0.4em}
 \begin{center}
@@ -908,17 +912,13 @@ the Stage-2 teacher into the Stage-3 student blended with raw targets.
 \renewcommand{\arraystretch}{1.1}
 \begin{tabular}{@{}L{4.4cm}R{2.6cm}R{2.6cm}@{}}
 \toprule
-\textbf{Metric (5-seed production)} & \textbf{Full clean} & \textbf{Uncensored CDF} \\
+\textbf{Metric (5-seed production)} & \textbf{Full clean (Dataset \#1)} & \textbf{Uncensored CDF (Dataset \#2)} \\
 \midrule
 RMSE [mm] & \good{$4.735\pm0.037$} & \good{$4.265\pm0.040$} \\
 $1\sigma$ / $2\sigma$ coverage & $0.867$ / $0.985$ & $0.887$ / $0.989$ \\
 \bottomrule
 \end{tabular}
 \end{center}
-
-\vspace{0.4em}
-\llmparallel{Knowledge distillation is literally a core LLM-training technique
-(teacher $\to$ student); same idea, transferred to a regression surrogate.}
 \end{frame}
 
 % ---------------------------------------------------------------------
@@ -983,8 +983,6 @@ Q1 extrapolated & \num{21527} & 495 conditions & Lower-quantile extrapolation gr
 Four protocols, four different questions: overall accuracy, censoring-robust accuracy,
 condition-level robustness, and out-of-window extrapolation --- never collapsed into one number.
 
-\llmparallel{This is the evals/benchmarks discipline --- a frozen held-out suite, an OOD split,
-and calibration, reported together, not a single accuracy number.}
 \end{frame}
 
 % ---------------------------------------------------------------------
@@ -1085,19 +1083,20 @@ curves (Nozzle3, T16) shows the failure is \blue{physical, not a fitting artifac
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.5\linewidth}
 \centering
+\setlength{\tabcolsep}{2pt}
 \begin{tabular}{@{}cccc@{}}
-\includegraphics[width=0.235\linewidth]{phantom_t3.png} &
-\includegraphics[width=0.235\linewidth]{phantom_t4.png} &
-\includegraphics[width=0.235\linewidth]{phantom_t5.png} &
-\includegraphics[width=0.235\linewidth]{phantom_t6.png} \\
+\includegraphics[width=0.22\linewidth]{phantom_t3.png} &
+\includegraphics[width=0.22\linewidth]{phantom_t4.png} &
+\includegraphics[width=0.22\linewidth]{phantom_t5.png} &
+\includegraphics[width=0.22\linewidth]{phantom_t6.png} \\
 \end{tabular}
 
 {\tiny $t\approx0.6$ \hfill $0.8$ \hfill $1.0$ \hfill $>1.0\,\si{ms}$}
 
 \smallskip
-\includegraphics[width=\linewidth,height=0.40\textheight,keepaspectratio]{nozzle3_t16_plot.png}
+\includegraphics[width=\linewidth,height=0.34\textheight,keepaspectratio]{nozzle3_t16_plot.png}
 \end{column}
-\begin{column}{0.5\linewidth}
+\begin{column}{0.48\linewidth}
 \textbf{Physical diagnosis}
 \begin{itemize}\setlength\itemsep{1pt}
   \item Strong \blue{inter-hole asymmetry}: bottom-right plumes ($\sim$3--5 o'clock) eject a
@@ -1107,16 +1106,15 @@ curves (Nozzle3, T16) shows the failure is \blue{physical, not a fitting artifac
   \item Morphology consistent with wake-driven catch-up; needle wobble / orifice
         throttling not excludable without internal-flow diagnostics.
 \end{itemize}
+\end{column}
+\end{columns}
+
 \smallskip
 \textbf{Modeling diagnosis}
 \begin{itemize}\setlength\itemsep{1pt}
-  \item The reduced-order target $k_{1/4}t^{1/4}$ is \blue{monotonic + concave by
-        construction} --- it \warn{cannot envelope} a trajectory whose 2nd derivative flips sign.
-  \item Forcing a smooth prior onto a step distorts the target $\Rightarrow$ the
-        Stage\,2/3 coverage loss on Nozzle3 is \good{identifiable, not mysterious}.
+  \item The reduced-order target $k_{1/4}t^{1/4}$ is \blue{monotonic + concave by construction} --- it \warn{cannot envelope} a trajectory whose 2nd derivative flips sign.
+  \item Forcing a smooth prior onto a step distorts the target $\Rightarrow$ the Stage\,2/3 coverage loss on Nozzle3 is \good{identifiable, not mysterious}.
 \end{itemize}
-\end{column}
-\end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------
@@ -1151,105 +1149,97 @@ that dominates the error --- handled next.
 % ---------------------------------------------------------------------
 \begin{frame}{Stage 6 --- Deployment: conditioning on the injector family}
 \small
-\begin{columns}[T]
-\begin{column}{0.45\linewidth}
-\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{injector_comparison_dp050.png}
+\textbf{Even after $A$-scaling, injector families don't collapse} --- the leftover error is
+family-structured, not noise, so a \emph{single shared} model leaves accuracy on the table.
+\begin{columns}[T,onlytextwidth]
+\begin{column}{\linewidth}\centering
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{injector_comparison_dp050.png}\\[0.2em]
+{\scriptsize Per-family mean $\pm$ std: \warn{N0 runs $\sim$2.4--2.5$\times$ high} early ($t^\ast\!\approx\!0.2$), settling to $\sim$1.2$\times$ post-EOI --- it shrinks, never vanishes.}
 \end{column}
-\begin{column}{0.52\linewidth}
-\textbf{Even after $A$-scaling, families don't collapse.}
-\begin{itemize}\setlength\itemsep{3pt}
-  \item Nozzle0 runs $\sim$\warn{2.4--2.5$\times$} higher than Nozzle1--8 at early
-        time ($t^\ast\!\approx\!0.2$).
-  \item Gap settles to $\sim$1.2$\times$ post-EOI --- shrinks, never vanishes.
-  \item A \emph{single shared} model leaves family-structured residual error
-        on the table.
-\end{itemize}
-\llmparallel{Deployment-time adaptation / domain adapters: the base model is
-good, but each deployment family still needs a light conditioning layer.}
-\end{column}
+
 \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{A family-aware head fixes the catastrophic folds}
+% [MERGED] "A family-aware head fixes the catastrophic folds" was folded
+% into the "Systematic family difference => a light adapter fixes the
+% catastrophic folds" slide below (its production_rmse_comparison.png figure
+% dropped; the family-head LONO numbers kept as text).
+
+% ---------------------------------------------------------------------
+\begin{frame}{The adapter family: a shared frozen trunk + a light per-family residual}
 \small
-\begin{columns}[T]
-\begin{column}{0.45\linewidth}
-\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{production_rmse_comparison.png}
-\end{column}
-\begin{column}{0.52\linewidth}
-\textbf{Design:} shared frozen trunk + per-injector-family $\mu$-head
-(with routing/fallback).
-\vspace{0.3em}
-\begin{itemize}\setlength\itemsep{3pt}
-  \item Aggregate LONO RMSE: \texttt{A\_single} \warn{11.44} $\to$
-        \texttt{C\_family\_head} \good{7.35} (5-fold) / \good{6.56} (modified-only).
-  \item Nozzle0: \warn{30.58} $\to$ \good{11.57} mm.
-  \item Nozzle6: \warn{36.91} $\to$ \good{7.61} mm.
-  \item In-family folds move $\leq 1$~mm --- the win is paid for entirely by
-        repairing the OOD-family folds.
-\end{itemize}
-\textbf{Architecture beats data-filtering alone.}
-\end{column}
-\end{columns}
+\begin{center}
+\includegraphics[width=0.98\linewidth,height=0.64\textheight,keepaspectratio]{mlp_family_conditioning_architecture.png}
+\end{center}
+\vspace{-0.1em}
+\footnotesize
+\textbf{A} --- per-family decoder (the deployed family head; an unseen family needs a hard-coded fallback).\quad
+\textbf{B} --- shared mean $+$ zero-init residual $\Delta_f$: an unseen family carries $\Delta_f\!\equiv\!0$ and \good{falls back to the shared model structurally}.\quad
+\textbf{C} --- last-block identity FiLM $+$ residual head.
+\smallskip
+
+All three \emph{hot-start the deployed checkpoint and freeze the trunk}; only the tiny per-family modules ($\Delta$ / FiLM / log-variance) train --- the adapter / PEFT paradigm, so a new family is a new adapter, not a retrain.
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{The climb on one table: a model lineage}
+\begin{frame}{Systematic family difference $\Rightarrow$ a light adapter fixes the catastrophic folds}
+\small
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.5\linewidth}\centering
+\includegraphics[width=\linewidth,height=0.58\textheight,keepaspectratio]{residual_svgp_context_rmse_comparison.png}\\[0.3em]
+{\scriptsize \textbf{In-domain result} --- residual multitask SVGP is the new best, \good{4.193$\to$3.987\,mm} CDF RMSE.}
+\end{column}
+\begin{column}{0.48\linewidth}
 \footnotesize
-\begin{center}
-\renewcommand{\arraystretch}{1.05}
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{@{}lrl@{}}
-\toprule
-\textbf{Model} & \textbf{CDF RMSE [mm]} & \textbf{Origin} \\
-\midrule
-Naber--Siebers (physics)            & 9.286 & thesis \\
-Production MLP                      & 4.265 & thesis \\
-Stage-3 SVGP                        & 4.193 & thesis (prev.\ best) \\
-\midrule
-Deployed family head                & 5.010 & deployment variant \\
-Residual FH                         & 4.631 & this work \\
-Residual-FiLM                       & 4.510 & this work \\
-Residual multitask SVGP             & \good{3.987} & this work (new best) \\
-QC-gated retrain                    & \good{3.922} & sensitivity re-score \\
-\bottomrule
-\end{tabular}
-\end{center}
-\vspace{0.3em}
-\textbf{Mechanism:} identity warm-start + frozen trunk + a light
-residual/FiLM/SVGP family adapter. The residual multitask SVGP replaces the
-shared/residual map with sparse GP processes and keeps zero-residual fallback;
-it is the new in-domain best, but \warn{not LONO-tested}.
-\src{Uncensored CDF RMSE, lv2, 542k points.}
+\textbf{Design:} shared frozen trunk $+$ a light per-family head / zero-init residual (routing $+$ structural fallback).
+\smallskip
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Aggregate LONO RMSE: \texttt{A\_single} \warn{11.44} $\to$ \texttt{family\_head} \good{7.35} (5-fold) / \good{6.56} (modified-only).
+  \item Nozzle0: \warn{30.58}$\to$\good{11.57}\,mm;\quad Nozzle6: \warn{36.91}$\to$\good{7.61}\,mm.
+  \item In-family folds move $\leq 1$\,mm --- the win is paid for entirely by repairing the OOD-family folds.
+  \item Families separate \emph{systematically} at the population level (shown earlier), not by noise.
+\end{itemize}
+\smallskip
+\textbf{\good{Architecture beats data-filtering alone}}, and the residual fine-tune recovers the systematic difference.
+\end{column}
+\end{columns}
+\vspace{0.2em}
+{\centering\scriptsize Mechanism: identity warm-start $+$ frozen trunk $+$ light residual/FiLM/SVGP adapter, zero-residual fallback. Family head repairs the LONO folds; residual SVGP is the new in-domain best (\warn{not LONO-tested}). \src{LONO 5-fold; uncensored CDF RMSE, lv2, 542k points.}\par}
 \end{frame}
 
 % ---------------------------------------------------------------------
 \begin{frame}{The boundary, quantified: Nozzle0 few-shot limit}
 \small
 \begin{columns}[T]
-\begin{column}{0.45\linewidth}
-\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{n0_fewshot_adaptation_curve.png}
+\begin{column}{0.44\linewidth}
+\includegraphics[width=\linewidth,height=0.60\textheight,keepaspectratio]{n0_fewshot_adaptation_curve.png}\\[0.2em]
+{\scriptsize Frozen-trunk delta-head adaptation curve --- error floors well above the in-family LONO band.}
 \end{column}
-\begin{column}{0.52\linewidth}
+\begin{column}{0.54\linewidth}
+\textbf{\blue{Why genuinely OOD} --- a different injector \& campaign:}
+\setlength{\tabcolsep}{2pt}\renewcommand{\arraystretch}{0.9}
+\begin{tabular}{@{}C{0.49\linewidth}C{0.49\linewidth}@{}}
+\includegraphics[width=\linewidth,height=0.26\textheight,keepaspectratio]{injector_nozzle_0.png} &
+\includegraphics[width=\linewidth,height=0.26\textheight,keepaspectratio]{injector_nozzle_1_8.png} \\
+{\tiny \textbf{Nozzle\,0:} Heinzman DS300 (2022)} &
+{\tiny \textbf{Nozzles\,1--8:} production Heinzmann (2024)} \\
+\end{tabular}
+\smallskip
+
+\footnotesize
 \textbf{Delta-head fine-tuned, trunk frozen, N0 held out:}
-\begin{itemize}\setlength\itemsep{2pt}
-  \item zero-shot \warn{33.16 mm} $\to$ $k{=}2$: 22.01 $\to$ $k{=}10$: 20.68
-        $\to$ $k{=}20$: 19.17 mm.
-  \item $k{=}$all: $\sim$\good{15.7} mm (MSE) while NLL plateaus $\sim$19.5 mm.
-  \item In-family LONO band $\approx$5 mm, for reference.
+\begin{itemize}\setlength\itemsep{1pt}
+  \item zero-shot \warn{33.16 mm} $\to$ $k{=}2$: 22.01 $\to$ $k{=}10$: 20.68 $\to$ $k{=}20$: 19.17 mm.
+  \item $k{=}$all: $\sim$\good{15.7} mm (MSE) while NLL plateaus $\sim$19.5 mm; in-family LONO band $\approx$5 mm.
 \end{itemize}
-\textbf{Honest conclusion:} N0 is genuinely out-of-design-family --- a
-frozen-trunk head adaptation floors around 16 mm; closing it needs
-\warn{trunk capacity}, not just a head.
-\llmparallel{The few-shot adaptation floor / OOD fine-tuning limit: adapters
-help, but some distribution shift needs the base model retrained.}
+\textbf{Honest conclusion:} N0 is genuinely out-of-design-family --- not a statistical accident but \blue{different hardware}; a frozen-trunk head floors around 16 mm, so closing it needs \warn{trunk capacity}, not just a head.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{From checkpoint to product: the screening GUI}
+\begin{frame}{From checkpoint to product: the screener GUI}
 \small
 \texttt{impingement\_gui.py} --- a tkinter desktop wizard:
 \begin{itemize}\setlength\itemsep{2pt}
@@ -1264,11 +1254,11 @@ help, but some distribution shift needs the base model retrained.}
   \item The \blue{solver is swappable between the MLP and the SVGP}.
 \end{itemize}
 \vspace{0.3em}
-\centering\textbf{The screening tool, live:}
+\centering\textbf{The screener, live:}
 \end{frame}
 
 % ---------------------------------------------------------------------
-\begin{frame}{The screening tool, live: wall-impingement prediction}
+\begin{frame}{The screener, live: wall-impingement prediction}
 \centering
 \animategraphics[autoplay,loop,controls,width=0.72\linewidth]{15}{app/app_}{0}{79}
 
@@ -1358,4 +1348,337 @@ for spray-wall impingement screening.
 \src{Backup appendix: GP/SVGP math; full LONO ablation tables; KD loss details; calibration PIT/CRPS}
 \end{frame}
 
+
+% =====================================================================
+% [BACKUP] Detailed Stage 1/2/3 training frames, preserved from the full
+% master deck for Q&A defense. Behind \appendix => not in the main flow.
+% =====================================================================
+\appendix
+
+\begin{frame}[c]{}
+  \begin{center}
+    {\Huge \blue{Backup slides}}\\[1.2em]
+    {\large Detailed Training Stage 1/2/3 internals --- for Q\&A}
+  \end{center}
+\end{frame}
+
+\begin{frame}{Training Stage 1 validation: leave-one-nozzle-out feature ablation}
+\scriptsize
+\textbf{Data:} \emph{representative} rows (one per injection condition) in $A$-scaled space.
+\textbf{Loss} ($A$-scaled $\hat S{=}S/A$, $m_0{=}-2$):
+\[
+\resizebox{\linewidth}{!}{$\displaystyle
+\mathcal{L}_1=
+\underbrace{\mathrm{MSE}(\hat\mu,\hat S)}_{\text{data fit (median traj.)}}
++\underbrace{\lambda_v\,\mathrm{MSE}(\log\hat\sigma^2,m_0)}_{\text{variance warm-up}\,\to\,m_0}
++\underbrace{\lambda_{d1}P_{d1}}_{\text{monotone (no recoil)}}
++\underbrace{\lambda_{d2}\,P_{d2}}_{\blue{\text{gated}}\ \text{concavity}}
+$}
+\]
+\vspace{-5pt}
+\resizebox{\linewidth}{!}{\scriptsize $P_{d1}{=}\langle\mathrm{ReLU}(-\partial_t\mu_S)^2\rangle$, $P_{d2}{=}\langle\blue{g(t)}\,\mathrm{ReLU}(\partial_t^2\mu_S)^2\rangle$, \blue{gate} $g(t){=}\sigma(\tfrac{t-t_c}{\tau_c})$ --- concavity \blue{off in the early acceleration}, on only past $t_c$.}
+\smallskip
+\begin{center}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{@{}rlr@{}}
+\toprule
+\textbf{Rank} & \textbf{Variant} & \textbf{Mean MAE [mm]} \\
+\midrule
+1 & \texttt{a\_dp050\_plus\_pressures} & \good{\textbf{7.46}} \\
+2 & \texttt{a\_dp025\_plus\_pressures} & 8.22 \\
+3 & \texttt{a\_dp050} & 8.27 \\
+4 & \texttt{a\_dp025} & 9.83 \\
+5 & \texttt{a\_dp050\_plus\_diameter} & 12.06 \\
+6 & \texttt{a\_dp025\_plus\_diameter} & 13.41 \\
+7 & \texttt{a\_dp050\_plus\_pressures\_diameter} & 14.26 \\
+8 & \texttt{legacy\_9\_no\_scale} & \warn{14.42} \\
+9 & \texttt{a\_dp025\_plus\_pressures\_diameter} & 14.48 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{2pt}
+\textbf{Takeaways:} $\Delta P^{0.5}$ beats $\Delta P^{0.25}$; pressures help;
+\warn{adding diameter hurts +4--6 mm}; production variant
+(\texttt{a\_dp050\_plus\_pressures}) is validated. \quad (seed 42, 5 LONO folds)
+\end{frame}
+
+% ---------------------------------------------------------------------
+\begin{frame}{Training Stage 2: an early-time physics anchor stabilizes OOD}
+\small
+\textbf{Data:} all \emph{filtered} rows (full QC set), warm-started from the Stage-1
+checkpoint (scaler and feature space reused, not refit). \textbf{Loss:} Gaussian NLL
+in $A$-scaled space plus a soft early-time $\mu$-anchor:
+\[
+\resizebox{\linewidth}{!}{$\displaystyle
+\mathcal{L}_2=\underbrace{\tfrac12\big\langle \log\hat\sigma^2+(\hat\mu-\hat S)^2/\hat\sigma^2\big\rangle}_{\text{Gaussian NLL}}
++\underbrace{\lambda_\mu A_\mu}_{\text{early-}t\ \mu\text{-anchor}}
++\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}
+$}
+\]
+\vspace{-4pt}
+{\scriptsize The new term is the early-$t$ anchor $\lambda_\mu A_\mu$ ($\lambda_\mu{=}10^{-2}$); shape priors $P_{d1},P_{d2}$ as in Stage 1.}
+
+\vspace{0.3em}
+\begin{columns}[T,onlytextwidth]
+\column{0.53\linewidth}
+\footnotesize
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Ablation (mean $\pm$ std, 5 folds)} & \textbf{RMSE [mm]} \\
+\midrule
+\texttt{mu\_anchor} & \good{\textbf{12.73}} \\
+\texttt{mu\_sigma\_anchor} & 13.05 \\
+\texttt{no\_anchor} & \warn{14.54} \\
+\bottomrule
+\end{tabular}
+\column{0.45\linewidth}
+\scriptsize
+\setlength{\abovedisplayskip}{1pt}
+\setlength{\belowdisplayskip}{1pt}
+\textbf{Anchor form} (physical $\mu_S{=}A\hat\mu$, mm):
+\[
+\begin{aligned}
+A_\mu &=
+\frac{\sum_{n=1}^{N}\sum_t w(t)\,\mu_{S,n}(t)^2}
+     {N\sum_t w(t)},\\[-2pt]
+w(t)&=\max(0,1-t/\tau),\quad \tau=\SI{0.15}{ms}.
+\end{aligned}
+\]
+\vspace{-8pt}
+{\tiny One-sided linearly tapered ramp; $\lambda_\mu=10^{-2}$, $\lambda_\sigma=0$.}
+\end{columns}
+
+\vspace{0.4em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item Excluding the hardest fold (Nozzle0): \texttt{mu\_anchor} 7.18 vs.\ \texttt{no\_anchor} 9.61 mm
+  \item On Nozzle2 the anchor turns a \warn{19.18 mm} collapse into \good{7.76 mm}
+  \item Anchoring $\sigma$ too does \textbf{not} help; production = \texttt{mu\_anchor}
+\end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------------
+\begin{frame}{Training Stage 3: raw-CDF refinement with regime-aware supervision}
+\small
+\textbf{Data:} the \emph{raw empirical CDF series} (per-frame penetration) plus the
+Stage-2 teacher; the student warm-starts from the teacher with its trunk frozen.
+Each \SI{0.1}{ms} bin is labelled by CDF coverage into three regimes:
+
+\vspace{0.3em}
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{@{}L{3.2cm}L{8.5cm}@{}}
+\toprule
+\textbf{Regime} & \textbf{Trigger} \\
+\midrule
+\texttt{raw\_reliable} & coverage $\geq 70\%$ \\
+\texttt{raw\_uncertain} & coverage 20--70\% \\
+\texttt{teacher\_only} & coverage $<20\%$ or $<4$ samples \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+\textbf{Composite loss} (physical mm, summed over the time grid):
+\[
+\resizebox{\linewidth}{!}{$\displaystyle
+\mathcal{L}_3=
+\underbrace{\sum_t w^{\mathrm{raw}}_t\,\tfrac12\!\Big[\log\sigma^2+\tfrac{(\mu-y_t)^2}{\sigma^2}\Big]}_{\text{regime-weighted raw NLL}}
++\underbrace{\sum_t w^{\mathrm{kd}}_t\,\Big[(\mu-\mu_T)^2+\lambda_\sigma(\log\sigma^2-\log\sigma_T^2)^2\Big]}_{\text{KD}(\mu,\sigma)\ \text{from teacher}}
++\lambda_\mu A_\mu+\lambda_{d1}P_{d1}+\lambda_{d2}P_{d2}
+$}
+\]
+\vspace{-4pt}
+{\scriptsize The two new terms are the \emph{mixed supervision}: per-bin weights $w^{\mathrm{raw}}_t,w^{\mathrm{kd}}_t$ shift each \SI{0.1}{ms} bin from raw $y_t$ to the teacher $(\mu_T,\sigma_T)$ as coverage falls (KD form \texttt{mse\_mu\_plus\_sigma}, $\lambda_\sigma{=}5$). Anchor $A_\mu$ and shape priors $P_{d1},P_{d2}$ carried over from Stages 1--2 ($\lambda_\mu{=}0$ in production).}
+
+\vspace{0.3em}
+Once Stage 2 is locked, the Stage-3 variant separation is small
+(\num{0.21} mm RMSE spread) --- the heavy lifting is already done upstream.
+\end{frame}
+
+% =====================================================================
+% [BACKUP] Feature & target-engineering details, moved out of the ACT 3
+% main flow during the 6->2 compression. The main deck now states only
+% the adopted feature/target; every number/comparison lives here for Q&A.
+% =====================================================================
+\begin{frame}[c]{}
+  \begin{center}
+    {\Huge \blue{Backup slides}}\\[1.2em]
+    {\large Feature \& target engineering --- exponents, ablation, collapse}
+  \end{center}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Backup --- the q1 fit is temporally biased: a soft redundancy}
+\small
+\begin{columns}[T]
+\begin{column}{0.55\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio]{fig_q1_residual_structure.png}
+\end{column}
+\begin{column}{0.43\linewidth}
+The q1 residual is \warn{not flat in time} --- the sigmoid-gated quarter-root leaves structured early/late bias rather than white noise.
+
+\vspace{0.5em}
+The onset/slope pair $(t_0,s)$ trades off against the amplitude $k_{1/4}$: many $(t_0,s,k_{1/4})$ combinations fit one trajectory about equally well --- a \blue{soft redundancy} in the parameterization.
+
+\vspace{0.5em}
+Hence q1 is a \emph{per-trajectory} reconstruction/extrapolation device, \warn{not} a transferable physical law --- the scaling exponents are validated on pooled data instead (this act).
+\end{column}
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Backup --- physical priors vs.\ a data-driven regression}
+\begin{columns}[T]
+\column{0.45\linewidth}
+\small
+\textbf{Physical prior} --- classical reference exponents:
+\[
+\Delta P^{1/4},\quad \rho_a^{-1/4},\quad d_n^{1/2}.
+\]
+
+\medskip
+\textbf{Data-driven regression} --- re-estimate them by an OLS log-log fit in each \SI{0.1}{ms} bin:
+\[
+\log S = a\,\log\Delta P + b\,\log P_{\mathrm{ch}} + c\,\log d_n + \mathrm{const}.
+\]
+{\footnotesize($\Delta P=P_{\mathrm{inj}}-P_{\mathrm{ch}}$, $P_{\mathrm{ch}}\propto\rho_a$.)}\ The fitted slopes \blue{$a,b,c$ \emph{are} the exponents} --- read directly against the classical $1/4,-1/4,1/2$.
+
+\column{0.52\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.54\textheight,keepaspectratio]{time_windowed_exponents.png}
+
+{\scriptsize Per-\SI{0.1}{ms} log-log OLS of $\log S$ on $(\log\Delta P,\log P_{\mathrm{ch}},\log d_n)$ (window $\pm\SI{0.05}{ms}$); each curve is a fitted exponent vs.\ time, shaded $=$ 95\% CI, dashed $=$ Bernoulli ($0.5$) / H--A ($0.25,-0.25$) references.}
+\end{columns}
+
+\vspace{0.3em}
+\footnotesize
+\textbf{What it shows} --- pressure scaling is real but \emph{time-varying} (drifts toward H--A as $t$ grows), chamber-density scaling matches H--A, and \warn{diameter is not identifiable}. The numbers, next.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Backup --- reading the exponents: a time-binned log-log regression}
+\small
+\textbf{Classical laws under test.}\; Hiroyasu--Arai \& Naber--Siebers both scale as $S\propto(\Delta P/\rho_a)^{1/4} d_n^{1/2}\,t^{1/2}$ (N--S adds a $k_{NS}$ prefactor and onset shift $t\!\to\!t-\tau$). \textbf{Time-binning.} Each condition is truncated at its censor onset $\to$ near-uniform per-bin counts (count CV \good{$0.52\to0.052$}); the log-log OLS from the previous slide is fit \emph{independently} in every \SI{0.1}{ms} bin ($\pm\SI{0.05}{ms}$) on the \num{506634}-point uncensored set.
+
+\smallskip
+\begin{columns}[T,onlytextwidth]
+\column{0.49\linewidth}
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.0}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+$t$\,[ms] & $a_{\Delta P}$ & $b_{P_{\mathrm{ch}}}$ & $c_{d_n}$ & $R^2$ \\
+\midrule
+0.30 & 0.682 & $-0.232$ & \warn{6.02} & 0.351 \\
+0.40 & \good{0.523} & $-0.247$ & \warn{4.46} & 0.392 \\
+0.50 & \good{0.472} & $-0.229$ & \warn{3.06} & 0.398 \\
+0.60 & \good{0.521} & $-0.189$ & \warn{2.18} & 0.418 \\
+0.70 & 0.447 & $-0.153$ & \warn{1.69} & 0.354 \\
+\midrule
+H--A & 0.25 & $-0.25$ & 0.50 & --- \\
+$k_{1/4}^{\ast}$ & \good{0.52} & $-0.23$ & \warn{0.26} & 0.27 \\
+\bottomrule
+\end{tabular}
+
+{\scriptsize $^\ast$pooled per-traj.\ OLS of $\log k_{1/4}$ (\num{24316} fits); rows above: per-bin $S(t)$ (\num{506634} pts).}
+\column{0.49\linewidth}
+\footnotesize
+\begin{itemize}\setlength\itemsep{1.5pt}
+  \item $a_{\Delta P}$ holds at \good{0.47--0.52} --- the \blue{Bernoulli/orifice} value $0.5$, far above H--A's $0.25$ --- drifting toward H--A as $t$ grows.
+  \item $b_{P_{\mathrm{ch}}}\approx\good{-0.23\text{ to }-0.25}$, matching H--A; $R^2\approx\good{0.35\text{--}0.42}$ (single-bin scatter large, exponents stable).
+  \item $c_{d_n}=\warn{1.7\text{--}6.0}$, physically impossible $\Rightarrow$ diameter \warn{not identifiable} (6 diameters, ratio 1.15, confounded with hole count).
+\end{itemize}
+\end{columns}
+
+\vspace{2pt}
+{\footnotesize\textbf{Verdict:} the $k_{1/4}$ row confirms the same law ($a\!\approx\!0.5$, $b\!\approx\!-0.25$); keep $\Delta P^{0.5}\rho_a^{-0.25}$ from data, fold $d_n^{0.5}$ in as an H--A prior.}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Backup --- why diameter is folded in, not fed raw}
+\small
+\textbf{Facts:} only 6 discrete hole diameters spanning \num{0.333}--\SI{0.384}{mm} (ratio 1.15, log-leverage 0.14 vs.\ 0.45 for injection pressure); diameter is confounded with hole count and umbrella angle in the design matrix $\Rightarrow$ its exponent is unidentifiable.
+
+\textbf{Move:} retain $d_n^{0.5}$ inside the amplitude as an H--A prior instead:
+\[
+A=\Delta P^{0.5}\,\rho_a^{-0.25}\,d_n^{0.5}.
+\]
+
+\vspace{0.3em}
+\footnotesize
+\textbf{Confirmed on the production model's own coefficient} --- one pooled OLS of $\log k_{1/4}$ over all \num{24316} accepted q1 fits, $\log k_{1/4}=a\log\Delta P+b\log\rho_a+c\log d_n+\text{const}$:
+\renewcommand{\arraystretch}{1.05}
+\begin{center}
+\begin{tabular}{C{0.20\linewidth}C{0.15\linewidth}C{0.15\linewidth}C{0.34\linewidth}}
+\toprule
+Predictor & Exponent & H--A ref. & Verdict \\
+\midrule
+$\log\Delta P$ & \good{0.52} & 0.25 & data $>$ H--A $\Rightarrow$ use $\Delta P^{0.5}$ \\
+$\log\rho_a$   & \good{$-0.23$} & $-0.25$ & matches H--A \\
+$\log d_n$     & \warn{0.26} & 0.50 & weak ($R^2$ 0.27), unstable $\Rightarrow$ fold in \\
+\bottomrule
+\end{tabular}
+\end{center}
+\smallskip
+The $d_n$ exponent is unstable across cuts (\warn{$\sim$0} matched-pressure family, \warn{0.26} pooled $k_{1/4}$, \warn{1.7--6.0} per-time-bin) --- so $d_n^{0.5}$ is kept as a fixed H--A prior, not a fitted term.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Backup --- ablation: the cost of getting the feature set wrong}
+\begin{columns}[T]
+\column{0.52\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio]{fig_sparse_diameter_interpolants.png}
+
+\column{0.45\linewidth}
+\small
+\textbf{Raw diameter as input:} predicted mean undergoes \warn{5--6 gradient sign reversals per slice}, with autodiff gradient spikes $\sim\!10^4$ over a $\sim$\SI{0.05}{mm} support span --- the network memorizes nozzle identity, not physics.
+
+\vspace{0.3em}
+Under LONO: adding diameter as an independent input \warn{increases mean MAE by 4--6 mm}.
+\end{columns}
+
+\vspace{0.4em}
+\small
+\textbf{Conversely:} \emph{removing} the residual pressure terms hurts --- Stage-1 test MAE \(8.05\to2.91\)\,mm and Stage-2 \(9.28\to5.63\)\,mm when log-pressures are kept.
+
+\vspace{0.2em}
+\textbf{Takeaway:} fold diameter into $A$; keep pressures as residual inputs.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Backup --- $A$-scaling collapse check: the numbers}
+\small
+The target is learned in $A$-scaled space:
+\[
+\hat S(t)=S(t)/A.
+\]
+
+\begin{columns}[T,onlytextwidth]
+\column{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{collapse_dp_exp_0p25.png}
+
+\footnotesize $\Delta P^{0.25}$
+\column{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{collapse_dp_exp_0p50.png}
+
+\footnotesize $\Delta P^{0.5}$
+\end{columns}
+
+\vspace{0.3em}
+\footnotesize
+Median post-\SI{0.5}{ms} collapse ratio: \warn{0.378} ($\Delta P^{0.25}$) vs.\ \good{0.057} ($\Delta P^{0.5}$) --- lower = better collapse onto one curve.
+
+\textbf{Payoff:} this feature/target choice cut the 5-seed RMSE \good{10.72 $\to$ 8.92 mm (16.8\%)} on the mode-C check.
+
+\end{frame}
 \end{document}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          

@@ -71,7 +71,7 @@ digraph MLPFamilyConditioning {
 
     rfh_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
     rfh_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
-    rfh_trunk [label="shared trunk", fillcolor="#e8f0fe", color="#4e79a7"];
+    rfh_trunk [label="shared trunk\n(frozen)", fillcolor="#e8f0fe", color="#4e79a7"];
     rfh_shared [label="shared mean\nmu_shared", fillcolor="#eaf7ef", color="#4c9a45"];
     rfh_delta [label="family residual\nDelta_f", fillcolor="#fff7ed", color="#c96f1a"];
     rfh_sum [label="add", shape=diamond, fillcolor="#ffffff", color="#52616b"];
@@ -102,29 +102,28 @@ digraph MLPFamilyConditioning {
 
     film_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
     film_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
-    film_trunk_a [label="shared trunk", fillcolor="#e8f0fe", color="#4e79a7"];
-    film_adapter [label="FiLM adapter\ngamma_f * h + beta_f", fillcolor="#f5edff", color="#7c5cc4"];
+    film_trunk_a [label="shared trunk\n(frozen)", fillcolor="#f1f5f9", color="#64748b"];
+    film_adapter [label="last-block\nfamily affine", fillcolor="#f5edff", color="#7c5cc4"];
     film_trunk_b [label="modulated\nrepresentation h'", fillcolor="#e8f0fe", color="#4e79a7"];
-    film_shared [label="shared mean\nmu_shared(h')", fillcolor="#eaf7ef", color="#4c9a45"];
-    film_delta [label="family residual\nDelta_f(h')", fillcolor="#fff7ed", color="#c96f1a"];
+    film_shared [label="shared mean\n(frozen)", fillcolor="#f1f5f9", color="#64748b"];
+    film_delta [label="family residual\nhead", fillcolor="#fff7ed", color="#c96f1a"];
     film_sum [label="add", shape=diamond, fillcolor="#ffffff", color="#52616b"];
-    film_var [label="shared\nlog-var head", fillcolor="#f1f5f9", color="#64748b"];
+    film_var [label="shared log-var\nhead", fillcolor="#eaf7ef", color="#4c9a45"];
     film_out [label="prediction\nmu, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
-    film_note [label="unseen family:\nidentity FiLM + Delta = 0", fillcolor="#fef2f2", color="#b85c5c"];
+    film_note [label="unseen family:\naffine = I, Delta = 0", fillcolor="#fef2f2", color="#b85c5c"];
 
     { rank=same; film_input; film_family; }
     film_input:e -> film_trunk_a:w;
     film_family:e -> film_adapter:w [color="#7c5cc4", constraint=false];
-    film_family:e -> film_delta:w [color="#c96f1a", constraint=false];
+    film_family:e -> film_delta:w [style=dashed, color="#c96f1a", constraint=false];
     film_trunk_a:e -> film_adapter:w;
     film_adapter:e -> film_trunk_b:w;
     film_trunk_b:e -> film_shared:w;
     film_trunk_b:e -> film_delta:w;
+    film_trunk_b:e -> film_var:w;
     film_shared:e -> film_sum:w;
     film_delta:e -> film_sum:w;
     film_sum:e -> film_out:w;
-    film_trunk_b:e -> film_var:w;
     film_var:e -> film_out:w;
-    film_note:e -> film_adapter:w [style=dashed, color="#b85c5c", constraint=false, xlabel="identity"];
   }
 }

@@ -128,7 +128,7 @@ def make_curriculum(out_png: Path) -> None:
     print(f"Saved: {out_png}")
 
 
-def make_architecture(out_png: Path) -> None:
+def make_architecture_legacy(out_png: Path) -> None:
     fig, ax = plt.subplots(figsize=(10.8, 4.6), dpi=200)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -189,6 +189,108 @@ def make_architecture(out_png: Path) -> None:
           color="#888888", ls="--")
     ax.text(px, 0.70, "physical\nprediction (mm)", ha="center", fontsize=9.0,
             weight="bold", linespacing=1.3)
+
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_png, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+    print(f"Saved: {out_png}")
+
+
+def make_architecture(out_png: Path) -> None:
+    fig, ax = plt.subplots(figsize=(6.2, 5.2), dpi=240)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+
+    def panel(x, y, w, h, fc, ec, lw=2.0, ls="-", z=1):
+        patch = FancyBboxPatch(
+            (x, y), w, h,
+            boxstyle="round,pad=0.015,rounding_size=0.018",
+            facecolor=fc,
+            edgecolor=ec,
+            linewidth=lw,
+            linestyle=ls,
+            zorder=z,
+        )
+        ax.add_patch(patch)
+        return patch
+
+    def label(x, y, text, size=12, weight="normal", color="#111827", ha="center",
+              va="center", linespacing=1.2):
+        ax.text(
+            x, y, text, ha=ha, va=va, fontsize=size, weight=weight,
+            color=color, linespacing=linespacing,
+        )
+
+    def flow(p0, p1, text=None, color="#334155", lw=2.2, ls="-", rad=0.0,
+             text_offset=(0.0, 0.0), size=9.5):
+        arrow(
+            ax, p0, p1, text=text, color=color, lw=lw, ls=ls,
+            connectionstyle=f"arc3,rad={rad}", text_dxy=text_offset,
+            fontsize=size,
+        )
+
+    # Input feature block.
+    label(0.245, 0.935, "Inputs", size=16, weight="bold")
+    label(0.245, 0.895, "7-feature vector", size=9.8, color="#475569")
+    panel(0.055, 0.615, 0.38, 0.245, DATA_COLOR, DATA_EDGE, lw=2.2)
+    feature_text = (
+        r"$t_{\mathrm{norm}}$" "\n"
+        r"$\theta_{\mathrm{tilt},z}$,  $n_{\mathrm{plumes},z}$" "\n"
+        r"$t_{i,z}$,  $P_{\mathrm{cb},z}$" "\n"
+        r"$\log P_{\mathrm{inj},z}$,  $\log P_{\mathrm{ch},z}$"
+    )
+    label(0.08, 0.82, "z-scored / normalized", size=9.2, color=DATA_EDGE,
+          ha="left", weight="bold")
+    label(0.08, 0.705, feature_text, size=10.5, ha="left", linespacing=1.35)
+
+    # Shared trunk.
+    label(0.745, 0.935, "Trunk", size=16, weight="bold")
+    label(0.745, 0.895, "Linear + LN + SiLU", size=9.8, color="#475569")
+    panel(0.565, 0.615, 0.36, 0.245, "#F3E8FF", "#7C3AED", lw=2.2)
+    layer_y = [0.81, 0.745, 0.68]
+    layer_labels = ["512", "512", "128"]
+    for y, txt in zip(layer_y, layer_labels):
+        panel(0.625, y - 0.025, 0.24, 0.05, "#FBF7FF", "#7C3AED", lw=1.5)
+        label(0.745, y, txt, size=12.5)
+    for y0, y1 in zip(layer_y[:-1], layer_y[1:]):
+        flow((0.745, y0 - 0.027), (0.745, y1 + 0.027), color="#6D28D9", lw=1.4)
+    label(0.745, 0.627, "dropout = 0.30", size=8.8, color="#6D28D9", weight="bold")
+
+    # A-scaled heads.
+    label(0.745, 0.545, "A-scaled heads", size=15, weight="bold")
+    label(0.745, 0.505, "trained in normalized space", size=8.8, color="#475569")
+    panel(0.565, 0.395, 0.36, 0.075, "#FFF7ED", "#A16207", lw=1.9)
+    label(0.745, 0.432, r"$\hat{\mu}$", size=14)
+    panel(0.565, 0.295, 0.36, 0.075, "#FFF7ED", "#A16207", lw=1.9)
+    label(0.745, 0.333, r"$\log \hat{\sigma}^{2}$", size=12.5)
+    panel(0.565, 0.205, 0.36, 0.06, "#F8FAFC", "#94A3B8", lw=1.5, ls="--")
+    label(0.745, 0.235, "onset aux (optional)", size=8.5, color="#64748B",
+          linespacing=1.05)
+
+    # Physical reconstruction.
+    label(0.245, 0.545, "Condition prior", size=15, weight="bold")
+    label(0.245, 0.505, "computed, not learned", size=8.8, color="#475569")
+    panel(0.055, 0.335, 0.38, 0.135, "#F8FAFC", "#64748B", lw=1.7, ls="--")
+    label(0.245, 0.402,
+          r"$A=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}$",
+          size=11.5, color="#334155")
+
+    label(0.245, 0.255, "Physical output", size=13.5, weight="bold")
+    label(0.245, 0.217, "millimetres", size=8.8, color="#475569")
+    panel(0.055, 0.075, 0.38, 0.115, OUT_COLOR, OUT_EDGE, lw=2.2)
+    label(0.245, 0.132, r"$\mu_S=A\,\hat{\mu}$     $\sigma_S=A\,\hat{\sigma}$",
+          size=12.5)
+
+    # Main flow; keep the arrows sparse so the small slide version stays legible.
+    flow((0.435, 0.735), (0.565, 0.735), text="features",
+         text_offset=(0.0, 0.02), size=8.5)
+    flow((0.745, 0.395), (0.435, 0.155), color="#334155", rad=-0.15)
+    flow((0.745, 0.295), (0.435, 0.115), color="#334155", rad=-0.10)
+
+    label(0.50, 0.03,
+          r"Primary channels: $(\hat{\mu},\log\hat{\sigma}^2)$; $A$ restores mm scale.",
+          size=8.9, color="#475569")
 
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, bbox_inches="tight", pad_inches=0.12)

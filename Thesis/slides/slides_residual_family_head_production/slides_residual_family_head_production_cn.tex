@@ -264,169 +264,25 @@ Trainable params & 49{,}923：residual deltas + shared log-var head \\
 \section{域内性能爬升}
 
 % ------------------------------------------------------------------
-\begin{frame}{训练日志怎么读}
+% 压缩后的训练/结果总览：一页三图 + 一句结论。
+\begin{frame}{系统性族差异 $\Rightarrow$ 残差微调有用}
 \small
-\begin{center}
-\renewcommand{\arraystretch}{1.15}
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{@{}lrrrr@{}}
-\toprule
-\textbf{delta L2} & \textbf{mimic epochs} & \textbf{stop epoch} & \textbf{test loss} & \textbf{test delta RMS} \\
-\midrule
-0      & 10 & 104 & 2.074 & 0.816 \\
-1e-4   & 10 & 44  & 2.085 & 0.818 \\
-1e-3   & 10 & 110 & 2.070 & 0.813 \\
-1e-2   & 10 & 84  & 2.083 & 0.810 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\vspace{0.55em}
-\begin{itemize}\setlength\itemsep{2pt}
-  \item 四组 shrinkage 都正常 early stop。
-  \item mimic 阶段先降低 production-head mismatch，再进入 raw refinement。
-  \item delta RMS 聚在 0.81 左右；这个 sweep 主要调 calibration / tail，而不是改变粗尺度残差。
-\end{itemize}
-\end{frame}
-
-% ------------------------------------------------------------------
-\begin{frame}{Step 1：残差族头超过部署版 family head}
-\small
-\begin{center}
-\includegraphics[width=0.56\textwidth]{figs/production_rmse_comparison.png}
-\end{center}
-\vspace{-0.4em}
-\begin{center}
-\scriptsize
-\renewcommand{\arraystretch}{1.08}
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{@{}lrrrrr@{}}
-\toprule
-\textbf{模型} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 obs RMSE} \\
-\midrule
-部署版 family head & 5.056 & 0.0708 & 2.801 & 3.931 & 3.839 \\
-\rowcolor{winrow}
-Residual winner (1e-4) & \textbf{4.631} & \textbf{0.0604} & \textbf{2.382} & \textbf{3.395} & \textbf{3.242} \\
-\bottomrule
-\end{tabular}
-\end{center}
-\vspace{0.2em}
-\footnotesize
+\begin{columns}[T,onlytextwidth]
+\column{0.34\textwidth}
 \centering
-CDF RMSE \good{-0.425 mm}；bias 更接近 0（$+0.343\to+0.180$）；
-ECE 和 CRPS 同时下降。
-\end{frame}
-
-% ------------------------------------------------------------------
-\begin{frame}{Step 1：shrinkage sweep 与逐点变化}
-\small
-\begin{columns}[T]
-\column{0.52\textwidth}
-\includegraphics[width=\linewidth]{figs/delta_l2_sweep.png}
-\column{0.48\textwidth}
-\includegraphics[width=\linewidth]{figs/winner_cdf_deltas.png}
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{figs/injector_scatter_all_nozzles.png}\\[0.3em]
+{\scriptsize \textbf{数据} —— 全部喷嘴的无量纲贯穿距离散点：各喷嘴族\emph{系统性地}分层，并非噪声。}
+\column{0.34\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{figs/mlp_family_conditioning_architecture.png}\\[0.3em]
+{\scriptsize \textbf{架构} —— 冻结骨干 $+$ 零初始化的逐族残差（Family Head / Residual / FiLM）；未见族 $\to$ 共享模型。}
+\column{0.32\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{figs/residual_svgp_context_rmse_comparison.png}\\[0.3em]
+{\scriptsize \textbf{结果} —— 残差微调相对部署模型在 CDF / P50 / Q1 上全面降低 RMSE。}
 \end{columns}
-\vspace{0.3em}
-\begin{itemize}\setlength\itemsep{2pt}
-  \item 所有 residual settings 都超过部署版 family head；\texttt{1e-4} 给出最佳主表 RMSE。
-  \item 更强 shrinkage 会改善 ECE 和 extrapolated Q1，但稍微让出主表 RMSE。
-\end{itemize}
-\end{frame}
-
-% ------------------------------------------------------------------
-\begin{frame}{Step 2：FiLM 表明族信息也影响表示}
-\small
-MLP-only 推荐 ablation：在最后一个 trunk block 后加入 identity FiLM，从 residual family head 热启动，
-冻结 trunk 与 shared mean。
-
-\vspace{0.2em}
-\begin{center}
-\scriptsize
-\renewcommand{\arraystretch}{1.14}
-\setlength{\tabcolsep}{3.4pt}
-\begin{tabular}{@{}lrrrrrrr@{}}
-\toprule
-\textbf{模型} & \textbf{film L2} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 obs RMSE} \\
-\midrule
-Source residual FH & -- & \texttt{1e-2} & 4.685 & 0.0491 & 2.368 & 3.449 & 3.277 \\
-\rowcolor{winrow}
-Residual-FiLM & \texttt{1e-4} & \texttt{1e-3} & \textbf{4.510} & \textbf{0.0404} & \textbf{2.242} & \textbf{3.166} & \textbf{3.110} \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\vspace{0.3em}
-\begin{itemize}\setlength\itemsep{2pt}
-  \item CDF RMSE 再降 \good{0.176 mm}；P50 再降 \good{0.283 mm}；ECE/CRPS 同步改善。
-  \item 九组 \texttt{(film,delta)} 都超过 source residual head：family signal 不只是输出偏移。
-\end{itemize}
-\end{frame}
-
-% ------------------------------------------------------------------
-\begin{frame}{Step 3：加性残差 multi-task SVGP 刷新主表}
-\small
-同一个 residual 原则搬到概率骨干：共享 SVGP 从 Stage-3 checkpoint 热启动，再加每族 residual GP。
-family id 不进 kernel，只负责路由；未见族回退到共享 GP。
-
-\vspace{0.2em}
-\begin{center}
-\scriptsize
-\renewcommand{\arraystretch}{1.14}
-\setlength{\tabcolsep}{3.4pt}
-\begin{tabular}{@{}lrrrrrr@{}}
-\toprule
-\textbf{模型} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 extrap RMSE} \\
-\midrule
-MLP residual FH & \texttt{1e-2} & 4.685 & 0.0491 & 2.368 & 3.449 & 11.248 \\
-\rowcolor{winrow}
-Residual SVGP & \texttt{1e-4} & \textbf{3.987} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{10.429} \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\vspace{0.3em}
-\begin{itemize}\setlength\itemsep{2pt}
-  \item 超过 single-output SVGP baseline（4.193$\to$3.987）。
-  \item 相比 residual MLP，ECE 约减半（0.060$\to$0.026）。
-\end{itemize}
-\end{frame}
-
-% ------------------------------------------------------------------
-\begin{frame}{Step 3：Residual SVGP vs 当前最强模型}
-\small
-\begin{center}
-\includegraphics[width=0.90\textwidth]{figs/residual_svgp_context_rmse_comparison.png}
-\end{center}
-\end{frame}
-
-% ------------------------------------------------------------------
-\begin{frame}{同一主表上的爬升（lv2 uncensored CDF，542k 点）}
-\small
-\begin{center}
-\renewcommand{\arraystretch}{1.18}
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{@{}lrrl@{}}
-\toprule
-\textbf{模型} & \textbf{CDF RMSE} & \textbf{P50 RMSE} & \textbf{来源} \\
-\midrule
-Naber--Siebers 物理基线 & 9.286 & -- & thesis \\
-三阶段 MLP 选定模型 & 4.265 & 2.848 & thesis \\
-Stage-3 SVGP & 4.193 & 2.649 & thesis 旧最强 \\
-\midrule
-部署版 family head & 5.010 & 3.907 & deployment variant \\
-Residual FH (1e-4) & 4.631 & 3.395 & this work \\
-Residual-FiLM & 4.510 & 3.166 & this work \\
-\rowcolor{winrow}
-Residual SVGP (1e-4) & \textbf{3.987} & \textbf{2.077} & this work 新最强 \\
-Residual SVGP, QC retrain & 3.922 & 1.912 & sensitivity re-score \\
-\bottomrule
-\end{tabular}
-\end{center}
-\vspace{0.25em}
-\footnotesize
-MLP residual 修复了部署版 family head 的精度损失，但没有超过更简单的 single-head surrogate。
-真正推进精度边界的是 residual SVGP。QC retrain 在同一 lv2 root 上还能改善 residual SVGP，
-但作为 sensitivity evidence 解读。
+\vspace{0.4em}
+\begin{center}\large\good{数据证明了系统性差异，微调有用。}\end{center}
 \end{frame}
 
 % ==================================================================
@@ -683,6 +539,178 @@ all (203) & 19.54 & \textbf{15.73} \\
 \texttt{lono\_modified\_only/};
 \texttt{cross\_dataset\_lv2\_lv3/};
 \texttt{n0\_fewshot\_adaptation/}; figures under \texttt{figs/}.
+\end{frame}
+
+
+% ==================================================================
+\appendix
+\section{备份：域内训练细节}
+
+
+% ------------------------------------------------------------------
+\begin{frame}{训练日志怎么读}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{delta L2} & \textbf{mimic epochs} & \textbf{stop epoch} & \textbf{test loss} & \textbf{test delta RMS} \\
+\midrule
+0      & 10 & 104 & 2.074 & 0.816 \\
+1e-4   & 10 & 44  & 2.085 & 0.818 \\
+1e-3   & 10 & 110 & 2.070 & 0.813 \\
+1e-2   & 10 & 84  & 2.083 & 0.810 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.55em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item 四组 shrinkage 都正常 early stop。
+  \item mimic 阶段先降低 production-head mismatch，再进入 raw refinement。
+  \item delta RMS 聚在 0.81 左右；这个 sweep 主要调 calibration / tail，而不是改变粗尺度残差。
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Step 1：残差族头超过部署版 family head}
+\small
+\begin{center}
+\includegraphics[width=0.56\textwidth]{figs/production_rmse_comparison.png}
+\end{center}
+\vspace{-0.4em}
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{模型} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 obs RMSE} \\
+\midrule
+部署版 family head & 5.056 & 0.0708 & 2.801 & 3.931 & 3.839 \\
+\rowcolor{winrow}
+Residual winner (1e-4) & \textbf{4.631} & \textbf{0.0604} & \textbf{2.382} & \textbf{3.395} & \textbf{3.242} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.2em}
+\footnotesize
+\centering
+CDF RMSE \good{-0.425 mm}；bias 更接近 0（$+0.343\to+0.180$）；
+ECE 和 CRPS 同时下降。
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Step 1：shrinkage sweep 与逐点变化}
+\small
+\begin{columns}[T]
+\column{0.52\textwidth}
+\includegraphics[width=\linewidth]{figs/delta_l2_sweep.png}
+\column{0.48\textwidth}
+\includegraphics[width=\linewidth]{figs/winner_cdf_deltas.png}
+\end{columns}
+\vspace{0.3em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item 所有 residual settings 都超过部署版 family head；\texttt{1e-4} 给出最佳主表 RMSE。
+  \item 更强 shrinkage 会改善 ECE 和 extrapolated Q1，但稍微让出主表 RMSE。
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Step 2：FiLM 表明族信息也影响表示}
+\small
+MLP-only 推荐 ablation：在最后一个 trunk block 后加入 identity FiLM，从 residual family head 热启动，
+冻结 trunk 与 shared mean。
+
+\vspace{0.2em}
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\textbf{模型} & \textbf{film L2} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 obs RMSE} \\
+\midrule
+Source residual FH & -- & \texttt{1e-2} & 4.685 & 0.0491 & 2.368 & 3.449 & 3.277 \\
+\rowcolor{winrow}
+Residual-FiLM & \texttt{1e-4} & \texttt{1e-3} & \textbf{4.510} & \textbf{0.0404} & \textbf{2.242} & \textbf{3.166} & \textbf{3.110} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item CDF RMSE 再降 \good{0.176 mm}；P50 再降 \good{0.283 mm}；ECE/CRPS 同步改善。
+  \item 九组 \texttt{(film,delta)} 都超过 source residual head：family signal 不只是输出偏移。
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Step 3：加性残差 multi-task SVGP 刷新主表}
+\small
+同一个 residual 原则搬到概率骨干：共享 SVGP 从 Stage-3 checkpoint 热启动，再加每族 residual GP。
+family id 不进 kernel，只负责路由；未见族回退到共享 GP。
+
+\vspace{0.2em}
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{模型} & \textbf{delta L2} & \textbf{CDF RMSE} & \textbf{CDF ECE} & \textbf{CDF CRPS} & \textbf{P50 RMSE} & \textbf{Q1 extrap RMSE} \\
+\midrule
+MLP residual FH & \texttt{1e-2} & 4.685 & 0.0491 & 2.368 & 3.449 & 11.248 \\
+\rowcolor{winrow}
+Residual SVGP & \texttt{1e-4} & \textbf{3.987} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{10.429} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+\begin{itemize}\setlength\itemsep{2pt}
+  \item 超过 single-output SVGP baseline（4.193$\to$3.987）。
+  \item 相比 residual MLP，ECE 约减半（0.060$\to$0.026）。
+\end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{Step 3：Residual SVGP vs 当前最强模型}
+\small
+\begin{center}
+\includegraphics[width=0.90\textwidth]{figs/residual_svgp_context_rmse_comparison.png}
+\end{center}
+\end{frame}
+
+% ------------------------------------------------------------------
+\begin{frame}{同一主表上的爬升（lv2 uncensored CDF，542k 点）}
+\small
+\begin{center}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+\textbf{模型} & \textbf{CDF RMSE} & \textbf{P50 RMSE} & \textbf{来源} \\
+\midrule
+Naber--Siebers 物理基线 & 9.286 & -- & thesis \\
+三阶段 MLP 选定模型 & 4.265 & 2.848 & thesis \\
+Stage-3 SVGP & 4.193 & 2.649 & thesis 旧最强 \\
+\midrule
+部署版 family head & 5.010 & 3.907 & deployment variant \\
+Residual FH (1e-4) & 4.631 & 3.395 & this work \\
+Residual-FiLM & 4.510 & 3.166 & this work \\
+\rowcolor{winrow}
+Residual SVGP (1e-4) & \textbf{3.987} & \textbf{2.077} & this work 新最强 \\
+Residual SVGP, QC retrain & 3.922 & 1.912 & sensitivity re-score \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.25em}
+\footnotesize
+MLP residual 修复了部署版 family head 的精度损失，但没有超过更简单的 single-head surrogate。
+真正推进精度边界的是 residual SVGP。QC retrain 在同一 lv2 root 上还能改善 residual SVGP，
+但作为 sensitivity evidence 解读。
 \end{frame}
 
 \end{document}

@@ -1,366 +1,324 @@
-# Defense speech script — full master deck (tightened)
+# Defense speech script — full master deck (aligned to slides)
 
-*Spoken English, ~1 slide/minute. Bracketed cues are delivery notes, not to be read aloud.*
-*Slide numbers match the 56-page `defense_master_en.pdf`. LLM-lab analogy kept light at Slides 1, 3, and 54 (opening frame + closing callback).*
-
----
-
-### Slide 1 — Title
-Good morning/afternoon, and thank you for being here. My thesis builds an AI-driven screening surrogate for spray–wall impingement — from raw Mie scattering videos all the way to a deployed app. One person, one machine, following the same engineering methodology used by leading AI labs. [Pause.]
+*Spoken English, target total presentation time under 30 minutes (~30-40 seconds per slide average; flowcharts have detailed explanations, while plain visualizations are summarized in 1-2 sentences).*
 
 ---
 
-### Slide 2 — The result, up front
-The deployed screener offers two interchangeable solvers: a production neural network and a sparse Gaussian process. Same inputs, same physical outputs — different prior on how the function should behave.
-
-Both land around **four millimetres** RMSE on the uncensored evaluation — roughly **58 and 54 percent** below the Hiroyasu–Arai and Naber–Siebers correlations. The neural network gives up about seven hundredths of a millimetre to the GP, but its uncertainty is far more conservative — 89 and 99 percent coverage. For a *screening* tool, that conservative bias is exactly what you want. [Pause.]
+### Slide 1 — Title Page
+Good afternoon. Thank you for being here today. My thesis presents "An AI-Driven Screening Surrogate for Spray-Wall Impingement." This project demonstrates how a single researcher, using a single workstation, can borrow a small-scale version of the end-to-end engineering workflow used in frontier AI labs to build an upstream screening layer for a classical mechanical design problem. [Pause.]
 
 ---
 
-### Slide 3 — One-person frontier-lab pipeline
-My contribution isn't a single architecture — it's reproducing, end to end, the engineering pipeline that frontier AI labs use.
-
-Six stages. Data mining — mine is computer vision plus CUDA acceleration; theirs is web-scale data acquisition. Data cleaning — censoring-aware curation versus quality filtering. Target construction, training, evaluation, and deployment all map the same way. [Pause.] The vocabulary is literally shared — distillation, curriculum training, out-of-distribution benchmarks, calibration, deployment-time adapters. [Gesture to the right column.]
+### Slide 2 — Motivation: design diesel pilot injection without a CFD run per candidate
+The core engine design challenge is tuning the small diesel pilot injection in dual-fuel marine engines to ensure reliable ignition while avoiding liquid fuel impingement on the piston or cylinder bore. Exploring this design space is severely restricted by the cost wall of high-fidelity reacting-spray simulations, which can take 48,000 CPU hours and up to 20 days of wall-clock time for only 2 milliseconds of spray development. This thesis introduces a fast, heteroscedastic surrogate that predicts penetration mean and variance in milliseconds, transforming wall impingement risk assessment from a costly simulation task into a rapid, rankable scoring pipeline. [Pause.]
 
 ---
 
-### Slide 4 — Why a surrogate: screen, don't replace
-Why build this? Cost. A single high-fidelity reacting-spray simulation can burn forty-eight thousand CPU core-hours and twenty days of wall-clock — for just two milliseconds after injection. You cannot sweep a design space with that.
-
-The surrogate is *not* meant to supplant CFD. It's a low-cost upstream layer that narrows the design space before you spend the expensive compute. [Beat.]
+### Slide 3 — The imaged subject: multi-hole injector geometry & design space
+*Plain visualization.* This slide shows the multi-hole nozzle geometry where hole diameter varies only from 0.333 to 0.384 mm, and a sample image sequence of the multi-plume spray. Because the diameter range is so narrow, it cannot be learned as an independent input feature. [Pause.]
 
 ---
 
-### Slide 5 — Stage 1: Data mining
-Stage one: data mining. The raw material is terabytes of multi-hole Mie-scattering video. None of it is trainable as-is — I first turn it into plume-wise penetration-versus-time curves.
-
-The engine is a streaming assembly line: GPU tensor work, a CPU thread pool, and disk I/O hidden behind computation. The whole archive processes in about twenty-eight minutes. [Point to diagram.]
-
----
-
-### Slide 6 — The dataflow, end to end
-This is that assembly line as one picture — the full dataflow from a raw Mie video to per-plume penetration curves. [Trace left to right.] Every stage I'm about to walk through is one node here, and the whole path from pixels to trainable trajectories is automated and resumable.
+### Slide 4 — plain: surrogate_modelling_data_flow.png
+*Flowchart.* Let's walk through the end-to-end data flow of our surrogate modeling, structured into four horizontal categories.
+At the top, we have the **Raw Inputs** consisting of raw high-speed Mie scattering videos, calibration configurations, and experimental testing metadata.
+Next is **Image Processing**, where a CUDA-accelerated image processing pipeline registers the raw videos into plume-wise canonical strips to extract 1D boundary points and 1D penetration trajectories using both a binarized-boundary, or BW, method and a robust CDF method.
+Moving to **Data Augmentation & Deep Learning**, we perform parameter-free curve-fitting on the CDF-based trajectories to generate clean synthetic data. We apply median filtering to this synthetic data to warm-start our Stage 1 MSE training, which then initializes Stage 2 Gaussian NLL training. The final Stage 3 trained model is a student model supervised via knowledge distillation from the Stage 2 teacher and supervised fine-tuning on the raw CDF data.
+Finally, in **Model Deployment**, the Stage 3 model is integrated into our Impingement Screening desktop application along with the target piston design and physical parameters to output collision probabilities and real-time animations of the spray-wall interactions. [Pause.]
 
 ---
 
-### Slide 7 — The imaged subject: injector geometry
-These are multi-hole injectors in a top-view Mie configuration — all nine to eleven plumes visible in a single shot. Five repetitions per condition gives forty-five to fifty-five penetration series per operating point.
-
-Key detail on the right: hole diameter varies only between 0.333 and 0.384 millimetres — a ratio of just 1.15. In Act 3, that narrow span is why diameter cannot be a standalone input feature. [Beat.]
+### Slide 5 — The product: a CFD-free spray-impingement screener
+*Plain visualization.* This slide showcases the live impingement screening application in action, depicting the spray's Gaussian envelope against the moving piston bowl and cylinder bore. The underlying MLP or SVGP surrogate acts as the solver, coupling prediction to piston kinematics while ignoring the in-cylinder swirl flow fields. [Pause.]
 
 ---
 
-### Slide 8 — CV step 0: manual calibration of the nozzle center
-Every setup must be spatially calibrated. I exploit co-centered circular hardware features and fit circles by least squares — the equation is linear in its coefficients, so a standard solver recovers center and radius in closed form. This gives the nozzle center as measurement origin and the pixel-to-millimetre scale. Done once per setup, deliberately manual — a wrong origin contaminates everything downstream.
+### Slide 6 — What the screener computes
+To understand what the screener computes, we read the three-step pipeline bottom-up:
+First, at the **bottom**, the deep learning surrogate predicts the plume-wise penetration mean and uncertainty as a function of time.
+Second, at the **top**, we represent the spray boundary as a 2D anisotropic Gaussian and calculate the collision integral over the moving piston crown or bore.
+Third, in the **middle**, we integrate these probabilities over time to produce a single screening scalar that allows designers to rank candidate injectors. [Pause.]
 
 ---
 
-### Slide 9 — GUI: main interface
-This calibration lives inside the screening GUI itself. [Let screenshot register.] The same application used later to *predict* wall impingement also handles *calibration*. Same app, both ends of the pipeline.
+### Slide 7 — Coupled to piston motion, decoupled from in-cylinder swirl
+*Plain visualization.* This slide compares three engine setups to demonstrate how different bowl shapes and piston kinematics shift the cumulative collision scalar. The point is narrower than full engine validation: the kinematic coupling to the moving piston is represented, while the induced swirl flow is deliberately outside the model. [Pause.]
 
 ---
 
-### Slide 10 — GUI: calibration interface
-The calibration page: load the spray-image context, mark the circular references, and the tool fits center and scale. This is where human-in-the-loop calibration actually happens.
+### Slide 8 — The thesis in one picture: a one-person frontier-lab pipeline
+*Flowchart/Table.* This table overlays the stages of my thesis with the workflow used by frontier AI labs to build large language models.
+First, **Data mining** maps web-scale data acquisition to our parallel CUDA-based image processing.
+Second, **Data cleaning** matches web filtering to our censoring-aware curation.
+Third, **Target construction** matches label engineering to our $A$-scaled feature engineering and $q_1$ targets.
+Fourth, **Training** aligns the pretrain-distill-finetune paradigm with our 3-stage MLP curriculum.
+Fifth, **Evaluation** mirrors LLM benchmarks to our leave-one-nozzle-out validation and calibration metrics.
+Lastly, **Deployment** aligns serving with parameter-efficient family adapters and the desktop GUI. Let's look at each of these stages. [Pause.]
 
 ---
 
-### Slide 11 — GUI: calibration result
-The fitted center and scale overlaid on the image for visual check before anything downstream runs. [Beat.] With geometry pinned, let me go inside a single frame.
+### Slide 9 — Stage 1 --- Batch Image Processing as Data mining: CUDA/CuPy >> per-frame MATLAB loop (CPU)
+*Flowchart.* This processing lane diagram shows how our batch image processing pipeline achieves high throughput by keeping GPU, CPU, and disk I/O busy simultaneously.
+**Lane 1** uses a background thread to prefetch and read the next video file $N+1$ from the disk.
+**Lane 2** runs the GPU compute thread, performing Host-to-Device transfer, fp16 normalization, background subtraction, and Sobel filtering on file $N$.
+**Lane 3** utilizes a CPU thread pool ($\lfloor n_{\mathrm{cores}}/2\rfloor$ threads) to compute additional black-and-white geometric metrics.
+**Lane 4** performs asynchronous file writing (CSV, metadata, NPZ, AVI) in the background.
+A checkpoint JSON file is updated with `fsync` after every completed video, making the pipeline fully resumable and enabling us to process the entire multi-terabyte database in just 28 minutes. [Pause.]
 
 ---
 
-### Slide 12 — CV step 1: log-domain background subtraction
-Raw Mie intensity is corrupted by glare, vignetting, and uneven illumination — all multiplicative. So I work in log space, estimate background as the per-pixel median over pre-injection frames, subtract in log domain, and gate to keep only pixels meaningfully above background. [Point to four panels.] Result: plume boundaries reflecting physics, not lighting.
+### Slide 10 — CV step 0 --- Manual calibration of Nozzle center
+*Plain visualization.* This slide displays the manual spatial calibration process, where we exploit the co-centered circular features of the nozzle hardware. We solve a least-squares circle fitting problem in closed form to recover the center coordinates and pixel-to-millimeter ratio. [Pause.]
 
 ---
 
-### Slide 13 — CV step 2: Sobel high-pass
-A Sobel high-pass on the clean foreground brings out the liquid-phase edge. The kernels are separable — cheap to run on every frame on the GPU. The output sharpens the moving spray front while smooth interior gradients fade.
+### Slide 11 — plain: GUI_main_interface.png
+*Plain visualization.* This is a screenshot of the main page of our desktop GUI, displaying the integrated control dashboard that houses our calibration and screening tools. [Pause.]
 
 ---
 
-### Slide 14 — CV step 3a: FFT-based angle estimation
-I don't hard-code plume angles — I estimate them from the FFT. The time-summed angular intensity profile goes through a Fourier transform, and the phase at the harmonic equal to the hole count gives the global orientation. You can see the peak at ten in panel (d), with the recovered offset annotated. That single number gives every plume's guide angle.
+### Slide 12 — plain: GUI_calibration_interface.png
+*Plain visualization.* This screenshot shows the calibration interface, where the user can overlay circular references on the nozzle image to calibrate the coordinate system. [Pause.]
 
 ---
 
-### Slide 15 — CV step 3b: affine remap
-Each plume is rotated and translated into a shared strip frame with the nozzle at the left edge. All downstream measurement is now rotation-agnostic and directly comparable across holes.
+### Slide 13 — plain: GUI_calibration_result.png
+*Plain visualization.* This screen displays the completed calibration, showing the fitted center and scale overlaid on the raw hardware before processing. [Pause.]
 
 ---
 
-### Slide 16 — CV step 4: CDF tip definition
-How do you pin the spray tip robustly? Not with the farthest-lit pixel — one stray speckle hijacks it. Instead, for every distance from the nozzle, add up the brightness in that column; that gives a 1D profile of where the spray is. Take its running total — the CDF — and the tip is the distance where that total first reaches 99.5 percent: essentially all the spray behind it. Because it's a quantile, a lone speckle adds almost nothing and can't pull the tip out. [Point to the pink penetration trace — the white dashed is hydraulic delay, the black dashed is nozzle closing.] On this time–distance map, every vertical column is one frame's profile, and the pink trace is that 99.5-percent crossing frame by frame — stacked over time, the penetration trajectory the rest of the thesis learns from.
+### Slide 14 — plain: Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png
+*Flowchart.* This flowchart outlines the full video processing pipeline, divided into five main phases.
+1. **Reading**: The raw `.cine` video, calibration configs, and metadata are loaded into RAM, and a ring mask is applied to hide the nozzle structure and chamber walls.
+2. **Pre-processing**: The video is log-transformed, has its pre-injection background subtracted, is converted back to linear scale, gated, and scaled by percentiles to yield a clean foreground and high-pass features.
+3. **Post-processing**: The foreground is transformed to polar coordinates via angular binning, binarized to get occupied angular bins, and processed with a Fourier transform (FFT) to determine the plume rotation angle. An inverse affine mapping rotates and translates each plume into a canonical horizontal strip of shape `(P, F, H, W)`.
+4. **Feature Extraction**: The canonical strips are summed along the column dimensions to build time-distance heatmaps, which are used to extract CDF penetration trajectories. In parallel, a triangular binarization and blob-tracking step extracts the BW boundary. Both are scaled from pixels to millimeters with an umbrella angle correction.
+5. **Writing**: The extracted CDF and BW penetration curves, cone angles, areas, volumes, and metadata are saved to disk. [Pause.]
 
 ---
 
-### Slide 17 — Segmentation result
-Thresholding the high-pass response after morphological repair gives a binary spray support; its outline is the detected boundary, traced on all plumes simultaneously. This segmentation underlies every downstream geometric measurement. [Pause.]
+### Slide 15 — CV step 1 --- Robust log-domain background subtraction
+*Plain visualization.* This slide shows the log-domain background subtraction panels. By subtracting the pre-injection background in log space, we remove multiplicative reflections and vignetting, making the plume boundaries physically meaningful. [Pause.]
 
 ---
 
-### Slide 18 — Segmentation in motion
-The same boundary in motion — per-frame overlay, injection through decay, at fifteen fps. [Let it play.] Watch the front advance and the signal fade. Hold onto that fade — a few slides on, it becomes one of two reasons data must be censored.
+### Slide 16 — CV step 2 --- Sobel high-pass for boundary contrast
+*Plain visualization.* This panel shows the output of our separable Sobel filter running on the GPU. The high-pass filter highlights the moving spray front while suppressing smooth intensity variations inside the plume. [Pause.]
 
 ---
 
-### Slide 19 — Why parallelism
-At archive scale, a naive per-frame loop doesn't finish. The pipeline layers three resources so none sits idle: one array abstraction for CPU or GPU; heavy reductions batched on the GPU; a CPU thread pool for per-plume metrics; and prefetch–write-behind I/O hiding the disk. [Beat.] Throughput is an architecture problem — the hard part is keeping every unit fed. With that, the data is mined; next, cleaning it.
+### Slide 17 — CV step 3a --- FFT-based plume-angle estimation
+*Plain visualization.* This slide displays the angular intensity profile of the spray. The phase of the Fourier transform at the harmonic equal to the plume count gives the global rotational offset of the injector. [Pause.]
 
 ---
 
-### Slide 20 — Stage 2: Data cleaning
-The raw trajectories are no longer videos, but they're not one clean table yet. Three derived populations, each answering a different question.
-
-First: the raw cleaned per-frame set — about twenty-four thousand trajectories, roughly seven hundred thousand frame observations. Second: the uncensored p50 and q1 oracle set. Third: the reduced-order q1 parameters per trajectory. [Point down rows.] What you keep, discard, and label sets the ceiling for every model trained on it.
+### Slide 18 — CV step 3b --- Affine remap into a canonical strip
+*Plain visualization.* This visualization shows the output of the affine remap. All plumes are rotated and translated into a shared horizontal strip, making downstream geometric measurements rotation-agnostic. [Pause.]
 
 ---
 
-### Slide 21 — The data ontology
-These three populations as one ontology. [Point along arrows.] The raw cleaned set at the root; oracle and per-trajectory parameters branch off. Each downstream model draws from exactly one population — they are not interchangeable.
+### Slide 19 — CV step 4 --- CDF tip definition (robust penetration front)
+*Plain visualization.* This slide shows the CDF penetration extraction process. By treating the column intensity as a probability distribution and choosing the 99.5% quantile crossing, the resulting trajectory is highly robust to optical noise and stray droplets. [Pause.]
+
+---
+
+### Slide 20 — CV step 4b --- Segmentation result: the detected spray boundary
+*Plain visualization.* This slide shows the segmented boundaries overlaid in red. This outline defines the binary spray support, which is used for downstream geometric calculations. [Pause.]
+
+---
+
+### Slide 21 — CV step 4c --- The detected boundary, in motion
+*Plain visualization.* This animation shows the segmented boundary overlays running in real-time across a single injection-decay cycle, illustrating the transition from initial injection to late-time signal fading. [Pause.]
 
 ---
 
 ### Slide 22 — Raw CV output: two ways a trajectory ends
-Before any cleaning, this is what the vision pipeline hands over — penetration versus time, all ten plumes, the CDF front beside the two binary definitions. The data-cleaning stage works directly on these traces. It first shifts each one along the time axis so injection onset sits at a common origin. Then it truncates two signal-loss patterns you can read straight off the top panel — the unphysical negative-gradient retraction, where the front jumps backward, and the late flattening as the trace decays; both are signal loss, not real penetration, so both get cut. It also rejects the occasional optical-noise spike — rare now that the CV pipeline is mature. [Point to the top panel.] The bottom panel is the other mechanism — the field-of-view ceiling — which the next two slides take on.
+*Plain visualization.* This slide plots the raw signals to illustrate the two ways a trajectory terminates: late-time signal decay (where binary metrics collapse) and field-of-view censoring (where curves flatten at a common ceiling). [Pause.]
 
 ---
 
-### Slide 23 — Right-censoring I: field-of-view ceiling
-First censoring mechanism: structural. Top-view Mie sees all plumes at once, but the camera window is about 180 millimetres — radius about 90 millimetres — leaving only 80 to 85 millimetres of usable penetration once the near-nozzle region is masked.
-
-That's not enough for a real engine cylinder wall distance. When a trajectory flattens near this level, the spray front left the window — it didn't stop. Almost forty percent of trajectories hit this cap. [Point to saturation band.] Training on capped points teaches camera geometry, not spray physics.
+### Slide 23 — Stage 2 --- Data cleaning: from raw records to curated populations
+*Plain visualization.* This slide lists the three distinct datasets derived from the same raw archive: the raw frame observations (Dataset 1), the uncensored points (Dataset 2), and the per-trajectory fitted parameters (Dataset 3). Each has a specific, non-interchangeable role in downstream training and evaluation. [Pause.]
 
 ---
 
-### Slide 24 — Right-censoring II: late-time Mie signal decay
-Second mechanism: the plume is inside the FOV, but the Mie signal fades — droplets break up, the plume dilutes, number density drops until signal is indistinguishable from background.
-
-This is condition-dependent and plume-dependent. I detect it statistically: smoothed per-bin trajectory count below a fixed fraction of its peak. [Point to frames.] A measurement failure, not a physical zero — it must be censored.
-
----
-
-### Slide 25 — Two censoring mechanisms, one cleaning rule
-Side by side: FOV saturation on the left — quantiles converge at the eighty-one millimetre threshold. Density drop on the right — maximum penetration still below threshold, but trajectory count collapses just as sharply.
-
-Unified rule: if the observation no longer faithfully measures the spray front, remove it before target fitting. If cleaning is wrong, the later uncertainty model becomes honest-looking but physically wrong.
+### Slide 24 — Where the training data comes from: three populations, one archive
+*Flowchart.* This lineage flowchart shows how our datasets feed into different training and evaluation paths.
+Starting with **Dataset 1** (raw cleaned CDF observations), we truncate the trajectories at the onset of density drop or FOV saturation to build **Dataset 2** (uncensored points). Taking the per-bin median of Dataset 2 allows us to reconstruct a synthetic reference curve, the **P50/q1 oracle**, reserved exclusively for evaluation.
+Separately, and not through Dataset 2, we fit the reduced-order $q_1$ curve to each individual trajectory in Dataset 1, yielding **Dataset 3** ($q_1$ parameters). Dataset 3 is what the training stages consume; the similarly named P50/q1 oracle is only a reference curve. [Pause.]
 
 ---
 
-### Slide 26 — 5 ms horizon plus q1 extrapolation
-After censoring, raw observations are exhausted by about two milliseconds. For screening, I want a uniform five-millisecond horizon. The solution: a sigmoid-gated quarter-root reconstruction extending the lower-quantile trajectory.
-
-This isn't cosmetic. Raw time bins are extremely imbalanced — about sixty-five thousand frames near 0.15 milliseconds collapse to fewer than two hundred by 1.55 milliseconds. After truncation and reconstruction, the imbalance drops by an order of magnitude. [Point to panels.]
+### Slide 25 — Dataset #1 vs. #3: population scatter & three operating-condition subsets
+*Plain visualization.* This slide displays the population scatter alongside three operating conditions, showing how the fitted $q_1$ curves smooth the observed raw points where data exists and then provide a uniform 5ms continuation. That continuation is useful for training, but it remains a reconstruction and extrapolation protocol. [Pause.]
 
 ---
 
-### Slide 27 — q1 reconstruction, worked example (1)
-The fit on a real trajectory — sigmoid-gated quarter-root through the observed points, extended to five milliseconds. [Brief.]
+### Slide 26 — plain: injector_scatter_all_nozzles.png
+*Plain visualization.* This is a full-size scatter plot of the entire database scaled by the physical amplitude $A$, demonstrating the tight grouping achieved before any machine learning is applied. [Pause.]
 
 ---
 
-### Slide 28 — q1 reconstruction, worked example (2)
-A second condition. [Brief.] Same form, different onset and amplitude.
+### Slide 27 — plain: q1_fit_example_1.png
+*Plain visualization.* This plot shows a clean low-penetration example where the fitted $q_1$ curves track the raw observations over the available window, then continue as dashed reconstructions toward a uniform horizon. [Pause.]
 
 ---
 
-### Slide 29 — q1 reconstruction, worked example (3)
-A third. [Beat.] Across conditions the fit stays stable past the raw window — that stability licenses using it as a synthetic extrapolation target.
+### Slide 28 — plain: q1_fit_example_2.png
+*Plain visualization.* In this deeper, higher-pressure condition, the fitted curve smoothly follows the trajectory until it is truncated. [Pause.]
 
 ---
 
-### Slide 30 — Stage 3: Target construction
-Stage three: don't ask the neural network to rediscover obvious physical scale factors. Classical correlations tell us penetration depends on pressure, density, diameter, and time. I use those priors as a hard scaling divisor, then let the data decide which exponent regime fits.
-
-Concretely: construct an amplitude feature from pressure, density, and diameter; train on scaled penetration rather than raw; validate with regression, ablation, and a collapse check.
-
-Two uncertainties matter. *Aleatoric*: irreducible plume-to-plume scatter, carried by the heteroscedastic sigma head. *Epistemic*: model uncertainty over sparse regions, reducible with more data. A-scaling strips nuisance scale; folding diameter into A blocks nozzle-identity memorization. [Pause.]
+### Slide 29 — plain: q1_fit_example_3.png
+*Plain visualization.* This is an extreme example where the raw signal is exhausted before about 2 milliseconds; here, the $q_1$ fit supplies a model-based tail out to the required 5ms horizon. [Pause.]
 
 ---
 
-### Slide 31 — Physical priors meet data-driven regression
-Classical forms agree on reference exponents: pressure to one-quarter, density to minus one-quarter, diameter to one-half. But this experiment isn't an asymptotic textbook regime — per-window log-log regressions show the pressure exponent drifting from about 0.68 down to 0.45.
-
-The diameter exponent blows up to 1.7–6.0 — not physically interpretable. The range is too narrow and confounded with injector family. [Point to plots.] Pressure scaling is real; diameter is not identifiable here.
-
----
-
-### Slide 32 — Reading the exponents: time-binned log-log regression
-Method: truncate each condition at censor onset — count CV drops from 0.52 to 0.052 — then fit an independent log-log regression in every tenth-of-a-millisecond bin on the half-million-point uncensored set.
-
-Pressure holds at 0.47–0.52 — the Bernoulli orifice-flow value. Chamber density sits around minus 0.23 to 0.25, matching Hiroyasu–Arai. Diameter: 1.7–6.0, physically impossible. [Point to warning column.]
-
-The pooled per-trajectory fit confirms: pressure near 0.5, density near minus 0.25. So I keep ΔP^0.5 and ρ_a^−0.25 from the data, fold d_n^0.5 in as a fixed prior.
+### Slide 30 — plain: Data_Ontology.png
+*Flowchart.* This diagram maps out the data ontology for our surrogate.
+We divide the penetration data into two complementary perspectives.
+On the left, we look at the data **As Points**, which exposes **Aleatoric Uncertainty** (the physical variation between plumes). This perspective forms a statistical distribution that we use for training and evaluating heteroscedastic models.
+On the right, we treat the data **As Trajectories**, which exposes **Epistemic Uncertainty** (model uncertainty). These trajectories can be fitted with curves (carrying bias, smoothing, and extrapolation) or studied with time-series models.
+At the bottom, the data is understood as being **Generated by a function**. This function connects to empirical physics (like Hiroyasu-Arai and Naber-Siebers, OLS regression, and physics-informed constraints) which ultimately feed into our MLP and SVGP surrogate models. [Pause.]
 
 ---
 
-### Slide 33 — Why diameter is folded in
-Six discrete diameters, ratio 1.15, log-leverage much smaller than injection pressure, confounded with hole count and umbrella angle.
-
-So d_n^0.5 stays inside the amplitude as a prior; the model focuses on the residual. Pressure is different: data supports a value near 0.5. Final amplitude: ΔP^0.5, ρ_a^−0.25, d_n^0.5. [Pause.] Physical prior where data is weak; data where data is strong.
+### Slide 31 — Right-Censoring I: a structural field-of-view ceiling
+*Plain visualization.* This slide illustrates the FOV ceiling. Since the chamber window is limited to a 90mm radius, nearly 40% of the trajectories are artificially cut off, representing a diagnostic limitation rather than a physical stop. [Pause.]
 
 ---
 
-### Slide 34 — Ablation: cost of the wrong feature set
-If raw diameter is added as an independent input, the predicted mean develops five or six gradient sign reversals in a tiny interval — autodiff gradients spike to ten-to-the-fourth over about 0.05 millimetres.
-
-The network is memorizing injector identity. In LONO testing, adding diameter increases MAE by four to six millimetres. Removing pressure residuals hurts too. Rule: fold diameter into A, keep pressure terms as residual inputs.
+### Slide 32 — Right-Censoring II: late-time Mie signal decay
+*Plain visualization.* Here, we see how the Mie signal decays over time. As fuel droplets dilute and break up, the signal falls below the detection threshold, which we identify when the trajectory count collapses. [Pause.]
 
 ---
 
-### Slide 35 — Target reparameterization and collapse check
-The model learns S(t)/A. Collapse check: after scaling, do different pressure conditions land on the same curve?
-
-With the classical exponent of 0.25, they don't collapse well. With 0.5, the median collapse ratio drops from 0.378 to 0.057. Five-seed RMSE drops from 10.72 to 8.92 millimetres. [Point to panels.] The scaled target removes nuisance units so the network spends capacity on remaining structure.
+### Slide 33 — Two censoring mechanisms, one cleaning rule
+*Plain visualization.* This slide compares FOV saturation on the left with density drop on the right. Both are distinct measurement failures that are detected and cleaned to prevent biasing the neural network. [Pause.]
 
 ---
 
-### Slide 36 — Stage 4: Training curriculum
-Production model: a 512-512-128 MLP with dropout, five seeds. Heads output mean, log variance, and onset.
-
-Training is staged. Stage 1: backbone on representative rows — one per condition — with MSE, log-variance prior, and shape penalties. Stage 2: all filtered rows, warm-started from Stage 1, Gaussian NLL with an early-time mean anchor. Stage 3: raw CDF series against the Stage-2 teacher, regime-weighted NLL plus distillation. [Point to architecture.] Pretrain, distill, fine-tune — staged because it's easier to debug than one monolithic objective.
+### Slide 34 — Designing for redundancy: a 5 ms horizon + q1 extrapolation
+*Plain visualization.* This slide outlines the mathematical form of the $q_1$ curve. It balances the high temporal imbalance in raw data but introduces parameter redundancy, meaning it must be treated as a trajectory reconstruction tool rather than a physical law. [Pause.]
 
 ---
 
-### Slide 37 — Stage 1 validation: feature ablation
-Stage 1 trains on representative rows in amplitude-scaled space. The LONO ablation validates the feature set. Winner: ΔP^0.5 amplitude plus residual pressure terms, mean MAE 7.46 millimetres across five folds.
-
-The pattern: ΔP^0.5 beats ΔP^0.25; pressure residuals help; adding diameter hurts badly; legacy no-scale set near the bottom. This locks the production feature family — out-of-nozzle validation says it generalizes best.
+### Slide 35 — Stage 3 --- Target construction: one engineered feature, three decisions
+*Plain visualization.* This slide details our target construction decisions. We scale the penetration target by the physical scaling prior $A$ with a data-driven pressure exponent of 0.5, while folding diameter in as a fixed prior and keeping pressures as residual inputs to prevent overfitting. [Pause.]
 
 ---
 
-### Slide 38 — Stage 2: early-time physics anchor
-Two changes at Stage 2. Data: all filtered rows, warm-started from Stage 1. Loss: Gaussian NLL plus a soft early-time mean anchor over the data-sparse onset window.
-
-Ablation: mean-only anchor gives 12.73 millimetres versus 14.54 for no anchor. On Nozzle2, anchor turns 19.18 into 7.76. Anchoring sigma too does not help — production uses mean anchor only. [Beat.] A little physics in the right place stabilizes OOD behaviour.
+### Slide 36 — Does the feature do its job? Family collapse under A-scaling
+*Plain visualization.* These plots compare the family collapse under scaling. Using the data-driven pressure exponent of 0.5 collapses the operating conditions much tighter than the textbook value of 0.25, justifying our choice. [Pause.]
 
 ---
 
-### Slide 39 — Stage 3: raw-CDF refinement
-Stage 3 data: raw per-frame penetration plus Stage-2 teacher. Student warm-starts from teacher, trunk frozen, refining only heads.
-
-Three regimes by coverage: above seventy percent — raw reliable; twenty to seventy — uncertain; below twenty — teacher dominates. Loss: regime-weighted raw NLL plus knowledge distillation. Outcome: Stage-3 variants separated by only 0.21 millimetres. The heavy lifting was done upstream; Stage 3 refines, it doesn't rescue.
-
----
-
-### Slide 40 — Knowledge distillation
-Production form: MSE on student mean plus MSE on log variance, sigma weight five. The student copies both the trajectory and the teacher's uncertainty shape, blended with raw targets where reliable.
-
-Final numbers: uncensored CDF RMSE about 4.265 millimetres; one- and two-sigma coverage 0.887 and 0.989. [Point to table.]
+### Slide 37 — Stage 4 --- Training: a three-stage curriculum
+*Flowchart.* This diagram shows the architecture of our MLP surrogate.
+- On the **left**, the model takes a 7-feature input vector containing normalized time, nozzle tilt, plume counts, and residual pressures.
+- These inputs feed into the **Trunk** (top right) consisting of three hidden layers of sizes 512, 512, and 128, using LayerNorm and SiLU activations with a 30% dropout rate.
+- This trunk outputs to the **A-scaled heads** (middle right) which predict normalized mean $\hat\mu$, log-variance $\log\hat\sigma^2$, and an optional auxiliary onset.
+- In parallel, the physical **Condition prior** $A = \Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}$ is computed.
+- Finally, the normalized outputs are multiplied by $A$ to produce the physical outputs $\mu_S$ and $\sigma_S$ in millimeters. [Pause.]
 
 ---
 
-### Slide 41 — SVGP alternative backbone
-This is where the SVGP enters. It is not a weak baseline; it solves the same low-dimensional penetration problem as the MLP.
-
-Same target: amplitude-scaled penetration, S over A. At inference, both mean and sigma are multiplied back by A, so the comparison is in physical millimetres on the same CDF tables. The production Stage-3 SVGP uses the seven-feature `a_plus_pressures` set: the five A-scaled base features plus log injection pressure and log chamber pressure residual inputs. What changes is the inductive bias: two sparse GP heads, one for the mean and one for log residual variance, with a Matern five-halves ARD kernel and 256 inducing points.
-
-Why does it win point prediction? The kernel posterior behaves like a smooth local averager. When support gets thin, it shrinks instead of freely extrapolating. That is good for RMSE and LONO transfer. But the MLP remains the deployment model because it carries conservative coverage, the onset output, the KD curriculum, and cheap ablation capacity.
+### Slide 38 — Three training stages, compressed: data, loss, purpose
+*Plain visualization.* This table summarizes our three-stage curriculum. We start with representative rows in Stage 1 to fit the median path, move to NLL training on all filtered data in Stage 2, and use knowledge distillation in Stage 3 to train the final student model on raw CDF data. [Pause.]
 
 ---
 
-### Slide 42 — Stage 5: Evaluation protocols
-Four protocols. Full-clean CDF: headline accuracy. Uncensored CDF: censoring-robust check. P50 observed: condition-level robustness. Q1 extrapolated: lower-quantile continuation outside the raw window.
-
-Don't collapse into one number — a model can look good on average but fail on censoring, OOD injectors, or calibration. [Beat.]
+### Slide 39 — Where the training data goes: feeding the three training stages
+*Flowchart.* This flowchart shows how our datasets feed into the three training stages.
+- **Dataset 3** ($q_1$ parameters) is filtered using QC checks to feed Stage 2 Gaussian NLL training, while a single representative trajectory per condition is extracted to train Stage 1.
+- **Dataset 1** (raw observations) feeds directly into Stage 3's raw NLL loss.
+- Crucially, the trained Stage 2 model acts as a teacher, passing its predicted mean and variance via **knowledge distillation** (the red dashed arrow) to guide the Stage 3 student where raw data is missing. [Pause.]
 
 ---
 
-### Slide 43 — Headline accuracy
-Both solvers cut the physics baselines roughly in half. Hiroyasu–Arai: 10.261 millimetres. Naber–Siebers: 9.286. MLP: 4.265. SVGP: 4.193.
+### Slide 40 — Knowledge distillation: the same algorithm the labs use
+*Plain visualization.* This slide outlines how the student model uses the teacher's soft labels to extrapolate in the late-time censored tail. On the uncensored CDF protocol, the production model reaches about 4.26mm RMSE, with conservative coverage: 0.887 at one sigma and 0.989 at two sigma. [Pause.]
 
-Fifty-eight percent below Hiroyasu–Arai, fifty-four below Naber–Siebers. The two solvers land within 0.07 millimetres of each other. [Point to bars.] The GP is slightly sharper as a point predictor; the MLP brings advantages in calibration and flexibility.
+---
+
+### Slide 41 — SVGP alternative: same target, different inductive bias
+*Plain visualization.* This slide introduces our alternative SVGP model. By utilizing a Matérn-5/2 kernel with 256 inducing points, it acts as a smooth local averager, achieving slightly better point RMSE than the MLP while under-covering uncertainty. [Pause.]
+
+---
+
+### Slide 42 — Stage 5 --- Evaluation: held-out, out-of-distribution, and calibrated
+*Plain visualization.* This table lists the four evaluation protocols we use to stress-test our models under different scenarios: overall accuracy, uncensored check, condition-level mean head check, and out-of-window extrapolation. [Pause.]
+
+---
+
+### Slide 43 — Headline: both solvers crush the physics baselines
+*Plain visualization.* This comparison shows that both the MLP and SVGP surrogates cut the prediction error in half compared to classical Hiroyasu-Arai and Naber-Siebers correlations, bringing RMSE down to around 4.2mm. [Pause.]
 
 ---
 
 ### Slide 44 — Calibration: the MLP's real edge
-The SVGP is slightly better on point RMSE but under-covers its own uncertainty. The MLP over-covers: 0.887 for one-sigma and 0.989 for two-sigma.
-
-For screening, conservative bias is useful. A sharp but overconfident model passes risky designs too early. A conservative one sends more to CFD, but is less likely to miss a dangerous wall impact. [Beat.]
+*Plain visualization.* These calibration curves reveal that the MLP over-covers its uncertainty, reaching 89% for $1\sigma$ against a nominal 68%. That is not perfect calibration; it is a conservative bias, which is preferable for an upstream screening tool because it is less likely to understate risk than the sharper but under-covering SVGP. [Pause.]
 
 ---
 
-### Slide 45 — Qualitative fit and honest failure
-Left: excellent fit, sub-millimetre RMSE. Middle: worst trajectory, Nozzle3 T6 plume4, over forty millimetres. Right: Nozzle3 is the residual-risk family.
-
-Fit quality is excellent for most cases, but Nozzle3 is a real failure mode — reason to keep OOD checks in the deployment loop, not to discard the surrogate. [Beat.]
+### Slide 45 — Qualitative fit, including an honest failure
+*Plain visualization.* Here we plot typical predictions alongside a worst-case scenario. While the fit quality is excellent overall, Nozzle 3 exhibits a large error, indicating a systematic failure mode. [Pause.]
 
 ---
 
-### Slide 46 — Anatomy of the failure
-The Nozzle3 failure is *physical*. Cross-referencing Phantom high-speed images with plume-by-plume curves: strong inter-hole asymmetry — bottom-right plumes eject a low-momentum detached leading mass that decelerates, then the main jet overtakes it, producing a step-like rise after one millisecond.
-
-My reduced-order target is monotonic and concave by construction — it cannot envelope a trajectory whose second derivative flips sign. Forcing a smooth prior onto a step distorts the target. The failure is identifiable, not mysterious.
+### Slide 46 — Anatomy of the failure: the prior cannot envelope a step
+*Plain visualization.* This slide diagnoses the Nozzle 3 failure. High-speed images show asymmetric spray development, causing a step-like trajectory that our monotonic, concave $q_1$ prior cannot physically fit, explaining the mismatch. [Pause.]
 
 ---
 
-### Slide 47 — Out-of-distribution: LONO, MLP vs SVGP
-Leave-one-nozzle-out: five-fold mean, MLP 12.55 millimetres, SVGP 10.16. Excluding Nozzle0: 7.00 and 5.95. Nozzle0 alone dominates — roughly thirty-five for MLP, twenty-seven for SVGP.
-
-SVGP is the stronger point predictor on four of five folds, for the same reason as the previous slide: the sparse kernel posterior is more constrained outside dense support. MLP's value is different: conservative coverage, onset head, regime-aware KD, and speed enabling a large ablation study. Main conclusion: Nozzle0 is genuinely out of design family.
+### Slide 47 — Out-of-distribution: leave-one-nozzle-out, MLP vs SVGP
+*Plain visualization.* This table shows the leave-one-nozzle-out cross-validation results. While SVGP has better out-of-distribution point accuracy, Nozzle 0 remains a hard out-of-design family for both models, indicating a need for family adaptation. [Pause.]
 
 ---
 
-### Slide 48 — Stage 6: injector-family conditioning
-Even after amplitude scaling, families don't fully collapse. Nozzle0 runs about 2.4–2.5 times higher at early time; the gap shrinks post end-of-injection but never disappears.
-
-A single shared model leaves structured residual error. The fix: condition on injector family with a light adaptation layer — frozen shared trunk plus a per-family mean head. [Point to bullets.]
+### Slide 48 — Stage 6 --- Deployment: conditioning on the injector family
+*Plain visualization.* These curves show that even after scaling, injector families differ systematically. Nozzle 0 runs up to 2.5 times higher than the population mean, showing why a single global model leaves accuracy on the table. [Pause.]
 
 ---
 
-### Slide 49 — Family-aware head
-The family-aware head fixes catastrophic folds without penalizing in-family ones.
-
-Aggregate LONO RMSE: 11.44 down to 7.35 millimetres. Nozzle0: 30.58 to 11.57. Nozzle6: 36.91 to 7.61. In-family folds move less than one millimetre. [Point to bar chart.] The gain specifically repairs OOD-family failure.
-
----
-
-### Slide 50 — Model lineage
-The climb: Naber–Siebers at 9.286. Production MLP and SVGP at around 4.2. The family-head variant introduces the adaptation mechanism.
-
-Follow-on variants push further: residual family heads, residual FiLM, residual multitask SVGP, QC-gated retrain. Best numbers around 3.99 and 3.92. Consistent mechanism: identity warm-start, frozen trunk, light family adapter. The residual multitask SVGP is a different use of SVGP: shared sparse GP plus per-nozzle residual processes, with zero-residual fallback. It is the best in-domain follow-up, but I do not claim it as LONO-validated.
+### Slide 49 — The adapter family: a shared frozen trunk + a light per-family residual
+*Flowchart.* Let's discuss and compare the three post-training family-conditioning architectures we evaluated.
+- **Architecture A** is the **Family Head MLP**. It uses the family ID to select a family-specific mean decoder $\mu_f(h)$ connected to the shared trunk. However, an unseen family requires a fallback policy or a completely new head.
+- **Architecture B** is the **Residual Family Head**. We freeze the shared trunk and add a family residual module $\Delta_f(h)$ in parallel with the shared mean. This provides a zero-residual fallback policy ($\Delta = 0$) for unseen families.
+- **Architecture C** is the **Residual-FiLM** method. We modulate the representation using a last-block family affine transformation controlled by the family ID, then pass it to the shared log-variance head and add a family residual head.
+All three architectures freeze the trunk and only train light family modules, adopting a parameter-efficient adapter paradigm. [Pause.]
 
 ---
 
-### Slide 51 — Nozzle0 few-shot limit
-The boundary condition. Delta head fine-tuned, trunk frozen, Nozzle0 held out. Zero-shot: about 33 millimetres. Two examples: 22. Ten: 20.7. Twenty: 19.2. All examples: roughly 15.7, NLL plateaus around 19.5.
-
-Nozzle0 is genuinely out of design family. A head adapter floors around sixteen millimetres — closing that gap needs trunk capacity, not just a new head.
+### Slide 50 — Systematic family difference => a light adapter fixes the catastrophic folds
+*Plain visualization.* This comparison shows that a light family adapter substantially reduces the catastrophic errors on out-of-distribution families like Nozzle 0 and Nozzle 6, bringing the overall LONO RMSE down from 11.4mm to 7.3mm. It improves the failure mode, but the next slide shows that Nozzle 0 is not fully closed to in-family performance. [Pause.]
 
 ---
 
-### Slide 52 — From checkpoint to product
-Deployment ends with the screening GUI — the same tkinter wizard from the calibration slides. It collects piston-bowl geometry and spray conditions page by page, reproduces the full training feature pipeline at inference, runs the MLP, and overlays the prediction on crank-driven piston kinematics.
-
-Outputs: peak piston-impact probability, cumulative exposure, wall-impact probability. Solver swappable between MLP and SVGP. Checkpoint to product.
+### Slide 51 — The boundary, quantified: Nozzle0 few-shot limit
+*Plain visualization.* These adaptation curves show that even with few-shot delta-head tuning, Nozzle 0's error floors at 16mm. This is because Nozzle 0's physical design is radically different from the rest of the database, highlighting the boundaries of adapter-only capacity. [Pause.]
 
 ---
 
-### Slide 53 — The screening tool, live
-Here it is running. [Let it play.] Mean penetration, uncertainty band, and onset overlaid on crank-driven piston motion. The numbers an engineer actually wants. [Pause — don't over-explain.]
+### Slide 52 — From checkpoint to product: the screener GUI
+*Plain visualization.* This slide describes the desktop impingement wizard. It implements the full training feature pipeline at inference, including z-scoring, $A$-scaling, and condition canonicalization, then allows the engineer to swap between the MLP and SVGP solvers. [Pause.]
 
-This is the practical closure: raw Mie archive became trajectories; trajectories became targets; targets trained solvers; the solver returns here, in a visual interface. The pipeline runs end to end.
+---
+
+### Slide 53 — The screener, live: wall-impingement prediction
+*Plain visualization.* This animation shows the live prototype screener calculating the spray Gaussian envelope and wall-impact probability over the engine's crank cycle, closing the loop from raw data to an upstream design tool. [Pause.]
 
 ---
 
 ### Slide 54 — The whole pipeline, one more time
-The left column is the thesis pipeline; the right is the frontier-lab analogy. [Let it register.]
-
-To be precise: I'm not saying spray-wall impingement is language modelling. The scale and modality are completely different. The claim is that the engineering discipline transfers: data acquisition, filtering, target construction, staged training, robust evaluation, and deployment adaptation. The final solvers reach about 4.2 millimetres uncensored RMSE — roughly fifty-eight and fifty-four percent below the two physics baselines — with conservative calibration and a deployed GUI.
+*Plain visualization.* This final summary table reinforces the analogy carefully: this is not language modeling, and the scale is completely different. What transfers is the engineering discipline: data mining, censoring-aware filtering, target construction, staged training, OOD evaluation, conservative uncertainty, adapters, and deployment as a prototype screening GUI. [Pause.]
 
 ---
 
 ### Slide 55 — Contributions, limitations, future work
-Six contributions: a CUDA video-to-observable workflow; a reduced-order q1 fit for right-censored targets; a three-stage uncertainty-aware MLP via knowledge distillation; an onset-CDF head with regime-aware censoring; a probabilistic screening GUI; and a large ablation-by-LONO-by-seed study.
-
-Limitations: OOD families degrade badly, especially Nozzle0. The q1 continuation beyond FOV is unvalidated. GUI impingement geometry is a prototype. Half-cone angle is fixed. Points are correlated — clustered CIs still needed. SVGP is the stronger point predictor in-distribution.
-
-Future work: validate hit probability against matching optical or CFD runs, learn a 2D spray envelope, quantify seed-to-seed reproducibility, add nozzle-conditioned transient priors for hard families.
+*Plain visualization.* This slide lists the contributions, but it is equally important as the boundary statement. The surrogate has strong internal CDF metrics, yet OOD families still degrade, the $q_1$ continuation beyond the field of view is unvalidated, and the GUI impingement geometry remains a prototype until matched optical or CFD validation is done. [Pause.]
 
 ---
 
-### Slide 56 — Thank you
-That is the thesis: one person, one machine, an end-to-end AI pipeline for spray-wall impingement screening.
-
-Thank you for listening. I welcome your questions.
+### Slide 56 — Thank you --- Questions welcome
+*Plain visualization.* In conclusion, this work demonstrates how modern AI engineering methodology can turn a raw Mie-video archive into a fast, uncertainty-aware upstream screening prototype for spray-wall impingement. The next step is not to replace CFD or experiments, but to validate the screening probabilities against them. Thank you very much for your attention, and I am happy to take any questions. [Pause.]
