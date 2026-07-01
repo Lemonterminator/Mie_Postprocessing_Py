@@ -663,4 +663,22 @@ t_{\mathrm{inj}} &= \SI{800}{\micro s},\\
 \label{fig:impingement-summary-zh}
 \end{figure}
 
+由于筛查接口刻意将贯穿距离 surrogate（第4章）与下游几何投影层解耦，同一条固定的贯穿距离预测可以投影到不同的活塞碗形几何与曲轴运动学上。保持喷雾侧输入不变，仅改变活塞碗形设计与曲轴运动学，结果显示：即便底层贯穿距离预测完全不变，累积评分仍对几何与运动学高度敏感。图~\ref{fig:impingement-design-comparison-zh} 在上文 Design A 基准之外，再对比两个案例：同样 \SI{250}{rpm} 下采用更宽的碗形（Design B），把累积活塞撞击积分从 $E=\SI{2.475}{ms}$ 提高到 $\SI{3.364}{ms}$——在运动学完全相同的情况下，碗形几何单独就能使筛查结论改变约 $36\%$；而采用 Hermite 型活塞运动曲线、转速提高到 \SI{2250}{rpm} 时，撞击窗口反而会\emph{先打开再关闭}——瞬时活塞撞击概率在 $t\approx\SI{2.4}{ms}$ 附近升至峰值 $\approx\SI{59}{\percent}$，随后随活塞顶回缩在 $\SI{5}{ms}$ 时降到 \SI{5}{\percent} 以下，尽管瞬时峰值更高，其累积暴露量（$E=\SI{1.446}{ms}$）却比另外两个转速较低的案例都小。这种非单调的 Hermite 案例正是几何耦合设计所要捕捉的行为：模型纳入了活塞运动本身，但其诱发的缸内 swirl 被有意未建模（第~\ref{sec:future-validation-pathways-zh}节）。
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.485\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/impingement_summary_design_b.png}\\
+  （a）Design B —— 更宽碗形，RPM 250
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/impingement_summary_design_hermite.png}\\
+  （b）Design Hermite —— RPM 2250
+\end{minipage}
+\caption{另外两种活塞碗形设计下壁面接近筛查原型的时间总结，版式与喷雾侧输入与图~\ref{fig:impingement-summary-zh}（Design A）相同。（a）同样 \SI{250}{rpm} 下的更宽碗形：累积活塞撞击积分 $E=\SI{3.364}{ms}$，是三个案例中最差的。（b）转速 \SI{2250}{rpm} 的 Hermite 活塞运动曲线：瞬时活塞撞击概率先升至 $t\approx\SI{2.4}{ms}$ 附近的峰值 $\approx\SI{59}{\percent}$，再随活塞顶回缩而回落，尽管瞬时峰值更高，其累积暴露量（$E=\SI{1.446}{ms}$）却是三个设计中最小的。}
+\label{fig:impingement-design-comparison-zh}
+\end{figure}
+
 证据边界同样重要。上述截获分数只应被解读为管道的演示和面向排序的几何 surrogate 指标，不能直接等同于真实发动机中发生有害液态撞壁的实际概率。本文验证过的贡献是其测量范围内的贯穿距离 surrogate 以及它与概率几何筛查接口的耦合，而不是对有害液态撞壁进行相态分辨的预测器。本文报告的数值声明均可追溯至清洗后的轨迹表、保存的检查点，以及项目归档中所包含的导出评估图。

@@ -128,8 +128,18 @@ s_{\mathrm{mm/px}}=\frac{90.0}{r_{\mathrm{outer,px}}},
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../images/fig_gui_calibration_workflow.pdf}
-\caption{喷嘴几何标定工作流。（a）载入代表性帧用于检查；（b）选择可见喷嘴边缘点用于圆拟合；（c）叠加拟合圆心、羽流导向线和环形处理区域，用于验证后续批量处理所用的几何锚点。}
+\begin{minipage}{0.47\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../images/GUI_calibration_interface.png}\\
+（a）选点
+\end{minipage}
+\hfill
+\begin{minipage}{0.47\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../images/GUI_calibration_result.png}\\
+（b）标定叠加结果
+\end{minipage}
+\caption{喷嘴几何标定工具。（a）操作者在代表性帧上标出可见喷嘴边缘点，用于圆的代数拟合；（b）将拟合圆心、羽流导向线和环形处理掩膜叠加在实际拍摄的喷雾图样上，以验证后续批量处理所用的几何锚点。}
 \label{fig:gui-calibration-workflow}
 \end{figure}
 

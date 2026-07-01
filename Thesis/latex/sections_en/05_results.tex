@@ -665,4 +665,22 @@ the prototype generates non-negative mean predictions $\mu_{+}(t)\in[\SI{1.70}{m
 \label{fig:impingement-summary-en}
 \end{figure}
 
+The same fixed penetration prediction can be projected onto different downstream piston-bowl geometries and kinematics, since the screening interface deliberately decouples the penetration surrogate (Chapter~4) from the geometric projection layer. Holding the spray-side inputs fixed and only changing the piston-bowl design and crank kinematics shows the cumulative score is geometry- and kinematics-sensitive even though the underlying penetration prediction does not change. Figure~\ref{fig:impingement-design-comparison} contrasts two further cases against the Design~A baseline above: a wider bowl at the same \SI{250}{rpm} (Design~B) raises the cumulative piston-impact integral from $E=\SI{2.475}{ms}$ to $\SI{3.364}{ms}$, i.e.\ bowl shape alone shifts the screening verdict by $\approx 36\%$ at identical kinematics; a faster Hermite-profile piston at \SI{2250}{rpm} instead \emph{opens and re-closes} the impact window---the instantaneous piston-impact probability rises to a peak of $\approx\SI{59}{\percent}$ near $t\approx\SI{2.4}{ms}$ and then falls back below \SI{5}{\percent} by \SI{5}{ms} as the crown retracts, giving a much smaller cumulative exposure ($E=\SI{1.446}{ms}$) than either slower-piston case despite the higher instantaneous peak. This non-monotonic Hermite case is exactly the behavior the geometric coupling is designed to capture: the piston motion is taken into account, while the swirl it induces is deliberately left unmodeled (Section~\ref{sec:future-validation-pathways-en}).
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.485\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/impingement_summary_design_b.png}\\
+  (a) Design B --- wider bowl, RPM 250
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{images/impingement_summary_design_hermite.png}\\
+  (b) Design Hermite --- RPM 2250
+\end{minipage}
+\caption{Temporal summary of the wall-proximity screening prototype under two further piston-bowl designs, same layout and spray-side inputs as Figure~\ref{fig:impingement-summary-en} (Design~A). (a) A wider bowl at the same \SI{250}{rpm}: cumulative piston-impact integral $E=\SI{3.364}{ms}$, the worst of the three cases. (b) A faster Hermite-profile piston at \SI{2250}{rpm}: the instantaneous piston-impact probability opens to a peak of $\approx\SI{59}{\percent}$ near $t\approx\SI{2.4}{ms}$ and then re-closes as the crown retracts, yielding the smallest cumulative exposure ($E=\SI{1.446}{ms}$) of the three designs despite the higher instantaneous peak.}
+\label{fig:impingement-design-comparison}
+\end{figure}
+
 The evidence boundaries are equally critical. The aforementioned interception scores should solely be interpreted as pipeline demonstrations and rank-oriented geometric surrogate metrics; they cannot be directly equated with the actual probabilities of harmful liquid-phase wall impingement occurring in a real engine. The validated contribution of this work consists of the penetration surrogate over its measured domain and its coupling with a probabilistic geometric screening interface, rather than a phase-resolved predictor of detrimental liquid impingement. All numerical claims reported in this thesis are traceable to the cleaned trajectory tables, saved checkpoints, and exported evaluation plots archived in the project repository.

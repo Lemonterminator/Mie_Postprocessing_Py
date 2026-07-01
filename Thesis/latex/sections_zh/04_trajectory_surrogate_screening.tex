@@ -386,6 +386,16 @@ H--A 参考 & $0.25$ & $-0.25$ & $0.50$ & --- & --- \\
 \label{fig:time-windowed-exponents}
 \end{figure}
 
+\textbf{族群塌缩检验。}
+除上述回归证据外，选择 $\Delta P^{0.5}$ 而非经典 $\Delta P^{0.25}$ 的实际收益，也可以直接通过对应的 $A$ 缩放目标把不同工况种群塌缩到一条曲线的程度来观察。图~\ref{fig:collapse-comparison} 把 Stage~1 训练所用的代表性 q1 轨迹（第~\ref{sec:mlp-curriculum-en}节）分别按两种指数选择的 $A$ 重新缩放：以缩放后标准差与物理标准差之比的 \SI{0.5}{ms} 后中位数衡量，工况间的离散度在 $\Delta P^{0.25}$ 下为 $0.378$，在采用的 $\Delta P^{0.50}$ 下降至 $0.057$——塌缩程度收紧约 $6.6$ 倍，与表~\ref{tab:loglog-regression-uncensored} 和图~\ref{fig:time-windowed-exponents} 中的指数证据直接对应。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/collapse_dp_exponent_comparison.png}
+\caption{两种候选 $\Delta P$ 指数的族群塌缩检验，使用 Stage~1 的 \num{599} 条代表性 q1 轨迹。（a）所有工况下的物理贯穿距离曲线 $S(t)$。（b）按 $A=\Delta P^{0.25}\rho_a^{-0.25}d_n^{0.5}$ 缩放后的同一批轨迹：各工况仍明显分散。（c）按采用的 $A=\Delta P^{0.50}\rho_a^{-0.25}d_n^{0.5}$ 缩放后：种群塌缩到明显更窄的带状区域。各缩放后子图均标注了 \SI{0.5}{ms} 后的塌缩比（缩放后/物理标准差）中位数。}
+\label{fig:collapse-comparison}
+\end{figure}
+
 \textbf{直径指数与 H--A 先验。}
 表~\ref{tab:loglog-regression-uncensored} 中的 $c_{d_n}$ 列很大，从 $1.7$ 到 $6.0$ 不等；这些值没有物理意义。两个结构性原因使得直径指数无法从此数据集中识别。首先，六个喷嘴孔直径的范围仅为 $0.333$--$\SI{0.384}{mm}$（比率 $1.15$，对数杠杆 $0.14$），比喷射压力范围可用的对数杠杆（$0.45$）大约小三倍。其次，压力和直径在设计矩阵中并非独立变化：完整的六直径覆盖仅出现在单个喷射压力族内（$P_{\mathrm{inj}}=\SI{2000}{bar}$，$P_{\mathrm{cb}}=\SI{4}{bar}$），并且在该族内，喷嘴族不仅在孔径上不同，而且在孔数和伞角上也不同。在此匹配压力族内进行受控检查——在固定 $\Delta P$ 和 $P_{\mathrm{ch}}$ 的情况下，将每条件中位数贯穿距离对 $\log d_n$ 进行回归——在整个中段轨迹窗口得到 $c_{d_n}\approx 0$ 且 $R^2<0.01$，证实了因果直径效应无法与此数据集中的几何混杂因素分离。因此，$d_n^{0.5}$ 项作为Hiroyasu--Arai物理动机先验保留在 $A$ 中；两个有经验支持的组件 $\Delta P^{0.5}$ 和 $\rho_a^{-0.25}$ 得到了 $k_{1/4}$ 回归和目前在右删失数据集上的点级检查的证实。
 

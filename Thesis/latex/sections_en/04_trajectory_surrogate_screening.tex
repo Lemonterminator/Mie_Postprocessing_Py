@@ -384,6 +384,16 @@ The injection pressure exponent $a$ stabilizes around $0.47$--$0.52$ in the $0.4
 \label{fig:time-windowed-exponents}
 \end{figure}
 
+\textbf{Family-Collapse Check.}
+Beyond the regression evidence above, the practical payoff of choosing $\Delta P^{0.5}$ over the classical $\Delta P^{0.25}$ can be seen directly in how well the corresponding $A$-scaled target collapses the population onto a single curve. Figure~\ref{fig:collapse-comparison} re-scales the representative q1 trajectories used in Stage~1 training (Section~\ref{sec:mlp-curriculum-en}) by $A$ under each exponent choice: the spread across operating conditions, measured by the median post-\SI{0.5}{ms} ratio of scaled to physical standard deviation, drops from $0.378$ under $\Delta P^{0.25}$ to $0.057$ under the adopted $\Delta P^{0.50}$---a roughly $6.6\times$ tighter collapse, and a direct visual counterpart to the exponent evidence in Table~\ref{tab:loglog-regression-uncensored} and Figure~\ref{fig:time-windowed-exponents}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/collapse_dp_exponent_comparison.png}
+\caption{Family-collapse check for the two candidate $\Delta P$ exponents, using the \num{599} representative q1 trajectories of Stage~1. (a) Physical penetration curves $S(t)$ across all operating conditions. (b) The same trajectories divided by $A=\Delta P^{0.25}\rho_a^{-0.25}d_n^{0.5}$: conditions remain visibly spread apart. (c) Divided by the adopted $A=\Delta P^{0.50}\rho_a^{-0.25}d_n^{0.5}$: the population collapses onto a markedly tighter band. Median post-\SI{0.5}{ms} collapse ratio (scaled-to-physical standard deviation) annotated in each scaled panel.}
+\label{fig:collapse-comparison}
+\end{figure}
+
 \textbf{Diameter Exponent and H--A Prior.}
 The $c_{d_n}$ column in Table~\ref{tab:loglog-regression-uncensored} is extremely large, ranging from $1.7$ to $6.0$; these values lack physical meaning. Two structural reasons prevent the diameter exponent from being identified from this dataset. First, the range for the six nozzle hole diameters is only $0.333$--$\SI{0.384}{mm}$ (a ratio of $1.15$, yielding a log-leverage of $0.14$), which is roughly three times smaller than the log-leverage available across the injection pressure range ($0.45$). Second, pressure and diameter do not vary independently in the design matrix: the full six-diameter coverage occurs only within a single injection pressure family ($P_{\mathrm{inj}}=\SI{2000}{bar}$, $P_{\mathrm{cb}}=\SI{4}{bar}$), and within that family, the nozzle sets differ not only in hole diameter but also in hole count and umbrella angle. Running a controlled check within this matched-pressure family---regressing the per-condition median penetration against $\log d_n$ at fixed $\Delta P$ and $P_{\mathrm{ch}}$---yielded $c_{d_n}\approx 0$ and $R^2<0.01$ across the entire mid-trajectory window, confirming that causal diameter effects cannot be separated from geometric confounders in this dataset. Therefore, the $d_n^{0.5}$ term is retained in $A$ as a Hiroyasu--Arai physically motivated prior; the two empirically supported components, $\Delta P^{0.5}$ and $\rho_a^{-0.25}$, are corroborated by both the $k_{1/4}$ regressions and the current point-level checks on the right-censored dataset.
 

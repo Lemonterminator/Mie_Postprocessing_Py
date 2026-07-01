@@ -130,8 +130,18 @@ where $r_{\mathrm{outer,px}}$ is the \texttt{outer\_radius} saved in the configu
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../images/fig_gui_calibration_workflow.pdf}
-\caption{Nozzle geometry calibration workflow. (a) A representative frame is loaded for inspection; (b) visible nozzle-edge points are selected for circle fitting; (c) the fitted center, plume guide lines, and annular processing region are overlaid to verify the geometric anchor used for subsequent batch processing.}
+\begin{minipage}{0.47\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../images/GUI_calibration_interface.png}\\
+(a) Point selection
+\end{minipage}
+\hfill
+\begin{minipage}{0.47\linewidth}
+\centering
+\includegraphics[width=\linewidth]{../images/GUI_calibration_result.png}\\
+(b) Calibration overlay
+\end{minipage}
+\caption{Nozzle geometry calibration tool. (a) The operator marks visible nozzle-edge points on a representative frame for the algebraic circle fit; (b) the fitted center, plume guide lines, and annular processing mask are overlaid on the recorded spray pattern to verify the geometric anchor before batch processing.}
 \label{fig:gui-calibration-workflow}
 \end{figure}
 
