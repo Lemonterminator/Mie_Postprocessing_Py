@@ -92,7 +92,7 @@ KD 形式修复 & uncensored $+$ full-clean，五种子 & \num{542565}/\num{6929
 
 上述结果在五次重复训练上报告。作为含删失的补充对比，所有模型还在全清洗 CDF 集合上评估，该集合包含 692{,}942 个预测点和 24{,}316 条轨迹，使用同一目标集合。表~\ref{tab:external-clean-headline} 汇总了物理基线、选定的 MLP 变体以及阶段三稀疏变分高斯过程（SVGP）替代主干：校准后的 Hiroyasu--Arai 经验关联式、带延迟项的 Naber--Siebers 关联式、选定的多种子 MLP 筛查 surrogate、面向外推正则化的诊断 KD 变体（仅 $\mu$-锚点、不确定区间使用原始 NLL 监督），以及阶段三 SVGP。物理基线的拟合协议见第~\ref{sec:baseline-fitting-protocol-en} 节，SVGP 的构造见第~\ref{sec:svgp-alternative-backbone-en} 节。生产型 MLP 在该集合上的五次重复训练平均结果如下：
 \begin{itemize}
-  \item RMSE：\SI{4.735}{mm}（相对 Hiroyasu--Arai 降低 58\%，相对 Naber--Siebers 降低 55\%）
+  \item RMSE：full-clean 协议下为 \SI{4.735}{mm}（相对 Hiroyasu--Arai 的 \SI{11.268}{mm} 降低 58\%，相对 Naber--Siebers 的 \SI{10.545}{mm} 降低 55\%，均为同一协议下的数值；这些 full-clean 基线数值是单独重新拟合的，因而在数值上不同于下文给出的未删失协议基线）
   \item MAE：\SI{3.293}{mm}
   \item 偏差：\SI{+0.626}{mm}
   \item P95 绝对误差：\SI{9.167}{mm}
@@ -382,7 +382,7 @@ SVGP，排除 Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \textbf{4.55 \(\pm\) 1.55} 
 (i)~\textbf{基准配置}，在可靠时间箱中设定 $w_{\mathrm{kd}}=0.25$ 且 $\lambda_{\mathrm{anchor}}=0.01$；
 (ii)~\textbf{仅可靠区间纯原始变体}，移除可靠区间中的 KD 混合；
 (iii)~\textbf{不确定区间混合变体}，在不确定区间中重新引入部分原始监督；以及
-(iv)~\textbf{无锚点变体}，在保留 raw/KD 区制设计不变的同时设定 $\lambda_{\mathrm{anchor}}=0$。
+(iv)~\textbf{无锚点变体}，在保留 raw/KD 区制设计不变的同时设定 $\lambda_{\mathrm{anchor}}=0$——由于阶段二教师已经固定为仅 $\mu$-anchor 配置，且 $\lambda_{\mathrm{anchor}}=0$ 本就折算进了基准 raw/KD 区制划分之中，该变体在数值上与表~\ref{tab:stage2-anchor-ablation} 中的 \texttt{mu\_anchor} 行完全相同，此处列出仅为保持四种阶段三区制对比的完整自洽。
 表~\ref{tab:stage3-ablation-ranking} 提供了 LONO 排序。不确定区间混合变体取得了最低的平均 RMSE 和 MAE，而无锚点变体取得了最高的 2\(\sigma\) 覆盖率。各变体之间的差距较小：最佳和最差的平均 RMSE 仅相差 \SI{0.21}{mm}，远低于大约 \SI{12.5}{mm} 的跨折标准差。因此，这应当被解读为在阶段三调参上的微弱偏好，而不是决定性的架构级影响。
 
 各折的模式解释了这个较小的总体差距。Nozzle0 对每个阶段三变体来说仍然是一个跨设计族的外推失败，RMSE 在 \SIrange{34.76}{35.31}{mm} 的范围内，并存在约 \(\approx\SI{-27}{mm}\) 的系统性低估偏差。不确定区间混合变体在 Nozzle2 和 Nozzle1 折上获胜，而基准配置在 Nozzle5 和 Nozzle4 折上获胜。因此，表~\ref{tab:stage3-ablation-ranking} 支持在固定阶段二仅 $\mu$-anchor 教师下将不确定区间混合变体作为 LONO 的 RMSE/MAE 胜出配置，但这并不构成对 70\%/20\% 覆盖率边界、\(\sigma_{\mathrm{ref}}=\SI{10}{mm}\) 或所有可能权重组合的全面超参数搜索。完整的运行工件归档路径见附录~\ref{app:implementation_mapping}。
@@ -434,7 +434,7 @@ SVGP，排除 Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \textbf{4.55 \(\pm\) 1.55} 
 \label{fig:kd-overlay}
 \end{figure}
 
-由于阶段三在三种不同的监督区制上训练，按区制分别汇报留出集评估比单独汇总更合适。固定阶段一、二的前提下在五个随机种子 \(\{7,17,42,99,2024\}\) 上重训练阶段三，最终混合蒸馏模型（\(\lambda_\sigma=5.0\)）在保守的未删失 CDF 子集（在去除高密度分布及 FOV 饱和截断后包含 \num{542565} 个点）上取得 RMSE \(\SI{4.265}{mm}\pm\SI{0.040}{mm}\)、MAE \(\SI{3.032}{mm}\pm\SI{0.048}{mm}\)、偏向 \(\SI{+0.562}{mm}\pm\SI{0.119}{mm}\)，以及 1\(\sigma\)/2\(\sigma\) 覆盖率分别为 \(0.887\pm 0.004\) / \(0.989\pm 0.001\)（各种子具体数值与归档路径见附录~\ref{app:implementation_mapping}）。在含删失的全清洗集合（每个种子 692{,}942 个留出时间点）上，同一模型取得总体 RMSE \(\SI{4.735}{mm}\pm\SI{0.037}{mm}\)、MAE \(\SI{3.293}{mm}\pm\SI{0.039}{mm}\) 与偏向 \(\SI{+0.626}{mm}\pm\SI{0.112}{mm}\)。表~\ref{tab:stage3-kd-regimes} 按训练时的监督区制与 FOV 删失标志分别给出详细指标（数值取自代表性种子 \(s=99\)）。可靠区间切片（占样本 79\%）受原始 NLL 监督主导，RMSE 为 \SI{4.68}{mm}、bias 为 \SI{+0.67}{mm}；KD-only 切片（合并不确定与仅教师两区间，占 21\%）RMSE 为 \SI{5.08}{mm}、bias 为 \SI{+0.93}{mm}，虽稍高但仍优于此前基准的全域聚合。通过 FOV 删失视角看：未发生 FOV 截断的轨迹（n=393{,}912）RMSE \SI{4.85}{mm}、bias \SI{+0.99}{mm}；发生截断的轨迹（n=299{,}030）RMSE \SI{4.65}{mm}、bias \SI{+0.37}{mm}；二者交集即右删失轨迹中的近 cap 点（n=47{,}676）达到 RMSE \SI{4.95}{mm}、bias \SI{-0.69}{mm}，与教师在同一切片上的 \SI{-0.59}{mm} 实质匹配。全部五个种子的整体近 cap 切片 RMSE 为 \(\SI{4.881}{mm}\pm\SI{0.024}{mm}\)，bias 为 \(\SI{-0.566}{mm}\pm\SI{0.079}{mm}\)；右删失轨迹中的近 cap 点切片 RMSE 为 \(\SI{4.939}{mm}\pm\SI{0.023}{mm}\)，bias 为 \(\SI{-0.590}{mm}\pm\SI{0.077}{mm}\)。\(-0.590\,\si{mm}\) 与教师同切片 \SI{-0.59}{mm} 之间的差异小于单个种子标准差，这证实蒸馏诱发的失真已被修复且对随机初始化稳健。
+由于阶段三在三种不同的监督区制上训练，按区制分别汇报留出集评估比单独汇总更合适。固定阶段一、二的前提下在五个随机种子 \(\{7,17,42,99,2024\}\) 上重训练阶段三，最终混合蒸馏模型（\(\lambda_\sigma=5.0\)）在保守的未删失 CDF 子集（在去除高密度分布及 FOV 饱和截断后包含 \num{542565} 个点）上取得 RMSE \(\SI{4.265}{mm}\pm\SI{0.040}{mm}\)、MAE \(\SI{3.032}{mm}\pm\SI{0.048}{mm}\)、偏向 \(\SI{+0.562}{mm}\pm\SI{0.119}{mm}\)，以及 1\(\sigma\)/2\(\sigma\) 覆盖率分别为 \(0.887\pm 0.004\) / \(0.989\pm 0.001\)（各种子具体数值与归档路径见附录~\ref{app:implementation_mapping}）。在含删失的全清洗集合（每个种子 692{,}942 个留出时间点）上，同一模型取得总体 RMSE \(\SI{4.735}{mm}\pm\SI{0.037}{mm}\)、MAE \(\SI{3.293}{mm}\pm\SI{0.039}{mm}\) 与偏向 \(\SI{+0.626}{mm}\pm\SI{0.112}{mm}\)。表~\ref{tab:stage3-kd-regimes} 按训练时的监督区制与 FOV 删失标志分别给出详细指标；由于该表取自单一代表性种子（\(s=99\)）而非上述五种子均值，其"全集"行（RMSE \SI{4.76}{mm}、bias +0.72\,mm）与上文给出的生产数值 \SI{4.735}{mm}、+0.626\,mm 存在细微差异。可靠区间切片（占样本 79\%）受原始 NLL 监督主导，RMSE 为 \SI{4.68}{mm}、bias 为 \SI{+0.67}{mm}；KD-only 切片（合并不确定与仅教师两区间，占 21\%）RMSE 为 \SI{5.08}{mm}、bias 为 \SI{+0.93}{mm}，虽稍高但仍优于此前基准的全域聚合。通过 FOV 删失视角看：未发生 FOV 截断的轨迹（n=393{,}912）RMSE \SI{4.85}{mm}、bias \SI{+0.99}{mm}；发生截断的轨迹（n=299{,}030）RMSE \SI{4.65}{mm}、bias \SI{+0.37}{mm}；二者交集即右删失轨迹中的近 cap 点（n=47{,}676）达到 RMSE \SI{4.95}{mm}、bias \SI{-0.69}{mm}，与教师在同一切片上的 \SI{-0.59}{mm} 实质匹配。全部五个种子的整体近 cap 切片 RMSE 为 \(\SI{4.881}{mm}\pm\SI{0.024}{mm}\)，bias 为 \(\SI{-0.566}{mm}\pm\SI{0.079}{mm}\)；右删失轨迹中的近 cap 点切片 RMSE 为 \(\SI{4.939}{mm}\pm\SI{0.023}{mm}\)，bias 为 \(\SI{-0.590}{mm}\pm\SI{0.077}{mm}\)。\(-0.590\,\si{mm}\) 与教师同切片 \SI{-0.59}{mm} 之间的差异小于单个种子标准差，这证实蒸馏诱发的失真已被修复且对随机初始化稳健。
 
 \begin{figure}[t]
 \centering

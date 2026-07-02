@@ -10,9 +10,8 @@ Table~\ref{tab:workflow} summarizes these same stages in textual form.
 This chapter focuses on the first two swimlanes of Figure~\ref{fig:surrogate-data-flow}: how the Optical Spray Combustion Chamber (OSCC) video data undergoes calibration, preprocessing, registration, and conversion into plume-resolved geometric observables.
 The construction of trajectory targets, surrogate modeling training, and probabilistic screening are deferred to the next chapter.
 
-The methodological motivation is that while optical experiments provide image-based evidence, event-by-event image post-processing ultimately yields only a discrete observation table.
-If halted at this layer, these observations cannot be directly used as a conditionally parameterized predictive model for rapid design iterations.
-Therefore, this chapter treats image processing as an auditable methodological stage rather than an ancillary preprocessing step; it is responsible for converting high-speed Mie recordings into consistently defined plume-resolved time-series observables.
+Raw per-frame boundary extraction alone cannot supply the surrogate of Chapter~4 with what it needs: a fixed-cardinality, censoring-flagged, plume-resolved time series that is comparable across nozzles with different hole counts and frame rates.
+This chapter therefore treats image processing as an auditable methodological stage rather than an ancillary preprocessing step; its five methodological elements (listed below) are what convert a discrete, event-by-event observation table into that structured target.
 Existing spray-image analyses often report penetration, cone angle, or boundary descriptors for individual operating conditions.
 In contrast, the surrogate models in this thesis require consistent, plume-resolved, and censoring-aware time-series targets across many nozzle geometries and operating conditions.
 This chapter therefore addresses the target-construction gap between raw optical spray recordings and machine-learning-ready observables.
@@ -23,7 +22,14 @@ The pipeline first manually calibrates the nozzle geometry, then generates plume
 and constructs penetration targets through reduced-order fitting, which are subsequently passed to the three-stage MLP surrogate described in Chapter~4.
 At the implementation level, this image-processing stage is built as a four-lane overlapped pipeline---disk prefetch, GPU compute, CPU feature extraction, and asynchronous output running concurrently---governed by a resumable checkpoint contract, so that the multi-terabyte archive is reprocessed end-to-end on a single workstation GPU rather than through serial frame-by-frame processing (Section~\ref{subsec:concurrency-architecture}).
 
-\smallskip\noindent\textbf{Contributions of this chapter.} Concretely, this chapter contributes five reusable methodological elements to the image-to-observable pipeline: (1)~a log-ratio (homomorphic) foreground estimator that treats glare and non-uniform illumination as multiplicative effects and removes them as additive offsets in log space (Section~\ref{subsec:background-normalization}); (2)~a rank-1 separable Sobel edge-enhancement stage kept entirely on the GPU as two one-dimensional passes (Section~\ref{subsec:edge-enhancement}); (3)~an FFT harmonic-phase alignment that converts the known multi-hole count into an automatic, per-recording plume registration rule rather than a hand-set reference angle (Section~\ref{subsec:plume-registration}); (4)~a cumulative-distribution (CDF) penetration front that is robust to fragmented leading-edge pixels while remaining consistent with standard diesel-spray penetration conventions (Section~\ref{subsec:penetration-measurement}); and (5)~a four-lane overlapped GPU pipeline with a resumable checkpoint contract that reprocesses the multi-terabyte archive end-to-end on a single workstation GPU (Section~\ref{subsec:concurrency-architecture}).
+\smallskip\noindent\textbf{Contributions of this chapter.} This chapter contributes five reusable methodological elements to the image-to-observable pipeline:
+\begin{enumerate}
+  \item a log-ratio (homomorphic) foreground estimator that treats glare and non-uniform illumination as multiplicative effects and removes them as additive offsets in log space (Section~\ref{subsec:background-normalization});
+  \item a rank-1 separable Sobel edge-enhancement stage kept entirely on the GPU as two one-dimensional passes (Section~\ref{subsec:edge-enhancement});
+  \item an FFT harmonic-phase alignment that converts the known multi-hole count into an automatic, per-recording plume registration rule rather than a hand-set reference angle (Section~\ref{subsec:plume-registration});
+  \item a cumulative-distribution (CDF) penetration front that is robust to fragmented leading-edge pixels while remaining consistent with standard diesel-spray penetration conventions (Section~\ref{subsec:penetration-measurement});
+  \item a four-lane overlapped GPU pipeline with a resumable checkpoint contract that reprocesses the multi-terabyte archive end-to-end on a single workstation GPU (Section~\ref{subsec:concurrency-architecture}).
+\end{enumerate}
 
 \begin{figure}[t]
 \centering
@@ -102,7 +108,7 @@ and the chamber pressure from 4.42 to 35\,bar.
 Each operating condition subfolder typically contains five repeated recordings,
 and each recording is cropped to approximately 100 frames to limit GPU memory footprint.
 At the camera frame rates of 25{,}000 and 34{,}000\,FPS used in this study, 100 frames define a physical time window of 4.0\,ms and 2.94\,ms respectively, which is sufficient to capture the pilot injection and its early relaxation tail.
-The processed archive totals 266 test condition subfolders and 2,992 recording files
+The processed archive totals 266 test condition subfolders and 2{,}992 recording files
 (one CSV per \texttt{.cine}); the cropped working archive occupies tens of GB,
 while the full uncropped recordings constitute terabytes of raw input.
 
@@ -113,7 +119,7 @@ The operator selects visible points on a circular nozzle feature in a representa
 \[
 x_i^2+y_i^2 + D x_i + E y_i + F = 0,
 \]
-which is solved via least squares using standard linear solvers (e.g., \texttt{np.linalg.lstsq}). The recovered circle parameters are:
+which is solved via least squares using standard linear solvers (e.g., \texttt{np.linalg.lstsq}) \cite{Pratt1987CircleFit,Taubin1991CircleFit}. The recovered circle parameters are:
 \[
 c_x=-\frac{D}{2}, \qquad c_y=-\frac{E}{2}, \qquad r=\sqrt{c_x^2+c_y^2-F},
 \]
@@ -146,7 +152,7 @@ where $r_{\mathrm{outer,px}}$ is the \texttt{outer\_radius} saved in the configu
 \end{figure}
 
 This design suits the current dataset because the camera and injector geometries remain fixed within a single recording, and several artifacts concentric with the nozzle in the background can serve as auxiliary references.
-Calibrating only once and reusing the same center for all frames avoids inter-frame jitter during downstream plume angle analysis. This one-time calibration is deliberately kept as a user-visible operation rather than fully automated: operators can zoom in, select representative frames, and anchor the entire batch process with a physically meaningful nozzle center \cite{Pratt1987CircleFit,Taubin1991CircleFit}.
+Calibrating only once and reusing the same center for all frames avoids inter-frame jitter during downstream plume angle analysis. This one-time calibration is deliberately kept as a user-visible operation rather than fully automated: because camera and injector geometry are fixed for the duration of a recording campaign, a single manually verified calibration is reused across the whole batch, and keeping this step user-visible lets an operator catch a misidentified nozzle center before it silently propagates through thousands of downstream recordings.
 
 \subsection{Batch Video Processing and Plume Extraction}
 
@@ -157,8 +163,7 @@ Calibrating only once and reusing the same center for all frames avoids inter-fr
 \label{fig:pipeline-overview}
 \end{figure}
 
-For each recording, the processing chain answers five practical measurement questions: where the nozzle center is, where each plume direction lies, how each plume can be represented in a common local coordinate system, how far the liquid-phase front has penetrated, and which boundary descriptors can be extracted consistently.
-The following sections follow this order.
+For each recording, the processing chain answers five practical measurement questions, each taken up by a dedicated subsection below: where the nozzle center is (Section~\ref{subsec:nozzle-calibration}), where each plume direction lies (Section~\ref{subsec:plume-registration}), how each plume can be represented in a common local coordinate system (Section~\ref{subsec:binarization-repair} and the affine remapping that precedes it), how far the liquid-phase front has penetrated (Section~\ref{subsec:penetration-measurement}), and which boundary descriptors can be extracted consistently (Section~\ref{subsec:boundary-features}).
 
 For each \texttt{.cine} recording, the processing workflow loads the video into the current array backend, reuses the annular mask for the entire folder, applies the multi-hole preprocessing and postprocessing steps, extracts plume-wise penetration curves, computes boundary-based geometric metrics, and exports synchronized CSV and metadata files.
 The most computationally expensive parts of this chain are kept strictly local to the backend: when CuPy is available, convolutions, angular binning, remapping, thresholding, connected component cleaning, and morphological operations are all executed along the CUDA path until the final tabular export.
@@ -442,7 +447,7 @@ This CDF front is one of the pipeline's primary practical contributions: it is f
 The practical payoff of this cumulative-support definition becomes clearest when the CDF front is placed beside the two binary-projection alternatives that the same pipeline also exports---a maximum-index axial penetration (\texttt{bw\_x}) and an outermost-boundary polar penetration (\texttt{bw\_polar}), both defined in Section~\ref{subsec:boundary-features}.
 Figure~\ref{fig:penetration-metric-comparison} overlays all ten plumes of two representative top-view recordings under the three definitions and exposes the two raw-output behaviours that the subsequent cleaning stage must absorb.
 In the first recording (top), the CDF front rises to a stable plateau for every plume, whereas the two binary metrics fragment and collapse toward zero once the late-time Mie signal weakens: a faded leading edge no longer forms a connected rightmost column or a clean outer boundary, so the maximum-index and outermost-point rules lose the front entirely while the cumulative-support front stays intact.
-In the second recording (bottom), all three metrics instead climb together and flatten at a common $\approx 92$\,mm ceiling---not a physical end of penetration but the spray crossing the finite camera field-of-view boundary, a structural right-censoring of the observation.
+In the second recording (bottom), all three metrics instead climb together and flatten at a common $\approx 92$\,mm ceiling---not a physical end of penetration but the spray crossing the finite camera field-of-view boundary before injection ends, so the observed trajectory is truncated rather than physically saturated. This structural mechanism is referred to hereafter as \emph{FOV right-censoring}.
 These two behaviours---late-time signal loss and field-of-view censoring---are precisely the structures that the explicit trajectory cleaning of this section, and the censoring-aware target construction that follows, are designed to handle.
 
 \begin{figure}[t]
@@ -605,7 +610,7 @@ Boundary extraction in this thesis relies on gradient enhancement, morphological
 No pixel-level ground-truth masks were annotated. Defining such masks for high-speed Mie time series requires extensive manual labelling, and the resulting labels would reflect subjective boundary judgments rather than a physical ground truth. The spray boundary shifts with atomization and breakup, so no unique pixel-level ground truth exists. Metrics like IoU or F1 are therefore not applicable here.
 
 Instead, boundary reliability is assessed through overlay inspection, temporal continuity, and agreement across multiple geometric proxies. This aligns with the goal of this work: extracting stable penetration, cone angle, and boundary envelope observables rather than training a semantic segmentation model.
-Quantitative downstream evidence for these CDF-based observables---in particular leave-one-nozzle-out (LONO) transfer diagnostics and censoring-controlled prediction behaviour (right-censoring here meaning that the penetration front reaches the camera field-of-view boundary before injection ends, so the observed trajectory is truncated rather than physically saturated)---is presented in Chapter~5.
+Quantitative downstream evidence for these CDF-based observables---in particular leave-one-nozzle-out (LONO) transfer diagnostics and censoring-controlled prediction behaviour under the FOV right-censoring defined above---is presented in Chapter~5.
 
 \begin{figure}[t]
 \centering

@@ -26,11 +26,11 @@ Hermite spline geometry module & \codepath{design\_hermite.py} \\
 Out-of-distribution sanity check program & \codepath{MLP/ood\_sanity.py} \\
 Training support list & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
 Piston module directory & \codepath{MLP/piston/} \\
-Early dense feature diagnostics slides & \codepath{MLP/v1\_direct\_feature\_training/...} \\
+Early dense feature diagnostics slides & \codepath{MLP/v1\_direct\_feature\_training/} (directory) \\
 Interpretable surrogate model prototype folder & \codepath{MLP/interpretatable\_test} \\
 Fitting statistics analysis notebook & \texttt{fitted\_stats\_analysis.ipynb} \\
 Synthetic data export directory & \codepath{MLP/synthetic\_data} \\
-Final selected stage three distillation archive & \codepath{distill\_cdf\_onset\_v2...} \\
+Final selected stage three distillation archive & \codepath{MLP/best\_models/thesis\_baselines/production\_mlp\_modeA\_5seed/} \\
 Spatial right-censoring audit utility & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
 Mie image processing output directory & \codepath{Mie\_scattering\_top\_view\_results} \\
 \bottomrule
@@ -108,7 +108,7 @@ Baseline distillation variant & \texttt{baseline} \\
 \subsection{Neural Network Implementation Choices}
 \label{app:nn-implementation-mapping}
 
-To maintain readability in the modeling chapter for readers without a machine learning background, the neural network section utilizes conceptual phrases for certain specific implementation choices, rather than the algorithmic jargon commonly found in deep learning literature. The following table provides the correspondence between the conceptual phrases and their conventional names. The mathematical content remains unchanged; only the naming conventions differ from typical machine learning papers.
+To maintain readability in the modeling chapter for readers without a machine learning background, the neural network section uses conceptual phrases for certain specific implementation choices, rather than the algorithmic jargon commonly found in deep learning literature. The following table provides the correspondence between the conceptual phrases and their conventional names. The mathematical content remains unchanged; only the naming conventions differ from typical machine learning papers.
 
 \begin{table}[h]
 \centering
@@ -117,7 +117,7 @@ To maintain readability in the modeling chapter for readers without a machine le
 \textbf{Conceptual Phrase Used in Text} & \textbf{Conventional Algorithm Name} \\
 \midrule
 Decoupled weight decay adaptive moment optimizer & AdamW (Adam with decoupled weight decay) \\
-Smooth gated activation & GELU (Gaussian Error Linear Unit) \\
+Smooth gated activation & SiLU/Swish (Sigmoid Linear Unit) \cite{Ramachandran2017Swish} \\
 Random unit masking (rate $p$) & dropout (dropout probability $p$) \\
 Binary cross-entropy loss & BCE loss \\
 Rectified linear unit operator $\operatorname{ReLU}(\cdot)$ & ReLU, equivalent to the positive part operator $\max(0,\cdot)$ \\
@@ -132,7 +132,7 @@ Rectified linear unit operator $\operatorname{ReLU}(\cdot)$ & ReLU, equivalent t
 This appendix is intended for readers whose primary background is in fluid mechanics or mechanical design. It briefly introduces four categories of techniques involved in this thesis: computer vision, robust optimization, GPU parallel computing, and neural network training. The main text only invokes these concepts when necessary to explain methodological choices; more fundamental terminological explanations are consolidated here to prevent the literature review from assuming a tutorial function.
 
 \paragraph{Computer Vision and Signal Processing.}
-Computers store images as numerical matrices, where each pixel corresponds to an intensity value in the matrix. Image processing is essentially performing mathematical operations on these matrices. \emph{Convolution} is one of the most common operations: a small template window slides across the image pixel by pixel, performing a weighted sum at each step. Different convolution kernels can be used for smoothing, edge extraction, or texture enhancement. The Sobel operator is a class of convolution kernels used to estimate local brightness gradients. It responds strongly to abrupt intensity changes such as liquid-phase boundaries, making it suitable for spray boundary localization. The \emph{polar coordinate transformation} converts images from pixel row-column coordinates to a coordinate system with angle and radial distance as axes; by applying this transformation around the nozzle center, the directional structure of a multi-hole spray can be collapsed into a one-dimensional angular signal. The \emph{Fast Fourier Transform} (FFT) decomposes signals into frequency components, making periodic structures appear as frequency-domain peaks; this study utilizes it to identify the rotational periodicity of the multi-hole spray and estimate the nozzle hole angle offset.
+Computers store images as numerical matrices, where each pixel corresponds to an intensity value in the matrix. Image processing is essentially performing mathematical operations on these matrices. \emph{Convolution} is one of the most common operations: a small template window slides across the image pixel by pixel, performing a weighted sum at each step. Different convolution kernels can be used for smoothing, edge extraction, or texture enhancement. The Sobel operator is a class of convolution kernels used to estimate local brightness gradients. It responds strongly to abrupt intensity changes such as liquid-phase boundaries, making it suitable for spray boundary localization. The \emph{polar coordinate transformation} converts images from pixel row-column coordinates to a coordinate system with angle and radial distance as axes; by applying this transformation around the nozzle center, the directional structure of a multi-hole spray can be collapsed into a one-dimensional angular signal. The \emph{Fast Fourier Transform} (FFT) decomposes signals into frequency components, making periodic structures appear as frequency-domain peaks; this study uses it to identify the rotational periodicity of the multi-hole spray and estimate the nozzle hole angle offset.
 
 \paragraph{Robust Optimization and Curve Fitting.}
 Least-squares fitting seeks a curve that minimizes the sum of squared residuals between the observation points and the curve. When a small number of frames are affected by optical noise or quantization errors, the squared penalty amplifies the influence of these points. The Huber loss retains the squared penalty when the residual is small, and transitions to an approximate absolute value penalty once the residual exceeds a threshold, thereby reducing the leverage effect of outliers \cite{Huber1964,NocedalWright2006}. Gradient descent in neural network training calculates the partial derivatives of the loss function at the current parameters and iteratively updates the parameters in the direction that reduces the loss.

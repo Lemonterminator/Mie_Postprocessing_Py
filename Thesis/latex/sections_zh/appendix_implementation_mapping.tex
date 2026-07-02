@@ -26,11 +26,11 @@ Hermite样条几何模块 & \codepath{design\_hermite.py} \\
 分布外检查程序 & \codepath{MLP/ood\_sanity.py} \\
 训练支撑清单 & \codepath{MLP/test\_matrix/cdf\_plume\_audit.csv} \\
 活塞模块目录 & \codepath{MLP/piston/} \\
-早期的密集特征诊断幻灯片 & \codepath{MLP/v1\_direct\_feature\_training/...} \\
+早期的密集特征诊断幻灯片 & \codepath{MLP/v1\_direct\_feature\_training/}（目录） \\
 可解释性替代模型原型文件夹 & \codepath{MLP/interpretatable\_test} \\
 拟合统计分析笔记本 & \texttt{fitted\_stats\_analysis.ipynb} \\
 合成数据导出目录 & \codepath{MLP/synthetic\_data} \\
-最终选择的第三阶段蒸馏存档 & \codepath{distill\_cdf\_onset\_v2...} \\
+最终选择的第三阶段蒸馏存档 & \codepath{MLP/best\_models/thesis\_baselines/production\_mlp\_modeA\_5seed/} \\
 空间右删失审计工具 & \codepath{MLP/curve\_fit/audit\_cdf\_spatial\_censoring.py} \\
 Mie 图像处理输出目录 & \codepath{Mie\_scattering\_top\_view\_results} \\
 \bottomrule
@@ -117,7 +117,7 @@ Sobel 梯度幅值计算 & \texttt{arr\_3d\_sobel\_magnitude\_cupy} \\
 \textbf{正文中使用的概念短语} & \textbf{常规算法名称} \\
 \midrule
 解耦权重衰减自适应矩优化器 & AdamW（带解耦权重衰减的 Adam） \\
-平滑门控激活 & GELU（高斯误差线性单元） \\
+平滑门控激活 & SiLU/Swish（Sigmoid 线性单元） \cite{Ramachandran2017Swish} \\
 随机单元屏蔽（率 $p$） & dropout（丢弃概率 $p$） \\
 二元交叉熵损失 & BCE 损失 \\
 修正线性单元算子 $\operatorname{ReLU}(\cdot)$ & ReLU，等价于正部算子 $\max(0,\cdot)$ \\

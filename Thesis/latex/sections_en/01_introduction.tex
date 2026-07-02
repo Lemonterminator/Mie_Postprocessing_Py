@@ -6,28 +6,28 @@ The International Maritime Organization (IMO) 2023 strategy and industry order t
 As fuels such as liquefied natural gas (LNG), methanol, and ammonia are adopted to mitigate carbon emission intensity, marine dual-fuel and multi-fuel engines have emerged as a vital trajectory in the research and development of large-scale power systems
 \cite{wingd_lng_faq_2025,wingd_ammonia_faq_2025,classnk_methanol_2024}.
 
-However, the introduction of alternative fuels also creates novel challenges for the combustion processes of marine engines.
+The introduction of alternative fuels also creates new challenges for marine engine combustion processes.
 Low-reactivity main fuels are difficult to auto-ignite under practical compression ignition conditions; the engine therefore still needs a highly reactive and robust ignition source.
 While the fuel system becomes more low-carbon and adaptable due to alternative fuels, the combustion process still hinges on one small but critical local event: the diesel pilot injection
 \cite{wingd_xdf_manual_2021,classnk_methanol_2024}.
-For injector development, the core control problem thus resides in the spatial development of the pilot spray itself. Penetration length, cone angle, and morphology set where the ignition kernel forms and how large it is. That kernel, in turn, governs main-fuel mixing, flame propagation, and overall combustion efficiency
+For injector development, the key control variable is therefore the spatial development of the pilot spray itself. Penetration length, cone angle, and morphology set where the ignition kernel forms and how large it is. That kernel, in turn, governs main-fuel mixing, flame propagation, and overall combustion efficiency
 \cite{Karim2015DualFuel,WeiGeng2016DualFuelReview,Sahoo2009DualFuelReview}.
 If the pilot penetration is excessively short, the ignition kernel may lack sufficient volume or emerge in an unfavorable region; conversely, if the penetration is overly long, the spray may deviate from the design intent and elevate the risk of spray-wall interactions.
-In an industrial development cycle, the value of such a predictor is therefore not to certify combustion performance directly. Instead, it is to reduce the number of nozzle and operating-condition candidates that must proceed to costly engine tests or computational fluid dynamics (CFD) simulations, to flag wall-proximity risk early, and to reuse existing optical spray archives as a low-cost engineering evidence base.
+In an industrial development cycle, the value of a fast, evidence-based penetration predictor is therefore not to certify combustion performance directly. Instead, it is to reduce the number of nozzle and operating-condition candidates that must proceed to costly engine tests or computational fluid dynamics (CFD) simulations, to flag wall-proximity risk early, and to reuse existing optical spray archives as a low-cost engineering evidence base.
 
 When this control objective remains unfulfilled, the same pilot injection may also emerge as a source of operational risk.
 If the liquid-phase envelope reaches the piston crown or cylinder liner prior to the formation of an effective ignition kernel, it may induce wall wetting, lubricating oil dilution, deteriorated mixture preparation, and elevated unburned hydrocarbon emissions
 \cite{peraza2022swi,ahmad2025fueldilution,MorieiraMotaPanao2010}.
-Consequently, the pragmatic issue lies in whether its spatial development consistently resides within a controllable window capable of concurrently sustaining ignition, mixing, and safety margins.
+Consequently, the practical question is whether the spray's spatial development stays inside a window that sustains ignition, mixing, and wall clearance simultaneously.
 
 Existing research and engineering practices have formulated several established methodologies for assessing pilot injection development: engine testing, CFD, empirical modeling, and optical diagnostics.
-Engine testing facilitates the holistic investigation of sprays, combustion, wall interactions, and emissions within a complete system, whereas high-fidelity CFD can resolve more intricate flow topologies.
+Engine testing captures sprays, combustion, wall interactions, and emissions together in a complete system, while high-fidelity CFD resolves finer flow detail.
 Empirical penetration correlations and phenomenological models can rapidly describe spray development; comparing penetration length against wall distance naturally yields a geometric criterion for first-order wall impingement screening
 \cite{HiroyasuArai1990,NaberSiebers1996,Baumgarten2006MixFormation}.
 Optical spray experiments offer a complementary pathway, yielding reproducible observations of the liquid-phase envelope; among these, high-speed Mie scattering imaging is particularly well-suited for examining liquid boundaries and macroscopic penetration evolution
 \cite{Linne2013SprayImaging}.
 
-However, these approaches only partially meet the need for rapid, conditionally parameterized, and experimentally substantiated pilot penetration prediction.
+Yet each of these approaches only partially meets the need for rapid, conditionally parameterized, and experimentally substantiated pilot penetration prediction.
 Engine tests are limited by high costs and long development cycles; CFD requires complex boundary conditions, careful model calibration, and heavy computational effort. A single high-fidelity Spray~A large-eddy simulation can be up to six orders of magnitude more expensive than a comparable reduced-order spray model \cite{Deshmukh2021CAS}, and in reacting cases its cost is dominated by stiff chemistry integration---which alone can consume 90--98\% of the run time \cite{Tekgul2021DLBFoam,CurtisNiemeyerSung2017}. Exhaustively sweeping nozzle geometry and operating conditions at that fidelity is therefore impractical for routine design screening.
 Empirical models feature a compact structure and are readily interpretable, yet short pilot injections make them harder to apply, as the observable window may be mostly dominated by the start-of-injection and end-of-injection transients
 \cite{ZhouLiYi2021,ZhouLiLaiWei2019}.
@@ -36,24 +36,16 @@ Optical experiments provide image evidence, yet image post-processing outcomes r
 Therefore, this thesis targets the intermediate-layer gap between high-throughput optical spray archives and higher-cost marine engine validation.
 This gap is shaped by three constraints: multi-hole nozzles produce nominally similar but physically different plumes; a finite field of view renders a fraction of the late-stage penetration history as right-censored observations; and the raw Mie intensity is susceptible to illumination, glare, and multiple scattering perturbations.
 If the visible end point of each observed trajectory is naively treated as the physical end point, the model risks learning that exiting the image window represents physical saturation.
-Consequently, what is missing is neither a novel physical theory of sprays nor an additional single-point diagnostic measurement, but rather a rapid, reproducible, uncertainty-aware, and well-scoped pre-screening layer situated between optical experimental archives and computationally or experimentally expensive validations.
+In short, what is missing is neither a novel physical theory of sprays nor an additional single-point diagnostic measurement, but rather a rapid, reproducible, uncertainty-aware, and well-scoped pre-screening layer situated between optical experimental archives and computationally or experimentally expensive validations.
 
 Data-driven surrogate models offer a viable path toward this objective.
 Recent studies show that neural networks can predict macroscopic spray characteristics, such as penetration and cone angle, leveraging operating conditions
 \cite{VazKarathanasis2026,liu2020sprayreview}.
-However, these surrogates are typically trained as deterministic point predictors on uncensored laboratory penetration data, so they neither quantify prediction uncertainty that varies with operating condition (heteroscedastic uncertainty) nor account for the right-censoring imposed by a finite imaging window. These are precisely the two requirements an experimentally grounded pre-screening layer must satisfy. Uncertainty here is not a cosmetic addition: because the screening output is a wall-contact \emph{probability} rather than a binary pass/fail verdict, the surrogate must emit calibrated predictive distributions that can be ranked, not single-point estimates.
+In practice, these surrogates are typically trained as deterministic point predictors on uncensored laboratory penetration data, so they neither quantify prediction uncertainty that varies with operating condition (heteroscedastic uncertainty) nor account for the right-censoring imposed by a finite imaging window. These are precisely the two requirements an experimentally grounded pre-screening layer must satisfy. Uncertainty here is not a cosmetic addition: because the screening output is a wall-contact \emph{probability} rather than a binary pass/fail verdict, the surrogate must emit calibrated predictive distributions that can be ranked, not single-point estimates.
 In this thesis, multi-batch Mie recordings acquired under identical optical configurations can be transformed into plume-wise temporal observables, which are then used to train a mapping from operating conditions to penetration trajectories.
 Accordingly, this thesis aims to design and evaluate an auditable workflow that turns large-scale Mie scattering spray video archives into trajectory predictions usable for design triage.
 The workflow is deliberately framed as a design triage tool: it ranks candidate pilot-spray geometries by Mie-defined penetration and geometric wall-proximity risk, while leaving ignition quality, combustion efficiency, emissions, and harmful wall wetting to subsequent engine-representative validation.
-The objectives of the thesis encompass:
-\begin{enumerate}
-  \item Extracting plume-wise geometric observables from high-speed non-reacting Mie imaging videos;
-  \item Constructing penetration trajectory targets grounded in finite field of view observations;
-  \item Training a surrogate model capable of simultaneously predicting the penetration mean and its input-dependent uncertainty;
-  \item Coupling the predictive distributions to simplified representative engine geometries to formulate a probabilistic wall impingement screening metric.
-\end{enumerate}
-
-These four objectives unfold as six methodological stages that this thesis carries end to end, from a raw optical archive to a deployable screening surrogate:
+This thesis pursues that layer through six methodological stages, carried end to end from a raw optical archive to a deployable screening surrogate:
 \begin{enumerate}
   \item \emph{Data extraction} --- recovering plume-wise penetration observables from raw Mie video;
   \item \emph{Censoring-aware curation} --- cleaning those observables into data populations that respect the finite imaging window;
@@ -68,9 +60,9 @@ The primary contributions of this thesis include a CUDA-accelerated video-to-obs
 The scope of this thesis is deliberately confined to non-reacting, non-evaporating diesel pilot sprays under controlled constant-volume vessel conditions.
 The model should be seen as an engineering screening tool that works strictly within its data-supported domain, rather than a universal predictor that is accurate under arbitrary uncharted operating conditions, a direct engine combustion predictor, or a fully validated ground-truth model for tangible liquid impingement.
 
-Chapter 2 reviews the relevant literature across optics, computer vision, parallel programming, optimization, and machine learning, and lays out the theoretical groundwork needed for this thesis;
-Chapter 3 describes the experimental data and the image-processing workflow;
-Chapter 4 details the trajectory targets, surrogate model development, and probabilistic screening;
-Chapter 5 reports the experimental results;
-Chapter 6 explains which components have been validated and where the current limits of the approach lie;
-Chapter 7 separates the validated results from the prototype's limitations and the directions for future work.
+Chapter~2 reviews the relevant literature across optics, computer vision, parallel programming, optimization, and machine learning, and lays out the theoretical groundwork needed for this thesis;
+Chapter~3 describes the experimental data and the image-processing workflow;
+Chapter~4 details the trajectory targets, surrogate model development, and probabilistic screening;
+Chapter~5 reports the experimental results;
+Chapter~6 explains which components have been validated and where the current limits of the approach lie;
+Chapter~7 separates the validated results from the prototype's limitations and the directions for future work.

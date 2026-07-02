@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mathematical Derivations of Regression and Uncertainty Evaluation Metrics (Thesis Defense Supplement)</title>
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(','\\)']],
+    displayMath: [['\\[','\\]'],['$$','$$']],
+    tags: 'ams',
+    macros: {
+      E: "\\mathbb{E}",
+      Prob: "\\mathbb{P}",
+      Var: "\\operatorname{Var}",
+      ind: "\\mathbf{1}",
+      sgn: "\\operatorname{sign}",
+      med: "\\operatorname{med}",
+      MAD: "\\operatorname{MAD}",
+      dd: "\\,\\mathrm{d}"
+    }
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script>/*__MATHJAX_INLINE__*/</script>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --accent: #14507a;
+    --accent-light: #eaf2f8;
+    --thm-bg: #f5f0e6;
+    --thm-border: #b8a97a;
+    --proof-border: #c9c9c9;
+    --card-bg: #eef6ee;
+    --card-border: #5a8a5a;
+    --work-bg: #fdf3f3;
+    --work-border: #b06060;
+    --recipe-bg: #f3f0fa;
+    --recipe-border: #7a68a8;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Noto Serif TC", "Source Han Serif TC", "PMingLiU", "Songti TC", Georgia, serif;
+    color: var(--ink);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2em 1.2em 6em;
+    line-height: 1.85;
+    font-size: 17px;
+    background: #fffdf9;
+  }
+  h1 { font-size: 1.7em; line-height: 1.4; border-bottom: 3px double var(--accent); padding-bottom: .4em; }
+  h2 { font-size: 1.35em; color: var(--accent); margin-top: 2.2em; border-left: 6px solid var(--accent); padding-left: .5em; }
+  h3 { font-size: 1.12em; margin-top: 1.8em; }
+  h4 { font-size: 1.0em; margin-top: 1.4em; }
+  .subtitle { color: #555; font-size: .95em; margin-top: -0.5em; }
+  .toc { background: var(--accent-light); border-radius: 8px; padding: 1em 1.5em; margin: 1.5em 0; }
+  .toc ol { margin: .3em 0; padding-left: 1.4em; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .thm, .lem, .cor, .defn {
+    background: var(--thm-bg);
+    border: 1px solid var(--thm-border);
+    border-left: 5px solid var(--thm-border);
+    border-radius: 4px;
+    padding: .7em 1.1em;
+    margin: 1.2em 0;
+  }
+  .thm .label, .lem .label, .cor .label, .defn .label { font-weight: bold; color: #6b5a2a; }
+  .proof {
+    border-left: 3px solid var(--proof-border);
+    padding: .2em 0 .2em 1.1em;
+    margin: 1em 0 1.4em .3em;
+    color: #2c2c2c;
+  }
+  .proof .label { font-style: italic; font-weight: bold; }
+  .qed { float: right; }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: .8em 1.2em;
+    margin: 1.6em 0;
+  }
+  .card .label { font-weight: bold; color: #2e5a2e; }
+  .worked {
+    background: var(--work-bg);
+    border: 1px dashed var(--work-border);
+    border-radius: 6px;
+    padding: .7em 1.1em;
+    margin: 1.2em 0;
+  }
+  .worked .label { font-weight: bold; color: #8a3a3a; }
+  .recipe {
+    background: var(--recipe-bg);
+    border: 1px solid var(--recipe-border);
+    border-radius: 6px;
+    padding: .7em 1.1em;
+    margin: 1.2em 0;
+  }
+  .recipe .label { font-weight: bold; color: #4a3a80; }
+  .remark { font-size: .95em; color: #444; border-left: 3px dotted #999; padding-left: 1em; margin: 1em 0; }
+  .star { color: #a06010; font-weight: bold; }
+  table.simple { border-collapse: collapse; margin: 1.2em auto; font-size: .95em; }
+  table.simple th, table.simple td { border: 1px solid #999; padding: .35em .8em; text-align: left; vertical-align: top; }
+  table.simple th { background: var(--accent-light); }
+  code { background: #f0ede6; padding: 0 .3em; border-radius: 3px; font-size: .9em; }
+  .pencil { color: #8a3a3a; font-weight: bold; }
+  @media print {
+    body { font-size: 11pt; max-width: 100%; }
+    .toc { page-break-after: always; }
+    h2 { page-break-before: always; }
+    .thm, .card, .worked, .recipe { page-break-inside: avoid; }
+  }
+
+  .demo{background:#f6f9fc;border:1px solid #9db8cc;border-radius:8px;padding:.8em 1.1em;margin:1.7em 0;}
+  .demo-title{font-weight:bold;color:#14507a;margin-bottom:.35em;font-size:1.02em;}
+  .demo canvas{display:block;background:#fff;border:1px solid #ccd5de;border-radius:4px;margin:.6em auto;}
+  .controls{display:flex;flex-wrap:wrap;gap:.35em 1.5em;font-size:.92em;align-items:center;margin:.3em 0;}
+  .controls label{white-space:nowrap;}
+  .controls input[type=range]{vertical-align:middle;width:150px;}
+  .controls .val{display:inline-block;min-width:2.8em;font-weight:bold;color:#14507a;}
+  .readouts{display:flex;flex-wrap:wrap;gap:.45em;margin:.45em 0;}
+  .chip{background:#fff;border:1px solid #b8c6d4;border-radius:14px;padding:.05em .7em;font-size:.9em;}
+  .chip .ref{color:#888;font-size:.85em;}
+  .trylist{font-size:.9em;color:#444;border-top:1px dotted #a8bccd;margin-top:.55em;padding-top:.45em;}
+  .presetbtn{font-size:.85em;margin:.1em .2em;padding:.15em .7em;border:1px solid #8aa3b8;border-radius:5px;background:#fff;cursor:pointer;}
+  .presetbtn:hover{background:#eaf2f8;}
+  @media print{.demo::after{content:"(Interactive experiment: operate the sliders in a browser; the print version is a static snapshot)";display:block;font-size:.8em;color:#888;margin-top:.4em;}}
+</style>
+</head>
+<body>
+
+<h1>Mathematical Derivations of Regression and Uncertainty Evaluation Metrics</h1>
+<p class="subtitle">Thesis defense supplementary material — corresponding to Chapter 4, "Evaluation Protocol and Metrics" (§4, <i>Evaluation Protocol and Metrics</i>) and Chapter 5, "Results," of the thesis.<br>
+This document is self-contained and offline (the math typesetting engine is embedded; no network access is required). It contains 5 interactive experiments (marked 🎛, pure JavaScript, likewise usable offline): drag the sliders to observe the causal chain from "distribution shape" to "metric value." Working through the derivations with pencil and paper is recommended; steps marked <span class="pencil">☞ pencil-and-paper checkpoint</span> are especially worth re-deriving by hand; subsections marked <span class="star">★</span> are advanced optional reading.</p>
+
+<div class="toc">
+<b>Table of Contents</b>
+<ol start="0">
+  <li><a href="#sec0">Notation, evaluation population, and shared conventions</a></li>
+  <li><a href="#sec1">Point-error metrics: RMSE, MAE, Bias, P95</a></li>
+  <li><a href="#sec2">Empirical coverage (1σ / 2σ Coverage)</a></li>
+  <li><a href="#sec3">CRPS: Continuous Ranked Probability Score</a></li>
+  <li><a href="#sec4">PIT, reliability diagrams, and ECE</a></li>
+  <li><a href="#sec5">Heteroscedastic Gaussian NLL</a></li>
+  <li><a href="#sec6">The mathematics of the evaluation protocol: pooling, censoring, and LONO</a></li>
+  <li><a href="#sec7">Constants quick-reference table and summary</a></li>
+</ol>
+</div>
+
+<h2 id="sec0">§0 Notation, evaluation population, and shared conventions</h2>
+
+<h3>0.1 What the evaluation data is</h3>
+<p>Following the construction in Chapter 4 of the thesis, the primary evaluation population (Dataset #2, the "de-censored CDF point table") is generated as follows: an <b>operating-condition group</b> is defined by "nozzle x injection pressure x chamber pressure x injection duration"; within each operating-condition group, the time axis \([0,5]\,\mathrm{ms}\) is binned with \(\Delta t = 0.1\,\mathrm{ms}\); starting from the first time bin that triggers either the "density-drop criterion" or the "FOV saturation criterion," that bin and all subsequent bins are removed (de-censoring). The remaining point-wise observations are assigned to train / val / test <b>by whole operating-condition group</b> (a group-aware split, which prevents leakage of same-group samples).</p>
+
+<p>All point-wise metrics are computed after <b>pooling every operating condition and every time point in the test split into a single set</b>:</p>
+\[
+\mathcal{D}_{\mathrm{test}} = \{(x_i,\,y_i)\}_{i=1}^{N},
+\qquad x_i = (\text{operating-condition features},\ t_i),\quad y_i = \text{observed penetration length [mm]},
+\]
+<p>For the primary protocol (uncensored CDF), \(N = 542{,}565\); for the censoring-inclusive supplementary protocol (full-clean), \(N = 692{,}942\).</p>
+
+<h3>0.2 Model outputs and derived quantities</h3>
+<p>Each probabilistic model outputs a Gaussian predictive distribution at point \(x_i\):</p>
+\[
+\hat{F}_i = \mathcal{N}(\mu_i,\ \sigma_i^2),\qquad \mu_i=\mu(x_i),\ \ \sigma_i=\sigma(x_i)>0 .
+\]
+<p>From this we define four derived quantities used throughout the document (<b>be sure to confirm the notation conventions first — they will not be repeated later</b>):</p>
+<table class="simple">
+<tr><th>Symbol</th><th>Definition</th><th>Meaning</th></tr>
+<tr><td>\(r_i = \mu_i - y_i\)</td><td>residual</td><td>\(r_i > 0\) indicates the model <b>over-predicts</b>; sign convention consistent with the thesis's Bias</td></tr>
+<tr><td>\(z_i = \dfrac{y_i-\mu_i}{\sigma_i}\)</td><td>standardized residual</td><td>note the numerator is \(y-\mu\), so \(r_i = -\sigma_i z_i\)</td></tr>
+<tr><td>\(u_i = \Phi(z_i)\)</td><td>PIT value (probability integral transform)</td><td>the quantile position at which the observation falls within its own predictive distribution; see §4</td></tr>
+<tr><td>\(\omega_i = \dfrac{y_i-\mu_i}{\sigma_i}\)</td><td>standardized quantity in the CRPS derivation</td><td>identical to \(z_i\); written \(\omega\) in §3 only to follow the literature's convention</td></tr>
+</table>
+
+<p>The density and cumulative distribution function (CDF) of the standard Gaussian are denoted</p>
+\[
+\varphi(x)=\frac{1}{\sqrt{2\pi}}e^{-x^2/2},
+\qquad
+\Phi(x)=\int_{-\infty}^{x}\varphi(s)\dd s ,
+\]
+<p>Two basic facts used repeatedly hereafter (<span class="pencil">☞ pencil-and-paper checkpoint</span>: both need only a one-line differentiation to verify):</p>
+\[
+\varphi'(x) = -x\,\varphi(x),
+\qquad
+\int_{a}^{\infty} x\,\varphi(x)\dd x = \varphi(a).
+\tag{0.1}
+\]
+<div class="proof"><span class="label">Verification.</span>
+The first identity follows by directly differentiating \(e^{-x^2/2}\). For the second: since \(\frac{\mathrm{d}}{\mathrm{d}x}\bigl[-\varphi(x)\bigr] = x\varphi(x)\), we have
+\(\int_a^\infty x\varphi(x)\dd x = \bigl[-\varphi(x)\bigr]_a^{\infty} = \varphi(a)\) (using \(\varphi(x)\to 0\)).<span class="qed">∎</span>
+</div>
+
+<h3>0.3 The mathematical content behind the "effective sample size" caveat</h3>
+<p>The thesis states explicitly: "errors within the same trajectory are correlated in time, so the effective sample size is far smaller than the raw point count." Behind this lies the following standard result. Suppose the pooled residual sequence (within a single trajectory) is weakly stationary, with \(\Var(r_i)=s^2\) and lag-\(k\) autocorrelation \(\rho_k\). Then the variance of the sample mean \(\bar r = \frac1N\sum_i r_i\) is</p>
+\[
+\Var(\bar r)
+=\frac{1}{N^2}\sum_{i=1}^N\sum_{j=1}^N \operatorname{Cov}(r_i,r_j)
+=\frac{s^2}{N}\Bigl[\,1+2\sum_{k=1}^{N-1}\Bigl(1-\tfrac{k}{N}\Bigr)\rho_k\Bigr]
+\;\equiv\;\frac{s^2}{N_{\mathrm{eff}}},
+\tag{0.2}
+\]
+<div class="proof"><span class="label">Derivation.</span>
+In the double sum, the diagonal contributes \(N\) terms, each equal to \(s^2\); the off-diagonal terms with \(|i-j|=k\) number \(2(N-k)\), each equal to \(s^2\rho_k\). Combining these gives the result. For large \(N\), \((1-k/N)\approx 1\), giving the commonly used approximation
+\(N_{\mathrm{eff}}\approx N\big/\bigl(1+2\sum_{k\ge1}\rho_k\bigr)\).<span class="qed">∎</span>
+</div>
+<p>Positive correlation (\(\rho_k>0\), i.e., residuals within the same trajectory tend to share sign) makes \(N_{\mathrm{eff}} \ll N\). <b>Conclusion:</b> every standard error and test p-value in this document based on "\(N\) independent samples" (especially the KS test in §4.6) can only serve as a sensitivity reference on this data — this is precisely the position the thesis takes.</p>
+
+<h2 id="sec1">§1 Point-error metrics: RMSE, MAE, Bias, P95</h2>
+
+<h3>1.1 Definitions</h3>
+<div class="defn"><span class="label">Definition 1.1.</span>
+For the pooled test-set residuals \(r_i=\mu_i-y_i\),
+\[
+\mathrm{RMSE}=\sqrt{\frac1N\sum_{i=1}^N r_i^2},\qquad
+\mathrm{MAE}=\frac1N\sum_{i=1}^N |r_i|,\qquad
+\mathrm{Bias}=\bar r=\frac1N\sum_{i=1}^N r_i,
+\]
+\[
+\mathrm{P95}=\inf\Bigl\{t\ \ge 0:\ \frac1N\sum_{i=1}^N \ind\bigl[\,|r_i|\le t\,\bigr]\ \ge 0.95\Bigr\}
+\quad(\text{the empirical 95\% quantile of the absolute error}).
+\]
+</div>
+
+<h3>1.2 What each metric's "optimal solution" is — why RMSE and MAE must be reported together</h3>
+<p>Two classical facts show that RMSE and MAE measure <b>different location functionals of the conditional distribution</b>:</p>
+
+<div class="thm"><span class="label">Theorem 1.2 (the mean minimizes MSE; the median minimizes MAE).</span>
+Let \(m\in\mathbb{R}\).
+(i) If \(\E[Y^2]\lt\infty\) (square-integrable), then \(\E\!\left[(Y-m)^2\right]\) attains its unique minimum at \(m^\ast =\E[Y]\).
+(ii) If \(\E|Y|\lt\infty\) (integrable), then \(\E\,|Y-m|\) attains its minimum at any <b>generalized median</b>: i.e., any point satisfying \(F(m^{\ast-})\le\tfrac12\le F(m^\ast )\); when \(F\) is continuous (the case for the residual distributions in this thesis), this condition reduces to \(F(m^\ast )=\tfrac12\).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+(i) \(\E[(Y-m)^2]=\E[(Y-\E Y)^2]+(\E Y-m)^2\) (expanding the cross term to zero; this decomposition requires \(\E[Y^2]\lt\infty\), otherwise the objective is \(+\infty\) for all \(m\) and the minimization is degenerate); the second term is zero, and uniquely minimal, at \(m=\E Y\).
+(ii) Let \(g(m)=\E|Y-m|\). Differentiating with respect to \(m\) (the derivative of \(|y-m|\) with respect to \(m\) is \(\sgn(m-y)\), holding everywhere except the single point \(y=m\); by the dominated convergence theorem we may differentiate under the expectation, with the dominating function taken as the constant 1):
+\[
+g'(m)=\E[\sgn(m-Y)]=\Prob(Y\lt m)-\Prob(Y>m)=2F(m)-1\quad(\text{where } F \text{ is continuous at } m),
+\]
+which is nondecreasing, and switches from \(\le 0\) to \(\ge 0\) at a generalized median, so that point is a global minimum; when \(F\) is continuous this is precisely the sign-change point where \(F(m)=\tfrac12\).<span class="qed">∎</span>
+</div>
+
+<p><b>Interpretation:</b> MSE/RMSE forces the model toward the <b>conditional mean</b>, weighting large errors quadratically; MAE corresponds to the <b>conditional median</b> and is robust to outliers. Reporting both diagnoses the tail of the error distribution: if RMSE is much larger than MAE, a small number of large errors dominate. This also explains why the thesis defines a separate P50 (conditional median) protocol: it aligns naturally with MAE's "median" property.</p>
+
+<h3>1.3 Three structural relationships (with proofs)</h3>
+
+<div class="lem"><span class="label">Lemma 1.3 (bias-dispersion decomposition).</span>
+\[
+\mathrm{RMSE}^2=\mathrm{Bias}^2+s_r^2,
+\qquad s_r^2:=\frac1N\sum_{i=1}^N (r_i-\bar r)^2 .
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+\(\frac1N\sum r_i^2=\frac1N\sum\bigl[(r_i-\bar r)+\bar r\bigr]^2
+=s_r^2+2\bar r\cdot\underbrace{\tfrac1N\sum(r_i-\bar r)}_{=0}+\bar r^2\).<span class="qed">∎</span>
+</div>
+<p>Corollary: \(\mathrm{RMSE}\ge|\mathrm{Bias}|\), and the share of mean-squared error contributed by "systematic offset" is \(\mathrm{Bias}^2/\mathrm{RMSE}^2\).</p>
+
+<div class="worked"><span class="label">Worked example (thesis figures, uncensored protocol, average over 5 seeds).</span>
+RMSE \(=4.265\) mm, Bias \(=+0.562\) mm implies an offset contribution share of
+\[
+\frac{0.562^2}{4.265^2}=\frac{0.316}{18.19}\approx 1.74\%.
+\]
+That is, almost all of the final model's error comes from <b>dispersion</b> rather than systematic offset — this is the metric-level manifestation of "the near-FOV under-prediction has been fixed" (see the Chapter 5 section on the KD-form fix).
+</div>
+
+<div class="lem"><span class="label">Lemma 1.4 (MAE &le; RMSE).</span>
+Always \(\mathrm{MAE}\le\mathrm{RMSE}\), with equality if and only if all \(|r_i|\) are equal.
+</div>
+<div class="proof"><span class="label">Proof.</span>
+The function \(x\mapsto x^2\) is strictly convex, so by Jensen's inequality (taking expectation over the empirical distribution)
+\(\bigl(\frac1N\sum|r_i|\bigr)^2\le\frac1N\sum |r_i|^2\). Strict convexity gives the equality condition: \(|r_i|\) constant.<span class="qed">∎</span>
+</div>
+
+<div class="lem"><span class="label">Lemma 1.5 (Gaussian reference ratio).</span>
+If \(r\sim\mathcal{N}(0,s^2)\), then
+\[
+\E|r| = s\sqrt{\tfrac{2}{\pi}}\approx 0.7979\,s,
+\qquad
+\frac{\mathrm{RMSE}}{\mathrm{MAE}}=\sqrt{\tfrac{\pi}{2}}\approx 1.2533 .
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+\(\E|r| = 2\int_0^\infty r\,\tfrac1s\varphi(\tfrac rs)\dd r
+= 2s\int_0^\infty z\varphi(z)\dd z
+\overset{(0.1)}{=} 2s\,\varphi(0)=\frac{2s}{\sqrt{2\pi}}=s\sqrt{\tfrac2\pi}\).
+Also \(\sqrt{\E r^2}=s\); dividing gives the result.<span class="qed">∎</span>
+</div>
+
+<h3>1.4 A ratio on pooled heteroscedastic data: an easily misread point <span class="star">★</span></h3>
+<p>The thesis's uncensored results give \(\mathrm{RMSE}/\mathrm{MAE}=4.265/3.032\approx 1.407>1.253\). Intuition might suggest "the residuals are fatter-tailed than Gaussian." The lemma below shows that <b>merely pooling residuals across different operating conditions (different σ) is already sufficient to inflate this ratio</b>, even if every individual operating condition is perfectly Gaussian.</p>
+
+<div class="lem"><span class="label">Lemma 1.6 (scale mixing necessarily inflates the ratio and the kurtosis).</span>
+Suppose conditional on a random scale \(\sigma>0\) (representing operating-condition heterogeneity), \(r\,|\,\sigma\sim\mathcal{N}(0,\sigma^2)\). Then
+\[
+\frac{\sqrt{\E r^2}}{\E|r|}
+=\sqrt{\tfrac{\pi}{2}}\cdot\frac{\sqrt{\E[\sigma^2]}}{\E[\sigma]}
+\;\ge\;\sqrt{\tfrac{\pi}{2}},
+\qquad
+\mathrm{Kurt}(r)=\frac{\E r^4}{(\E r^2)^2}=3\,\frac{\E[\sigma^4]}{(\E[\sigma^2])^2}\;\ge\;3,
+\]
+with equality in both places if and only if \(\sigma\) is constant (homoscedastic).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+Using the tower property (conditioning on \(\sigma\) first): \(\E r^2=\E[\E(r^2|\sigma)]=\E[\sigma^2]\);
+\(\E|r|=\E\bigl[\sigma\sqrt{2/\pi}\bigr]=\sqrt{2/\pi}\,\E[\sigma]\) (applying Lemma 1.5 conditionally);
+\(\E r^4=\E[3\sigma^4]=3\E[\sigma^4]\) (Gaussian fourth moment).
+Then by Jensen: \((\E\sigma)^2\le\E[\sigma^2]\) and \((\E\sigma^2)^2\le\E[\sigma^4]\), with strict convexity giving the equality condition.<span class="qed">∎</span>
+</div>
+
+<p><b>Defense point:</b> observing a ratio of 1.407 <b>cannot</b> directly imply "errors within a single operating condition are non-Gaussian"; heteroscedasticity introduced purely by pooling is one sufficient explanation. Distinguishing the two requires diagnosing per operating condition (or per σ-bin) — the thesis's "coverage curve binned by predicted σ" (calibration plot) is exactly this kind of binned diagnostic.</p>
+
+
+<div class="demo" id="demo2">
+<div class="demo-title">🎛 Interactive experiment 2 | Pooled heteroscedasticity: two "perfect Gaussian" operating conditions become fat-tailed once mixed (visualizing Lemma 1.6)</div>
+<p style="font-size:.93em;margin:.2em 0 .4em">Two operating conditions are each zero-bias Gaussian (<b>the within-group RMSE/MAE is always exactly 1.2533</b>), differing only in σ. After pooling by weight \(w\), the mixture distribution (black line) immediately becomes peaked and fat-tailed — the rise in the ratio and kurtosis comes <b>entirely</b> from the difference between the two groups' σ. This experiment uses closed-form formulas throughout, with no sampling noise.</p>
+<div class="controls">
+<label>Operating condition A's σ₁ <input type="range" id="d2s1" min="0.5" max="5" step="0.1" value="2.0"> <span class="val" id="d2s1v"></span> mm</label>
+<label>Operating condition B's σ₂ <input type="range" id="d2s2" min="0.5" max="8" step="0.1" value="6.0"> <span class="val" id="d2s2v"></span> mm</label>
+<label>A's weight w <input type="range" id="d2w" min="0" max="1" step="0.05" value="0.7"> <span class="val" id="d2wv"></span></label>
+</div>
+<canvas id="d2c"></canvas>
+<div class="readouts" id="d2r"></div>
+<div class="trylist"><b>Try this:</b> increase σ₂/σ₁: the ratio and kurtosis rise monotonically; set w to 0 or 1 (degenerating to a single group): the ratio instantly returns to 1.2533 and the kurtosis to 3. <b>Conclusion:</b> observing a ratio &gt; 1.253 on pooled data cannot imply that the within-group distribution is non-Gaussian — this is exactly the misreading guarded against in §1.4, and the reason calibration diagnostics must be "binned by σ."</div>
+</div>
+<h3>1.5 P95 and the Gaussian tail reference</h3>
+<div class="lem"><span class="label">Lemma 1.7 (half-Gaussian quantile).</span>
+If \(r\sim\mathcal{N}(0,s^2)\) (unbiased), then the CDF of \(|r|\) is \(\Prob(|r|\le t)=2\Phi(t/s)-1\), so
+\[
+\mathrm{P95}(|r|) = s\,\Phi^{-1}(0.975)\approx 1.960\,s = 1.960\times\mathrm{RMSE}.
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+\(\Prob(|r|\le t)=\Phi(t/s)-\Phi(-t/s)=2\Phi(t/s)-1\). Setting this equal to \(0.95\): \(\Phi(t/s)=0.975\), \(t=s\,\Phi^{-1}(0.975)\). When unbiased, \(s=\mathrm{RMSE}\).<span class="qed">∎</span>
+</div>
+
+<div class="worked"><span class="label">Worked example (full-clean protocol).</span>
+The thesis reports P95 \(=9.167\) mm, RMSE \(=4.735\) mm, giving a ratio \(9.167/4.735\approx 1.936\),
+extremely close to the Gaussian reference of \(1.960\): <b>at the depth of the 95% quantile, the tail of the pooled error is roughly compatible with Gaussian</b> (deeper tails, or per-operating-condition behavior, are not guaranteed by this — see the complementary evidence from the coverage inversion in §2.4).
+</div>
+
+<div class="recipe"><span class="label">Computation recipe (mirroring the thesis pipeline).</span>
+<ol>
+<li>Load the de-censored point table for the test split; for each row \((x_i,y_i)\), run the forward pass to obtain \((\mu_i,\sigma_i)\) (physical space: the network output multiplied back by the amplitude scaling factor \(A\)).</li>
+<li>Compute \(r_i=\mu_i-y_i\) row by row.</li>
+<li>Average RMSE, MAE, and Bias over the whole pool per Definition 1.1; take P95 as the empirical 95% quantile of \(|r_i|\).</li>
+<li>Repeat across 5 training seeds and report mean ± standard deviation (measuring sensitivity to random initialization; see §6).</li>
+</ol>
+</div>
+
+
+<div class="demo" id="demo1">
+<div class="demo-title">🎛 Interactive experiment 1 | Residual distribution playground: how distribution shape drives RMSE / MAE / Bias / P95 differently</div>
+<p style="font-size:.93em;margin:.2em 0 .4em">A fixed sample of 40,000 residual points (fixed random seed, fully reproducible); three knobs control the generating distribution: overall offset \(b\), core scale \(\sigma\), and a "tail contamination" fraction — points in this fraction are instead drawn from a wide Gaussian with scale \(4\sigma\), simulating a small number of difficult nozzles / step-like trajectories. The grey curve is a Gaussian reference "with the same mean and same standard deviation as the sample": after tail contamination, the histogram's center is more peaked than the grey line and its tails are longer.</p>
+<div class="controls">
+<label>Offset b <input type="range" id="d1b" min="-3" max="3" step="0.1" value="0.5"> <span class="val" id="d1bv"></span> mm</label>
+<label>Core σ <input type="range" id="d1s" min="0.5" max="5" step="0.1" value="3.0"> <span class="val" id="d1sv"></span> mm</label>
+<label>Tail contamination <input type="range" id="d1w" min="0" max="0.3" step="0.01" value="0.05"> <span class="val" id="d1wv"></span></label>
+</div>
+<canvas id="d1c"></canvas>
+<div class="readouts" id="d1r"></div>
+<div class="trylist"><b>Try this:</b> (1) Increase tail contamination from 0 to 10%: RMSE and P95 rise sharply while MAE barely moves — RMSE/MAE departs from the Gaussian value 1.253 (the mechanism of Lemma 1.5 to 1.6). (2) Adjust only the offset b: Bias²/MSE grows quadratically (Lemma 1.3), but the ratio barely changes. (3) The default values are deliberately set to the thesis's scale: RMSE/MAE≈1.4, Bias²/MSE≈2% — compare with the worked-example box in §1.</div>
+</div>
+<div class="card"><span class="label">Defense summary card — Point-error metrics</span><br>
+<b>In one sentence:</b> RMSE / MAE / Bias / P95 are four complementary statistics of the residual distribution — root-mean-square (heavily penalizes large errors, corresponds to the conditional mean), mean absolute value (robust, corresponds to the conditional median), mean value (direction of systematic offset), and the 95% quantile (tail risk).<br>
+<b>What they answer:</b> "On average, how many millimeters off is the predicted μ(t)? Is it high or low? How bad is the worst 5%?"<br>
+<b>How to read this thesis's figures:</b> only 1.7% of the RMSE of 4.265 mm comes from offset (Lemma 1.3); RMSE/MAE = 1.41 is higher than the Gaussian value 1.25, but pooled heteroscedasticity alone explains this (Lemma 1.6); P95/RMSE = 1.94 ≈ 1.96 indicates no abnormal inflation of the tail at the 95% depth (Lemma 1.7).<br>
+<b>Possible follow-up questions and answers:</b> "Why not just report RMSE?" — because RMSE corresponds to the mean and is dominated by large errors; engineering screening also needs a robust central error (MAE), a direction (Bias), and a tail (P95) — together, the four constrain the shape of the residual distribution.
+</div>
+
+<h2 id="sec2">§2 Empirical coverage (1σ / 2σ Coverage)</h2>
+
+<h3>2.1 Definition and the origin of the nominal values</h3>
+<div class="defn"><span class="label">Definition 2.1.</span>
+\[
+\widehat{\mathrm{Cov}}_{k\sigma}
+=\frac1N\sum_{i=1}^N \ind\bigl[\,y_i\in[\mu_i-k\sigma_i,\ \mu_i+k\sigma_i]\,\bigr],
+\qquad k\in\{1,2\}.
+\]
+</div>
+
+<div class="lem"><span class="label">Lemma 2.2 (nominal Gaussian coverage).</span>
+If \(y_i\sim\mathcal{N}(\mu_i,\sigma_i^2)\) (perfect calibration), then
+\[
+\Prob\bigl(y_i\in[\mu_i\pm k\sigma_i]\bigr)=\Prob(|Z|\le k)=2\Phi(k)-1,
+\]
+\[
+k=1:\ 2\Phi(1)-1=0.68269,\qquad
+k=2:\ 2\Phi(2)-1=0.95450 .
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+\(y_i\in[\mu_i\pm k\sigma_i]\iff z_i=(y_i-\mu_i)/\sigma_i\in[-k,k]\), and under perfect calibration \(z_i\sim\mathcal N(0,1)\),
+so the probability is \(\Phi(k)-\Phi(-k)=2\Phi(k)-1\) (using \(\Phi(-k)=1-\Phi(k)\), from the evenness of \(\varphi\)).<span class="qed">∎</span>
+</div>
+<p>This is the complete origin of the nominal values 68.3% / 95.4% that recur throughout the thesis.</p>
+
+<h3>2.2 Coverage is two points on the PIT distribution</h3>
+<div class="lem"><span class="label">Lemma 2.3 (Coverage-PIT correspondence).</span>
+With \(u_i=\Phi(z_i)\) (the PIT value from §0),
+\[
+y_i\in[\mu_i- k\sigma_i,\ \mu_i+k\sigma_i]
+\iff
+u_i\in[\Phi(-k),\ \Phi(k)] .
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+\(\Phi\) is strictly increasing, so \(z_i\in[-k,k]\iff \Phi(z_i)\in[\Phi(-k),\Phi(k)]\).<span class="qed">∎</span>
+</div>
+<p><b>Interpretation:</b> 1σ/2σ coverage checks only the mass of the PIT distribution at two pairs of quantile points — it is a "two-point sample" of the full calibration diagnostics in §4 (PIT histogram, reliability diagram). This is precisely the mathematical reason the thesis writes that "coverage checks only test a few confidence intervals," and hence why CRPS / PIT are needed to complete the picture.</p>
+
+<h3>2.3 Magnitude of sampling error</h3>
+<p>If each point is independent and the true coverage is \(p\), then \(N\widehat{\mathrm{Cov}}\sim\mathrm{Binomial}(N,p)\), with standard error \(\sqrt{p(1-p)/N}\). With \(N=542{,}565\), \(p=0.683\), this evaluates to \(\approx 6.3\times10^{-4}\). But by §0.3, temporal correlation means the true standard error should be estimated with \(N_{\mathrm{eff}}\ll N\) — so the thesis's practice of expressing uncertainty via cross-seed dispersion (e.g., 1σ coverage \(0.887\pm0.004\)) rather than the binomial formula is the more honest approach.</p>
+
+<h3>2.4 An inversion exercise: reading the "structure of over-dispersion" from coverage <span class="star">★</span></h3>
+<p>This is a small analysis well suited to a defense. Assume the standardized residuals overall follow a single rescaled Gaussian: \(z_i\sim\mathcal N(0,\tau^2)\), where \(\tau=\)(actual dispersion)/(predicted σ). Then</p>
+\[
+\mathrm{Cov}_{k\sigma}=\Prob(|z|\le k)=2\Phi(k/\tau)-1
+\quad\Longrightarrow\quad
+\tau=\frac{k}{\Phi^{-1}\!\bigl(\tfrac{1+\mathrm{Cov}_{k\sigma}}{2}\bigr)} .
+\]
+<div class="worked"><span class="label">Worked example (uncensored protocol, MLP: 0.887 / 0.989).</span>
+<ol>
+<li>Inverting from the 1σ coverage: \(\Phi^{-1}\!\bigl(\tfrac{1+0.887}{2}\bigr)=\Phi^{-1}(0.9435)=1.585\), so \(\tau_1=1/1.585=0.631\).
+That is: <b>if</b> the residuals were a single rescaled Gaussian, the predicted σ would be about \(1/0.631\approx 1.59\) times the actual dispersion.</li>
+<li>Consistency check: the same \(\tau_1\) predicts a 2σ coverage of \(2\Phi(2/0.631)-1=2\Phi(3.17)-1\approx 0.9985\),
+but the measured value is \(0.989\).</li>
+<li>Inverting instead from the 2σ coverage: \(\Phi^{-1}(0.9945)=2.543\), \(\tau_2=2/2.543=0.787\ne\tau_1\).</li>
+</ol>
+<b>Conclusion:</b> \(\tau_1\ne\tau_2\) proves the standardized residuals are <b>not</b> a single rescaled Gaussian — relative to the predicted σ, their central mass is more concentrated than Gaussian ("more conservative" at the 1σ level), while the mid-range tail is relatively heavier ("less conservative" at the 2σ level). This matches the thesis's narrative: across most operating conditions the model is deliberately over-dispersed, while a small number of difficult nozzles (e.g., Nozzle 3's step-like trajectory) contribute a heavier tail.
+<span class="pencil">☞ pencil-and-paper checkpoint</span>: invert \(\tau_1,\tau_2\) yourself using a \(\Phi\) table.
+</div>
+
+<h3>2.5 The meaning of "conservative coverage"</h3>
+<p>The thesis's design intent (per the Chapter 4 terminology conventions): the empirical 1σ/2σ coverage on the holdout <b>meets or exceeds</b> the nominal values 68.3% / 95.4%, which is deliberate over-dispersion, serving early-stage engineering screening — it is better to draw the uncertainty band too wide than to underestimate the possible range of penetration. Mathematically this is equivalent to requiring the PIT distribution to be concentrated toward the center relative to the uniform distribution (§4.3 derives that this corresponds to a hump-shaped PIT histogram). Note that this is a <b>one-sided</b> requirement: insufficient coverage (overconfidence) is regarded as a defect, whereas excess coverage is an acceptable trade-off, whose cost is quantified by CRPS's sharpness penalty (§3).</p>
+
+<div class="recipe"><span class="label">Computation recipe.</span>
+<ol>
+<li>Compute \(z_i=(y_i-\mu_i)/\sigma_i\) for every test point.</li>
+<li>\(\widehat{\mathrm{Cov}}_{1\sigma}=\frac1N\#\{|z_i|\le1\}\), \(\widehat{\mathrm{Cov}}_{2\sigma}=\frac1N\#\{|z_i|\le2\}\).</li>
+<li>The physical baselines' (HA/NS) \(\sigma_i\) are not network outputs but the robust dispersion \(1.4826\times\MAD\) of the training residuals binned at 0.1 ms (see the constants table in §7), with a floor of 0.5 mm.</li>
+</ol>
+</div>
+
+<div class="card"><span class="label">Defense summary card — Coverage</span><br>
+<b>In one sentence:</b> count the "proportion of observations falling within the μ±kσ interval" and compare it against the Gaussian nominal values 68.3% / 95.4%: above nominal = conservative (interval too wide), below = overconfident (interval too narrow).<br>
+<b>What it answers:</b> "Does the model's drawn uncertainty band actually cover the true observations?"<br>
+<b>How to read this thesis's figures:</b> MLP's 0.887/0.989 both exceed nominal at both levels, implying deliberate conservatism; SVGP's 0.716/0.945 are close to nominal, implying near-calibration but no conservative margin; the physical baseline's 0.6x/0.9x fall below nominal, implying overconfidence.<br>
+<b>Possible follow-up questions and answers:</b> "Isn't high coverage just from arbitrarily inflating σ?" — looking at coverage alone, this cheat is indeed possible, so it must be paired with CRPS: inflating σ directly worsens CRPS's sharpness term (§3, Property P2: even with a perfectly correct μ, CRPS is still ≈ 0.234σ). The thesis's MLP CRPS remains significantly lower than the physical baseline's, proving the conservatism is not obtained by inflating σ for free.
+</div>
+
+<h2 id="sec3">§3 CRPS: Continuous Ranked Probability Score</h2>
+
+<h3>3.1 Definition and well-posedness</h3>
+<div class="defn"><span class="label">Definition 3.1.</span>
+For a predictive CDF \(F\) and a scalar observation \(y\),
+\[
+\mathrm{CRPS}(F,y)=\int_{-\infty}^{\infty}\bigl(F(z)-\ind[z\ge y]\bigr)^2\dd z .
+\tag{3.1}
+\]
+</div>
+<p>Intuition: \(\ind[z\ge y]\) is the step CDF of a "perfect observation"; CRPS is the squared \(L^2\) distance between the predictive CDF and this step. The integrand equals \(F(z)^2\) for \(z\lt y\) and \((1-F(z))^2\) for \(z\gt y\).</p>
+
+<div class="lem"><span class="label">Lemma 3.2 (layer-cake formula and finiteness).</span>
+Let \(X\sim F\) with \(\E|X|\lt \infty\). Then for any \(a\):
+\[
+\int_{-\infty}^{a}F(z)\dd z=\E\bigl[(a-X)^+\bigr],
+\qquad
+\int_{a}^{\infty}\bigl(1-F(z)\bigr)\dd z=\E\bigl[(X-a)^+\bigr],
+\]
+and \(\mathrm{CRPS}(F,y)\le\E|X-y|\lt \infty\).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+Exchanging via Tonelli's theorem (the integrand is nonnegative):
+\(\int_{-\infty}^a F(z)\dd z=\int_{-\infty}^a \E\,\ind[X\le z]\dd z
+=\E\int_{-\infty}^a \ind[X\le z]\dd z=\E\bigl[(a-X)\ind[X\le a]\bigr]=\E(a-X)^+\).
+The second identity follows similarly. Finiteness: since \(0\le F\le1\),
+on \(z\lt y\) we have \((F-0)^2=F^2\le F\); on \(z\gt y\) we have \((1-F)^2\le 1-F\). Hence
+\(\mathrm{CRPS}\le\int_{-\infty}^{y}F+\int_{y}^{\infty}(1-F)=\E(y-X)^++\E(X-y)^+=\E|X-y|\).<span class="qed">∎</span>
+</div>
+
+<h3>3.2 Special case: CRPS of a point prediction is exactly the absolute error</h3>
+<div class="lem"><span class="label">Lemma 3.3.</span>
+If \(F\) is degenerate at \(\mu\) (i.e., \(F(z)=\ind[z\ge\mu]\), corresponding to a deterministic prediction with \(\sigma\to0\)), then
+\(\mathrm{CRPS}(F,y)=|y-\mu|\).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+The integrand \((\ind[z\ge\mu]-\ind[z\ge y])^2\) equals 1 exactly on the interval between \(\mu\) and \(y\) and 0 elsewhere, so the integral equals the interval length \(|y-\mu|\).<span class="qed">∎</span>
+</div>
+<p><b>Important corollary:</b> when averaged over a dataset, the average CRPS of a deterministic model <i>is</i> its MAE. So CRPS and MAE are <b>in the same unit (mm), on the same scale, and directly comparable</b> — this allows probabilistic models and point-prediction baselines to appear on the same table.</p>
+
+<h3>3.3 Energy representation (the core theorem)</h3>
+<div class="thm"><span class="label">Theorem 3.4 (energy representation).</span>
+Let \(X,X'\overset{\mathrm{iid}}\sim F\), with \(\E|X|\lt \infty\). Then
+\[
+\mathrm{CRPS}(F,y)=\E|X-y|-\tfrac12\,\E|X-X'| .
+\tag{3.2}
+\]
+</div>
+<div class="proof"><span class="label">Proof (four steps).</span>
+<b>Step 1 (indicator-function identity):</b> for any real numbers \(a,b\):
+\[
+|a-b|=\int_{-\infty}^{\infty}\bigl(\ind[z\ge a]-\ind[z\ge b]\bigr)^2\dd z,
+\]
+because the bracketed term equals \(\pm1\), and squares to 1, exactly on the interval between \(a\) and \(b\), and is 0 elsewhere.
+<br><b>Step 2 (removing the square):</b> write \(W(z)=\ind[z\ge X]-\ind[z\ge y]\), \(W'(z)=\ind[z\ge X']-\ind[z\ge y]\).
+Since \(F(z)=\E\,\ind[X\le z]=\E\,\ind[z\ge X]\) (at continuity points; at most countably many jump points, which do not affect the Lebesgue integral), we have
+\[
+\bigl(F(z)-\ind[z\ge y]\bigr)^2=\bigl(\E W(z)\bigr)^2=\E\bigl[W(z)\bigr]\,\E\bigl[W'(z)\bigr]=\E\bigl[W(z)W'(z)\bigr],
+\]
+where the last step uses \(X\perp X'\).
+<br><b>Step 3 (polarization identity):</b> for any real numbers \(w,w'\): \(ww'=\tfrac12\bigl(w^2+w'^2-(w-w')^2\bigr)\).
+Note \(W(z)-W'(z)=\ind[z\ge X]-\ind[z\ge X']\). Applying this pointwise in \(z\) and integrating (Step 1):
+\[
+\int W W'\dd z=\tfrac12\Bigl(\,|X-y|+|X'-y|-|X-X'|\,\Bigr).
+\]
+<br><b>Step 4 (Fubini):</b>
+\(\mathrm{CRPS}=\int\E[WW']\dd z=\E\int WW'\dd z\). Legitimacy of the exchange: \(|WW'|\le\tfrac12(W^2+W'^2)\), and
+\(\E\int W^2\dd z=\E|X-y|\lt \infty\) (Step 1 + the assumption of Lemma 3.2), so the integrand is dominated by an integrable function. Substituting Step 3 and taking expectation yields (3.2).<span class="qed">∎</span>
+</div>
+
+<p><b>Interpretation of (3.2):</b> the first term \(\E|X-y|\) is the expected absolute error of "sampling from the predictive distribution to guess \(y\)" (penalizing both accuracy and width); the second term \(\tfrac12\E|X-X'|\) is a rebate from the predictive distribution's own dispersion (the wider the distribution, the larger the rebate). The balance point where the two subtract against each other is exactly the mathematical mechanism behind "σ can be neither too narrow nor too wide" — Property P3 below solves this balance point exactly.</p>
+
+<h3>3.4 The complete derivation of the Gaussian closed-form solution</h3>
+<p>This is the full computation behind the phrase "simplifies to a closed-form expression" in the thesis. Goal: compute the two terms of (3.2) for \(F=\mathcal N(\mu,\sigma^2)\).</p>
+
+<div class="lem"><span class="label">Lemma 3.5.</span>
+Let \(Z\sim\mathcal N(0,1)\), \(\omega\in\mathbb R\). Then
+\[
+\E|Z-\omega| = 2\varphi(\omega)+\omega\bigl(2\Phi(\omega)-1\bigr).
+\tag{3.3}
+\]
+Special case \(\omega=0\): \(\E|Z|=2\varphi(0)=\sqrt{2/\pi}\).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+Split into two pieces:
+\[
+\E|Z-\omega|
+=\int_{\omega}^{\infty}(z-\omega)\varphi(z)\dd z
++\int_{-\infty}^{\omega}(\omega-z)\varphi(z)\dd z .
+\]
+First piece: \(\int_\omega^\infty z\varphi\dd z\overset{(0.1)}{=}\varphi(\omega)\), and \(\int_\omega^\infty \varphi\dd z=1-\Phi(\omega)\), so the first piece equals \(\varphi(\omega)-\omega(1-\Phi(\omega))\).
+Second piece: \(\int_{-\infty}^\omega z\varphi\dd z=-\varphi(\omega)\) (using symmetry in (0.1), or direct integration), so the second piece equals \(\omega\Phi(\omega)+\varphi(\omega)\).
+Adding: \(2\varphi(\omega)+\omega\bigl(2\Phi(\omega)-1\bigr)\).<span class="qed">∎</span>
+</div>
+
+<div class="thm"><span class="label">Theorem 3.6 (Gaussian CRPS).</span>
+Let \(F=\mathcal N(\mu,\sigma^2)\), \(\omega=\dfrac{y-\mu}{\sigma}\). Then
+\[
+\mathrm{CRPS}\bigl(\mathcal N(\mu,\sigma^2),\,y\bigr)
+=\sigma\Bigl[\,\omega\bigl(2\Phi(\omega)-1\bigr)+2\varphi(\omega)-\frac{1}{\sqrt{\pi}}\,\Bigr].
+\tag{3.4}
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+<b>First term:</b> \(X=\mu+\sigma Z\), so \(|X-y|=\sigma|Z-\omega|\), and by Lemma 3.5:
+\(\E|X-y|=\sigma\bigl[2\varphi(\omega)+\omega(2\Phi(\omega)-1)\bigr]\).
+<br><b>Second term:</b> \(X-X'\) is the difference of two independent \(\mathcal N(0,\sigma^2)\) variables, so \(X-X'\sim\mathcal N(0,2\sigma^2)\) (variances add),
+\[
+\E|X-X'|=\sqrt{2}\,\sigma\cdot\E|Z|=\sqrt2\,\sigma\sqrt{\tfrac2\pi}=\frac{2\sigma}{\sqrt\pi},
+\qquad
+\tfrac12\E|X-X'|=\frac{\sigma}{\sqrt{\pi}} .
+\]
+Substituting into (3.2) gives (3.4).<span class="qed">∎</span>
+</div>
+<p><span class="pencil">☞ pencil-and-paper checkpoint</span>: verify that (3.4) is symmetric under \(\omega\mapsto-\omega\) (using \(\Phi(-\omega)=1-\Phi(\omega)\) and the evenness of \(\varphi\)) — over-prediction and under-prediction are penalized equally, consistent with the fairness of the scoring rule.</p>
+
+<h3>3.5 Five properties (each with a derivation)</h3>
+
+<p><b>P1 (degenerate limit = absolute error).</b> Fix \(\delta=y-\mu\ne0\), and let \(\sigma\to0^+\) (\(\omega=\delta/\sigma\to\pm\infty\)):
+\(\sigma\omega=\delta\) stays fixed, \(2\Phi(\omega)-1\to\sgn(\delta)\), \(\sigma\varphi(\omega)\to0\) (the Gaussian tail decays faster than any polynomial), \(\sigma/\sqrt\pi\to0\). Hence
+\(\mathrm{CRPS}\to\delta\cdot\sgn(\delta)=|y-\mu|\), consistent with Lemma 3.3.</p>
+
+<p><b>P2 (a perfect mean still has to pay for width).</b> Take \(y=\mu\) (\(\omega=0\)):
+\[
+\mathrm{CRPS}=\sigma\Bigl[2\varphi(0)-\tfrac{1}{\sqrt\pi}\Bigr]
+=\sigma\,\frac{\sqrt2-1}{\sqrt\pi}\approx 0.2337\,\sigma .
+\]
+(Simplification: \(2\varphi(0)=\sqrt{2/\pi}=\sqrt2/\sqrt\pi\).) This is the quantitative form of the <b>sharpness penalty</b>: for every 1 mm σ is widened, even with a perfectly correct mean, the average CRPS pays at least 0.23 mm. This is exactly the fact cited by the summary card in §2.</p>
+
+<p><b>P3 (closed-form solution for the optimal σ).</b> Fix \(\delta=y-\mu\neq 0\), and treat (3.4) as a function of \(\sigma\) to minimize. Let \(g(\omega)=\omega(2\Phi(\omega)-1)+2\varphi(\omega)-1/\sqrt\pi\); first compute</p>
+\[
+g'(\omega)=\bigl(2\Phi(\omega)-1\bigr)+2\omega\varphi(\omega)+2\varphi'(\omega)
+\overset{(0.1)}{=}\bigl(2\Phi(\omega)-1\bigr)+2\omega\varphi(\omega)-2\omega\varphi(\omega)
+=2\Phi(\omega)-1 .
+\]
+<p>Then (by the chain rule, \(\dfrac{\partial\omega}{\partial\sigma}=-\dfrac{\omega}{\sigma}\)):</p>
+\[
+\frac{\partial}{\partial\sigma}\,\mathrm{CRPS}
+=g(\omega)+\sigma\,g'(\omega)\Bigl(-\frac{\omega}{\sigma}\Bigr)
+=g(\omega)-\omega\bigl(2\Phi(\omega)-1\bigr)
+=2\varphi(\omega)-\frac{1}{\sqrt\pi} .
+\tag{3.5}
+\]
+<p>Setting (3.5) to zero: \(\varphi(\omega)=\tfrac{1}{2\sqrt\pi}\), i.e., \(e^{-\omega^2/2}=\sqrt{2\pi}/(2\sqrt\pi)=\tfrac{1}{\sqrt2}\), solving to \(\omega^2=\ln 2\). Since \(|\omega|=|\delta|/\sigma\):</p>
+\[
+\boxed{\ \sigma^\ast =\frac{|y-\mu|}{\sqrt{\ln 2}}\approx 1.201\,|y-\mu|\ }
+\]
+<p>Uniqueness: in (3.5), \(\varphi(\delta/\sigma)\) is strictly increasing in \(\sigma\) (since \(|\omega|\) decreases), so the derivative rises monotonically from \(-1/\sqrt\pi\lt0\) at \(\sigma\to0^+\) to \(\sqrt{2/\pi}-1/\sqrt\pi\gt0\) at \(\sigma\to\infty\), changing sign exactly once. <b>Interpretation:</b> for a single observation, the σ most preferred by CRPS is about 1.2 times the actual miss distance — "neither too narrow nor too wide" is not a figure of speech but a stationary point that can be solved exactly. <b>But the levels must be kept distinct:</b> this is the stationary point for a <b>fixed single observation</b>; for the population expectation (averaging \(Y\) over the true conditional distribution), strict propriety (P4 below) guarantees that the optimal solution is the true conditional distribution itself — in which case the population-optimal σ is exactly the true conditional standard deviation, consistent at the population level with Theorem 5.1 for NLL. The two levels must not be conflated (compare §5.6).</p>
+
+<p><b>P4 (strict propriety).</b> This is the core of CRPS's legitimacy as an evaluation metric: <b>telling the truth is the unique optimal strategy</b>.</p>
+<div class="thm"><span class="label">Theorem 3.7.</span>
+Let the observation \(Y\sim G\) (the true distribution) and the prediction be \(F\), both with finite first moment. Then
+\[
+\E_{Y\sim G}\bigl[\mathrm{CRPS}(F,Y)\bigr]-\E_{Y\sim G}\bigl[\mathrm{CRPS}(G,Y)\bigr]
+=\int_{-\infty}^{\infty}\bigl(F(z)-G(z)\bigr)^2\dd z\ \ge 0,
+\]
+with equality if and only if \(F=G\) (almost everywhere).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+For fixed \(z\): \(\E_G\bigl(F(z)-\ind[z\ge Y]\bigr)^2
+=F(z)^2-2F(z)\,\E_G\ind[Y\le z]+\E_G\ind[Y\le z]^2
+=F^2-2FG+G\) (the square of an indicator equals itself). The same expression with \(G\) in place of \(F\) gives \(G^2-2G^2+G=G-G^2\). Subtracting the two pointwise:
+\[
+\bigl(F^2-2FG+G\bigr)-\bigl(G-G^2\bigr)=(F-G)^2\ \ge 0 .
+\]
+Integrating over \(z\) (the difference is nonnegative and integrable: \((F-G)^2\le|F-G|\), and \(\int|F-G|\dd z\) is exactly the Wasserstein-1 distance between \(F,G\), which is finite when the first moments are finite), then adding back the finite \(\E_G\mathrm{CRPS}(G,Y)=\tfrac12\E|Y-Y'|\) (from (3.2) with \(F=G\)) on both sides completes the proof. The equality condition follows from the nonnegativity of the integrand.<span class="qed">∎</span>
+</div>
+<p>This incidentally yields a neat decomposition: \(\E_G\mathrm{CRPS}(F,Y)=\underbrace{\tfrac12\E|Y-Y'|}_{\text{intrinsic dispersion of the data}}+\underbrace{\textstyle\int(F-G)^2\dd z}_{\text{deviation of the predictive distribution}}\). The former is a floor no model can ever go below; the latter is the part a model can improve.</p>
+
+<p><b>P5 (tail behavior: CRPS linear, NLL quadratic).</b> Fix \(\sigma\), and let \(d=|y-\mu|\to\infty\). By the Mills ratio \(1-\Phi(\omega)\sim\varphi(\omega)/\omega\):
+\[
+\mathrm{CRPS}=\sigma\bigl[\omega-2\omega(1-\Phi(\omega))+2\varphi(\omega)-\tfrac1{\sqrt\pi}\bigr]
+=d-\frac{\sigma}{\sqrt\pi}+O\!\bigl(\sigma\varphi(\omega)\bigr)
+\;\longrightarrow\; d-\frac{\sigma}{\sqrt\pi},
+\]
+i.e., <b>linear</b> growth (asymptotically just the absolute error minus a σ discount). By contrast, the Gaussian NLL \(\sim d^2/(2\sigma^2)\) grows <b>quadratically</b> (§5). CRPS is therefore far more robust to outlying observations — on data containing step-shaped anomalous trajectories (Nozzle 3), this is one practical reason for treating CRPS as the reporting metric and reserving NLL as the training loss.</p>
+
+<p><b>P6 (scale equivariance).</b> For \(a>0\): \(\mathrm{CRPS}\bigl(\mathcal N(a\mu,a^2\sigma^2),\,ay\bigr)=a\cdot\mathrm{CRPS}\bigl(\mathcal N(\mu,\sigma^2),y\bigr)\) (in (3.4), \(\omega\) is unchanged and the prefactor \(\sigma\mapsto a\sigma\)). So CRPS carries units of mm and is compatible with the thesis's \(A\)-scaling (\(\mu_S=A\hat\mu,\ \sigma_S=A\hat\sigma\)): computing in physical space, or computing in scaled space and multiplying by \(A\), gives the same result.</p>
+
+
+<div class="demo" id="demo4">
+<div class="demo-title">🎛 Interactive experiment 4 | Dissecting CRPS: the geometry of the definition (left) + the "neither too wide nor too narrow" stationary point (right)</div>
+<p style="font-size:.93em;margin:.2em 0 .4em">Left panel: the geometry of Definition 3.1 — blue is the predictive Gaussian CDF \(F\), black is the observation step \(\ind[z\ge y]\) (taking \(\mu=0\)), and the red shading is the gap band between the two (CRPS is the integral of this gap <b>after squaring</b>). Right panel: fixing the miss distance \(|y-\mu|\) and sweeping σ — CRPS(σ) (solid red line) bottoms out at \(\sigma^\ast =|y-\mu|/\sqrt{\ln 2}\approx1.2|y-\mu|\) (P3), while the single-point NLL (dashed blue line) bottoms out at \(\sigma=|y-\mu|\); the two curves' vertical axes are each normalized independently, so only shape and minimum location should be compared.</p>
+<div class="controls">
+<label>Observation y <input type="range" id="d4y" min="-3" max="3" step="0.1" value="1.5"> <span class="val" id="d4yv"></span></label>
+<label>σ for the left panel <input type="range" id="d4s" min="0.2" max="3" step="0.05" value="1.0"> <span class="val" id="d4sv"></span></label>
+</div>
+<canvas id="d4c"></canvas>
+<div class="readouts" id="d4r"></div>
+<div class="trylist"><b>Try this:</b> (1) y→0: in the right panel, CRPS becomes a straight line of slope 0.234 (the P2 sharpness penalty — even a perfectly correct mean must still pay for width), while NLL monotonically prefers σ→0. (2) Push y to 3: CRPS becomes nearly linear on the right while NLL explodes on the left (P5 tail behavior: linear vs quadratic). (3) In the left panel, increase σ: the shading proliferates on both sides away from y — this is the bill that "widening σ to cheat coverage" has to pay on CRPS.</div>
+</div>
+<h3>3.6 <span class="star">★</span> Extension: CRPS is "the integral of all quantile losses"</h3>
+<p>Another well-known representation connects CRPS to quantile regression. Write \(q_\tau=F^{-1}(\tau)\) and the pinball loss \(\rho_\tau(u)=u\bigl(\tau-\ind[u\lt 0]\bigr)\):</p>
+\[
+\mathrm{CRPS}(F,y)=2\int_0^1 \rho_\tau\bigl(y-q_\tau\bigr)\dd\tau .
+\tag{3.6}
+\]
+<div class="proof"><span class="label">Proof sketch (derivative-matching method).</span>
+Write (3.1) as \(\int_{-\infty}^{y}F^2+\int_y^\infty(1-F)^2\); differentiating with respect to \(y\) gives
+\(\frac{\partial}{\partial y}\mathrm{CRPS}=F(y)^2-(1-F(y))^2=2F(y)-1\).
+On the right-hand side: \(\frac{\partial}{\partial y}\,2\!\int_0^1\rho_\tau(y-q_\tau)\dd\tau
+=2\int_0^1\bigl(\tau-\ind[y\lt q_\tau]\bigr)\dd\tau=2\bigl[\tfrac12-(1-F(y))\bigr]=2F(y)-1\).
+The derivatives on both sides agree everywhere, so the difference is a constant; comparing the asymptotic expansion as \(y\to+\infty\) (left side \(\to \E(y-X)=y-\E X\) plus a constant offset \(-\tfrac12\E|X-X'|\); right side \(\to y-2\int_0^1\tau q_\tau\dd\tau\)), together with the Gini identity
+\(\int_0^1 (2\tau-1)q_\tau\dd\tau=\tfrac12\E|X-X'|\)
+(derived from \(\E\max(X,X')=\int_0^1 q_\tau\cdot 2\tau\dd\tau\) and \(\E|X-X'|=2[\E\max(X,X')-\E X]\)), one can verify the constant is zero.<span class="qed">∎</span>
+</div>
+<p><b>Interpretation:</b> (3.6) says CRPS simultaneously grades the predictive quality at <b>every quantile level</b>; the slice at \(\tau=\tfrac12\) is exactly the median's absolute error. The thesis's P50 protocol amounts to pulling out this one slice for inspection — CRPS and the P50 check are thus related as "the entire quantile spectrum" versus "one cut through it."</p>
+
+<div class="recipe"><span class="label">Computation recipe.</span>
+<ol>
+<li>Compute the closed-form CRPS pointwise via (3.4) for every test point (inputs \(\mu_i,\sigma_i,y_i\), physical space, mm).</li>
+<li>Average over the whole pool; repeat across seeds.</li>
+<li>The physical baselines are likewise substituted into (3.4), with \(\sigma(t)\) taken as the time-binned \(1.4826\times\MAD\) (floor 0.5 mm) — this lets HA/NS also participate in the probabilistic comparison rather than only being compared on the mean.</li>
+<li>Plotted together with the average predicted σ as a "CRPS-sharpness plane" (a thesis figure): sharpness on the horizontal axis, CRPS on the vertical axis, visualizing the trade-off in P2.</li>
+</ol>
+</div>
+
+<div class="card"><span class="label">Defense summary card — CRPS</span><br>
+<b>In one sentence:</b> the integrated squared distance between the predictive CDF and the observation's step CDF; equivalent to "the expected absolute error of a sampled guess minus half the distribution's own dispersion"; has a closed form (3.4) under Gaussianity; its unit is mm, and it degenerates to MAE for point predictions.<br>
+<b>What it answers:</b> "Combining accuracy and uncertainty width into a single score, how good is this model's probabilistic prediction overall?"<br>
+<b>Three of the strongest verbal arguments:</b>
+(1) <i>Strictly proper</i> (Theorem 3.7): reporting the true distribution is the unique optimal solution, so there is no way to cheat by widening or narrowing σ;
+(2) <i>Sharpness has a price</i> (P2): even a perfectly correct mean still pays 0.234σ, so the cost of conservative coverage is accounted for;
+(3) <i>The single-point optimal σ is solvable</i> (P3): for a single observation, \(\sigma^\ast \approx1.2\,|y-\mu|\), giving "neither too wide nor too narrow" a precise meaning (the population-level optimum remains the true distribution; see P4).<br>
+<b>Possible follow-up questions and answers:</b> "What's the difference between CRPS and NLL?" — both are proper scoring rules, but CRPS's tail is linear (P5), its unit is mm, and it is friendly to point-prediction baselines; NLL's tail is quadratic, its dimension is nats, and it diverges pathologically as σ→0, making it suitable as a differentiable training loss rather than a cross-model reporting metric (see §5.6 for details).
+</div>
+
+<h2 id="sec4">§4 PIT, reliability diagrams, and ECE</h2>
+
+<h3>4.1 The probability integral transform theorem (PIT)</h3>
+<div class="thm"><span class="label">Theorem 4.1 (PIT).</span>
+Let the random variable \(Y\) have a <b>continuous</b> CDF \(F\). Then \(U=F(Y)\sim\mathrm{Uniform}(0,1)\).
+</div>
+<div class="proof"><span class="label">Proof (full version handling flat segments).</span>
+Take \(u\in(0,1)\). The set \(S_u=\{y:F(y)\le u\}\) is an interval unbounded to the left, since \(F\) is nondecreasing; it is nonempty since \(\lim_{y\to-\infty}F=0\lt u\); its supremum \(y_u=\sup S_u\) is finite since \(\lim_{y\to+\infty}F=1\gt u\). Claim:
+\[
+\{F(Y)\le u\}=\{Y\le y_u\},\qquad F(y_u)=u .
+\]
+(i) If \(Y\le y_u\): for any \(y\lt y_u\), by the definition of supremum there exists \(y'\in S_u,\ y'\gt y\), so \(F(y)\le F(y')\le u\); taking the left limit and using continuity of \(F\) gives \(F(y_u)\le u\), hence \(F(Y)\le F(y_u)\le u\).
+(ii) If \(Y\gt y_u\): \(Y\notin S_u\), so \(F(Y)\gt u\).
+(iii) From (i) we already have \(F(y_u)\le u\); on the other hand, for \(y\gt y_u\) we have \(F(y)\gt u\), and letting \(y\downarrow y_u\), continuity gives \(F(y_u)\ge u\). Hence \(F(y_u)=u\).
+Therefore \(\Prob(U\le u)=\Prob(Y\le y_u)=F(y_u)=u\), exactly the CDF of the uniform distribution.<span class="qed">∎</span>
+</div>
+
+<p><b>Applying this to evaluation (in the reverse direction):</b> the model gives a predictive CDF \(\hat F_i=\Phi\bigl(\tfrac{\cdot-\mu_i}{\sigma_i}\bigr)\) at each point. If the model is <b>probabilistically calibrated</b> (i.e., every \(y_i\) truly follows \(\hat F_i\)), then by Theorem 4.1, every
+\[
+u_i=\hat F_i(y_i)=\Phi\!\Bigl(\frac{y_i-\mu_i}{\sigma_i}\Bigr)
+\]
+is Uniform(0,1). Pooling all the \(u_i\) and plotting a histogram should give an approximately flat shape — any systematic shape is evidence of miscalibration.</p>
+
+<div class="remark"><b>Remark (uniform &ne; sufficient).</b> PIT uniformity is a <b>necessary</b>, not sufficient, condition for a good prediction. Counterexample: a "climatological forecaster" reports the same marginal distribution \(G\) (the overall distribution of \(y\)) at every point. Since \(y_i\sim G\), \(u_i=G(y_i)\) is exactly uniform — but this forecast makes no use whatsoever of the input \(x\) and has zero resolution. The evaluation philosophy is therefore "<b>maximize sharpness subject to calibration</b>": PIT/coverage govern calibration, while CRPS governs both simultaneously. This is the underlying logic behind the thesis reporting coverage, CRPS, and PIT together.</div>
+
+<h3>4.2 A dictionary of miscalibration shapes: a rigorous derivation</h3>
+<p>Turn the statement "U-shaped = overconfident, hump-shaped = over-dispersed, skewed = mean bias" into a theorem. Consider the idealized setting: the true \(Y\sim\mathcal N(m,s^2)\), predicted \(\mathcal N(\mu,\sigma^2)\).</p>
+
+<div class="thm"><span class="label">Theorem 4.2 (PIT density).</span>
+The density of \(U=\Phi\bigl(\tfrac{Y-\mu}{\sigma}\bigr)\) is
+\[
+p_U(u)=\frac{\sigma}{s}\cdot
+\frac{\varphi\!\Bigl(\dfrac{\mu+\sigma q-m}{s}\Bigr)}{\varphi(q)}
+\Bigg|_{\,q=\Phi^{-1}(u)},\qquad u\in(0,1).
+\tag{4.1}
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+\(u\mapsto y(u)=\mu+\sigma\,\Phi^{-1}(u)\) is a strictly increasing, differentiable bijection, with \(\dfrac{\mathrm dy}{\mathrm du}=\dfrac{\sigma}{\varphi(\Phi^{-1}(u))}\)
+(inverse-function differentiation: \(\frac{\mathrm d}{\mathrm du}\Phi^{-1}(u)=1/\varphi(\Phi^{-1}(u))\)). The change-of-variables formula
+\(p_U(u)=p_Y\bigl(y(u)\bigr)\bigl|\tfrac{\mathrm dy}{\mathrm du}\bigr|\), together with \(p_Y(y)=\tfrac1s\varphi\bigl(\tfrac{y-m}{s}\bigr)\), gives the result.<span class="qed">∎</span>
+</div>
+
+<div class="cor"><span class="label">Corollary 4.3 (shape classification).</span>
+In (4.1), take \(\mu=m\) (unbiased) and write \(\kappa=\sigma/s\):
+\[
+p_U(u)=\kappa\,\exp\!\Bigl[-\tfrac{q^2}{2}\bigl(\kappa^2-1\bigr)\Bigr],
+\qquad q=\Phi^{-1}(u).
+\]
+<ul>
+<li>\(\kappa>1\) (σ too wide, conservative): the center \(p_U(\tfrac12)=\kappa>1\), while at the endpoints \(u\to0,1\) (\(q\to\mp\infty\)) the exponent \(\to-\infty\) and the density \(\to0\), giving a <b>hump-shaped</b> distribution.</li>
+<li>\(\kappa\lt 1\) (σ too narrow, overconfident): the center \(p_U(\tfrac12)=\kappa\lt 1\), while the endpoint density \(\to\infty\), giving a <b>U-shaped</b> distribution.</li>
+<li>\(\mu\ne m\): the shift in (4.1) makes the density no longer symmetric about \(u=\tfrac12\). If \(\mu>m\) (systematic over-prediction), the mass of \(z=(Y-\mu)/\sigma\) shifts negative, and the mass of \(u\) shifts toward 0, giving a histogram <b>weighted toward the left</b>; under-prediction gives the reverse.</li>
+</ul>
+</div>
+<p><span class="pencil">☞ pencil-and-paper checkpoint</span>: substitute \(\kappa=1,\mu=m\) into (4.1) and verify \(p_U\equiv1\) (returning to Theorem 4.1). Then compare with §2.4: the thesis's MLP coverage exceeds nominal, implying the \(\kappa>1\) regime, implying the PIT should be hump-shaped — consistent with the thesis's calibration plot.</p>
+
+<h3>4.3 Reliability diagram</h3>
+<div class="defn"><span class="label">Definition 4.4.</span>
+The empirical CDF of the PIT values is \(\widehat R(p)=\frac1N\sum_i\ind[u_i\le p]\). The reliability diagram is the point set \(\bigl\{(p_k,\widehat R(p_k))\bigr\}\) (\(p_k\) taken on a grid of nominal probability levels). Under perfect calibration \(\E\widehat R(p)=p\), and the plot lies along the 45-degree diagonal.
+</div>
+<p>Reading rules (translated directly from Corollary 4.3):</p>
+<ul>
+<li>The curve forms an S-shape, "low then high" (below the diagonal at low \(p\), above at high \(p\)), implying the PIT is concentrated at the center, implying over-dispersion (conservative).</li>
+<li>An inverse-S shape implies a U-shaped PIT, implying overconfidence.</li>
+<li>Overall above the diagonal implies \(u_i\) skews small, implying systematic over-prediction (\(\mu>y\) predominates); overall below implies under-prediction.</li>
+</ul>
+<p>Moreover, by Lemma 2.3, coverage is the difference between two pairs of points on this diagram: \(\widehat{\mathrm{Cov}}_{k\sigma}=\widehat R(\Phi(k))-\widehat R(\Phi(-k))\). The reliability diagram is the "full-quantile version" of coverage.</p>
+
+<h3>4.4 ECE (Expected Calibration Error)</h3>
+<div class="defn"><span class="label">Definition 4.5.</span>
+On a grid of nominal levels \(0\lt p_1\lt \cdots\lt p_K\lt 1\),
+\[
+\mathrm{ECE}=\frac1K\sum_{k=1}^{K}\bigl|\widehat R(p_k)-p_k\bigr| .
+\]
+</div>
+<p>As the grid is refined (\(K\to\infty\), equally spaced), this is a Riemann sum:
+\(\mathrm{ECE}\to\int_0^1\bigl|\widehat R(p)-p\bigr|\dd p\),
+i.e., "the \(L^1\) distance between the PIT empirical CDF and the uniform CDF." By contrast, the KS statistic \(D_N=\sup_p|\widehat R(p)-p|\) is an \(L^\infty\) distance — ECE averages over overall miscalibration, while KS captures the single worst point. Note that this is the <b>regression-quantile version of ECE</b>; it shares a name but not a construction with the confidence-binned ECE of the classification literature.</p>
+
+<div class="worked"><span class="label">Worked example (Chapter 5's extended residual table).</span>
+The per-nozzle head's ECE \(=0.072\), meaning that, on average, the nominal probability and the empirical frequency differ by 7.2 percentage points; the residual multi-task SVGP brings this down to \(0.026\). Paired with the same table's CRPS dropping from 2.72 to 2.04 mm: calibration and the aggregate score improve together, consistent with the narrative that "the gain is not from widening σ."
+</div>
+
+<h3>4.5 Why the KS test can only serve as a "sensitivity indicator"</h3>
+<p>Under the iid assumption, \(\sqrt N D_N\) converges to the Kolmogorov distribution, with a critical value of about \(1.36/\sqrt N\) (at the 5% level). But by §0.3, this data's effective sample size is \(N_{\mathrm{eff}}\ll N\): substituting \(N=542{,}565\) into the critical-value formula gives an absurdly strict threshold of \(\approx0.0018\), under which any tiny miscalibration would be "significant." The correct threshold should be computed with \(N_{\mathrm{eff}}\), inflating the critical value by a factor of \(\sqrt{N/N_{\mathrm{eff}}}\) — and \(N_{\mathrm{eff}}\) depends on an unknown autocorrelation structure. <b>Conclusion:</b> the p-value is nearly uninformative here; engineering judgment should rest on histogram shape, ECE, and coverage curves. This is precisely the position the thesis takes, and it is a piece of methodological self-awareness worth stating proactively in a defense.</p>
+
+<div class="recipe"><span class="label">Computation recipe.</span>
+<ol>
+<li>Compute \(u_i=\Phi\bigl((y_i-\mu_i)/\sigma_i\bigr)\) for every test point.</li>
+<li>PIT histogram: divide \([0,1]\) evenly (e.g., 20 bins), count each bin's frequency, and compare against the horizontal line.</li>
+<li>Reliability diagram: compute \(\widehat R(p_k)\) on a grid of nominal levels and plot against the diagonal for comparison.</li>
+<li>ECE: average per Definition 4.5. The KS statistic can be computed separately, but only as a sensitivity reference.</li>
+</ol>
+</div>
+
+
+<div class="demo" id="demo3">
+<div class="demo-title">🎛 Interactive experiment 3 | Calibration playground: two knobs, κ and δ, jointly drive PIT shape, the reliability diagram, and coverage</div>
+<p style="font-size:.93em;margin:.2em 0 .4em">Idealized setting (Theorem 4.2 / Corollary 4.3): true \(Y\sim\mathcal N(m,s^2)\), predicted \(\mathcal N(\mu,\sigma^2)\), computed entirely in closed form. Knobs: the width ratio \(\kappa=\sigma/s\) (&gt;1 = interval too wide) and the standardized offset \(\delta=(\mu-m)/s\) (&gt;0 = systematic over-prediction).</p>
+<div class="controls">
+<label>κ = σ/s <input type="range" id="d3k" min="0.4" max="2.5" step="0.005" value="1.3"> <span class="val" id="d3kv"></span></label>
+<label>δ = (μ−m)/s <input type="range" id="d3d" min="-1.5" max="1.5" step="0.01" value="0"> <span class="val" id="d3dv"></span></label>
+<span>Presets:
+<button class="presetbtn" id="d3p1">Perfect calibration</button>
+<button class="presetbtn" id="d3p2">Thesis MLP 1σ (κ=1.585)</button>
+<button class="presetbtn" id="d3p3">Overconfident (κ=0.6)</button>
+<button class="presetbtn" id="d3p4">Systematic over-prediction (δ=0.8)</button></span>
+</div>
+<canvas id="d3c"></canvas>
+<div class="readouts" id="d3r"></div>
+<div class="trylist"><b>Try this:</b> (1) Click "Thesis MLP 1σ": the 1σ coverage is exactly 0.887, but the same κ gives a 2σ coverage of 0.9985 — whereas the thesis's actual measurement is 0.989. <b>A single κ cannot match both levels at once</b>: this is the interactive version of the inversion exercise in §2.4 (τ₁≠τ₂). (2) κ=0.6: the PIT is U-shaped, and coverage falls at both levels together (overconfidence). (3) δ=0.8: the histogram mass shifts toward 0, and the reliability curve rises overall — the directional rule "skew = mean bias."</div>
+</div>
+<div class="card"><span class="label">Defense summary card — PIT / reliability diagram / ECE</span><br>
+<b>In one sentence:</b> convert every observation into "which quantile of its own predictive distribution it falls at" (\(u_i=\Phi(z_i)\)); perfect calibration is equivalent to these quantile values being uniformly distributed (Theorem 4.1). The histogram shows shape, the reliability diagram shows deviation from the diagonal, and ECE condenses the deviation into a single number.<br>
+<b>What it answers:</b> "Is the <i>shape</i> of σ(t) correct? Too narrow (U-shaped), too wide (hump-shaped), or off-center (skewed)?" — much finer-grained than coverage's two point locations.<br>
+<b>How to read this thesis's results:</b> the MLP's coverage exceeding nominal implies a hump-shaped PIT (the \(\kappa&gt;1\) regime of Corollary 4.3), i.e., deliberate conservatism; ECE is used to compare calibration quality across variants (the residual SVGP's 0.026 is best).<br>
+<b>Possible follow-up questions and answers:</b> "Does a uniform PIT mean the model is good?" — no, uniformity is only a necessary condition (the climatological counterexample, remark in §4.1); sharpness is also needed, hence pairing with CRPS. "Why not report the KS test's p-value?" — point-wise temporal correlation invalidates the iid p-value (§4.5), and the thesis explicitly demotes it to a sensitivity indicator.
+</div>
+
+<h2 id="sec5">§5 Heteroscedastic Gaussian NLL (negative log-likelihood)</h2>
+
+<h3>5.1 Starting from the likelihood function</h3>
+<p>Suppose the model posits \(Y\,|\,x\sim\mathcal N\bigl(\mu(x),\sigma^2(x)\bigr)\). The single-point density is
+\(f(y|x)=\dfrac{1}{\sqrt{2\pi\sigma^2(x)}}\exp\Bigl[-\dfrac{(y-\mu(x))^2}{2\sigma^2(x)}\Bigr]\);
+taking the negative log:</p>
+\[
+-\log f(y|x)
+=\frac12\log(2\pi)+\frac12\log\sigma^2(x)+\frac{(y-\mu(x))^2}{2\sigma^2(x)} .
+\tag{5.1}
+\]
+<p>The thesis's Stage 2 loss (Chapter 4's equation) is exactly (5.1) with the constant \(\tfrac12\log 2\pi\) dropped, acting on the scaled target \(\hat S=S/A\):</p>
+\[
+\mathcal L_{\mathrm{stage2}}^{\mathrm{data}}
+=\E\Bigl[\tfrac12\Bigl(\log\hat\sigma^2+\frac{(\hat S-\hat\mu)^2}{\hat\sigma^2}\Bigr)\Bigr],
+\qquad \hat\sigma^2=\exp(\log\hat\sigma^2)+\varepsilon .
+\]
+<p>The network outputs \(\log\hat\sigma^2\) rather than \(\hat\sigma^2\): exponentiation guarantees positivity, and the clipping of \(\varepsilon\) and \(\log\hat\sigma^2\in[-10,6]\) prevents numerical pathologies (see 5.5).</p>
+
+<h3>5.2 Why NLL can learn σ(x) "for free": a stationary-point analysis</h3>
+<div class="thm"><span class="label">Theorem 5.1 (pointwise-optimal solution of the population risk).</span>
+Consider the population risk
+\(\mathcal R(\mu,\sigma^2)=\E_{x,y}\Bigl[\tfrac12\log\sigma^2(x)+\tfrac{(y-\mu(x))^2}{2\sigma^2(x)}\Bigr]\).
+Minimizing pointwise in function space, the unique solution is
+\[
+\mu^\ast (x)=\E[Y\,|\,x],
+\qquad
+\sigma^{2\ast }(x)=\Var(Y\,|\,x) .
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+Fix \(x\), write \(v=\sigma^2(x)\gt0\), \(c(\mu)=\E[(Y-\mu)^2|x]\). Inner minimization over \(\mu\): \(c(\mu)=\Var(Y|x)+(\mu-\E[Y|x])^2\) (Theorem 1.2(i)), minimized at \(\mu^\ast =\E[Y|x]\) with minimum \(c^\ast =\Var(Y|x)\). Outer minimization over \(v\):
+\[
+h(v)=\tfrac12\log v+\frac{c^\ast }{2v},
+\qquad
+h'(v)=\frac{1}{2v}-\frac{c^\ast }{2v^2}=\frac{v-c^\ast }{2v^2},
+\]
+which is negative for \(v\lt c^\ast \) and positive for \(v\gt c^\ast \), so \(v^\ast =c^\ast \) is the unique global minimum.<span class="qed">∎</span>
+</div>
+<p><b>Interpretation:</b> the heteroscedastic NLL requires no separately defined "uncertainty label" — the supervisory signal for the σ head is <b>endogenous to the stationary condition of the loss</b>: the optimal σ²(x) automatically equals the true conditional variance under that input. This is exactly the mechanism by which Stage 2 learns "conditional spread" from the population dispersion of the fitted trajectories, and it explains why the thesis states that Stage 2 "decouples the conditional mean and the conditional dispersion, two things that pure MSE conflates."</p>
+
+<h3>5.3 NLL is also a strictly proper scoring rule (log score)</h3>
+<div class="thm"><span class="label">Theorem 5.2 (Gibbs' inequality).</span>
+Let the true density be \(g\) and the predicted density be \(f\). Then
+\(\E_{Y\sim g}[-\log f(Y)]\ \ge\ \E_{Y\sim g}[-\log g(Y)]\),
+with equality if and only if \(f=g\) (almost everywhere).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+The difference between the two sides is \(\E_g\log\frac{g}{f}=\mathrm{KL}(g\,\|\,f)\). By Jensen's inequality (\(\log\) is strictly concave):
+\(\E_g\log\frac{f}{g}\le\log\E_g\frac{f}{g}=\log\!\int f=0\),
+so \(\mathrm{KL}\ge0\); strict concavity gives the equality condition that \(f/g\) is constant almost everywhere, which combined with both integrating to 1 gives \(f=g\).<span class="qed">∎</span>
+</div>
+
+<h3>5.4 The NLL in scaled space and physical space differ by log A</h3>
+<div class="lem"><span class="label">Lemma 5.3.</span>
+Let \(S=A\hat S\) (\(A>0\) is that sample's amplitude scaling factor), and suppose the model reports \(\mathcal N(\hat\mu,\hat\sigma^2)\) in scaled space, equivalently \(\mathcal N(A\hat\mu,A^2\hat\sigma^2)\) in physical space. Then the single-point NLL satisfies
+\[
+\mathrm{NLL}_{\mathrm{phys}}=\mathrm{NLL}_{\mathrm{scaled}}+\log A .
+\]
+</div>
+<div class="proof"><span class="label">Proof.</span>
+Density transformation: \(f_S(s)=\frac1A f_{\hat S}(s/A)\), and taking the negative log adds exactly \(+\log A\). Alternatively, substitute directly into (5.1):
+\(\tfrac12\log(A^2\hat\sigma^2)=\tfrac12\log\hat\sigma^2+\log A\), while in the squared term
+\(\frac{(A\hat s-A\hat\mu)^2}{2A^2\hat\sigma^2}\), the \(A^2\) factors cancel.<span class="qed">∎</span>
+</div>
+<p><b>Consequence:</b> when comparing two models on the <b>same dataset</b>, \(\log A_i\) is a common constant term and does not affect the ranking; but NLL figures across different data populations or different target spaces (e.g., Stage 2's scaled NLL of \(-0.323\) vs Stage 3's composite loss) <b>cannot be placed on the same leaderboard</b> — the thesis explicitly refuses such a comparison, and Lemma 5.3 is one of the mathematical reasons (another being that the two target populations are themselves different).</p>
+
+<h3>5.5 Two common questions</h3>
+<p><b>(a) Why can NLL be negative?</b> The density of a continuous distribution can exceed 1. From (5.1) (including the constant term) at \(y=\mu\): \(-\log f=\tfrac12\log(2\pi\sigma^2)\), which is negative whenever \(\sigma\lt 1/\sqrt{2\pi}\approx0.399\) (scaled units). A rough back-calculation: if the validation set's scaled NLL (constant-dropped version) is \(\approx-0.323\) and the standardized residual satisfies \(\E z^2\approx1\), then \(\tfrac12(\log\hat\sigma^2+1)\approx-0.323\Rightarrow\hat\sigma\approx e^{-0.823}\approx0.44\) (scaled units) — the negative value merely indicates that the typical σ is less than 1 scaled unit, which is <b>not</b> anomalous.</p>
+<p><b>(b) Why clip \(\log\hat\sigma^2\in[-10,6]\)?</b> Consider (5.1)'s two pathological directions: when \(\sigma\to0\) with a nonzero residual, \((y-\mu)^2/2\sigma^2\to\infty\) and the gradient explodes; when \(\sigma\to\infty\), the loss only grows slowly, as \(\log\sigma\), and the model may use "infinite widening" to escape fitting difficult early points (the Stage 2 anchor ablation's observation that "NLL treats the sparse \(t\approx0\) window as slack space" is exactly an instance of this pathology). The upper and lower clips block both escape directions.</p>
+
+<h3>5.6 NLL vs CRPS: the complete rationale for training with the former and reporting with the latter</h3>
+<table class="simple">
+<tr><th></th><th>NLL (log score)</th><th>CRPS</th></tr>
+<tr><td>Propriety</td><td>Strictly proper (Theorem 5.2)</td><td>Strictly proper (Theorem 3.7)</td></tr>
+<tr><td>Dimension</td><td>nats (no physical unit; depends on the density's reference measure)</td><td>same unit as \(y\) (mm)</td></tr>
+<tr><td>Tail penalty</td><td>\(\propto(y-\mu)^2/\sigma^2\) (quadratic)</td><td>\(\to|y-\mu|-\sigma/\sqrt\pi\) (linear, P5)</td></tr>
+<tr><td>Locality</td><td>Local score: looks only at the density value at the realized point \(y\)</td><td>Nonlocal: uses the entire CDF</td></tr>
+<tr><td>Compatibility with point-prediction baselines</td><td>Undefined (a degenerate distribution's density does not exist)</td><td>Degenerates to absolute error (Lemma 3.3); can be tabulated together</td></tr>
+<tr><td>As a loss function</td><td>Differentiable pointwise; the population-risk stationary point automatically yields \(\sigma^2=\Var(Y|x)\), with a clean closed form (Theorem 5.1)</td><td>Also strictly proper, so the population-risk optimum is likewise the true conditional distribution (Theorem 3.7 applied pointwise), and the population-optimal σ is also the conditional standard deviation; the actual difference lies in the <b>single-sample</b> stationary-point preference \(\sigma^\ast \approx1.2|y-\mu|\) (P3) and per-sample gradient behavior</td></tr>
+</table>
+<p>So the division of labor follows a principle: <b>use NLL as the training loss</b> (differentiable, with a population-risk stationary point exactly equal to the conditional mean plus conditional variance, and a closed form); <b>use CRPS + coverage + PIT as reporting metrics</b> (interpretable units, robust to outliers, able to include point-prediction baselines, and able to separate the three questions of "accuracy / width / shape").</p>
+
+<div class="card"><span class="label">Defense summary card — Heteroscedastic NLL</span><br>
+<b>In one sentence:</b> the Gaussian negative log-likelihood \(\tfrac12[\log\sigma^2+(y-\mu)^2/\sigma^2]\): the first term penalizes "σ too large," the second penalizes "μ inaccurate or σ too small"; its population stationary point is exactly the conditional mean and conditional variance (Theorem 5.1).<br>
+<b>What it answers:</b> "How can a single scalar loss learn both μ(x) and σ(x) simultaneously during training?"<br>
+<b>Its role in this thesis:</b> Stage 2's data-fitting term (in A-scaled space); Stage 3 reliable regime's raw supervision term (physical space). It yields precedence to CRPS/coverage at reporting time (table in §5.6).<br>
+<b>Possible follow-up questions and answers:</b> "The validation NLL is negative — is that a bug?" — no; a continuous density can exceed 1, and a negative NLL is equivalent to the typical σ being less than 0.4 scaled units (§5.5a). "Why can't NLL be compared across different stages?" — the target populations differ, and scaled/physical space differ by a per-sample \(\log A\) (Lemma 5.3).
+</div>
+
+<h2 id="sec6">§6 The mathematics of the evaluation protocol: pooling, censoring, and LONO</h2>
+
+<h3>6.1 The implicit weighting behind pooled averages</h3>
+<p>Any pooled metric can be rewritten as a "weighted sum of operating-condition-level averages." Take MAE as an example: let operating condition \(c\) have \(n_c\) points in the test pool:</p>
+\[
+\mathrm{MAE}
+=\frac1N\sum_{i}|r_i|
+=\sum_{c}\underbrace{\frac{n_c}{N}}_{w_c}\cdot\underbrace{\Bigl(\frac{1}{n_c}\sum_{i\in c}|r_i|\Bigr)}_{\text{MAE of operating condition } c} .
+\]
+<p><b>Consequence:</b> operating conditions with more surviving points get more weight. Because de-censoring cuts off the late time bins, and the cutoff point differs across operating conditions, the pooled metric <b>systematically overweights the early-to-mid time range and operating conditions with abundant observations</b>. This is not an error, but must be understood — the thesis hedges against it with two complementary protocols: the P50 condition-level check (each operating condition compressed to a single median trajectory, weights normalized) and the q1 extrapolation grid (dedicated to testing extrapolation behavior outside the observation window).</p>
+
+<h3>6.2 Why censored points cannot be evaluated directly: a small lemma</h3>
+<div class="lem"><span class="label">Lemma 6.1 (necessary downward bias of censored labels).</span>
+Let the true penetration be \(S\), the field-of-view cap be \(C\), and the observation be \(y=\min(S,C)\). If \(\Prob(S\gt C)\gt0\), then
+\[
+\E[y]=\E[S]-\E[(S-C)^+]\ \lt\ \E[S].
+\]
+And for a "perfect model" \(\mu=S\): measuring against the label \(y\) records a spurious positive bias \(\mu-y=(S-C)^+\ge0\).
+</div>
+<div class="proof"><span class="label">Proof.</span>
+Take the expectation of the identity \(\min(S,C)=S-(S-C)^+\); \((S-C)^+\ge0\) and is strictly positive on the positive-probability event \(\{S>C\}\), so the expectation is strictly positive. The second statement follows by direct substitution.<span class="qed">∎</span>
+</div>
+<p><b>Interpretation:</b> evaluating against a censored label <b>penalizes the model that tells the truth and rewards the model that under-predicts by following the cap</b>. This is the mathematical basis for the thesis making the "de-censored table" the primary protocol and demoting full-clean (censoring-inclusive) to a supplementary view; it also explains why the "near-cap −2.7 mm bias" before the Stage 3 KD-form fix was a pathology that needed fixing: the raw NLL pulls the student's μ toward "the observation that has just been truncated at its lower bound."</p>
+
+
+<div class="demo" id="demo5">
+<div class="demo-title">🎛 互動實驗 5｜FOV 右刪失：對刪失標籤評估，會把「說真話」記成「正偏差」（引理 6.1 活體版）</div>
+<p style="font-size:.93em;margin:.2em 0 .4em">60 條 \(S_j(t)=k_j\,t^{1/4}\)（\(k_j\sim\mathcal N(90,15)\)，模擬 q1 形狀的軌跡族；刻意誇大的玩具設定），紅色虛線是可拖動的 FOV cap \(C\)。相機只看得到 \(y=\min(S,C)\)：橘線（刪失標籤的均值）在軌跡開始觸 cap 後便系統性低於藍線（真實均值），且 gap 隨時間擴大。對一個預測真實均值的「完美模型」，這個 gap 會被全數記成它的「高估偏差」。</p>
+<div class="controls">
+<label>FOV cap C <input type="range" id="d5cap" min="60" max="150" step="1" value="92"> <span class="val" id="d5capv"></span> mm</label>
+</div>
+<canvas id="d5c"></canvas>
+<div class="readouts" id="d5r"></div>
+<div class="trylist"><b>試試看：</b>① 預設 C=92 mm（論文的中位噴嘴 cap）：5 ms 處 gap ≈ 43 mm——與論文 audit 的 cap-saturation gap（43.96 mm）與 naive-hold gap（≈46 mm）同量級。② C 調到 150：gap 幾乎消失——刪失偏差完全由「cap 相對軌跡分布的位置」決定。③ 觀察橘線在 cap 附近變平的形狀：這就是 Stage 3 修復前「raw NLL 把學生 μ 往截斷觀測拉」造成近 cap 低估的資料端根源。</div>
+</div>
+<h3>6.3 LONO 的形式化與跨 fold 統計</h3>
+<div class="defn"><span class="label">定義 6.2（LONO 協定）.</span>
+設噴嘴家族集合 \(\mathcal F\)，fold \(f\in\{N0,N1,N2,N4,N5\}\)。對每個 \(f\)：以 \(\mathcal D\setminus\mathcal D_f\)（剔除整個家族 \(f\) 的所有工況）重新訓練完整管線，於 \(\mathcal D_f\) 上計算指標 \(m_f\)。報告
+\[
+\bar m=\frac1{|\mathcal K|}\sum_{f\in\mathcal K} m_f,
+\qquad
+s_m=\sqrt{\frac{1}{|\mathcal K|-1}\sum_{f}(m_f-\bar m)^2}
+\quad(\text{未加權、樣本標準差}).
+\]
+</div>
+<p>三個必須講清楚的性質：</p>
+<ol>
+<li><b>它量的是外推，不是內插。</b>標準 group-aware split 中所有噴嘴都在訓練域內，量的是跨工況內插；LONO 把整個幾何家族移出支撐集，量的是對<b>未見幾何</b>的泛化。兩者回答不同問題，不能合併成一個排行榜（論文的「雙協定」方法論註記）。</li>
+<li><b>fold 不可交換。</b>Nozzle 1–8 出自同一原型設計空間，Nozzle 0 是外部參考噴嘴——五個 fold 不是同分布抽樣，\(s_m\) 是描述性統計而非抽樣標準誤，不能拿去建信賴區間。</li>
+<li><b>單一 OOD fold 對 (均值, 標準差) 的影響有閉式。</b>見引理 6.3。</li>
+</ol>
+
+<div class="lem"><span class="label">引理 6.3（單離群 fold 的代數）.</span>
+設 4 個 in-family fold 的指標都約為 \(a\)、1 個 OOD fold 為 \(b\)。則
+\[
+\bar m=a+\frac{b-a}{5},
+\qquad
+s_m=\frac{|b-a|}{\sqrt5}\approx 0.447\,|b-a| .
+\]
+</div>
+<div class="proof"><span class="label">證明.</span>
+均值直接計算。離差：四個 fold 各為 \(a-\bar m=-\tfrac{b-a}{5}\)，離群 fold 為 \(b-\bar m=\tfrac{4(b-a)}{5}\)。平方和
+\(=4\cdot\tfrac{(b-a)^2}{25}+\tfrac{16(b-a)^2}{25}=\tfrac{20(b-a)^2}{25}=\tfrac{4(b-a)^2}{5}\)，
+除以 \(|\mathcal K|-1=4\) 再開根：\(s_m=|b-a|/\sqrt5\)。<span class="qed">∎</span>
+</div>
+
+<div class="worked"><span class="label">實例一（引理 6.3 的快速核對）.</span>
+取 \(a=7.00\)（論文排除 N0 後的 4-fold 平均 RMSE）、\(b=34.76\)（N0 fold）：
+\[
+\bar m=7.00+\tfrac{27.76}{5}=12.55,\qquad s_m=\tfrac{27.76}{\sqrt5}=12.41 .
+\]
+與論文報告的 \(12.55\pm12.46\) 一致（微小差來自四個 in-family fold 並非完全相等，其自身 std 為 1.18）。<b>要點：</b>那個「±12.46」幾乎全部由 N0 一個 fold 製造——它不是雜訊，是「跨設計家族外推失敗」這個結論本身。
+</div>
+
+<div class="worked"><span class="label">實例二（<span class="pencil">☞ 紙筆檢查點</span>：完整重算一行論文表格）.</span>
+Stage 2 錨點消融的 \(\mu\)-anchor 變體 per-fold RMSE 為
+\((34.92,\ 7.16,\ 7.76,\ 8.20,\ 5.60)\)。
+均值：\(63.64/5=12.728\)。
+離差平方和：\((22.192)^2+(-5.568)^2+(-4.968)^2+(-4.528)^2+(-7.128)^2\approx 619.45\)；
+除以 4 開根：\(s_m\approx\sqrt{154.86}\approx12.44\)。
+⟹ \(12.73\pm12.44\)，與論文表逐位吻合。這是驗證「論文數字內部自洽」最快的紙筆練習。
+</div>
+
+<h3>6.4 四個評估視角的分工（總覽）</h3>
+<table class="simple">
+<tr><th>協定</th><th>母體</th><th>回答的問題</th><th>刪失處理</th></tr>
+<tr><td>Uncensored CDF（主要）</td><td>逐點，去刪失（§0.1），~542k 點</td><td>域內逐點準度與校準（受控於刪失偏差）</td><td>觸發準則後整桶刪除（引理 6.1 的動機）</td></tr>
+<tr><td>Full-clean CDF（補充）</td><td>逐點，含右刪失，~693k 點</td><td>對整個清洗集的總體行為；SCR 39.6%</td><td>不刪，明知含標籤下偏、當補充視角</td></tr>
+<tr><td>P50-observed</td><td>條件層級（每工況一條中位軌跡），4,213 點</td><td>均值頭對「代表性軌跡」的擬合（對齊 MAE 的中位數性質，定理 1.2(ii)）</td><td>只在觀測窗內</td></tr>
+<tr><td>q1-extrapolated</td><td>P50 的 q1 延拓網格，21,527 點</td><td>觀測窗外的延拓診斷（非獨立真值！）</td><td>比較對象本身是模型延拓</td></tr>
+<tr><td>LONO（5-fold）</td><td>整家族剔除後的 holdout</td><td>對未見噴嘴幾何的外推</td><td>沿用 uncensored 評估</td></tr>
+</table>
+
+<div class="card"><span class="label">答辯摘要卡 — 協定與 LONO</span><br>
+<b>一句話：</b>指標的數值只有放在「對什麼母體、以什麼權重、怎麼處理刪失」之下才有意義；LONO 是把「未見幾何外推」單獨隔離出來的協定，其巨大 ±std 是單一 OOD fold（N0）的代數必然（引理 6.3），本身就是結論。<br>
+<b>它回答：</b>「這些 mm 數字分別在哪個世界裡成立？」<br>
+<b>可能的追問與答法：</b>「為何主表不含刪失點？」——引理 6.1：對刪失標籤評估會系統性懲罰無偏模型；「為何 LONO 的 std 那麼大還敢報？」——因為它不是雜訊而是訊號：\(s_m\approx|b-a|/\sqrt5\) 直接度量 OOD fold 與 in-family fold 的差距；論文同時報含/不含 N0 兩組正是為了把這件事攤開。
+</div>
+
+<h2 id="sec7">§7 常數速查表與總結</h2>
+
+<h3>7.1 文中所有「神秘常數」的一行由來</h3>
+<table class="simple">
+<tr><th>常數</th><th>值</th><th>由來（本文出處）</th></tr>
+<tr><td>\(2\Phi(1)-1\)</td><td>0.6827</td><td>1σ 名目覆蓋率（引理 2.2）</td></tr>
+<tr><td>\(2\Phi(2)-1\)</td><td>0.9545</td><td>2σ 名目覆蓋率（引理 2.2）</td></tr>
+<tr><td>\(\Phi^{-1}(0.975)\)</td><td>1.9600</td><td>無偏高斯的 P95/RMSE 參考比（引理 1.7）</td></tr>
+<tr><td>\(\sqrt{2/\pi}\)</td><td>0.7979</td><td>\(\E|Z|\)（引理 1.5；亦為 CRPS 第二項之源）</td></tr>
+<tr><td>\(\sqrt{\pi/2}\)</td><td>1.2533</td><td>高斯 RMSE/MAE 參考比（引理 1.5）</td></tr>
+<tr><td>\((\sqrt2-1)/\sqrt\pi\)</td><td>0.2337</td><td>μ 全對時的 CRPS/σ（性質 P2）</td></tr>
+<tr><td>\(1/\sqrt{\ln2}\)</td><td>1.2011</td><td>單點 CRPS 最優 σ 與 miss 距離之比（性質 P3）</td></tr>
+<tr><td>\(\Phi^{-1}(0.75)\)</td><td>0.6745</td><td>論文第 4 章穩健 z 分數 \(z_{\mathrm{robust}}=0.6745\,(x-\mathrm{med})/\MAD\) 的係數，見引理 7.1</td></tr>
+<tr><td>\(1/\Phi^{-1}(0.75)\)</td><td>1.4826</td><td>\(\sigma_{\mathrm{robust}}=1.4826\times\MAD\)（物理基線與殘差診斷的 σ 估計），見引理 7.1</td></tr>
+</table>
+
+<div class="lem"><span class="label">引理 7.1（MAD 的高斯校正因子）.</span>
+設 \(X\sim\mathcal N(\mu,\sigma^2)\)，母體 \(\MAD=\med\bigl(|X-\med(X)|\bigr)\)。則
+\[
+\MAD=\sigma\,\Phi^{-1}(0.75)\approx0.6745\,\sigma,
+\qquad\text{故}\qquad
+\sigma=\frac{\MAD}{\Phi^{-1}(0.75)}\approx1.4826\times\MAD .
+\]
+</div>
+<div class="proof"><span class="label">證明.</span>
+\(\med(X)=\mu\)（對稱性）。\(|X-\mu|/\sigma\) 為半高斯，其中位數 \(t\) 滿足
+\(\Prob(|Z|\le t)=2\Phi(t)-1=\tfrac12\)，即 \(\Phi(t)=0.75\)，\(t=\Phi^{-1}(0.75)\)。<span class="qed">∎</span>
+</div>
+<p>由此：\(1.4826\times\MAD\) 是「假設高斯時與標準差一致」的穩健尺度估計——用中位數而非平方平均，單點離群值幾乎不影響它。論文用它做三件事：q1 擬合後的分組離群值遮罩（\(|z_{\mathrm{robust}}|>3\) 剔除）、殘差包絡的 \(\sigma_{\mathrm{robust}}(t)\) 診斷、物理基線的時間分桶 \(\sigma(t)\)。</p>
+
+<h3>7.2 總結對照表</h3>
+<table class="simple">
+<tr><th>指標</th><th>數學核心</th><th>回答的問題</th><th>論文代表值（uncensored，MLP）</th></tr>
+<tr><td>RMSE</td><td>\(\sqrt{\frac1N\sum r_i^2}\)；對應條件均值（定理 1.2）</td><td>平均差幾 mm（重罰大誤差）</td><td>4.265 mm</td></tr>
+<tr><td>MAE</td><td>\(\frac1N\sum|r_i|\)；對應條件中位數</td><td>穩健平均誤差</td><td>3.032 mm</td></tr>
+<tr><td>Bias</td><td>\(\bar r\)；\(\mathrm{RMSE}^2=\mathrm{Bias}^2+s_r^2\)</td><td>系統性高/低估</td><td>+0.562 mm（占 MSE 1.7%）</td></tr>
+<tr><td>P95</td><td>\(|r|\) 的 95% 分位；高斯參考 \(1.96\,s\)</td><td>尾部風險</td><td>9.167 mm（full-clean）</td></tr>
+<tr><td>Coverage</td><td>\(\frac1N\#\{|z_i|\le k\}\) vs \(2\Phi(k)-1\)</td><td>區間蓋不蓋得住</td><td>0.887 / 0.989（保守）</td></tr>
+<tr><td>CRPS</td><td>\(\int(F-\ind)^2\)；能量形式 (3.2)；高斯閉式 (3.4)；嚴格適當</td><td>準度+寬度的綜合分</td><td>低於基線（見第 5 章圖表）</td></tr>
+<tr><td>PIT / 可靠度 / ECE</td><td>\(u_i=\Phi(z_i)\) 應均勻（定理 4.1）；形狀由 (4.1) 分類</td><td>σ 的形狀對不對</td><td>駝峰（保守）；ECE 用於變體比較</td></tr>
+<tr><td>NLL</td><td>\(\tfrac12[\log\sigma^2+(y-\mu)^2/\sigma^2]\)；駐點 = 條件均值/變異數（定理 5.1）</td><td>訓練時同時學 μ、σ</td><td>Stage 2 val −0.323（scaled）</td></tr>
+<tr><td>LONO</td><td>整家族剔除重訓；\(\bar m\pm s_m\)；引理 6.3</td><td>未見幾何外推</td><td>12.55±12.46（N0 主導）</td></tr>
+</table>
+
+<h3>7.3 一段話收尾（可直接用於答辯開場或結尾）</h3>
+<p>這套指標構成一個有層次的證據體系：<b>RMSE/MAE/Bias/P95</b> 約束殘差分布的中心、方向與尾部；<b>coverage</b> 在兩個深度上檢查不確定帶；<b>PIT/可靠度圖/ECE</b> 把檢查推廣到整條分位數譜；<b>CRPS</b> 以嚴格適當的方式把準度與銳度合成單一可比較的 mm 數字，並允許點預測基線同場競技；<b>NLL</b> 在訓練端以其駐點性質同時產生條件均值與條件變異數；<b>LONO</b> 則把「未見幾何的外推」隔離成獨立協定。每一個環節都有明確的數學定理背書，也各有明確的盲區——而盲區恰好由下一個指標補上。</p>
+
+<hr>
+<p style="color:#777;font-size:.85em">本文件為論文答辯補充材料，對應論文第 4 章 §「Evaluation Protocol and Metrics」與第 5 章各結果表。文中所有論文數值均取自 <code>04_trajectory_surrogate_screening.tex</code> 與 <code>05_results.tex</code>（2026-07 版本）。數學推導經獨立多代理人覆核；如發現任何錯誤，以標準教科書（Gneiting &amp; Raftery 2007, <i>JASA</i>；Gneiting, Balabdaoui &amp; Raftery 2007, <i>JRSS-B</i>）為準。</p>
+
+<script>
+(function(){
+"use strict";
+function el(id){return document.getElementById(id);}
+function erf(x){var s=x<0?-1:1;x=Math.abs(x);var t=1/(1+0.3275911*x);var y=1-((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
+function Phi(x){return 0.5*(1+erf(x/1.4142135623730951));}
+function phi(x){return Math.exp(-0.5*x*x)/2.5066282746310002;}
+function PhiInv(p){if(p<=1e-12)return -7;if(p>=1-1e-12)return 7;var lo=-7,hi=7;for(var i=0;i<60;i++){var m=0.5*(lo+hi);if(Phi(m)<p)lo=m;else hi=m;}return 0.5*(lo+hi);}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^(a>>>15),1|a);t=t+Math.imul(t^(t>>>7),61|t)^t;return((t^(t>>>14))>>>0)/4294967296;};}
+function gauss(r){var u=Math.max(r(),1e-12),v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(6.283185307179586*v);}
+function ctx2(id,w,hh){var c=el(id);if(!c)return null;var d=window.devicePixelRatio||1;c.width=Math.round(w*d);c.height=Math.round(hh*d);c.style.width=w+'px';c.style.maxWidth='100%';var x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return x;}
+function fmt(v,d){return Number(v).toFixed(d===undefined?3:d);}
+function chips(id,arr){var s='',i;for(i=0;i<arr.length;i++){s+='<span class="chip">'+arr[i][0]+' <b>'+arr[i][1]+'</b>'+(arr[i][2]?' <span class="ref">'+arr[i][2]+'</span>':'')+'</span>';}el(id).innerHTML=s;}
+function vline(x,X,T,B,color,dash,label){x.save();x.strokeStyle=color;x.lineWidth=1.3;if(dash)x.setLineDash([5,4]);x.beginPath();x.moveTo(X,T);x.lineTo(X,B);x.stroke();x.setLineDash([]);if(label){x.fillStyle=color;x.font='11px sans-serif';x.fillText(label,X+3,T+11);}x.restore();}
+function box(x,P,tt){x.strokeStyle='#999';x.lineWidth=1;x.strokeRect(P.L,P.T,P.R-P.L,P.B-P.T);if(tt){x.fillStyle='#14507a';x.font='bold 12px sans-serif';x.fillText(tt,P.L,P.T-8);}x.font='11px sans-serif';x.fillStyle='#333';}
+
+/* ---------------- Demo 1 ---------------- */
+function initD1(){
+ if(!el('d1c'))return;
+ function upd(){
+  var b=+el('d1b').value,s=+el('d1s').value,wt=+el('d1w').value,i,k;
+  el('d1bv').textContent=fmt(b,1);el('d1sv').textContent=fmt(s,1);el('d1wv').textContent=Math.round(wt*100)+'%';
+  var r=mulberry32(20260702),N=40000,arr=new Float64Array(N),sum=0,sum2=0;
+  for(i=0;i<N;i++){var wide=(r()<wt);var v=b+(wide?4*s:s)*gauss(r);arr[i]=v;sum+=v;sum2+=v*v;}
+  var bias=sum/N,mse=sum2/N,rmse=Math.sqrt(mse),sabs=0,abs=new Array(N);
+  for(i=0;i<N;i++){abs[i]=Math.abs(arr[i]);sabs+=abs[i];}
+  var mae=sabs/N;
+  abs.sort(function(a,c){return a-c;});
+  var p95=abs[Math.floor(0.95*N)];
+  var sr=Math.sqrt(Math.max(mse-bias*bias,1e-9));
+  var W=820,H=300,x=ctx2('d1c',W,H);
+  var L=48,R=W-14,T=16,B=H-34,lo=-16,hi=16,nb=96;
+  var hist=new Float64Array(nb),bw=(hi-lo)/nb;
+  for(i=0;i<N;i++){k=Math.floor((arr[i]-lo)/(hi-lo)*nb);if(k>=0&&k<nb)hist[k]++;}
+  var maxd=0;for(k=0;k<nb;k++){hist[k]=hist[k]/(N*bw);if(hist[k]>maxd)maxd=hist[k];}
+  maxd=Math.max(maxd,1/(2.5066282746310002*sr))*1.12;
+  function X(v){return L+(v-lo)/(hi-lo)*(R-L);}
+  function Y(dd){return B-dd/maxd*(B-T);}
+  x.clearRect(0,0,W,H);
+  x.fillStyle='#9ec3dd';
+  for(k=0;k<nb;k++){var xx=X(lo+k*bw);x.fillRect(xx,Y(hist[k]),(R-L)/nb-0.6,B-Y(hist[k]));}
+  x.strokeStyle='#666';x.lineWidth=1.4;x.beginPath();
+  for(var px=L;px<=R;px+=2){var vv=lo+(px-L)/(R-L)*(hi-lo);var dd=Math.exp(-0.5*Math.pow((vv-bias)/sr,2))/(2.5066282746310002*sr);var yy=Y(dd);if(px===L)x.moveTo(px,yy);else x.lineTo(px,yy);}
+  x.stroke();
+  vline(x,X(0),T,B,'#ccc',true,'');
+  vline(x,X(bias),T,B,'#d07a10',false,'Bias');
+  vline(x,X(p95),T,B,'#b04040',true,'+P95');
+  vline(x,X(-p95),T,B,'#b04040',true,'−P95');
+  x.strokeStyle='#888';x.strokeRect(L,T,R-L,B-T);
+  x.fillStyle='#333';x.font='11px sans-serif';
+  for(var tv=-15;tv<=15;tv+=5){x.fillText(String(tv),X(tv)-6,B+14);}
+  x.fillText('殘差 r = μ − y  [mm]（灰線＝同均值同標準差的高斯參考）',(L+R)/2-170,B+28);
+  chips('d1r',[
+   ['RMSE',fmt(rmse,3)+' mm',''],
+   ['MAE',fmt(mae,3)+' mm',''],
+   ['Bias',(bias>=0?'+':'')+fmt(bias,3)+' mm',''],
+   ['P95',fmt(p95,3)+' mm',''],
+   ['RMSE/MAE',fmt(rmse/mae,3),'高斯參考 1.253'],
+   ['P95/RMSE',fmt(p95/rmse,3),'高斯參考 1.960'],
+   ['Bias²/MSE',fmt(100*bias*bias/mse,1)+'%','引理 1.3']
+  ]);
+ }
+ var ids=['d1b','d1s','d1w'],i;
+ for(i=0;i<ids.length;i++){el(ids[i]).addEventListener('input',upd);}
+ upd();
+}
+
+/* ---------------- Demo 2 ---------------- */
+function initD2(){
+ if(!el('d2c'))return;
+ function upd(){
+  var s1=+el('d2s1').value,s2=+el('d2s2').value,w=+el('d2w').value;
+  el('d2s1v').textContent=fmt(s1,1);el('d2s2v').textContent=fmt(s2,1);el('d2wv').textContent=Math.round(w*100)+'%';
+  var m2=w*s1*s1+(1-w)*s2*s2,rmse=Math.sqrt(m2);
+  var mae=0.7978845608028654*(w*s1+(1-w)*s2);
+  var kurt=3*(w*Math.pow(s1,4)+(1-w)*Math.pow(s2,4))/(m2*m2);
+  var W=820,H=250,x=ctx2('d2c',W,H);
+  var L=48,R=W-14,T=16,B=H-34;
+  var hi=3.2*Math.max(s1,s2),lo=-hi;
+  function p1(v){return Math.exp(-0.5*v*v/(s1*s1))/(2.5066282746310002*s1);}
+  function p2(v){return Math.exp(-0.5*v*v/(s2*s2))/(2.5066282746310002*s2);}
+  function mx(v){return w*p1(v)+(1-w)*p2(v);}
+  var maxd=Math.max(mx(0),w*p1(0),(1-w)*p2(0))*1.12+1e-9;
+  function X(v){return L+(v-lo)/(hi-lo)*(R-L);}
+  function Y(dd){return B-dd/maxd*(B-T);}
+  x.clearRect(0,0,W,H);
+  function curve(f,color,lw,dash){x.strokeStyle=color;x.lineWidth=lw;if(dash)x.setLineDash([5,4]);x.beginPath();for(var px=L;px<=R;px+=2){var v=lo+(px-L)/(R-L)*(hi-lo);var yy=Y(f(v));if(px===L)x.moveTo(px,yy);else x.lineTo(px,yy);}x.stroke();x.setLineDash([]);}
+  curve(function(v){return w*p1(v);},'#3a6ea5',1.3,true);
+  curve(function(v){return (1-w)*p2(v);},'#4a8a4a',1.3,true);
+  curve(mx,'#222',2.2,false);
+  x.strokeStyle='#888';x.strokeRect(L,T,R-L,B-T);
+  x.fillStyle='#3a6ea5';x.fillText('w·f₁（工況 A）',L+10,T+16);
+  x.fillStyle='#4a8a4a';x.fillText('(1−w)·f₂（工況 B）',L+10,T+30);
+  x.fillStyle='#222';x.fillText('混合（池化後看到的分布）',L+10,T+44);
+  x.fillStyle='#333';x.fillText('殘差 [mm]',(L+R)/2-25,B+26);
+  chips('d2r',[
+   ['池化 RMSE',fmt(rmse,3)+' mm','解析'],
+   ['池化 MAE',fmt(mae,3)+' mm','解析'],
+   ['池化 RMSE/MAE',fmt(rmse/mae,3),'單一高斯恆為 1.253'],
+   ['池化峰度',fmt(kurt,2),'單一高斯恆為 3'],
+   ['各組組內 RMSE/MAE','1.253','恆等（引理 1.5）']
+  ]);
+ }
+ var ids=['d2s1','d2s2','d2w'],i;
+ for(i=0;i<ids.length;i++){el(ids[i]).addEventListener('input',upd);}
+ upd();
+}
+
+/* ---------------- Demo 3 ---------------- */
+function initD3(){
+ if(!el('d3c'))return;
+ function upd(){
+  var ka=+el('d3k').value,de=+el('d3d').value,j;
+  el('d3kv').textContent=fmt(ka,3);el('d3dv').textContent=fmt(de,2);
+  function cov(k){return Phi(de+k*ka)-Phi(de-k*ka);}
+  var c1=cov(1),c2=cov(2),ece=0,K=19;
+  for(j=1;j<=K;j++){var pp=j/(K+1);ece+=Math.abs(Phi(de+ka*PhiInv(pp))-pp);}
+  ece/=K;
+  var lab;
+  if(Math.abs(de)>=0.25)lab=(de>0?'偏斜：質量偏向 0（系統性高估）':'偏斜：質量偏向 1（系統性低估）');
+  else if(ka>=1.12)lab='駝峰形（過度離散／保守）';
+  else if(ka<=0.9)lab='U 形（過度自信）';
+  else lab='近似均勻（近校準）';
+  var W=820,H=280,x=ctx2('d3c',W,H);x.clearRect(0,0,W,H);x.font='11px sans-serif';
+  /* panel 1: PIT density */
+  var P1={L:42,R:280,T:30,B:H-36},dmax=3.2;
+  function X1(u){return P1.L+u*(P1.R-P1.L);}
+  function Y1(d){return P1.B-Math.min(d,dmax)/dmax*(P1.B-P1.T);}
+  x.strokeStyle='#bbb';x.setLineDash([4,4]);x.beginPath();x.moveTo(X1(0),Y1(1));x.lineTo(X1(1),Y1(1));x.stroke();x.setLineDash([]);
+  x.strokeStyle='#b04040';x.lineWidth=2;x.beginPath();
+  var first=true;
+  for(var q=-4.2;q<=4.2001;q+=0.015){var u=Phi(q);var pd=ka*phi(de+ka*q)/Math.max(phi(q),1e-12);var yy=Y1(pd);var xx=X1(u);if(first){x.moveTo(xx,yy);first=false;}else x.lineTo(xx,yy);}
+  x.stroke();x.lineWidth=1;
+  box(x,P1,'(a) PIT 密度');
+  x.fillText('0',X1(0)-3,P1.B+14);x.fillText('0.5',X1(0.5)-8,P1.B+14);x.fillText('1',X1(1)-3,P1.B+14);
+  x.fillStyle='#888';x.fillText('虛線＝均勻（完美校準）',P1.L+6,P1.T+14);x.fillStyle='#333';
+  /* panel 2: reliability */
+  var P2={L:318,R:556,T:30,B:H-36};
+  function X2(u){return P2.L+u*(P2.R-P2.L);}
+  function Y2(v){return P2.B-v*(P2.B-P2.T);}
+  x.strokeStyle='#bbb';x.setLineDash([4,4]);x.beginPath();x.moveTo(X2(0),Y2(0));x.lineTo(X2(1),Y2(1));x.stroke();x.setLineDash([]);
+  x.strokeStyle='#14507a';x.lineWidth=2;x.beginPath();first=true;
+  for(q=-4.2;q<=4.2001;q+=0.02){var u2=Phi(q),R2=Phi(de+ka*q);if(first){x.moveTo(X2(u2),Y2(R2));first=false;}else x.lineTo(X2(u2),Y2(R2));}
+  x.stroke();x.lineWidth=1;
+  box(x,P2,'(b) 可靠度圖');
+  x.fillText('名目 p',(P2.L+P2.R)/2-18,P2.B+14);
+  /* panel 3: coverage bars */
+  var P3={L:598,R:806,T:30,B:H-36};
+  function Y3(v){return P3.B-v*(P3.B-P3.T);}
+  var bw3=44,c1x=P3.L+0.28*(P3.R-P3.L)-bw3/2,c2x=P3.L+0.72*(P3.R-P3.L)-bw3/2;
+  x.fillStyle=(c1>=0.683?'#5a8a5a':'#b04040');x.fillRect(c1x,Y3(c1),bw3,P3.B-Y3(c1));
+  x.fillStyle=(c2>=0.954?'#5a8a5a':'#b04040');x.fillRect(c2x,Y3(c2),bw3,P3.B-Y3(c2));
+  x.strokeStyle='#333';x.setLineDash([4,4]);
+  x.beginPath();x.moveTo(P3.L,Y3(0.683));x.lineTo(P3.R,Y3(0.683));x.stroke();
+  x.beginPath();x.moveTo(P3.L,Y3(0.954));x.lineTo(P3.R,Y3(0.954));x.stroke();x.setLineDash([]);
+  x.fillStyle='#333';x.fillText('0.683',P3.R-34,Y3(0.683)-3);x.fillText('0.954',P3.R-34,Y3(0.954)-3);
+  x.fillText('1σ',c1x+15,P3.B+14);x.fillText('2σ',c2x+15,P3.B+14);
+  box(x,P3,'(c) 覆蓋率 vs 名目');
+  chips('d3r',[
+   ['1σ 覆蓋率',fmt(c1,3),'名目 0.683'],
+   ['2σ 覆蓋率',fmt(c2,3),'名目 0.954'],
+   ['ECE',fmt(ece,4),'定義 4.5'],
+   ['PIT 形狀判讀',lab,'系 4.3']
+  ]);
+ }
+ el('d3k').addEventListener('input',upd);
+ el('d3d').addEventListener('input',upd);
+ function preset(k,d){el('d3k').value=k;el('d3d').value=d;upd();}
+ el('d3p1').addEventListener('click',function(){preset(1,0);});
+ el('d3p2').addEventListener('click',function(){preset(1.585,0);});
+ el('d3p3').addEventListener('click',function(){preset(0.6,0);});
+ el('d3p4').addEventListener('click',function(){preset(1,0.8);});
+ upd();
+}
+
+/* ---------------- Demo 4 ---------------- */
+function initD4(){
+ if(!el('d4c'))return;
+ var SQLN2=0.8325546111576977;
+ function crpsStd(w){return w*(2*Phi(w)-1)+2*phi(w)-0.5641895835477563;}
+ function upd(){
+  var y=+el('d4y').value,sg=+el('d4s').value,i;
+  el('d4yv').textContent=fmt(y,1);el('d4sv').textContent=fmt(sg,2);
+  var W=820,H=300,x=ctx2('d4c',W,H);x.clearRect(0,0,W,H);x.font='11px sans-serif';
+  /* panel a */
+  var A={L:44,R:398,T:30,B:H-40},zlo=-7,zhi=7;
+  function XA(z){return A.L+(z-zlo)/(zhi-zlo)*(A.R-A.L);}
+  function YA(F){return A.B-F*(A.B-A.T);}
+  x.fillStyle='rgba(176,64,64,0.18)';
+  for(var px=A.L;px<=A.R;px++){var z=zlo+(px-A.L)/(A.R-A.L)*(zhi-zlo);var F=Phi(z/sg);var S=(z>=y)?1:0;var yF=YA(F),yS=YA(S);x.fillRect(px,Math.min(yF,yS),1,Math.abs(yF-yS));}
+  x.strokeStyle='#3a6ea5';x.lineWidth=2.2;x.beginPath();
+  for(px=A.L;px<=A.R;px+=1){z=zlo+(px-A.L)/(A.R-A.L)*(zhi-zlo);var yy=YA(Phi(z/sg));if(px===A.L)x.moveTo(px,yy);else x.lineTo(px,yy);}
+  x.stroke();
+  x.strokeStyle='#222';x.lineWidth=2;x.beginPath();
+  x.moveTo(A.L,YA(0));x.lineTo(XA(y),YA(0));x.lineTo(XA(y),YA(1));x.lineTo(A.R,YA(1));x.stroke();x.lineWidth=1;
+  vline(x,XA(y),A.T,A.B,'#555',true,'y');
+  box(x,A,'(a) F（藍）vs 觀測階梯（黑）：陰影平方後積分 = CRPS');
+  x.fillText('z',(A.L+A.R)/2,A.B+16);
+  var crps=sg*crpsStd(y/sg);
+  /* panel b */
+  var Bx={L:452,R:806,T:30,B:H-40},slo=0.12,shi=4.5,n=240;
+  var cs=new Array(n),nl=new Array(n),smin=1e18,smax=-1e18,nmin=1e18,nmax=-1e18;
+  for(i=0;i<n;i++){var s2=slo+(shi-slo)*i/(n-1);cs[i]=s2*crpsStd(y/s2);nl[i]=0.5*(Math.log(s2*s2)+(y*y)/(s2*s2));
+   if(cs[i]<smin)smin=cs[i];if(cs[i]>smax)smax=cs[i];if(nl[i]<nmin)nmin=nl[i];if(nl[i]>nmax)nmax=nl[i];}
+  var nclip=Math.min(nmax,nmin+3.5*(nl[n-1]-nmin+1e-9));
+  function XB(s){return Bx.L+(s-slo)/(shi-slo)*(Bx.R-Bx.L);}
+  function YB(v){return Bx.B-Math.max(0,Math.min(v,1.02))*(Bx.B-Bx.T)*0.94-4;}
+  x.strokeStyle='#b03030';x.lineWidth=2.2;x.beginPath();
+  for(i=0;i<n;i++){var vv=(cs[i]-smin)/Math.max(smax-smin,1e-9);var xx=XB(slo+(shi-slo)*i/(n-1));if(i===0)x.moveTo(xx,YB(vv));else x.lineTo(xx,YB(vv));}
+  x.stroke();
+  x.strokeStyle='#3a6ea5';x.setLineDash([6,4]);x.beginPath();
+  for(i=0;i<n;i++){vv=(Math.min(nl[i],nclip)-nmin)/Math.max(nclip-nmin,1e-9);xx=XB(slo+(shi-slo)*i/(n-1));if(i===0)x.moveTo(xx,YB(vv));else x.lineTo(xx,YB(vv));}
+  x.stroke();x.setLineDash([]);x.lineWidth=1;
+  if(Math.abs(y)>=0.05){
+   vline(x,XB(Math.abs(y)/SQLN2),Bx.T,Bx.B,'#b03030',true,'CRPS min ≈1.2|y|');
+   vline(x,XB(Math.abs(y)),Bx.T,Bx.B,'#3a6ea5',true,'NLL min =|y|');
+  }
+  box(x,Bx,'(b) 掃描 σ：CRPS（紅）與單點 NLL（藍虛）——縱軸各自歸一化');
+  for(var tv2=0;tv2<=4;tv2++){if(tv2>=slo)x.fillText(String(tv2),XB(Math.max(tv2,slo))-3,Bx.B+16);}
+  x.fillText('σ',(Bx.L+Bx.R)/2,Bx.B+28);
+  chips('d4r',[
+   ['CRPS(σ, y)',fmt(crps,3),'式 (3.4)'],
+   ['點預測極限 |y−μ|',fmt(Math.abs(y),3),'σ→0（P1）'],
+   ['寬度地板 0.234σ',fmt(0.23369497725510915*sg,3),'y=μ 時（P2）'],
+   ['CRPS 單點最優 σ*',(Math.abs(y)<0.05?'→ 0':fmt(Math.abs(y)/SQLN2,3)),'=|y−μ|/√ln2（P3）'],
+   ['NLL 單點最優 σ',(Math.abs(y)<0.05?'→ 0':fmt(Math.abs(y),3)),'=|y−μ|']
+  ]);
+ }
+ el('d4y').addEventListener('input',upd);
+ el('d4s').addEventListener('input',upd);
+ upd();
+}
+
+/* ---------------- Demo 5 ---------------- */
+function initD5(){
+ if(!el('d5c'))return;
+ var r=mulberry32(777),M=60,ks=new Array(M),i;
+ for(i=0;i<M;i++)ks[i]=90+15*gauss(r);
+ var kbar=0;for(i=0;i<M;i++)kbar+=ks[i];kbar/=M;
+ function upd(){
+  var C=+el('d5cap').value;
+  el('d5capv').textContent=String(C);
+  var W=820,H=320,x=ctx2('d5c',W,H);x.clearRect(0,0,W,H);x.font='11px sans-serif';
+  var L=46,R=W-14,T=16,B=H-36,tmax=5,ymax=175;
+  function X(t){return L+t/tmax*(R-L);}
+  function Y(s){return B-Math.min(s,ymax)/ymax*(B-T);}
+  x.fillStyle='rgba(200,60,60,0.06)';x.fillRect(L,T,R-L,Y(C)-T);
+  x.strokeStyle='rgba(120,120,120,0.30)';x.lineWidth=1;
+  for(i=0;i<M;i++){x.beginPath();var started=false;
+   for(var t=0.02;t<=5.0001;t+=0.06){var s=ks[i]*Math.pow(t,0.25);var px=X(t),py=Y(s);if(!started){x.moveTo(px,py);started=true;}else x.lineTo(px,py);}
+   x.stroke();}
+  x.strokeStyle='#b03030';x.lineWidth=1.6;x.setLineDash([7,5]);x.beginPath();x.moveTo(L,Y(C));x.lineTo(R,Y(C));x.stroke();x.setLineDash([]);
+  x.fillStyle='#b03030';x.fillText('FOV cap C = '+C+' mm（以上不可觀測）',R-230,Y(C)-6);
+  var nT=140,es5=0,ey5=0;
+  x.strokeStyle='#14507a';x.lineWidth=2.4;x.beginPath();
+  for(var j=0;j<=nT;j++){var tt=tmax*j/nT+1e-9;var v=kbar*Math.pow(tt,0.25);if(j===0)x.moveTo(X(tt),Y(v));else x.lineTo(X(tt),Y(v));if(j===nT)es5=v;}
+  x.stroke();
+  x.strokeStyle='#d07a10';x.lineWidth=2.4;x.beginPath();
+  for(j=0;j<=nT;j++){tt=tmax*j/nT+1e-9;var m=0;for(i=0;i<M;i++){m+=Math.min(ks[i]*Math.pow(tt,0.25),C);}m/=M;
+   if(j===0)x.moveTo(X(tt),Y(m));else x.lineTo(X(tt),Y(m));if(j===nT)ey5=m;}
+  x.stroke();x.lineWidth=1;
+  var ncap=0;for(i=0;i<M;i++){if(ks[i]*Math.pow(5,0.25)>C)ncap++;}
+  x.strokeStyle='#888';x.strokeRect(L,T,R-L,B-T);
+  x.fillStyle='#14507a';x.fillText('真實均值 E[S](t)',L+10,T+16);
+  x.fillStyle='#d07a10';x.fillText('刪失標籤均值 E[min(S,C)](t)',L+10,T+30);
+  x.fillStyle='#333';
+  for(var tv=0;tv<=5;tv++){x.fillText(String(tv),X(tv)-3,B+14);}
+  x.fillText('t [ms]',(L+R)/2-14,B+28);
+  x.save();x.translate(14,(T+B)/2+30);x.rotate(-Math.PI/2);x.fillText('穿透 S [mm]',0,0);x.restore();
+  chips('d5r',[
+   ['E[S](5ms) 真實均值',fmt(es5,1)+' mm',''],
+   ['E[y](5ms) 刪失標籤均值',fmt(ey5,1)+' mm',''],
+   ['標籤下偏 gap',fmt(es5-ey5,1)+' mm','引理 6.1；論文 audit ≈44–46 mm'],
+   ['5ms 前觸 cap 的軌跡',Math.round(100*ncap/M)+'%','玩具設定，刻意誇大']
+  ]);
+ }
+ el('d5cap').addEventListener('input',upd);
+ upd();
+}
+
+function boot(){
+ try{initD1();}catch(e){console.error('demo1',e);}
+ try{initD2();}catch(e){console.error('demo2',e);}
+ try{initD3();}catch(e){console.error('demo3',e);}
+ try{initD4();}catch(e){console.error('demo4',e);}
+ try{initD5();}catch(e){console.error('demo5',e);}
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot);}else{boot();}
+})();
+</script>
+
+
+</body>
+</html>
