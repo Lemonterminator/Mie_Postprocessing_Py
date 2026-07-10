@@ -33,6 +33,7 @@ logs land in ``Thesis/regen_logs/<timestamp>/``.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -57,6 +58,7 @@ SLIDES_FH = THESIS / "slides" / "slides_residual_family_head_production"
 RESIDUAL_IMG = IMAGES / "residual_family_head_20260608"
 NN_FIT_IMG = IMAGES / "neural_network_fit_results"
 NN_FIT_2052_IMG = IMAGES / "neural_network_fit_results_20260521"
+EVAL_20260709_IMG = IMAGES / "eval_20260709"
 PY = sys.executable
 
 CONFIDENTIAL_RE = re.compile(r"BC\d{8}_HZ_")
@@ -93,6 +95,8 @@ SANITIZE_GLOBS = [
     "MLP/runs_mlp/stage3_diag_kd_mse_mu_plus_sigma_w5p0_20260519_153706/*.csv",
     # fallback input root used by raw_coverage_heatmap.find_input_csv
     "MLP/figures/fit_bias_audit_cdf/*.csv",
+    # promoted eval_pipeline figure provenance
+    "Thesis/images/eval_20260709/*.json",
 ]
 
 
@@ -108,6 +112,9 @@ class Step:
     note: str = ""
     # extra environment variables for the subprocess (e.g. PYTHONPATH)
     extra_env: dict[str, str] = field(default_factory=dict)
+    # optional machine-readable provenance written after copies complete
+    provenance_path: Path | None = None
+    provenance_payload: dict[str, object] = field(default_factory=dict)
 
 
 def _script(rel: str, *args: str) -> list[str]:
@@ -133,6 +140,55 @@ LV2_AUDIT_DIR = LV2_ROOT / "spatial_censoring_audit"
 LV2_AUDIT_CSV = LV2_AUDIT_DIR / "plume_spatial_censoring_audit.csv"
 # Production stage-3 run whose cdf_regime_bins.csv feeds the B.5 coverage heatmap.
 PROD_STAGE3_RUN = PROJECT_ROOT / "MLP/runs_mlp/stage3_diag_kd_mse_mu_plus_sigma_w5p0_20260519_153706"
+EVAL_PIPELINE_20260709_RUN = (
+    PROJECT_ROOT
+    / "MLP/eval_pipeline/runs"
+    / "evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142"
+)
+EVAL_PIPELINE_20260709_COMPARISON = (
+    EVAL_PIPELINE_20260709_RUN
+    / "figures/comparison/lv3_qc_gated/cdf_uncensored"
+)
+EVAL_PIPELINE_20260709_FULL_CLEAN = (
+    EVAL_PIPELINE_20260709_RUN
+    / "figures/comparison/lv3_qc_gated/full_clean"
+)
+EVAL_PIPELINE_20260709_SEED99 = (
+    EVAL_PIPELINE_20260709_RUN
+    / "figures/models/thesis_mlp_seed_99/lv3_qc_gated/cdf_uncensored"
+)
+EVAL_PIPELINE_20260709_FIGURES = (
+    "metric_bars_rmse_mae_p95.png",
+    "probabilistic_metric_bars.png",
+    "coverage_comparison.png",
+    "reliability_overlay.png",
+    "crps_sharpness_scatter.png",
+    "pit_histograms_grid.png",
+    "per_seed_rmse_thesis_mlp_modeA.png",
+)
+EVAL_PIPELINE_20260709_COPIES = [
+    (EVAL_PIPELINE_20260709_COMPARISON / name, EVAL_20260709_IMG / name)
+    for name in EVAL_PIPELINE_20260709_FIGURES
+] + [
+    (EVAL_PIPELINE_20260709_SEED99 / "pred_vs_actual.png",
+     EVAL_20260709_IMG / "mlp_seed99_pred_vs_actual.png"),
+    (EVAL_PIPELINE_20260709_SEED99 / "residual_histogram.png",
+     EVAL_20260709_IMG / "mlp_seed99_residual_histogram.png"),
+    (EVAL_PIPELINE_20260709_SEED99 / "trajectory_best.png",
+     EVAL_20260709_IMG / "mlp_seed99_trajectory_best.png"),
+    (EVAL_PIPELINE_20260709_SEED99 / "trajectory_worst.png",
+     EVAL_20260709_IMG / "mlp_seed99_trajectory_worst.png"),
+    (EVAL_PIPELINE_20260709_SEED99 / "per_condition_rmse.png",
+     EVAL_20260709_IMG / "mlp_seed99_per_condition_rmse.png"),
+    (EVAL_PIPELINE_20260709_SEED99 / "coverage_curve.png",
+     EVAL_20260709_IMG / "mlp_seed99_coverage_curve.png"),
+    (EVAL_PIPELINE_20260709_SEED99 / "sigma_bin_calibration.png",
+     EVAL_20260709_IMG / "mlp_seed99_sigma_bin_calibration.png"),
+    (EVAL_PIPELINE_20260709_FULL_CLEAN / "reliability_overlay.png",
+     EVAL_20260709_IMG / "reliability_overlay_full_clean.png"),
+    (EVAL_PIPELINE_20260709_FULL_CLEAN / "crps_sharpness_scatter.png",
+     EVAL_20260709_IMG / "crps_sharpness_scatter_full_clean.png"),
+]
 
 
 STEPS: list[Step] = [
@@ -248,6 +304,35 @@ STEPS: list[Step] = [
         cmds=[_script("Thesis/generated/make_mlp_curriculum_figures.py")],
     ),
     # ───────────────────────────── Chapter 05 ─────────────────────────────
+    Step(
+        name="eval_pipeline_20260709",
+        desc="promote eval_pipeline lv3 comparison and seed-99 diagnostic figures into Thesis/images/eval_20260709",
+        copies=EVAL_PIPELINE_20260709_COPIES,
+        requires=[
+            EVAL_PIPELINE_20260709_RUN / "metrics_wide.csv",
+            EVAL_PIPELINE_20260709_RUN / "figure_manifest.json",
+            *[src for src, _ in EVAL_PIPELINE_20260709_COPIES],
+        ],
+        provenance_path=EVAL_20260709_IMG / "provenance.json",
+        provenance_payload={
+            "description": "Promoted eval_pipeline comparison and seed-99 diagnostic figures for thesis evaluation.",
+            "source_run": str(EVAL_PIPELINE_20260709_RUN.relative_to(PROJECT_ROOT)),
+            "source_figure_dir": str((EVAL_PIPELINE_20260709_RUN / "figures").relative_to(PROJECT_ROOT)),
+            "source_metrics": str((EVAL_PIPELINE_20260709_RUN / "metrics_wide.csv").relative_to(PROJECT_ROOT)),
+            "dataset": "lv3_qc_gated",
+            "eval_set": "cdf_uncensored",
+            "render_command": (
+                ".venv\\Scripts\\python.exe MLP\\eval_pipeline\\make_figures.py "
+                "--run MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142"
+            ),
+            "promote_command": (
+                ".venv\\Scripts\\python.exe Thesis\\regenerate_thesis_figures.py "
+                "--only eval_pipeline_20260709 --no-sanitize"
+            ),
+        },
+        note=("This step does not rerun model inference; it promotes already rendered Layer-2 "
+              "comparison and per-model figures and writes Thesis/images/eval_20260709/provenance.json."),
+    ),
     Step(
         name="baseline_comparison",
         desc="baseline_comparison_20260521/* (full_clean_metric_bars, production_mlp_per_seed_rmse, ...)",
@@ -435,6 +520,8 @@ def run_step(step: Step, log_dir: Path, dry_run: bool) -> str:
             print(f"  (dry) {' '.join(cmd[1:2] + cmd[2:])}")
         for src, dst in step.copies:
             print(f"  (dry) copy {src.relative_to(PROJECT_ROOT)} -> {dst.relative_to(PROJECT_ROOT)}")
+        if step.provenance_path:
+            print(f"  (dry) write provenance -> {step.provenance_path.relative_to(PROJECT_ROOT)}")
         return "DRY"
 
     env = dict(os.environ, MPLBACKEND="Agg", **step.extra_env)
@@ -455,6 +542,7 @@ def run_step(step: Step, log_dir: Path, dry_run: bool) -> str:
                 return "FAIL"
 
     status = "OK"
+    copied_files: list[dict[str, str]] = []
     for src, dst in step.copies:
         if not src.exists():
             print(f"  WARN: expected output missing: {src.relative_to(PROJECT_ROOT)}")
@@ -462,7 +550,21 @@ def run_step(step: Step, log_dir: Path, dry_run: bool) -> str:
             continue
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
+        copied_files.append({
+            "src": str(src.relative_to(PROJECT_ROOT)),
+            "dst": str(dst.relative_to(PROJECT_ROOT)),
+        })
         print(f"  copied -> {dst.relative_to(PROJECT_ROOT)}")
+    if step.provenance_path:
+        payload = dict(step.provenance_payload)
+        payload["copy_status"] = status
+        payload["copied_files"] = copied_files
+        step.provenance_path.parent.mkdir(parents=True, exist_ok=True)
+        step.provenance_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(f"  provenance -> {step.provenance_path.relative_to(PROJECT_ROOT)}")
     return status
 
 

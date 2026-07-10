@@ -1,0 +1,77 @@
+{
+  "description": "Promoted eval_pipeline comparison and seed-99 diagnostic figures for thesis evaluation.",
+  "source_run": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142",
+  "source_figure_dir": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures",
+  "source_metrics": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\metrics_wide.csv",
+  "dataset": "lv3_qc_gated",
+  "eval_set": "cdf_uncensored",
+  "render_command": ".venv\\Scripts\\python.exe MLP\\eval_pipeline\\make_figures.py --run MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142",
+  "promote_command": ".venv\\Scripts\\python.exe Thesis\\regenerate_thesis_figures.py --only eval_pipeline_20260709 --no-sanitize",
+  "copy_status": "OK",
+  "copied_files": [
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\metric_bars_rmse_mae_p95.png",
+      "dst": "Thesis\\images\\eval_20260709\\metric_bars_rmse_mae_p95.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\probabilistic_metric_bars.png",
+      "dst": "Thesis\\images\\eval_20260709\\probabilistic_metric_bars.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\coverage_comparison.png",
+      "dst": "Thesis\\images\\eval_20260709\\coverage_comparison.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\reliability_overlay.png",
+      "dst": "Thesis\\images\\eval_20260709\\reliability_overlay.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\crps_sharpness_scatter.png",
+      "dst": "Thesis\\images\\eval_20260709\\crps_sharpness_scatter.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\pit_histograms_grid.png",
+      "dst": "Thesis\\images\\eval_20260709\\pit_histograms_grid.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\cdf_uncensored\\per_seed_rmse_thesis_mlp_modeA.png",
+      "dst": "Thesis\\images\\eval_20260709\\per_seed_rmse_thesis_mlp_modeA.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\pred_vs_actual.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_pred_vs_actual.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\residual_histogram.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_residual_histogram.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\trajectory_best.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_trajectory_best.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\trajectory_worst.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_trajectory_worst.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\per_condition_rmse.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_per_condition_rmse.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\coverage_curve.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_coverage_curve.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\models\\thesis_mlp_seed_99\\lv3_qc_gated\\cdf_uncensored\\sigma_bin_calibration.png",
+      "dst": "Thesis\\images\\eval_20260709\\mlp_seed99_sigma_bin_calibration.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\full_clean\\reliability_overlay.png",
+      "dst": "Thesis\\images\\eval_20260709\\reliability_overlay_full_clean.png"
+    },
+    {
+      "src": "MLP\\eval_pipeline\\runs\\evalrun_20260709_223144_thesis_full_fullclean_bootstrap_fast_20260709_223142\\figures\\comparison\\lv3_qc_gated\\full_clean\\crps_sharpness_scatter.png",
+      "dst": "Thesis\\images\\eval_20260709\\crps_sharpness_scatter_full_clean.png"
+    }
+  ]
+}

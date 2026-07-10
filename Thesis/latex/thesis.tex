@@ -7,6 +7,9 @@
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage{float}
+\usepackage{tabularx}
+\usepackage{subcaption}
+\usepackage{placeins}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
 \usepackage{siunitx}
@@ -26,6 +29,7 @@
 \DeclareRobustCommand{\codepath}[1]{\nolinkurl{#1}}
 \pdfstringdefDisableCommands{\def\codepath#1{#1}}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \setlength{\headheight}{36pt}
 \setlength{\emergencystretch}{2em}
 \newcommand{\thesisinput}[1]{%
@@ -54,7 +58,7 @@
 
 The workflow combines multi-hole video processing, plume-wise feature extraction, and a reduced-order trajectory fit that smooths noisy labels and mitigates the downward bias caused by right-censoring at the camera field-of-view limit. On these fitted targets, a neural network produced by three-stage curriculum training predicts the penetration mean together with a heteroscedastic uncertainty estimate, staged so that disappearance from the image window is not mistaken for physical saturation.
 
-On 542,565 points from 9 nozzle campaigns under an uncensored evaluation protocol, the final multilayer perceptron (MLP) model achieves a five-seed mean root mean squared error (RMSE) of 4.27 mm and mean absolute error (MAE) of 3.03 mm with conservative 1-sigma/2-sigma uncertainty coverage of 88.7\%/98.9\%, reducing RMSE by more than 54\% relative to calibrated Hiroyasu--Arai and Naber--Siebers baselines. A sparse variational Gaussian process (SVGP) alternative attains better point accuracy (4.19 mm in-distribution; 5.95 mm versus 7.00 mm in leave-one-nozzle-out tests) but markedly less conservative coverage; the two backbones represent different accuracy--coverage trade-offs under the same censoring-aware protocol. A simplified geometric projection finally maps the predicted penetration distribution onto probabilistic wall-impingement screening scores. The workflow is intended as an early-stage screening tool within its measured operating domain, ahead of---not in place of---computational fluid dynamics (CFD) simulation and engine testing.}
+On 540,367 points from 9 nozzle campaigns under an uncensored evaluation protocol, the final multilayer perceptron (MLP) model achieves a five-seed mean root mean squared error (RMSE) of 4.19 mm and mean absolute error (MAE) of 2.98 mm with conservative 1-sigma/2-sigma uncertainty coverage of 88.8\%/99.0\%, reducing RMSE by more than 54\% relative to calibrated Hiroyasu--Arai and Naber--Siebers baselines. A sparse variational Gaussian process (SVGP) alternative attains better point accuracy (4.09 mm in-distribution; 5.95 mm versus 7.00 mm in leave-one-nozzle-out tests) but markedly less conservative coverage; the two backbones represent different accuracy--coverage trade-offs under the same censoring-aware protocol. A simplified geometric projection finally maps the predicted penetration distribution onto probabilistic wall-impingement screening scores. The workflow is intended as an early-stage screening tool within its measured operating domain, ahead of---not in place of---computational fluid dynamics (CFD) simulation and engine testing.}
 
 \degreeprogram{Electronics and Nanotechnology}
 \major{Microelectronic Circuit Design}
@@ -107,6 +111,7 @@ AI tools were not used as sources of scientific evidence, citation sources, sour
 \thesisinput{sections_en/06_discussion}
 \thesisinput{sections_en/07_conclusions}
 \thesisinput{sections_en/appendix_implementation_mapping}
+\thesisinput{sections_en/appendix_evaluation_diagnostics}
 \thesisbibliography
 \printbibliography
 

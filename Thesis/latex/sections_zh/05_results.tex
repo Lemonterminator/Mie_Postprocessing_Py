@@ -1,106 +1,257 @@
 \section{结果}
 
-\subsection{评估地图与核心结果}
+第四章将贯穿距离 surrogate 定义为一个嵌入光学归档到筛查工作流、
+具备删失感知能力的概率回归问题。本章给出定量结论。中心结果并非
+单一的排行榜胜者。相反，证据将三项论断区分开来：固定表格上的
+域内精度、向未见喷嘴的转移能力，以及作为保守筛查 surrogate 的可用性。
 
-第~4 章将贯穿距离 surrogate 定义为一个嵌入光学归档到筛查工作流中的、具备删失感知的低维概率回归问题。因此，本章结果不再组织成单一的排行榜，而是一组相互关联的评估视图。uncensored CDF 表是 Dataset~\#2 中主要的域内删失控制逐点检查。full-clean CDF 协议则在 Dataset~\#1 的所有已清洗留出 CDF 点（含右删失区间）上额外评估 surrogate，作为含删失的补充视图报告。P50-observed 和 q1-extrapolated 表是工况级检查，用于分离窗口内的代表性行为与外推延续行为。留一喷嘴（LONO）协议测试对未见喷嘴的转移能力，最后的消融部分则对使 MLP 能够用于下游筛查工作流的各项设计选择进行归因。表~\ref{tab:results-claims-map-zh} 把本章每一个不同的评估论断映射到它的协议、预测目标、样本量、种子数、所比较的模型与主要结论，以便区分多个协议。
+本章固定表格中的数字来自一次刷新的评估 bundle；该 bundle 涵盖两个
+清洗后数据集根目录和四种固定表格评估协议，其中包括含删失的 full-clean
+检查。关键在于证据范围：刷新的 bundle 支持固定表格上的域内比较，
+而转移、课程消融和筛查论断继续使用论文归档工件。刷新后的运行还为
+固定表格点指标导出 cluster-bootstrap 95\% 置信区间，因此可以根据轨迹级
+重采样不确定度而不仅是种子离散度检查核心差距；当多次训练种子定义
+相关汇总统计量时，仍报告种子标准差。
 
-\begin{table}[p]
+表~\ref{tab:metric-vocabulary-rewrite} 定义了本章使用的指标术语。RMSE 和
+MAE 衡量点精度，bias 衡量带符号的系统误差，而 P95 绝对误差等尾部指标
+用于识别少见但幅度较大的误差。Coverage、PIT reliability、ECE、CRPS、
+NLL 和 sharpness 描述的是预测分布，而不仅是预测均值。在本论文中，
+“QC”是指通过训练前 plume gate 实施质量控制。第三级 quality-gated
+数据集由第二级清洗后导出物实例化而来，其做法是在训练任何 surrogate
+之前审计 CDF 宽序列轨迹。该 gate 对完整的工况--plume 行执行操作：
+若同一工况下某条 plume 的测量轨迹反复出现形状病态，或其贯穿距离
+相对于其他喷孔系统性偏低，则将该 plume 从该工况中剔除。自动规则检查
+负向步进、尖峰状导数、平台后跳跃行为、从 \SI{0.6}{ms} 到 \SI{1.2}{ms}
+所选早期时刻的同工况低贯穿距离比、跨工况的重复支持，以及可选的
+人工图像证据标记。随后对 CDF、笛卡尔宽度和极坐标宽度导出物应用相同的
+剔除决定。因此，此处 QC 是对测得 plume 轨迹的数据质量过滤，而非根据
+模型性能进行的事后选择。
+
+\begin{table}[t]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{@{}L{0.11\linewidth}L{0.15\linewidth}L{0.13\linewidth}L{0.12\linewidth}L{0.17\linewidth}L{0.24\linewidth}@{}}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.30\linewidth}Y@{}}
 \toprule
-论断 & 协议与目标 & $n$（点数） & 种子 & 比较的模型 & 主要结论 \\
+简称 & 全称 & 在本章中的含义 \\
 \midrule
-域内点精度 & uncensored CDF（主） & \num{542565}/种子 & 5（7, 17, 42, 99, 2024） & MLP、\allowbreak SVGP、\allowbreak HA、\allowbreak NS & MLP \SI{4.265}{mm}（覆盖 0.887/\allowbreak0.989）；SVGP 点最优 \SI{4.193}{mm}（0.716/\allowbreak0.945）；两者均远低于基线 \\
-\addlinespace
-含删失（补充） & full-clean CDF，含右删失 & \num{692942}；SCR 39.6\% & MLP 5；SVGP seed-42 & MLP、\allowbreak 诊断-KD MLP、\allowbreak SVGP、\allowbreak HA、\allowbreak NS & MLP \SI{4.735}{mm}，P95 \SI{9.167}{mm}；相对 HA/\allowbreak NS $-58/-55\%$ \\
-\addlinespace
-观测中位数检查 & P50-observed，工况级 & \num{4213} & MLP 5；SVGP seed-42 & oracle-q1、\allowbreak SVGP、\allowbreak MLP、\allowbreak KD & SVGP \SI{2.649}{mm} 领先；MLP \SI{2.848}{mm}；oracle \SI{1.010}{mm}（不可部署） \\
-\addlinespace
-拟合延续检查 & q1-extrapolated 网格 & \num{21527} & MLP 5；SVGP seed-42 & 诊断-KD、\allowbreak SVGP、\allowbreak MLP & 排序反转：KD 最优 \SI{10.358}{mm}（bias $+6.27$） \\
-\addlinespace
-留一喷嘴转移（完整） & LONO 五折（留出 N0, N1, N2, N4, N5） & \num{458379} & seed-42 & MLP、\allowbreak SVGP；HA/\allowbreak NS 参考 & SVGP \SI{10.16}{mm} $<$ MLP \SI{12.55}{mm}；N0 折崩塌（34.76/\allowbreak26.99） \\
-\addlinespace
-族内转移（剔除 N0） & LONO 四折 & \num{147230} & seed-42 & MLP、\allowbreak SVGP & MLP \SI{7.00}{mm}，SVGP \SI{5.95}{mm}；覆盖率交织 \\
-\addlinespace
-课程消融 & LONO 五折，分阶段流水线 & \num{458379}（五折） & seed-42 & anchor / regime 变体 & $\mu$-anchor 教师 $+$ 不确定混合胜出；差距 $\ll$ CV 标准差 \\
-\addlinespace
-KD 形式修复 & uncensored $+$ full-clean，五种子 & \num{542565}/\allowbreak\num{692942}；分片 seed-99 & 5 & mixed-distill 对 forward-KL & 近 cap 偏差 $-2.70\to-0.57$；RMSE \SI{4.265}{mm} 对种子稳健 \\
-\addlinespace
-残差后续 & uncensored CDF；residual-LONO（N0 留在训练） & \num{542565}；LONO \num{147013}（族内）/ \num{167771}（全 5 折） & seed-42 & 残差头/\allowbreak FiLM/\allowbreak SVGP 对 部署、\allowbreak SVGP & 可选域内后续 \SI{3.987}{mm}（\emph{未}经 LONO 检验）；LONO 族内 $-31\%$（\SIrange{7.44}{5.16}{mm}） \\
-\addlinespace
-原型筛查演示 & 几何壁面接近筛查演示，玩具参数扫描（无实测真值） & 3 个设计变体 & n/a（单一部署检查点） & MLP（Stage~3，已部署） & 面向排序的几何分数（峰值 $P_{\mathrm{hit}}=77.66\%$，累积 $E$ 最高达 \SI{3.364}{ms}）；\emph{并非}经过验证的撞壁概率 \\
+RMSE & 均方根误差 & 以 mm 表示的二次点误差尺度；更强调较大的误差。 \\
+MAE & 平均绝对误差 & 以 mm 表示的平均绝对点误差；对尾部的敏感度低于 RMSE。 \\
+Bias & 平均带符号误差 & 正值表示高估；负值表示低估。 \\
+P95 \(|e|\) & 绝对误差的第 95 百分位数 & 用于较大但非最大误差的尾部误差诊断。 \\
+Coverage & 经验区间覆盖率 & 落在预测 \(k\sigma\) 区间或中心预测区间内的观测比例。 \\
+CRPS & 连续排序概率分数 & 综合均值精度和不确定度宽度的分布分数；越低越好。 \\
+NLL & 高斯负对数似然 & 预测高斯均值和方差下的概率损失；在可比时越低越好。 \\
+PIT & 概率积分变换 & 校准诊断；经校准的预测分布应产生近似均匀的 PIT 值。 \\
+ECE & 期望校准误差 & PIT/可靠性相对理想对角线偏离的标量汇总；越低越好。 \\
+Sharpness & 平均预测标准差 & 预测分布的宽度；越尖锐表示越窄，但只有在校准良好时才有意义。 \\
 \bottomrule
-\end{tabular}
-\caption{结果论断映射表。每行是本章一个不同的评估论断，列出其协议、预测目标、样本量、种子数、所比较的模型与主要结论。该表用于区分多个协议（uncensored 对含删失；三种不同的 LONO 划分；后训练残差后续）；详细数字见正文引用的各节表。种子结构在协议间不一致：生产表用 5 个种子（7/17/42/99/2024），所有 SVGP 行与 LONO/消融行用单一种子（42），KD 分片表用单一种子（99）。}
-\label{tab:results-claims-map-zh}
+\end{tabularx}
+\caption{本章使用的指标术语。点指标与分布指标回答不同问题，因此不将二者压缩为单一排名。}
+\label{tab:metric-vocabulary-rewrite}
 \end{table}
 
-提取与拟合工作流在已处理的 campaign 归档中生成了 295 个清洗后的拟合轨迹文件，并将高通量 Mie 视频归档转化为结构化 CSV/JSON 表、checkpoint、拟合目标、模型工件和诊断图。在更大的归档范围内，该工作流覆盖 9 个喷嘴、266 个工况子文件夹和 2,992 个 recording 文件；其实用价值在于把 TB 级原始光学输入变成可复现、可审计的工程证据，而不是停留为彼此孤立的后处理结果。这一步之所以重要，是因为 surrogate 并不是直接训练在原始且间歇性断裂的 plume 轨迹上，而是训练在保留主要时间结构、同时削弱分割噪声并降低晚期删失偏差的目标上。图~\ref{fig:clean-fit-example} 给出一个代表性例子：清洗后的曲线保留了 plume-to-plume 的差异，而拟合轨迹则提供了平滑且仍忠于观测液相包络的删失感知目标。
+\subsection{评估地图、协议与工件契约}
+\label{sec:results-map-protocols}
 
-\begin{figure}[t]
+本章采用分层证据契约。第 1 层是数值评估：给定数据集根目录与 checkpoint
+名册后，流水线导出规范化点表、分组 CSV 汇总、可靠性表、PIT 直方图、
+覆盖率曲线和宽指标表。第 2 层是绘图：图只读取第 1 层工件，
+不重新加载 checkpoint。这种分离对本论文很重要，因为它允许在不
+改变指标定义的情况下调整图形样式。
+
+表~\ref{tab:protocol-map-rewrite} 定义了下文使用的协议。主要固定表格结果
+使用第三级 quality-gated 数据集根目录，因为它是刷新评估 bundle 中
+最保守的清洗后生产数据集。第二级清洗后根目录仍作为数据集敏感性检查，
+而不是主要结论。含删失的 full-clean CDF 协议在相同的刷新根目录上
+重新生成，并作为补充检查报告：它展示纳入右删失区域时比较结果的变化，
+而主要固定表格结论有意保留为未删失协议。
+
+\begin{table}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
-\caption{Nozzle~1 上 T24 工况的清洗后轨迹与 q1 拟合曲线（\textbf{清洗后的 CDF 贯穿距离}）。实线表示逐帧的原始贯穿距离观测，虚线为对应的 $t^{1/4}$ 单支（q1）拟合曲线。该工况包含数十条喷油束轨迹，可清晰看到 plume-to-plume 的差异与拟合的延续行为；拟合曲线在观测结束后平滑外推至 $\SI{3}{ms}$，为后续 surrogate 训练提供了具备删失感知的目标。}
-\label{fig:clean-fit-example}
-\end{figure}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.21\linewidth}L{0.20\linewidth}Y@{}}
+\toprule
+协议 & 目标群体 & 主要指标作用 & 解释 \\
+\midrule
+未删失 CDF 协议 & 排除删失后的留出 CDF 点 & 主要域内点评估与分布评估 & 检验测量域内 surrogate，且不将视野中消失视为真实的喷雾终止。 \\
+Full-clean CDF 协议 & 所有清洗后留出 CDF 点，包括右删失区域 & 含删失的补充检查 & 在刷新根目录上重新生成；展示纳入右删失区域而非排除这些区域的影响。 \\
+观测 P50 协议 & 工况级观测窗口中位轨迹点 & 次要观测窗口检查 & 检验测量时间窗口内的代表性行为。 \\
+q1 延续网格 & 拟合的 q1 延续目标 & 次要延续检查 & 检验外推平滑目标的行为；该表的刷新工件不报告 CRPS 和 NLL。 \\
+LONO & 训练时留出整个喷嘴 & 转移与失效边界检查 & 检验模型能否泛化到未见喷油器族，而非仅在已知喷嘴之间插值。 \\
+筛查几何 & 简化的活塞/壁面投影 & 演示输出 & 生成面向排名的几何接近分数，而非经验证的液态撞壁概率。 \\
+\bottomrule
+\end{tabularx}
+\caption{本章使用的评估协议。未删失 CDF、full-clean CDF、观测 P50 和 q1 固定表格协议均由评估流水线针对两个明确的清洗后根目录重新生成，而 LONO、KD 消融和筛查演示保留论文归档工件。}
+\label{tab:protocol-map-rewrite}
+\end{table}
 
-\subsection{域内贯穿距离预测精度与不确定度}
+指标还按证据作用进行区分。RMSE、MAE、bias 和尾部绝对误差判断点精度。
+覆盖率、可靠性曲线、PIT 直方图、CRPS、NLL 和区间分数判断概率行为。
+工况级和时间分箱 CSV 用于诊断误差集中位置。这样可避免在某个模型仅在
+一个维度上胜出时，将其宣称为全局优越。
+
+\subsection{主要域内结论}
+\label{sec:primary-in-domain-verdict}
+\label{sec:in-domain-accuracy-en}
 \label{sec:in-domain-accuracy-zh}
 
-表~\ref{tab:model-summary} 总结了三个学习阶段的作用和留出集表现。Stage~1 在每个工况只使用一条代表性曲线进行训练——即直接为每个工况挑选其在 \SI{5}{ms} 处的 q1 外推贯穿距离恰好落在该工况中位数的单条轨迹（对应确定的一个喷孔、确定的一次重复）——充当稳定的均值锚点；其测试 MAE 为 \SI{2.91}{mm}，在对应的代表性测试集上测得。相比之下，Stage~2 解决的是更困难的任务：它在完整过滤归档上同时跨越工况内的 plume-to-plume 差异与 shot-to-shot 差异（同一工况下同一 plume 的各次重复以独立样本的形式进入训练）并学习条件方差；其测试 MAE 为 \SI{5.63}{mm}，是在更大、更异质的测试群体上度量的。两组数字因此并不直接可比：较高的 Stage~2 MAE 反映的是更难的监督目标，而非精度下降，这也使得 Stage~2 成为合适的不确定性感知教师模型。
+主要固定表格比较采用 QC-gated 未删失 CDF 协议
+（每个种子 540{,}367 个留出 CDF 点）。
+表~\ref{tab:primary-leaderboard-rewrite} 有意将主线结论与事后 residual 分支
+分开。在部署模型与基线的比较中，单输出论文 SVGP 是最强的点预测器，
+RMSE 为 \SI{4.087}{mm}，MAE 为 \SI{2.857}{mm}。五种子生产 MLP 均值
+以 \SI{4.185}{mm} 的 RMSE 和 \SI{2.978}{mm} 的 MAE 紧随其后，
+而两种物理曲线拟合基线的精度低得多。
 
-在保守的未删失 CDF 协议（域内主要逐点指标）下，采用部署蒸馏损失形式（均值 MSE 与对数方差 MSE 的混合，方差权重 \(\lambda_\sigma=5.0\)）在五个种子（\(\{7,17,42,99,2024\}\)）上训练的选定无锚点阶段三 MLP 筛查 surrogate，在每个种子的 542{,}565 个留出时间点上达到整体 RMSE~\(\SI{4.265}{mm}\pm\SI{0.040}{mm}\)、MAE~\(\SI{3.032}{mm}\pm\SI{0.048}{mm}\) 以及微小的正向偏差~\(\SI{+0.562}{mm}\pm\SI{0.119}{mm}\)。作为含删失的补充检查，同一模型在全清洗 CDF 集合（每个种子的 24{,}316 条轨迹、692{,}942 个留出时间点）上得到 RMSE~\(\SI{4.735}{mm}\pm\SI{0.037}{mm}\)；这些清洗后的 CDF 轨迹中有 9,630 条为右删失轨迹，对应 SCR 为 39.6\%，因此把最后一个可见点当作物理终点会引入实质性的协议误差，而不是单纯的记录细节。在主要未删失 CDF 子集上，图~\ref{fig:pred-vs-actual-best} 表明，在整个测量范围内，留出集预测基本贴近恒等线，且随着贯穿距离增大，散点逐步变宽。这种变宽与异方差设计是一致的：模型并没有强行对所有时刻和工况使用同一个固定误差条。
-
-不确定度校准在工程上同样有意义。最终 5 种子平均 1$\sigma$ 与 2$\sigma$ 覆盖率在未删失协议下分别为 88.7\% 和 98.9\%（含删失全集为 86.7\% 和 98.5\%），均明显比名义高斯值 68.3\% 和 95.4\% 更保守。图~\ref{fig:stage3-calibration-coverage} 进一步把这一点展开为按预测标准差分箱的可靠性图和覆盖率曲线，而不只比较平均标准差与平均误差。对于早期设计筛查而言，这种保守偏置有用，但不能被过度解读为经过认证的假阴性安全保证：它使模型不太容易低估晚期时间或弱观测区间下的贯穿距离不确定度，但有害液态撞壁仍需要发动机代表性验证。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.94\linewidth]{images/stage3_calibration_coverage.png}
-\caption{最终无锚点阶段三模型的不确定度校准检查，由附录~\ref{app:implementation_mapping} 所列的校准覆盖审计脚本从留出集逐点输出重建。图中同时报告按预测 \(\sigma\) 分箱的误差尺度、名义覆盖率曲线，以及平均预测标准差与平均绝对误差的对比。}
-\label{fig:stage3-calibration-coverage}
-\end{figure}
+因此，不应将生产 MLP 表述为最佳点预测器。它的补偿优势在于保守覆盖率：
+五种子平均 \(1\sigma/2\sigma\) 覆盖率为 0.888/0.990，而单输出 SVGP 为
+0.717/0.946。因此，正确的主线结论是精度--覆盖率权衡：SVGP 替代主干
+提升了点精度，而生产 MLP 仍是一个保守且在操作上便利的筛查 surrogate。
+residual-SVGP 和 residual-MLP 扩展将在后文作为事后适配证据解释，而非
+作为这一已部署 surrogate 结论的替代品。
 
 \begin{table}[t]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}L{0.14\linewidth}L{0.21\linewidth}L{0.27\linewidth}L{0.28\linewidth}@{}}
+\begin{tabular}{@{}L{0.14\linewidth}L{0.22\linewidth}L{0.28\linewidth}L{0.27\linewidth}@{}}
 \toprule
-阶段 & 监督目标 & 核心留出集指标 & 解释 \\
+阶段 & 监督目标 & 核心留出指标 & 解释 \\
 \midrule
-阶段一 & 代表性拟合轨迹（599 行；421/89/89 切分） &
-测试 MAE~\SI{2.91}{mm}（生产七特征变体：$\alpha=0.5$ 带压力残差） &
-在 7 特征设计并经过 $A$ 缩放后提供稳定的均值锚点，每个工况一条代表性曲线。 \\
-阶段二 & 完整过滤拟合集（49{,}908 训练 / 10{,}961 验证 / 10{,}831 测试轨迹） &
-测试 MAE~\SI{5.63}{mm}；平均预测标准差~\SI{7.61}{mm}；验证 NLL~$-0.323$ &
-更困难的教师任务：在完整过滤归档上把条件均值与条件离散度分开学习。 \\
-阶段三 & 带区制相关 KD 引导的原始 CDF，均值与对数方差混合 MSE 蒸馏损失（\(\lambda_\sigma=5.0\)），无锚点 &
-未删失 5 种子均值：RMSE \SI{4.265}{mm} \(\pm\) \SI{0.040}{mm}；MAE \SI{3.032}{mm} \(\pm\) \SI{0.048}{mm}；偏差 \SI{+0.562}{mm} \(\pm\) \SI{0.119}{mm}；覆盖率 88.7\% / 98.9\% &
-选定的域内无锚点筛查 surrogate，具有更好的早期保真度和保守的晚期行为；最终核心指标见下方的未删失协议。 \\
+Stage~1 & 代表性拟合轨迹（599 行；421/89/89 划分） &
+测试 MAE~\SI{2.91}{mm}（生产七特征变体：\(\alpha=0.5\)，含压力 residual） &
+经 \(A\)-scaling 后得到稳定的均值锚点，每个工况一条代表性曲线。 \\
+Stage~2 & 完整过滤拟合集（49{,}908 个训练 / 10{,}961 个验证 / 10{,}831 个测试轨迹） &
+测试 MAE~\SI{5.63}{mm}；平均预测标准差~\SI{7.61}{mm}；验证 NLL~\(-0.323\) &
+更困难的教师任务：在完整过滤归档上学习条件均值和离散度。 \\
+Stage~3 & 由 regime-aware KD 引导的原始 CDF，均值/对数方差混合 MSE 蒸馏损失 \((\lambda_\sigma=5.0)\)，anchor-off &
+未删失 QC-gated 5 种子均值：RMSE \SI{4.185}{mm} \(\pm\) \SI{0.039}{mm}；MAE \SI{2.978}{mm} \(\pm\) \SI{0.043}{mm}；bias \SI{+0.731}{mm} \(\pm\) \SI{0.203}{mm}；覆盖率 88.8\% / 99.0\% &
+选定的域内筛查 surrogate；最终核心指标指下文刷新的 QC-gated 未删失协议。 \\
 \bottomrule
 \end{tabular}
-\caption{三阶段 surrogate 训练及其在最终筛查工作流中的作用。}
+\caption{三阶段 surrogate 训练及其在筛查工作流中的作用。Stage~1 和 Stage~2 指标对应各自的监督目标与划分，彼此不可直接比较；Stage~3 行引用下文刷新后的 QC-gated 主要协议。}
 \label{tab:model-summary}
+\end{table}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.34\linewidth}rrrrrr@{}}
+\toprule
+模型 & RMSE & MAE & Bias & 1$\sigma$ & 2$\sigma$ & CRPS \\
+\midrule
+单输出论文 SVGP & \textbf{4.087} & \textbf{2.857} & -0.083 & 0.717 & 0.946 & \textbf{2.063} \\
+生产 MLP，5 种子均值 & 4.185 & 2.978 & +0.731 & \textbf{0.888} & \textbf{0.990} & 2.301 \\
+Naber--Siebers 基线 & 9.212 & 7.154 & +0.559 & 0.661 & 0.928 & 5.109 \\
+Hiroyasu--Arai 基线 & 10.192 & 7.727 & +2.084 & 0.632 & 0.919 & 5.499 \\
+\bottomrule
+\end{tabular}
+\caption{QC-gated 未删失 CDF 表格上的主线域内比较（每个种子 540{,}367 个留出点）。误差与 CRPS 单位为 mm。生产 MLP 行是种子 7/17/42/99/2024 的均值。运行工件导出了 RMSE、MAE 和 bias 的 cluster-bootstrap 95\% 置信区间；对于领先的几行，这些区间相对于模型差距较窄（SVGP RMSE 4.087 [4.032, 4.140]；五个逐种子 MLP RMSE 区间合计覆盖 [4.089, 4.296]）。residual/FiLM/SVGP 适配分支有意推迟至表~\ref{tab:posthoc-residual-rewrite}。}
+\label{tab:primary-leaderboard-rewrite}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\linewidth]{images/neural_network_fit_results/pred_vs_actual_best.png}
-\caption{最终 Stage~3 模型在主要未删失 CDF 子集留出点上的预测贯穿距离与测量贯穿距离对比（已剔除删失片段）。虚线表示理想一致线。}
-\label{fig:pred-vs-actual-best}
+\includegraphics[width=0.94\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95.png}
+\caption{QC-gated 未删失 CDF 协议上的固定表格点误差诊断。生成图展示刷新的完整模型名册，包括事后 residual 分支；主线结论单独列于表~\ref{tab:primary-leaderboard-rewrite}。}
+\label{fig:primary-metric-bars-rewrite}
 \end{figure}
 
-上述结果在五次重复训练上报告。作为含删失的补充对比，所有模型还在全清洗 CDF 集合上评估，该集合包含 692{,}942 个预测点和 24{,}316 条轨迹，使用同一目标集合。表~\ref{tab:external-clean-headline} 汇总了物理基线、选定的 MLP 变体以及阶段三稀疏变分高斯过程（SVGP）替代主干：校准后的 Hiroyasu--Arai 经验关联式、带延迟项的 Naber--Siebers 关联式、选定的多种子 MLP 筛查 surrogate、面向外推正则化的诊断 KD 变体（仅 $\mu$-锚点、不确定区间使用原始 NLL 监督），以及阶段三 SVGP。物理基线的拟合协议见第~\ref{sec:baseline-fitting-protocol-en} 节，SVGP 的构造见第~\ref{sec:svgp-alternative-backbone-en} 节。生产型 MLP 在该集合上的五次重复训练平均结果如下：
-\begin{itemize}
-  \item RMSE：full-clean 协议下为 \SI{4.735}{mm}（相对 Hiroyasu--Arai 的 \SI{11.268}{mm} 降低 58\%，相对 Naber--Siebers 的 \SI{10.545}{mm} 降低 55\%，均为同一协议下的数值；这些 full-clean 基线数值是单独重新拟合的，因而在数值上不同于下文给出的未删失协议基线）
-  \item MAE：\SI{3.293}{mm}
-  \item 偏差：\SI{+0.626}{mm}
-  \item P95 绝对误差：\SI{9.167}{mm}
-  \item 覆盖率：\(1\sigma/2\sigma = 86.7\%/98.5\%\)（保守）
-\end{itemize}SVGP 在点预测 RMSE/MAE 上占优（RMSE \SI{4.628}{mm}），并且后文显示其在 LONO 下转移更强；因此当前的结论并不是 MLP 是普遍更优的回归器，而是选定 MLP 是嵌入低成本、可审计运行工作流中的保守域内筛查 surrogate。随后，预测分布被投影到简化二维发动机几何模型上；其在原型筛查中的下游用途见第~\ref{sec:prototype-screening-zh} 节。
+生成的覆盖率比较（图~\ref{fig:primary-coverage-rewrite}）给出相同解释。
+生产 MLP 的区间有意设置得较宽：它明显高于名义高斯覆盖率，从而降低
+筛查界面低估贯穿距离不确定度的风险。SVGP 变体更尖锐、更准确，
+但不那么保守。这并非 SVGP 的缺陷，而是不同的运行点。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\linewidth]{images/eval_20260709/coverage_comparison.png}
+\caption{主要 QC-gated 未删失 CDF 表格上的经验 \(1\sigma\) 与 \(2\sigma\) 覆盖率。生产 MLP 比 SVGP 变体更保守；误差更低的 residual 分支被解释为事后适配证据，而非已部署 surrogate 的结论。}
+\label{fig:primary-coverage-rewrite}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{次要协议检查}
+\label{sec:secondary-protocol-checks}
+
+主要 CDF 表本身无法说明模型是在观测窗口内准确，还是仅在稠密逐点平均下
+表现稳定。观测 P50 与 q1 延续网格协议将这两者区分开来。
+表~\ref{tab:secondary-protocols-rewrite} 汇总了刷新后的
+QC-gated 主线比较。
+
+在观测 P50 协议上，单输出论文 SVGP 相对于生产 MLP 均值降低了点误差
+（RMSE 分别为 \SI{2.516}{mm} 与
+\SI{2.831}{mm}）。在 q1 延续网格上，主线方向相同
+（\SI{9.680}{mm} 对 \SI{10.047}{mm}），而生产 MLP 保持了
+更高的 \(1\sigma\) 覆盖率。延续网格比观测 P50 表困难得多：所有模型
+在晚期延续区域附近均表现出正 bias。因此，q1 表应被视为
+降阶延续行为的压力测试，而非直接的逐帧测量分数。
+完整名册图中可见的更低 residual-SVGP 数值留待事后适配一节讨论。
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}L{0.22\linewidth}L{0.28\linewidth}rrrr@{}}
+\toprule
+协议 & 模型汇总 & RMSE & MAE & Bias & 1$\sigma$ 覆盖率 \\
+\midrule
+观测 P50 协议 & 单输出论文 SVGP & \textbf{2.516} & \textbf{1.571} & +0.314 & 0.944 \\
+& 生产 MLP，5 种子均值 & 2.831 & 1.865 & +1.121 & \textbf{0.967} \\
+\addlinespace
+q1 延续网格 & 单输出论文 SVGP & \textbf{9.680} & \textbf{6.342} & +5.415 & 0.530 \\
+& 生产 MLP，5 种子均值 & 10.047 & 6.713 & +6.162 & \textbf{0.708} \\
+\bottomrule
+\end{tabular}
+\caption{QC-gated 数据集根目录上的主线次要协议检查。除覆盖率外，单位均为 mm。q1 延续网格的刷新全量运行工件中不存在 CRPS 和 NLL 列，因此有意不报告这两项；事后适配分支推迟至表~\ref{tab:posthoc-residual-rewrite}。}
+\label{tab:secondary-protocols-rewrite}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_p50_observed.png}
+\caption{观测 P50 协议。}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_q1_grid_all.png}
+\caption{q1 延续网格。}
+\end{subfigure}
+\caption{次要协议的点误差比较。P50 协议分离出测量窗口内的代表性行为，而 q1 网格检验来自拟合降阶目标的延续行为。}
+\label{fig:secondary-protocol-bars-rewrite}
+\end{figure}
+
+\subsubsection{含删失的 Full-Clean 检查}
+\label{sec:full-clean-supplement}
+
+Full-clean CDF 协议是主要表格对应的含删失协议：它在不排除右删失区域的
+情况下评估同一留出群体。在刷新 bundle 中，该协议与主要结论一样
+在同一 QC-gated 根目录上重新生成，因此两张表的唯一区别在于是否纳入
+右删失区域。它仍是补充检查而非核心结论，因为主要比较有意排除了
+目标本身受视野删失塑造的区域。
+
+在 QC-gated 根目录上，刷新后的 full-clean 表包含 689{,}162 个留出
+CDF 预测点，其中 148{,}795 个（21.6\%）位于右删失
+区域。在较早的归档 bundle 中，相同的删失压力在轨迹层级上量化：
+24{,}316 条清洗后留出轨迹中有 9{,}630 条（39.6\%）
+为右删失轨迹，这正是数据章节引用的空间删失比。两种视图说明同一点：
+将最后一个可见点当作物理终端贯穿距离会构成实质性的协议错误，
+而非记账细节。在刷新后的含删失视图上，五种子生产 MLP 达到
+\SI{4.584}{mm} RMSE、\SI{3.211}{mm} MAE、
+\SI{+0.829}{mm} bias，以及保守的 \(1\sigma/2\sigma\) 覆盖率
+0.869/0.986。Stage~3 SVGP 再次成为更强的点预测器（RMSE
+\SI{4.440}{mm}，95\% 区间 [4.373, 4.499]；MAE \SI{3.109}{mm}），
+但其覆盖率更尖锐、较不保守（0.706/0.942）；两条物理基线
+仍远远落后（RMSE 分别为 \SI{11.187}{mm} 和 \SI{10.442}{mm}，对应
+MLP 降幅 59.0\% 和 56.1\%）。因此，含删失协议的排序
+与主要未删失结论相同。
 
 \begin{table}[t]
 \centering
@@ -110,610 +261,486 @@ KD 形式修复 & uncensored $+$ full-clean，五种子 & \num{542565}/\allowbre
 \toprule
 模型 & RMSE & MAE & Bias & P95 & 1$\sigma$ & 2$\sigma$ \\
 \midrule
-校准后的 Hiroyasu--Arai & 11.268 & 8.658 & 0.288 & 22.891 & 0.615 & 0.912 \\
-带延迟项的 Naber--Siebers & 10.545 & 8.177 & -0.442 & 21.253 & 0.637 & 0.919 \\
-三阶段 MLP，选定 anchor-off 筛查 surrogate，五次重复均值 & 4.735 & 3.293 & 0.626 & \textbf{9.167} & 0.867 & 0.985 \\
-三阶段 MLP，诊断 KD 变体（$\mu$-锚点，不确定区间原始监督），五次重复均值 & 5.200 & 3.654 & -0.585 & 10.525 & 0.834 & 0.985 \\
-SVGP，Stage~3 模式 & \textbf{4.628} & \textbf{3.173} & -0.070 & 9.242 & 0.703 & 0.939 \\
+校准后的 Hiroyasu--Arai & 11.187 & 8.605 & +0.193 & 22.765 & 0.618 & 0.914 \\
+带延迟项的 Naber--Siebers & 10.442 & 8.117 & -0.545 & 21.089 & 0.640 & 0.921 \\
+三阶段 MLP，选定的 anchor-off 筛查 surrogate，5 种子均值 & 4.584 & 3.211 & +0.829 & 9.036 & 0.869 & 0.986 \\
+SVGP，Stage~3 模式 & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} & 0.706 & 0.942 \\
 \bottomrule
 \end{tabular}
-\caption{全清洗 CDF 集合（含右删失点）上的补充结果。误差单位为 mm；P95 为 95\% 绝对误差。两条 MLP 行均为五次重复训练（seeds 7/17/42/99/2024）的均值，SVGP 行为已训练的阶段三 seed-42 参考模型。名义高斯覆盖率约为 0.683 / 0.954。原始数据归档路径详见附录~\ref{app:implementation_mapping}。}
+\caption{QC-gated full-clean CDF 集（689{,}162 个点，包括右删失区域）上刷新后的含删失补充比较。误差单位为 mm；P95 为绝对误差的第 95 百分位数。MLP 行是五种子均值，SVGP 行是 Stage~3 seed-42 参考；运行工件同时导出了 RMSE、MAE 和 bias 的 cluster-bootstrap 95\% 置信区间。归档版 2026-05-21 表中报告的诊断 KD 变体不在刷新名册中，因此在此省略。}
 \label{tab:external-clean-headline}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.86\linewidth]{images/baseline_comparison_20260521/full_clean_metric_bars_rmse_mae_p95.png}
-\caption{含删失的全清洗 CDF 集合（补充）下，选定 MLP 筛查 surrogate 与物理基线、SVGP 替代主干在 RMSE、MAE 和尾部误差上的对比。}
-\label{fig:metric-bars-current}
-\end{figure}
-
-域内主要对比使用保守的未删失 CDF 点表，拟合后的 HA/NS 物理基线也在同一表上重新评估（数据归档路径详见附录~\ref{app:implementation_mapping}）。在同一协议下，SVGP 取得 RMSE \SI{4.193}{mm}，而 MLP 此前已报告的 RMSE 为 \SI{4.265}{mm}；两条物理曲线拟合基线仍远高于此：Hiroyasu--Arai 为 \SI{10.261}{mm}，Naber--Siebers 为 \SI{9.286}{mm}。覆盖率则呈现相反的故事：MLP 的 1$\sigma$/2$\sigma$ 覆盖率 0.887/0.989 同时高于名义高斯水平（0.683/0.954）和 SVGP 的 0.716/0.945，这证实了 MLP 的补偿优势在于保守覆盖，而非更低的点误差。在五次选定配置的重复训练中，未删失 RMSE 范围为 \SIrange{4.217}{4.310}{mm}（含删失全集范围为 \SIrange{4.689}{4.768}{mm}）；这一狭窄的范围表明，尽管在这一固定表对比中 SVGP 仍是最强的点预测器，选定 MLP 的结果并非种子随机的偶然。图~\ref{fig:coverage-comparison} 在两个评估集合上，将这一权衡的覆盖率一侧与名义高斯水平对比可视化。
-
-\begin{figure}[t]
+\begin{subfigure}[t]{0.49\linewidth}
 \centering
-\begin{minipage}[t]{0.49\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{images/baseline_comparison_20260521/cdf_uncensored_coverage_comparison.png}
-\end{minipage}\hfill
-\begin{minipage}[t]{0.49\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{images/baseline_comparison_20260521/full_clean_coverage_comparison.png}
-\end{minipage}
-\caption{物理基线、两个 MLP 变体与 SVGP 在主要未删失 CDF 点表（左）和含删失全清洗集合（右）上的经验 $1\sigma$/$2\sigma$ 覆盖率。虚线为名义高斯水平（0.683/0.954）。选定 MLP 在两个集合上均保守地高于两条名义线，SVGP 贴近名义水平，而物理基线覆盖不足。}
-\label{fig:coverage-comparison}
-\end{figure}
-
-\emph{要点：紧凑型 MLP 以刻意保守的覆盖率达到 \SI{4.265}{mm} 的 RMSE，而 SVGP 是略优的点预测器——两者互补，而非某一架构的完全胜出。}
-
-\subsection{工况级检查：观测中位数与拟合延续}
-\label{sec:condition-level-checks-zh}
-
-在逐点 CDF 指标之外，另外两个协议进一步锐化了 SVGP 与 MLP 的对比。在包含 4{,}213 个点的工况级 P50 集合上，直接拟合 P50 观测的 oracle q1 达到了 \SI{1.010}{mm} 的 RMSE 下限（不可部署）；在学习模型中，SVGP 领先（RMSE \SI{2.649}{mm}），选定 MLP 紧随其后（\(\SI{2.848}{mm}\pm\SI{0.059}{mm}\)），而面向外推正则化的诊断 KD 变体表现最差（\(\SI{3.212}{mm}\pm\SI{0.245}{mm}\)）。然而，在观测到的 P50 窗口之外包含 21{,}527 个点的 q1 外推网格上，排序发生了反转：诊断 KD 变体取得了最低的 RMSE（\(\SI{10.358}{mm}\pm\SI{0.106}{mm}\)）和最小的正向外推偏差（\SI{+6.269}{mm}），领先于 SVGP（\SI{10.591}{mm}，偏差 \SI{+6.410}{mm}）和选定 MLP（\(\SI{10.864}{mm}\pm\SI{0.064}{mm}\)，偏差 \SI{+6.753}{mm}）。这两种 MLP 变体因此探究了一个真正的权衡：选定无锚点模型是一个保守的分布内代理模型，而诊断 KD 变体被保留为一种受外推正则化的版本，在观测窗口外更接近 SVGP 风格的平滑先验。逐种子的详细数值及运行路径见附录~\ref{app:implementation_mapping}。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.80\linewidth]{images/baseline_comparison_20260521/production_mlp_per_seed_rmse.png}
-\caption{五次重复生产训练（seeds 7/17/42/99/2024）的逐种子 RMSE，展示在主要 uncensored CDF 表和含删失的全清洗集合上的结果。实线表示对应的五次运行均值。}
-\label{fig:five-seed-rmse-current}
-\end{figure}
-
-为了展示误差结构，图~\ref{fig:latest-pred-residual} 使用最佳单次重复训练作为代表性诊断。散点整体沿恒等线分布，残差均值接近零，但高贯穿距离区和困难喷嘴仍存在更宽的误差尾部。谨慎的解读是，模型在其支持的域内已具备稳定的毫米级预测能力，但它并不是无条件外推器。
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/latest_pred_vs_actual_seed99.png}
-\end{minipage}
+\includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_full_clean.png}
+\caption{点误差与尾部误差。}
+\end{subfigure}
 \hfill
-\begin{minipage}{0.49\linewidth}
+\begin{subfigure}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/latest_residual_histogram_seed99.png}
-\end{minipage}
-\caption{代表性重复运行在含删失全清洗（full-clean）留出集上的预测与测量散点图和残差分布。此图用于诊断误差结构；核心对比使用上文刷新的五次生产运行均值。}
-\label{fig:latest-pred-residual}
+\includegraphics[width=\linewidth]{images/eval_20260709/coverage_comparison_full_clean.png}
+\caption{经验覆盖率。}
+\end{subfigure}
+\caption{QC-gated 根目录上刷新后的 full-clean CDF 补充诊断。含删失比较重现了主要的精度--覆盖率权衡；论文的主要结论仍基于 QC-gated 未删失 CDF 协议。}
+\label{fig:full-clean-diagnostics}
 \end{figure}
-
-\emph{要点：两种工况级协议揭示了观测中位数保真度与外推延续行为之间真实存在的权衡，没有任何单一模型变体能同时主导两者。}
-
-\subsection{概率校准}
-\label{sec:probabilistic-calibration-zh}
-
-覆盖率检查只能测试少数几个置信区间，因此本文进一步使用可靠性图、连续排序概率分数（CRPS）和概率积分变换直方图。五种子选定 anchor-off 运行保持了显著低于物理基线的 CRPS，并且这种增益并非仅来自扩大不确定度区间：它来自均值精度与不确定度宽度之间更好的联合权衡。
-
-图~\ref{fig:calibration-current} 展示了两个模型在全量清洗集上的可靠性图和 CRPS-精度散点图。表~\ref{tab:external-clean-headline} 给出了各模型的主要指标。SVGP 的点预测误差最低（RMSE \SI{4.628}{mm}），CRPS 也最低，其覆盖率接近标称高斯值（$1\sigma$/$2\sigma$：0.703/0.939）。MLP 的点误差略高（RMSE \SI{4.735}{mm}），但覆盖率更宽（0.867/0.985），明显高于标称值。这一结果体现了两个模型在精度与覆盖率之间的刻意取舍：SVGP 是更准确的点预测器；MLP 提供更保守的不确定性区间，更适合早期筛查用途。
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.49\linewidth}
+\begin{subfigure}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/calibration_20260521/reliability_overlay.png}
-\end{minipage}
+\includegraphics[width=\linewidth]{images/eval_20260709/reliability_overlay_full_clean.png}
+\caption{可靠性图。}
+\end{subfigure}
 \hfill
-\begin{minipage}{0.49\linewidth}
+\begin{subfigure}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/calibration_20260521/crps_sharpness_scatter.png}
-\end{minipage}
-\caption{概率预测诊断。左：可靠性图。右：连续排序概率分数与平均预测标准差的关系。对比包含物理基线、五个选定 MLP 种子及 Stage~3 SVGP 替代主干。}
-\label{fig:calibration-current}
+\includegraphics[width=\linewidth]{images/eval_20260709/crps_sharpness_scatter_full_clean.png}
+\caption{CRPS--sharpness 平面。}
+\end{subfigure}
+\caption{刷新后的 full-clean 概率校准诊断。SVGP 更尖锐且 CRPS 更低，而生产 MLP 的区间更宽、更保守；含删失视图支持与主要协议相同的精度--覆盖率权衡。}
+\label{fig:full-clean-calibration}
 \end{figure}
 
-\emph{要点：SVGP 更为锐利，CRPS 更优；而 MLP 更宽的区间体现的是面向筛查用途的刻意保守设计选择，而非标定缺陷。}
+\FloatBarrier
 
-\subsection{留一喷嘴（LONO）转移性能与分布外失效}
+\subsection{校准与分布行为}
+\label{sec:calibration-distributional}
+
+少数几个 sigma 水平上的覆盖率只能提供粗略汇总，因此刷新的
+流水线还为概率固定表格数据集导出可靠性曲线、PIT 直方图、CRPS、NLL、
+区间分数和 sigma 分箱校准表。这些诊断进一步强化了相同的权衡。生产 MLP
+较为保守：其平均预测标准差约为
+\SI{5.96}{mm}，\(1\sigma\) 覆盖率约为 0.888。主线
+单输出 SVGP 更尖锐，平均预测标准差约为
+\SI{3.73}{mm}，CRPS 更低（\SI{2.063}{mm}），RMSE 也更低，
+但 \(1\sigma\) 覆盖率较不保守。事后 QC 重训练 residual-SVGP
+将 CRPS 进一步降至 \SI{1.988}{mm}，但仍不如生产 MLP 保守。
+
+这一区别对下游筛查界面很重要。如果模型的不确定度区间对于边界工况
+过窄，则拥有最佳均值预测并不自动意味着它是最安全的面向排名的
+筛查 surrogate。反之，也不应将保守的 MLP 区间夸大为经认证的
+假阴性保证。它们是在实测协议下刻意谨慎的预测分布证据。
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/eval_20260709/reliability_overlay.png}
+\caption{可靠性叠加图。}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/eval_20260709/crps_sharpness_scatter.png}
+\caption{CRPS--sharpness 平面。}
+\end{subfigure}
+\caption{主要 QC-gated 未删失 CDF 表格上的分布诊断。SVGP 变体位于更尖锐、CRPS 更低的区域，而生产 MLP 以点预测 sharpness 换取保守覆盖率。}
+\label{fig:distributional-diagnostics-rewrite}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\linewidth]{images/eval_20260709/pit_histograms_grid.png}
+\caption{刷新后主要比较的 PIT 直方图。这些直方图通过揭示各模型相对于均匀预测分布的偏离，对可靠性叠加图形成补充。}
+\label{fig:pit-grid-rewrite}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{跨喷嘴转移与失效边界}
+\label{sec:lono-boundaries-rewrite}
+\label{sec:lono-transfer-en}
 \label{sec:lono-transfer-zh}
-
-\paragraph{方法论说明：双协议评估。}
-\label{sec:dual-protocol-zh}
-本章使用的两种评估协议——下文报告的 LONO 交叉验证以及后文第~\ref{sec:kd-form-fix-zh} 节报告的五种子生产 bootstrap——是有意区别开的，回答的是不同问题。LONO 协议在训练时留出一个喷嘴，测量模型对训练中从未见过的喷嘴几何的泛化能力，因此报告的是模型的\textbf{域外（OOD）}行为。生产协议在全数据集上使用五个随机种子重新训练同一配置，并在非右删失测试集上评估；它测量的是模型的\textbf{域内拟合质量}及其对随机初始化的敏感性，是核心表中方差报告的合适协议。
-
-这两个协议并列报告而不合并为单一排名，因为各自隔离了独立的论断。一个在 LONO 协议下胜出但在生产 bootstrap 下落败的模型，意味着泛化好但域内拟合差；反之，在生产 bootstrap 胜出但 LONO 落败的模型，意味着域内拟合紧密但对外推至新喷嘴几何的表现差。生产协议支持 MLP 作为测量设计空间内的保守筛查代理；LONO 协议则表明 SVGP 替代主干在留一喷嘴转移的点精度上更强。这些是互补的论断，而不是对某一架构的全面胜利宣告。
-
-留一喷嘴评估用于检查模型是否仅仅在训练期间已见的喷嘴之间进行插值。在锁定阶段二教师为仅 $\mu$-锚点配置并采用刷新后的五折 LONO 协议（留出喷嘴 Nozzle0、Nozzle1、Nozzle2、Nozzle4、Nozzle5）下，LONO 胜出的阶段三 MLP 变体（不确定区间混合原始/KD 监督）的五折平均 RMSE 为 \(\SI{12.55}{mm}\pm\SI{12.46}{mm}\)，MAE 为 \(\SI{9.80}{mm}\pm\SI{10.18}{mm}\)，平均 1$\sigma$/2$\sigma$ 覆盖率为 0.575/0.770。同一未删失 LONO 评估测得阶段三 SVGP 的 RMSE 为 \(\SI{10.16}{mm}\pm\SI{9.57}{mm}\)，MAE 为 \(\SI{7.87}{mm}\pm\SI{7.55}{mm}\)，覆盖率为 0.628/0.821。留一喷嘴评估的结论因此是有条件的：SVGP 是点转移更强的主干，而 MLP 的保留依据是其域内的保守覆盖、喷射起始辅助输出以及消融可负担性（按 §4 开头的术语约定理解）。
-
-极高的标准差主要由 Nozzle0 这一折驱动，它是整个 campaign 中唯一的全新出厂喷嘴。虽然 Nozzle1 的各项几何参数与 Nozzle0 相同，但 Nozzle1--8 均来自不同的喷油器，存在未建模的喷油器间变异；这一结构性差异也解释了为何 Nozzle1--8 的控制背压仅覆盖 4\,bar 层级（而 Nozzle0 为 1\,bar 和 4\,bar），以及为何在不包含 Nozzle0 折时 LONO 协议会崩溃。Nozzle0 因此最好被理解为一个跨设计族失效的外推案例，而非普通的平均性能折：阶段三 MLP 在此折的 RMSE 达到 \SI{34.76}{mm}，SVGP 的 RMSE 达到 \SI{26.99}{mm}，二者均存在系统性低估。如果排除 Nozzle0，MLP 的四折平均 RMSE 降至 \(\SI{7.00}{mm}\pm\SI{1.18}{mm}\)，而 SVGP 达到 \(\SI{5.95}{mm}\pm\SI{1.98}{mm}\)。此时覆盖率的对比交错：1$\sigma$ 覆盖率几乎相同（MLP 0.696 对 SVGP 0.697），而 MLP 的 2$\sigma$ 覆盖率更高（0.923 对 0.890）。因此 LONO 证据反驳了 MLP 全面占优的主张，转而把域内保守部署与跨设计族转移精度分开评估。
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/lono_20260509/lono_rmse_by_fold.png}
-\end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/lono_20260509/lono_coverage_by_fold.png}
-\end{minipage}
-\caption{当前未删失 LONO 跨架构诊断。左：阶段三 MLP LONO 胜出变体与阶段三 SVGP 的各折 RMSE；传统 HA/NS LONO RMSE 均值仅作为虚线尺度参考。右：相同未删失协议下的各折 1$\sigma$ 覆盖率，虚线表示名义高斯水平。}
-\label{fig:lono-current}
-\end{figure}
-
-\subsubsection{留一喷嘴对比：神经代理模型与稀疏高斯过程}
+\label{sec:svgp-lono-comparison-en}
 \label{sec:svgp-lono-comparison-zh}
 
-为测试同样的删失感知回归协议在不同模型家族中的表现，本文在相同的五折 LONO 划分下，使用稀疏变分高斯过程（SVGP）替代主干（阶段三模式）重新运行，其在拼接了原始 CDF 点观测的合成目标上进行训练，以匹配阶段三 MLP 的监督机制。在保存的模型工件允许范围内，所有其他轴（五个留出喷嘴、生产输入特征集、训练后未删失评估脚本）均保持固定。物理 LONO 行仅作为遗留 RMSE 的刻度参考保留，因为在当前归档中，这些基线缺少同协议下的 MAE 和覆盖率表。
+上述固定表格结果检验清洗后数据集根目录中留出点上的域内性能。
+它们没有回答 surrogate 能否泛化到完全未见的喷油器。
+这个问题由论文归档工件中保留的
+留一喷嘴协议处理。
 
-\begin{table}[t]
-\centering
-\footnotesize
-\begin{tabular}{@{}L{0.34\linewidth}rrrr@{}}
-\toprule
-模型 & RMSE [mm] & MAE [mm] & 1$\sigma$ 覆盖率 & 2$\sigma$ 覆盖率 \\
-\midrule
-校准后的 Hiroyasu--Arai，遗留 LONO 参考 & 10.713 \(\pm\) 1.542 & --- & --- & --- \\
-带延迟项的 Naber--Siebers，遗留 LONO 参考 & 9.784 \(\pm\) 2.102 & --- & --- & --- \\
-三阶段 MLP，阶段三 LONO 胜出变体 & 12.55 \(\pm\) 12.46 & 9.80 \(\pm\) 10.18 & 0.575 & 0.770 \\
-SVGP，阶段三模式 & \textbf{10.16 \(\pm\) 9.57} & \textbf{7.87 \(\pm\) 7.55} & \textbf{0.628} & \textbf{0.821} \\
-三阶段 MLP，排除 Nozzle0 & 7.00 \(\pm\) 1.18 & 5.25 \(\pm\) 0.81 & 0.696 & \textbf{0.923} \\
-SVGP，排除 Nozzle0 & \textbf{5.95 \(\pm\) 1.98} & \textbf{4.55 \(\pm\) 1.55} & \textbf{0.697} & 0.890 \\
-\bottomrule
-\end{tabular}
-\caption{跨架构 LONO 对比。MLP 和 SVGP 行报告了在五个留一喷嘴折中使用当前未删失评估工件的未加权均值和标准差。破折号表示当前归档中无法追溯同协议下的 MAE 和覆盖率数据。粗体表示在该比较列中最优的阶段三架构。}
-\label{tab:svgp-lono-comparison}
-\end{table}
+在依次留出 Nozzle0、Nozzle1、Nozzle2、Nozzle4 和 Nozzle5 的
+五折 LONO 协议下，Stage~3 SVGP 的平均 RMSE 低于 MLP：
+\(\SI{10.16}{mm}\pm\SI{9.57}{mm}\)，而 MLP 为
+\(\SI{12.55}{mm}\pm\SI{12.46}{mm}\)。排除设计族之外的
+Nozzle0 折后，比较方向保持不变：
+SVGP 为 \(\SI{5.95}{mm}\pm\SI{1.98}{mm}\)，
+MLP 为 \(\SI{7.00}{mm}\pm\SI{1.18}{mm}\)。覆盖率结果则更为
+交织：移除 Nozzle0 后，两者的 \(1\sigma\) 覆盖率几乎相同
+（SVGP 为 0.697，MLP 为 0.696），而 MLP 的 \(2\sigma\)
+覆盖率更高（0.923 对 0.890）。本段的 \(\pm\) 项是
+归档单种子 LONO 运行的跨折标准差，而非
+多种子训练不确定度。
+
+因此，主要转移结论比域内结论更明确。
+在 LONO 下，SVGP 是更好的点转移主干。保留 MLP 并非因为
+它赢得每项转移指标，而是因为它在域内较为保守，
+能够提供筛查 GUI 使用的辅助 onset 输出，并且
+支持低成本消融训练课程。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{images/svgp_lono_comparison.png}
-\caption{阶段三 MLP 与 SVGP 在当前未删失 LONO 协议下的综合诊断。左图报告各留出喷嘴的 RMSE；右图报告经验 1$\sigma$ 覆盖率，虚线为名义高斯水平。}
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/lono_20260509/lono_rmse_by_fold.png}
+\caption{逐折 RMSE。}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/lono_20260509/lono_coverage_by_fold.png}
+\caption{逐折 \(1\sigma\) 覆盖率。}
+\end{subfigure}
+\caption{Stage~3 MLP 与 SVGP 的归档 LONO 诊断。Nozzle0 主导了较高的标准差，并标示出两种架构共同的设计族外边界。}
+\label{fig:lono-boundary-rewrite}
 \label{fig:svgp-lono-comparison}
+\label{fig:svgp-lono-comparison-zh}
 \end{figure}
 
-正式的跨架构结论仅基于阶段三 MLP 和阶段三 SVGP 两行，因为只有这两行在同一未删失 LONO 协议下具备完整的当前评估工件。结果明确：无论是否包含 Nozzle0，核主干都取得了更低的 RMSE 和 MAE。MLP 剩下的优势不在于 OOD 上的点预测精度，而在于围绕这个低维代理模型的更广泛工作流——喷射起始辅助预测头、区制感知 KD、域内保守覆盖，以及下文记录的低开销消融网格。
+不应通过取平均来掩盖 Nozzle0 的崩溃。Nozzle0 是整个 campaign 中唯一的
+全新出厂参考喷油器，其早期贯穿距离包络并未被改型喷油器训练群体
+所代表。将它解释为跨设计族外推
+失效，而非普通折，更为合适。该边界具有科学价值：它
+指出了学习得到的 surrogate 在何处需要额外的设计族覆盖、
+trunk-level 适配或重新训练。
 
-\subsubsection{各 campaign 文件夹间的差异与代表性轨迹案例}
+\subsubsection{物理失效模式检查：Nozzle 3}
+\label{sec:nozzle3-failure-rewrite}
 
-误差在不同 campaign 文件夹之间并不均匀。图~\ref{fig:per-folder-rmse-best} 展示了最终模型在各评估子文件夹上的单条轨迹 RMSE 均值与中位数。最容易的文件夹仍处于低 \SI{3}{mm} 区间，而最困难的接近 \SI{9}{mm}。Nozzle0 处于这个排序的中间而不是两端，因此最终消融带来的全局改善并不是由某一个匿名化参考 campaign 单独驱动的。
+LONO 均值可以识别转移边界，但无法展示困难案例背后的原始
+喷雾形态。一个归档 Nozzle~3 工况将 Phantom 高速 Mie 图像与
+相应的逐 plume 贯穿距离曲线配对，
+提供了有用的失效剖析
+（图~\ref{fig:failure-mode-nozzle3-rewrite}）。在从
+\SI{0.6}{ms} 到约 \SI{1.0}{ms} 的早期窗口内，右下方数条 plume
+仍然短且不连续，而其他喷孔已经形成连续射流。
+贯穿距离曲线将同一事件表现为平台状或阶跃状轨迹：
+一小团前导液体首先出现并减速，随后被
+速度更快的主射流追上。
 
-代表性案例使这种差异更直观。图~\ref{fig:traj-best-case} 给出一个表现最好的案例，其中预测均值紧密跟随测量 plume 轨迹，且不确定度带相对较窄。图~\ref{fig:traj-worst-case} 给出了一个困难的案例，模型依然保持单调且不确定度带适当变宽，但若干 plume 仍表现出系统性的形状失配或延迟上升。这个困难案例并不包含删失轨迹，因此残余误差不能完全归因于视场丢失；依赖单个喷嘴的早期瞬态依然是真正的建模难点。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.88\linewidth]{images/neural_network_fit_results/per_folder_rmse_best.png}
-\caption{最终 Stage~3 模型在各评估 campaign 文件夹上的单条轨迹 RMSE 均值与中位数。}
-\label{fig:per-folder-rmse-best}
-\end{figure}
-
-\begin{figure}[p]
-\centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/traj_best_nozzle7_T19.png}
-\caption{最终 Stage~3 模型的代表性最佳案例。预测均值紧密跟随测量 plume 轨迹，且在所展示的 plume 上不确定度带保持较窄。}
-\label{fig:traj-best-case}
-\end{figure}
-
-\begin{figure}[p]
-\centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/traj_worst_nozzle3_T3.png}
-\caption{最终 Stage~3 模型的代表性困难案例。模型依然保持单调且保守，但若干 plume 显示出系统性的形状失配，从而拉大了误差。}
-\label{fig:traj-worst-case}
-\end{figure}
-
-\subsubsection{困难工况的视觉证据与失效模式剖析：以 Nozzle 3 为例}
-
-留一喷嘴（LONO）评估显示，代理模型在诸如 Nozzle~3 等特定喷嘴上出现了覆盖率下降与误差放大。为观察这些困难工况在原始数据中的形态，本文将 Phantom 高速 Mie 散射图像与对应的逐喷油束贯穿距离曲线进行了交叉比对（图~\ref{fig:failure-mode-nozzle3}）。
-
-图像序列（$t \approx 0.6 \sim 1.0\,\si{ms}$）显示出明显的孔间非对称性：当左侧喷油束已建立稳定的连续射流时，右下方的三束喷油（约 3 至 5 点钟方向）却显得短小、断续。其中部分喷孔先挤出少量低动量、脱离主体的先导液团，并在环境气阻下迅速减速；这一视觉观察对应于贯穿距离曲线（如 Plume~2 的绿线、Plume~0 的蓝线）在同一时间窗内出现的``平顶''特征。随后（$t > 1.0\,\si{ms}$），在同一方位出现了主射流并迅速反超先导液团，使曲线呈现阶跃式陡升。
-
-这种``先导液团 + 反超主射流''的轨迹形态，与分段或多段喷射文献中报道的尾迹驱动追赶/反超机制一致：先到达的液团可通过尾迹效应和轴向气动量预处理改变其后液团的贯穿距离。因为本实验既无同步气速测量，也无内部流动可视化或液团身份追踪，该案例只能被解释为与此类机制``相一致的''图像证据；针阀偏摆或瞬态喷孔节流等机械原因同样是现有数据所不能排除的候选解释。
-
-数据所能直接支持的，是建模层面的推论。降阶拟合目标（$k_{1/4}t^{1/4}$）按构造单调且呈凹形，无法包络这类二阶导数发生突变的阶跃轨迹。将平滑单调先验强加于这类轨迹会造成目标失真，这是导致 Stage~2、Stage~3 网络在受影响喷嘴上覆盖率下降的一个可识别原因。要对此类极端瞬态喷雾进行建模，因此需要采用更柔性的形状先验，或者在能够分辨真实机制的诊断手段就位后，对该机制进行显式的条件化。
+这些图像证据与尾流驱动的追赶或瞬态
+喷孔节流解释相一致，但并非因果诊断。该
+实验不包含同步气体速度、内部流动
+可视化或液体质量身份追踪。直接建模结论
+更窄，但也更有用：平滑单调的延续目标无法
+表示突发的阶跃状曲率变化，而不扭曲目标或
+预测不确定度。这些案例解释了为何即使整体 LONO 和固定表格指标
+看似可接受，部分设计族内工况仍然困难。
 
 \begin{figure}[p]
 \centering
 \begin{minipage}{0.24\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t3.png}\\
-(a) $t\approx 0.6\sim0.8\,\si{ms}$
+{\footnotesize (a) \(t\approx\SI{0.6}{ms}\)--\(\SI{0.8}{ms}\)}
 \end{minipage}
 \hfill
 \begin{minipage}{0.24\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t4.png}\\
-(b) $t\approx 0.8\,\si{ms}$
+{\footnotesize (b) \(t\approx\SI{0.8}{ms}\)}
 \end{minipage}
 \hfill
 \begin{minipage}{0.24\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t5.png}\\
-(c) $t\approx 1.0\,\si{ms}$
+{\footnotesize (c) \(t\approx\SI{1.0}{ms}\)}
 \end{minipage}
 \hfill
 \begin{minipage}{0.24\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/failure_mode_nozzle3/phantom_t6.png}\\
-(d) $t > 1.0\,\si{ms}$
+{\footnotesize (d) \(t>\SI{1.0}{ms}\)}
 \end{minipage}
 
 \vspace{1em}
 \includegraphics[width=0.95\linewidth]{images/failure_mode_nozzle3/nozzle3_t16_plot.png}
-\caption{Nozzle 3 (T16 工况) 极端瞬态喷雾的视觉证据与对应贯穿距离曲线。上排图像序列捕捉了右下方喷油束在初期受到严重节流并形成脱离先导液团，随后在 $t>1.0\,\si{ms}$ 爆发主射流的过程。下排贯穿距离曲线中的 Plume 0（蓝线）和 Plume 2（绿线）精确反映了这一阶跃式轨迹，打破了代理模型平滑单调增长的数学假设。}
+\caption{Nozzle~3 极端瞬态喷雾的视觉证据及相应贯穿距离曲线。图像序列显示右下方 plume 起初短且不连续，随后出现主射流；下方曲线则显示相关的平台状和阶跃状贯穿距离行为。该图支持建模失效模式解释，而非唯一确定的流体力学成因。}
+\label{fig:failure-mode-nozzle3-rewrite}
 \label{fig:failure-mode-nozzle3}
+\label{fig:failure-mode-nozzle3-zh}
 \end{figure}
 
-\emph{要点：族内转移的退化是渐进的，但未见的喷油器族（Nozzle~0）会使两种架构都失效，核方法主干转移更好——这促使我们开展消融研究，以厘清 MLP 究竟独特地提供了什么。}
+\FloatBarrier
 
-\subsection{神经代理模型消融研究}
-\label{sec:ablation-study-zh}
-
-前文章节确立了跨架构结果：SVGP 目前在点精度上是赢家（尤其在 LONO 转移协议下），而选定 MLP 则是域内更为保守的筛查代理模型。接下来的证据解释了为何 MLP 技术栈仍被保留作为运行工作流：它的训练课程可以被廉价地消融，其喷射起始辅助输出支持 GUI 原型，且它的区制感知蒸馏使得保守筛查行为具有可追溯性而非偶然。
-
-\subsubsection{Stage-2 anchor 调度消融实验}
-\label{sec:stage2-anchor-ablation-zh}
-
-阶段二在异方差 NLL 之上引入了两个可选的早期 anchor 惩罚项：把 \(\mu(t{\to}0)\to 0\) 的二次惩罚（权重 \(\lambda_\mu\)）以及把超出固定下限 \(\sigma_{0}\) 的过多标准差 \(\max(0,\,\sigma(t{\to}0)-\sigma_{0})\) 拉小的二次惩罚（权重 \(\lambda_\sigma\)）。两者均与三角核 \(w(t)=\max(0,\,1-t/\tau)\) 加权积分，作用在 \(\tau=\SI{0.15}{ms}\) 的早期时间窗口。为检查这些 anchor 究竟是帮助还是损害跨喷嘴泛化，本文在与阶段一相同的 LONO 协议下对比了三个阶段二变体：(i)~无 anchor（\(\lambda_\mu=\lambda_\sigma=0\)）；(ii)~仅 $\mu$-anchor（\(\lambda_\mu=10^{-2}\)，\(\lambda_\sigma=0\)）；(iii)~$\mu$+$\sigma$ 双 anchor（\(\lambda_\mu=10^{-2}\)，\(\lambda_\sigma=10^{-3}\)）。三个变体共用阶段一胜出的生产七特征配置（$\alpha=0.5$ 带压力残差）作为热启动，共用相同的五折 LONO 划分、相同的阶段三无锚点蒸馏链、相同的网络架构与优化器、以及单一固定种子（42）；唯一变化的轴是阶段二的 anchor 配置。本节中的留出集指标是在完整的阶段一$\to$二$\to$三流水线之后，基于留出喷嘴的未截断 CDF~P50 点进行评估的（各折评估点数依次为：Nozzle0 311{,}149、Nozzle2 60{,}369、Nozzle5 33{,}017、Nozzle4 28{,}139、Nozzle1 25{,}705）。
-
-\begin{table}[t]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}L{0.30\linewidth}rrrr@{}}
-\toprule
-变体 & RMSE [mm] & MAE [mm] & Bias [mm] & 1$\sigma$ / 2$\sigma$ 覆盖率 \\
-\midrule
-\texttt{no\_anchor}        & 14.54 $\pm$ 12.36 & 10.80 $\pm$ \phantom{0}9.96 & $-8.50 \pm 11.03$ & 0.602 / 0.763 \\
-\texttt{mu\_anchor}        & \textbf{12.73 $\pm$ 12.44} & \textbf{\phantom{0}9.86 $\pm$ 10.22} & \textbf{\boldmath$-7.11 \pm 11.51$} & 0.570 / \textbf{0.775} \\
-\texttt{mu\_sigma\_anchor} & 13.05 $\pm$ 12.46 & 10.06 $\pm$ 10.33 & $-7.59 \pm 11.45$ & 0.564 / 0.764 \\
-\bottomrule
-\end{tabular}
-\caption{阶段二 anchor 调度 LONO 消融实验。每一行是五折留一喷嘴（Nozzle0、Nozzle1、Nozzle2、Nozzle4、Nozzle5）的留出集均值~$\pm$~标准差。最终选定的阶段二教师配置为仅 $\mu$-anchor（表中第二行），它在 RMSE、MAE、偏差幅度与 2$\sigma$ 覆盖率上同时胜出。}
-\label{tab:stage2-anchor-ablation}
-\end{table}
-
-\begin{table}[t]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}L{0.28\linewidth}rrrrr|r@{}}
-\toprule
-变体 & Nozzle0 & Nozzle1 & Nozzle2 & Nozzle4 & Nozzle5 & 均值 \\
-\midrule
-\texttt{no\_anchor}        & 34.25 & \phantom{0}6.56 & 19.18 & 7.57 & 5.11 & 14.54 \\
-\texttt{mu\_anchor}        & 34.92 & \phantom{0}7.16 & \textbf{\phantom{0}7.76} & 8.20 & 5.60 & \textbf{12.73} \\
-\texttt{mu\_sigma\_anchor} & 35.12 & \phantom{0}7.10 & 10.04 & 7.73 & 5.27 & 13.05 \\
-\bottomrule
-\end{tabular}
-\caption{三种阶段二 anchor 变体的各折 LONO RMSE [mm]。三者都在 Nozzle0 折上失效（全新出厂的参考喷嘴，喷油器间变异未在模型中建模；真正的跨设计族外推；以点数占据主导位置）；真正起区分作用的是 Nozzle2 折，无 anchor 较仅 $\mu$-anchor 增加了 \SI{11.4}{mm} 的 RMSE。}
-\label{tab:stage2-anchor-ablation-per-fold}
-\end{table}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{images/stage2_anchor_ablation.png}
-\caption{阶段二 anchor 调度 LONO 消融总结。左：三种 anchor 变体的各折留出集 RMSE；右：各折 1$\sigma$ 覆盖率，虚线为名义高斯水平。源工件路径见附录~\ref{app:implementation_mapping}。}
-\label{fig:stage2-anchor-ablation}
-\end{figure}
-
-该消融实验检验两个耦合的假设。首先，零时刻的均值 anchor 是否能在不造成其他位置条件均值偏差的代价下注入有用的物理先验；无 anchor 与仅 $\mu$-anchor 的对比孤立了这一权衡。其次，把早期 \(\sigma\) 强行压向其下限是否会损害对留出喷嘴的不确定度标定；仅 $\mu$-anchor 与 $\mu$+$\sigma$ 双 anchor 的对比则把这一轴单独剥离开来，不受均值 anchor 的混杂影响。
-
-两个假设的验证都指向支持仅 \(\mu\)-anchor 的结论。激活 \(\mu\)-anchor 会使平均 RMSE 降低 \SI{1.81}{mm}（从 14.54 降至 \SI{12.73}{mm}），MAE 降低 \SI{0.94}{mm}，2\(\sigma\) 覆盖率从 0.763 提升至 0.775，并将系统性低估偏差从 \SI{-8.50}{mm} 收窄至 \SI{-7.11}{mm}。改进主要集中在 Nozzle2 折：在没有 anchor 时，NLL 可以随意将数据稀少且靠近 \(t{=}0\) 的窗口用作松弛空间，导致无 anchor 在此处崩溃至 \SI{19.18}{mm} 的 RMSE；anchor 移除了这一自由度。这三个来自同一测试系列的喷嘴（Nozzle1/4/5，每折约 25k--33k 评估点）在三个变体下的结果彼此相差都在 \SI{1}{mm} 以内，可见 anchor 的价值只有在 LONO 折真正构成 OOD 挑战时才会显现。
-
-在顶部叠加 \(\sigma\)-anchor 会把平均预测标准差从 \SI{5.68}{mm} 进一步收紧到 \SI{5.49}{mm}，但并未产生补偿性增益：RMSE 反而上升到 \SI{13.05}{mm} 且 2\(\sigma\) 覆盖率降至 0.764。这一现象可被解释为：将 \(\sigma\) 在 \(t{=}0\) 附近推向下限，会经由阶段三蒸馏传播为一种更自信但略带偏差的 \(\mu\) 预测，从而同时损害精度和标定。因此，下一小节报告的阶段三消融实验将阶段二教师固定在仅 $\mu$-anchor 配置下（\(\lambda_\mu=10^{-2}\)，\(\lambda_\sigma=0\)）；任何关于阶段三区制加权或 KD 形式的结论，都以该 anchor 选择为前提。完整的逐折明细与原始聚合文件归档路径见附录~\ref{app:implementation_mapping}。
-
-\subsubsection{测试阶段3中原始数据与教师模型的不同混合比例}
-
-在阶段二 anchor 消融之后，本文将阶段二教师固定为仅 $\mu$-anchor 配置，并在同一五折 LONO 协议下重新运行阶段三的消融。该消融对比了四种阶段三配置：
-(i)~\textbf{基准配置}，在可靠时间箱中设定 $w_{\mathrm{kd}}=0.25$ 且 $\lambda_{\mathrm{anchor}}=0.01$；
-(ii)~\textbf{仅可靠区间纯原始变体}，移除可靠区间中的 KD 混合；
-(iii)~\textbf{不确定区间混合变体}，在不确定区间中重新引入部分原始监督；以及
-(iv)~\textbf{无锚点变体}，在保留 raw/KD 区制设计不变的同时设定 $\lambda_{\mathrm{anchor}}=0$——由于阶段二教师已经固定为仅 $\mu$-anchor 配置，且 $\lambda_{\mathrm{anchor}}=0$ 本就折算进了基准 raw/KD 区制划分之中，该变体在数值上与表~\ref{tab:stage2-anchor-ablation} 中的 \texttt{mu\_anchor} 行完全相同，此处列出仅为保持四种阶段三区制对比的完整自洽。
-表~\ref{tab:stage3-ablation-ranking} 提供了 LONO 排序。不确定区间混合变体取得了最低的平均 RMSE 和 MAE，而无锚点变体取得了最高的 2\(\sigma\) 覆盖率。各变体之间的差距较小：最佳和最差的平均 RMSE 仅相差 \SI{0.21}{mm}，远低于大约 \SI{12.5}{mm} 的跨折标准差。因此，这应当被解读为在阶段三调参上的微弱偏好，而不是决定性的架构级影响。
-
-各折的模式解释了这个较小的总体差距。Nozzle0 对每个阶段三变体来说仍然是一个跨设计族的外推失败，RMSE 在 \SIrange{34.76}{35.31}{mm} 的范围内，并存在约 \(\approx\SI{-27}{mm}\) 的系统性低估偏差。不确定区间混合变体在 Nozzle2 和 Nozzle1 折上获胜，而基准配置在 Nozzle5 和 Nozzle4 折上获胜。因此，表~\ref{tab:stage3-ablation-ranking} 支持在固定阶段二仅 $\mu$-anchor 教师下将不确定区间混合变体作为 LONO 的 RMSE/MAE 胜出配置，但这并不构成对 70\%/20\% 覆盖率边界、\(\sigma_{\mathrm{ref}}=\SI{10}{mm}\) 或所有可能权重组合的全面超参数搜索。完整的运行工件归档路径见附录~\ref{app:implementation_mapping}。
-
-\begin{table}[t]
-\centering
-\footnotesize
-\begin{tabular}{lrrrrr}
-\toprule
-配置 & RMSE [mm] & MAE [mm] & Bias [mm] & 1$\sigma$ 覆盖率 & 2$\sigma$ 覆盖率 \\
-\midrule
-基准配置 & 12.68 $\pm$ 12.74 & 9.97 $\pm$ 10.55 & $-7.86 \pm 11.28$ & 0.565 & 0.759 \\
-仅可靠区间纯原始变体 & 12.76 $\pm$ 12.48 & 10.01 $\pm$ 10.22 & $-7.45 \pm 11.35$ & 0.556 & 0.761 \\
-\textbf{不确定区间混合变体} & \textbf{12.55 $\pm$ 12.46} & \textbf{9.80 $\pm$ 10.18} & \textbf{\boldmath$-6.87 \pm 11.53$} & \textbf{0.575} & 0.770 \\
-无锚点变体 & 12.73 $\pm$ 12.44 & 9.86 $\pm$ 10.22 & $-7.11 \pm 11.51$ & 0.570 & \textbf{0.775} \\
-\bottomrule
-\end{tabular}
-\caption{在固定阶段二教师为仅 $\mu$-anchor 后的阶段三 LONO 消融。每行报告五个留一喷嘴的留出集均值~$\pm$~标准差。不确定区间混合变体在 RMSE/MAE 上获胜；无锚点变体的 2$\sigma$ 覆盖率最强。}
-\label{tab:stage3-ablation-ranking}
-\end{table}
-
-消融趋势也阐明了为什么阶段三应被视为微调层，而非全面解决 OOD 喷嘴几何问题的方法。获胜的 LONO 变体并没有消除教师引导，只是修改了不确定区间内原始监督与 KD 的比例平衡，其主要优势体现在 Nozzle2 和 Nozzle1 上。相反，各变体之间 Nozzle0 几乎不变，证实了此处的主要失效是缺失设计族覆盖，而非阶段三区制时间表本身的问题。对于下游生产风格分析，这个 LONO 结果作为选择保守阶段三区制设置的证据，而下一节关于 KD 损失形式的研究则用于处理域内近 FOV 处的偏差机制。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/ablation_comparison_best.png}
-\caption{阶段三 LONO 调参总结。在固定阶段二教师为仅 $\mu$-anchor 之后，不确定区间混合变体得到了最低的平均 RMSE/MAE，而无锚点变体提供了最强的 2$\sigma$ 覆盖率。源工件路径见附录~\ref{app:implementation_mapping}。}
-\label{fig:ablation-best}
-\end{figure}
-
-\subsubsection{修复视野边界附近的系统性低估问题}
-\label{sec:kd-form-fix-zh}
-
-切换到将对数压力残差直接作为输入的"幅度缩放加压力残差"特征变体后，根据近视场指标 \(\mathrm{pen}\ge 0.9\,\mathrm{cap}_\mathrm{nozzle}\) 对阶段三的残差切片，暴露出高贯穿距离区间中系统的性能下降：尽管阶段二教师在接近 FOV 顶部（cap）时几乎无偏（bias \SI{-0.59}{mm}，RMSE \SI{4.82}{mm}），但蒸馏出的无锚点学生在同一切片上的表现恶化为 bias \SI{-2.70}{mm} 且 RMSE 为 \SI{6.11}{mm}。这种漂移无法归因于阶段一/二的拟合——所采用的稳健清洗流程（Hampel 滤波与单调差分下界检测，详见 §3）在 cap 附近并未导致教师向下漂移——因此只可能由阶段三蒸馏步骤内部产生。
-
-为定位机制，本文在保持上述教师不变的基础上，执行了七组单变量消融：关闭原始 NLL、关闭一阶/二阶形状惩罚、将 forward KL 中的置信度权重 \(\sigma_{\mathrm{ref}}/\sigma_{\mathrm{teacher}}\) 强制为 1、将 forward KL 替换为 reverse KL、使用仅 \(\mu\) 的 MSE 替换完整 KL、将训练缩短到 10 轮、以及将不确定与仅教师两个区制中的 KD 权重翻倍。其中两个变体较为突出：关闭原始 NLL 的诊断变体几乎精确重现了教师在近 cap 处的行为（bias \SI{-0.53}{mm}）；将完整 KL 替换为仅均值 MSE 的诊断变体把近 cap 偏差拉回至 \SI{-0.91}{mm}，并在所有变体中取得了全域最低 RMSE。二者指向两个共同原因：(i)~原始 NLL 把学生 \(\mu\) 拉向位于 FOV 顶部截断下一帧的下界观测值；(ii)~forward KL 项 \((\mu_t-\mu_s)^{2}/\sigma_s^{2}\) 允许学生仅靠膨胀自身的 \(\sigma\) 就可以逃避匹配教师 \(\mu\)。其余五个变体均把近 cap 偏差留在 \([-2.7,-2.0]\) mm 范围内，从而被排除为主要机制。
-
-仅均值 MSE 的诊断变体切断了这一均值失配下的方差膨胀路径，但同时丢失了 KL 对学生 \(\sigma\) 的隐式监督，使得 KD-only 区间（不确定区间与仅教师区间）内的 \(\sigma\) 标定漂移。因此本文提出了均值 MSE 与对数方差 MSE 的混合蒸馏损失
-\begin{equation}
-\mathcal{L}_{\mathrm{KD}} \;=\; (\mu_s-\mu_t)^{2} \;+\; \lambda_\sigma\,\bigl(\log\sigma_s^{2} - \log\sigma_t^{2}\bigr)^{2},
-\label{eq:kd-mse-mu-plus-sigma}
-\end{equation}
-即在均值 MSE 之上增加一个显式的对数方差 MSE，使 \(\sigma\) 重新受到监督，但同时避免重新引入 KL 形式所允许的均值失配下方差膨胀。通过对 \(\lambda_\sigma\in\{0.5,1,2,5\}\) 进行扫描，选定 \(\lambda_\sigma=5.0\) 作为阶段三新默认值：在此设置下，近 cap 处的 RMSE 和 bias 达到联合最佳（\SI{4.89}{mm} 与 \SI{-0.66}{mm}），统计上与教师的 \(\SI{-0.59}{mm}\) 无法区分；同时在仅教师区间切片上逐点 \(|\sigma_s-\sigma_t|\) 中位值降至 \SI{0.27}{mm}。图~\ref{fig:kd-overlay} 叠加了教师、基准 forward-KL 学生与新混合蒸馏学生的偏差--真值曲线；改善主要集中在贯穿距离的较高区间，下半段保持未受干扰。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.82\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_overlay_baseline.png}
-\caption{阶段三蒸馏损失形式对 bias--truth 曲线的影响。阶段二教师在 FOV cap 附近几乎无偏；基准 forward-KL 蒸馏在近 cap 处引入了大约 \(\approx -2.7\,\mathrm{mm}\) 的额外下偏；本文混合蒸馏损失（\(\lambda_\sigma=5\)）将曲线拉回贴近教师。曲线表示 \SI{5}{mm} 真值箱中的平均残差。}
-\label{fig:kd-overlay}
-\end{figure}
-
-由于阶段三在三种不同的监督区制上训练，按区制分别汇报留出集评估比单独汇总更合适。固定阶段一、二的前提下，在五个随机种子 \(\{7,17,42,99,2024\}\) 上重训练阶段三，重现了上文表~\ref{tab:model-summary} 中已确立的完整五种子头条结果：在保守的未删失 CDF 子集（\num{542565} 个点）上 RMSE 为 \(\SI{4.265}{mm}\)，在含删失的全清洗集合（每个种子 692{,}942 个留出时间点）上 RMSE 为 \(\SI{4.735}{mm}\)（bias \(+0.626\)\,mm）；各种子具体数值与归档路径见附录~\ref{app:implementation_mapping}。表~\ref{tab:stage3-kd-regimes} 按训练时的监督区制与 FOV 删失标志分别给出详细指标；由于该表取自单一代表性种子（\(s=99\)）而非上述五种子均值，其"全集"行（RMSE \SI{4.76}{mm}、bias +0.72\,mm）与上文给出的生产数值 \SI{4.735}{mm}、+0.626\,mm 存在细微差异。可靠区间切片（占样本 79\%）受原始 NLL 监督主导，RMSE 为 \SI{4.68}{mm}、bias 为 \SI{+0.67}{mm}；KD-only 切片（合并不确定与仅教师两区间，占 21\%）RMSE 为 \SI{5.08}{mm}、bias 为 \SI{+0.93}{mm}，虽稍高但仍优于此前基准的全域聚合。通过 FOV 删失视角看：未发生 FOV 截断的轨迹（n=393{,}912）RMSE \SI{4.85}{mm}、bias \SI{+0.99}{mm}；发生截断的轨迹（n=299{,}030）RMSE \SI{4.65}{mm}、bias \SI{+0.37}{mm}；二者交集即右删失轨迹中的近 cap 点（n=47{,}676）达到 RMSE \SI{4.95}{mm}、bias \SI{-0.69}{mm}，与教师在同一切片上的 \SI{-0.59}{mm} 实质匹配。全部五个种子的整体近 cap 切片 RMSE 为 \(\SI{4.881}{mm}\pm\SI{0.024}{mm}\)，bias 为 \(\SI{-0.566}{mm}\pm\SI{0.079}{mm}\)；右删失轨迹中的近 cap 点切片 RMSE 为 \(\SI{4.939}{mm}\pm\SI{0.023}{mm}\)，bias 为 \(\SI{-0.590}{mm}\pm\SI{0.077}{mm}\)。\(-0.590\,\si{mm}\) 与教师同切片 \SI{-0.59}{mm} 之间的差异小于单个种子标准差，这证实蒸馏诱发的失真已被修复且对随机初始化稳健。
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.95\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_modeA_per_seed.png}
-\caption{在共享阶段一/二的前提下、跨五个种子 \(\{7,17,42,99,2024\}\) 的逐种子阶段三表现。左：留出集 RMSE，整体与近 cap 切片（\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)）并列显示；虚线标示五次运行的均值。右：对应的 bias 值；灰色点线表示阶段二教师的近 cap bias \SI{-0.59}{mm}。RMSE 标准差为 \SI{0.032}{mm}（相对 0.7\%），近 cap bias 标准差为 \SI{0.079}{mm}，证实蒸馏结果在不同随机初始化下稳健。}
-\label{fig:kd-modeA-per-seed}
-\end{figure}
-
-\begin{table}[t]
-\centering
-\small
-\begin{tabular}{lrrrr}
-\toprule
-切片 & n & RMSE [mm] & Bias [mm] & 中位 \(|\sigma_s-\sigma_t|\) [mm] \\
-\midrule
-全集 & 692{,}942 & 4.76 & +0.72 & 0.82 \\
-可靠原始区间 & 549{,}299 & 4.68 & +0.67 & 1.00 \\
-不确定原始区间 & 64{,}487 & 5.88 & +1.27 & 0.40 \\
-仅教师区间 & 79{,}156 & 4.33 & +0.65 & \textbf{0.27} \\
-KD-only（合并） & 143{,}643 & 5.08 & +0.93 & 0.32 \\
-近 cap (\(\mathrm{pen}\ge 0.9\,\mathrm{cap}\)) & 54{,}704 & 4.89 & \(-\)0.66 & 0.27 \\
-轨迹未删失 & 393{,}912 & 4.85 & +0.99 & 0.81 \\
-轨迹删失 & 299{,}030 & 4.65 & +0.37 & 0.84 \\
-轨迹删失 \& 近 cap & 47{,}676 & 4.95 & \(-\)0.69 & 0.28 \\
-\bottomrule
-\end{tabular}
-\caption{混合蒸馏模型（\(\lambda_\sigma=5.0\)）的各切片留出集指标。"可靠原始区间"表示由原始 NLL 主导的监督区域；"KD-only"合并了不确定原始区间和仅教师区间，均完全受 Eq.~\eqref{eq:kd-mse-mu-plus-sigma} 监督。中位 \(|\sigma_s-\sigma_t|\) 逐点比对阶段二教师的 \(\sigma\) 计算，用以量化标定漂移程度。}
-\label{tab:stage3-kd-regimes}
-\end{table}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_residual_vs_truth.png}
-\caption{混合蒸馏模型（\(\lambda_\sigma=5\)）的残差结构。左：按训练区制分类（可靠原始区间 / 不确定原始区间 / 仅教师区间）；右：按轨迹级 FOV 删失标志分类。阴影区域表示 P10--P90 的残差范围。}
-\label{fig:kd-residual-by-regime}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_sigma_calibration.png}
-\caption{混合蒸馏模型（\(\lambda_\sigma=5\)）的不确定度标定情况。左：学生 \(\sigma\) 对教师 \(\sigma\) 的逐点六边形热力联合分布；右：各监督区制下残差 \(\sigma_s-\sigma_t\) 的分布直方图。}
-\label{fig:kd-sigma-calibration}
-\end{figure}
-
-\subsubsection{方法论补充：消融可负担性作为紧凑神经网络架构的特有优势}
+\subsection{为何保留 MLP 工作流}
+\label{sec:why-mlp-retained-rewrite}
+\label{sec:mlp-ablation-affordability-en}
 \label{sec:mlp-ablation-affordability-zh}
 
-选择 MLP 作为贯穿距离代理模型架构的一个直接结果，是本文所报告的系统化消融在普通硬件上计算可负担。本文中独立的消融矩阵共有三组：阶段一在 9 个工程化特征变体上的 5 折 LONO（第~\ref{sec:stage1-lono-ablation} 小节）、阶段二在 3 种 anchor schedule 上的同协议 LONO 对比、以及阶段三在 4 种区制加权变体与 7 组单变量 KD 形式消融上的组合搜索。支持头表所需的完整 LONO~$\times$~消融~$\times$~种子网格，在单张消费级加速器上大约消耗数十 GPU 小时。
+前述各节明确揭示了模型间的权衡。SVGP 族在
+点预测和 LONO 转移方面更强。保留 MLP 工作流
+另有原因：它使分阶段课程、不确定度行为、
+onset 辅助输出和筛查部署能够在硕士
+论文的计算预算内接受审计。消融证据解释了这一选择。
 
-更核心的论证不在单次训练耗时，而在任务结构与架构归纳偏置的匹配关系。本文代理模型的目标是把 $(\mu,\sigma)$ 作为低维工况描述子（时间、缩放后的幅值、对数压力残差、喷嘴独热指示）的逐点函数进行回归，输入既无规则空间网格、也无长程序列依赖。激发 CNN 设计的局部平移不变性偏置和驱动 Transformer 的长程注意力偏置都与此种逐点低维回归任务结构不匹配；两者会引入任务并不需要的表达能力与参数量。在此基础上，本文设计归因所要求的特征工程、anchor schedule、区制权重、KD 损失形式的组合扫描——共数十种配置~$\times$~五折 LONO~$\times$~多个种子——需要在每个变体上独立完整训练；引入更复杂的时空主干会同时放大单次成本与可比配置数量，结果是硕士级别算力预算下只能报告单一配置而无法分离各设计选择的边际贡献。因此，架构-任务匹配与消融可负担性共同使 MLP 成为有原则性的选择，而不是仅仅为省事而做出的权宜之计；本文第~4 章与第~5 章呈现的系统化消融证据，若没有这种匹配，在硕士级别算力预算下是无法触及的。这一定性结论不依赖对 CNN/Transformer 训练成本的具体数值断言，本文也未对此进行直接基准测试。
+\subsubsection{课程消融}
+\label{sec:curriculum-ablations-rewrite}
+\label{sec:stage2-anchor-ablation-en}
+\label{sec:stage2-anchor-ablation-zh}
 
-\subsection{可选后续：残差喷嘴头自适应}
-\label{sec:residual-family-head-zh}
+Stage~2 anchor 消融检验了早期均值 anchor 和
+早期 sigma anchor 能否改善 Stage~3 使用的教师。仅
+\(\mu\)-anchor 变体是最站得住脚的教师设置：它将
+五折 LONO RMSE 从 \SI{14.54}{mm} 降至 \SI{12.73}{mm}，改善 MAE，
+并避免双重
+\(\mu+\sigma\) anchor 引入的过度自信行为。改善集中于一个困难折，
+这正是具有物理动机的 anchor 应发挥作用之处；完整的
+归档表格，包括逐折明细以及 bias 和覆盖率
+列，均收录于附录~\ref{app:evaluation-diagnostics}。
 
-\emph{本节是一个可选的后训练后续分析；它探索可扩展性与喷嘴自适应，但不改变前文的部署模型结论——MLP/SVGP 权衡与部署选择保持不变。其最强结果仅为域内结果，未经 LONO 检验。}上文确立的筛查代理模型通过输入特征中的喷嘴 one-hot 指示符对喷嘴进行条件化。前述各节遗留了两个问题，促成这次可选分析。其一，\textbf{部署与可扩展性}：one-hot 喷嘴输入对一个全新喷嘴没有干净的结构化答案，只能依赖硬编码的 fallback 身份或重新训练一个头。其二，\textbf{族内自适应}：能否在不放弃已部署主干的前提下，使同一套 censoring-aware 协议在支持的喷嘴设计族内进一步适配？本节报告一个自洽的研究性后续，在完全相同的保守 uncensored CDF 点表（\num{542565} 点；协议见第~\ref{sec:evaluation-protocol-en} 小节）上评估，\emph{并不}修改上文已确立的部署模型结论。
-
-所有变体共有的构造是\textbf{在冻结、热启动的骨干之上叠加逐喷嘴加性残差}：
-\begin{equation}
-\mu(x,f) = \underbrace{\mu_{\mathrm{shared}}(h(x))}_{\text{frozen, hot-started}} + \underbrace{\Delta_f(h(x))}_{\text{trained, zero-initialised}}, \qquad \Delta_f \equiv 0 \ \text{at init.}
-\label{eq:residual-family-head-zh}
-\end{equation}
-共享骨干从已部署的 Stage~3 检查点复制并冻结；仅训练小的逐喷嘴残差头与对数方差头（可训练参数 \num{49923}，冻结骨干参数 \num{351361}）。由于 $\Delta_f$ 在初始化时为零，未见过的喷嘴会回退到共享模型——一个无需硬编码身份的结构性 fallback；收缩先验（对 $\Delta_f$ 施加 $L_2$ 惩罚，权重 $\lambda_\Delta$）在逐喷嘴拟合与靠近共享映射之间做权衡。
-
-\subsubsection{使模型感知喷嘴的三种设计方案}
-\label{sec:residual-family-designs-zh}
-
-在 uncensored CDF 表上比较了三种让代理模型感知喷嘴的方式（表~\ref{tab:residual-family-designs}）。把喷嘴作为 one-hot 输入喂给单一共享头——即已部署配置——得到 \SI{4.265}{mm}，但对未见喷嘴没有结构化答案。拆分为独立逐喷嘴解码头这一最直接的可扩展设计，会切碎训练数据，退化到 \SI{5.010}{mm}，且仍无 fallback。式~\eqref{eq:residual-family-head-zh} 的残差头把这一差距大部分补回到 \SI{4.631}{mm}，\emph{并且}提供了结构性 fallback：每个族只在共享映射之上学习一个修正。图~\ref{fig:residual-architecture} 对比了三种设计。
-
-\begin{table}[t]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{@{}L{0.40\linewidth}rL{0.30\linewidth}@{}}
-\toprule
-喷嘴条件化设计 & RMSE [mm] & 未见喷嘴的 fallback \\
-\midrule
-One-hot 喷嘴输入（已部署） & 4.265 & 无（需硬编码身份） \\
-独立逐喷嘴头 & 5.010 & 无（训练数据被切碎） \\
-残差头（零初始化 $\Delta_f$） & 4.631 & 结构性（回退到共享模型） \\
-\bottomrule
-\end{tabular}
-\caption{保守 uncensored CDF 表（\num{542565} 点）上的三种喷嘴条件化设计。残差头相对 one-hot 输入只付出很小的精度代价，换来对未见族回退到共享模型的结构性 fallback，并补回独立逐喷嘴头损失的精度。}
-\label{tab:residual-family-designs}
-\end{table}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/mlp_family_conditioning_architecture.png}
-\caption{喷嘴条件化设计：独立逐喷嘴头、加性残差头与 FiLM 调制。灰色块为冻结（从已部署 Stage~3 检查点热启动），绿色块为小的可训练逐族部件。}
-\label{fig:residual-architecture}
-\end{figure}
-
-\subsubsection{通过更丰富的喷嘴适配器实现精度逐步提升}
-\label{sec:residual-climb-zh}
-
-从残差头出发，在相同协议下评估了同一“冻结骨干 + 零初始化残差”原则的两个更强版本；表~\ref{tab:residual-climb} 汇总了这一爬升。\emph{（Step~1）}残差头把可扩展的逐喷嘴头部署从 \SI{5.010}{mm} 改进到 \SI{4.631}{mm} CDF RMSE，校准同步改善（ECE $0.072\to0.060$，CRPS $2.72\to2.38$），工况级 P50 从 \SI{3.93}{mm} 降到 \SI{3.40}{mm}；收缩 sweep $\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$（图~\ref{fig:residual-delta-sweep}）显示每个设置都超过部署头，其中 $10^{-4}$ 在主 RMSE 上最优。\emph{（Step~2）}逐喷嘴调制最后一层主干表示的特征逐元素线性调制（FiLM，Feature-wise Linear Modulation）适配器（$h' = \gamma_f \odot h + \beta_f$，恒等初始化），而非只对输出做偏移，把 RMSE 进一步降到 \SI{4.510}{mm}、ECE 降到 $0.040$——表明喷嘴信息部分是表示性的，而不仅是输出偏移，此时已低于部署的 one-hot 模型。\emph{（Step~3）}把 MLP 主干换成加性残差 multi-task SVGP——共享稀疏 GP 从已部署检查点热启动，逐喷嘴残差过程带零残差 fallback，喷嘴身份保持在核特征向量之外——达到 \SI{3.987}{mm} CDF RMSE，把校准误差减半至 ECE $0.026$，并把 P50 降到 \SI{2.08}{mm}。在这一可选分析内部，这是主表上最强的域内后续结果：比论文最强主线预测器（SVGP，\SI{4.193}{mm}）低 \SI{0.206}{mm}（$\approx$5\%），P50 低 \SI{0.57}{mm}。这 \SI{3.987}{mm} 仅为域内结果：residual multi-task SVGP 未经 LONO 协议检验（表~\ref{tab:residual-lono} 仅覆盖 MLP 残差臂），其跨喷嘴泛化能力尚未验证。图~\ref{fig:residual-svgp-climb} 展示了 residual-SVGP 相对此前最优的增益。
+随后，Stage~3 监督混合消融检验应如何融合原始观测与
+教师引导。不确定区间混合变体取得了
+最低的平均 LONO RMSE 和 MAE，但 Stage~3 变体之间的差距
+仅约 \SI{0.21}{mm}，远低于跨折标准差。该结果
+应被视为温和的选择偏好，而非广泛的架构
+论断。
 
 \begin{table}[t]
 \centering
-\footnotesize
+\scriptsize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}L{0.30\linewidth}rrrrrr@{}}
+\begin{tabularx}{\linewidth}{@{}L{0.29\linewidth}rrY@{}}
 \toprule
-模型（uncensored CDF，\num{542565} 点） & RMSE & MAE & ECE & CRPS & P50 & QC \\
+消融结果 & RMSE & MAE & 主要解释 \\
 \midrule
-Naber--Siebers（物理参考） & 9.286 & --- & --- & --- & --- & --- \\
-生产 MLP，one-hot（已部署） & 4.265 & 3.032 & --- & --- & 2.848 & --- \\
-Stage~3 SVGP（论文最强） & 4.193 & 2.894 & --- & --- & 2.649 & --- \\
-\midrule
-部署版逐喷嘴头 & 5.010 & 3.559 & 0.0722 & 2.720 & --- & --- \\
-残差头 & 4.631 & 3.188 & 0.0604 & 2.382 & 3.395 & 4.701 \\
-Residual-FiLM & 4.510 & 3.074 & 0.0404 & 2.242 & 3.166 & 4.511 \\
-Residual multi-task SVGP & \textbf{3.987} & \textbf{2.827} & \textbf{0.0262} & \textbf{2.040} & \textbf{2.077} & \textbf{3.922} \\
+Stage~2 无 anchor & 14.54 & 10.80 & 留下早期松弛空间，可能在困难折上崩溃。 \\
+Stage~2 仅 \(\mu\)-anchor & \textbf{12.73} & \textbf{9.86} & 最佳教师设置；改善 bias 和 2-sigma 覆盖率。 \\
+Stage~2 \(\mu+\sigma\) anchor & 13.05 & 10.06 & 过度收紧早期不确定度，却没有相应的精度增益。 \\
+\addlinespace
+Stage~3 基线区间 & 12.68 & 9.97 & 有竞争力，但并非最佳。 \\
+Stage~3 不确定区间混合 & \textbf{12.55} & \textbf{9.80} & 最佳 LONO 点分数，但相对于折间方差，差距很小。 \\
+Stage~3 anchor-off & 12.73 & 9.86 & 这些变体中归档 2-sigma LONO 覆盖率最高。 \\
 \bottomrule
-\end{tabular}
-\caption{保守 uncensored CDF 表上的域内爬升。RMSE、MAE、CRPS 与 P50 RMSE 单位为 mm；ECE 为期望校准误差。第一组为表~\ref{tab:external-clean-headline} 的参考模型，第二组为残差扩展。“QC” 列为 QC 门控数据重训后的 RMSE（第~\ref{sec:residual-robustness-zh} 小节），作为数据敏感性列。粗体标出最强的域内后续结果；该 residual-SVGP 结果未经 LONO 检验（表~\ref{tab:residual-lono} 仅覆盖 MLP 残差臂）。}
-\label{tab:residual-climb}
+\end{tabularx}
+\caption{压缩后的课程消融结论。数值为归档 LONO 均值。该表的目的不是建立另一个排行榜，而是展示消融证据实际支持哪些设计决策。}
+\label{tab:curriculum-ablation-condensed}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/delta_l2_sweep.png}
-\end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/residual_svgp_context_rmse_comparison.png}
-\end{minipage}
-\caption{左：残差头的收缩 sweep（$\lambda_\Delta\in\{0,10^{-4},10^{-3},10^{-2}\}$），每个设置都在 uncensored CDF RMSE 上超过部署版 family head。右：加性残差 multi-task SVGP 与同一表上此前最优的对比。}
-\label{fig:residual-svgp-climb}
-\label{fig:residual-delta-sweep}
+\includegraphics[width=0.92\linewidth]{images/stage2_anchor_ablation.png}
+\caption{归档 Stage~2 anchor 消融。保留仅 \(\mu\)-anchor 教师，是因为它改善困难转移案例，且不会迫使早期不确定度变得过度自信。}
+\label{fig:stage2-ablation-rewrite}
 \end{figure}
 
-\subsubsection{鲁棒性：LONO 转移与数据敏感性}
-\label{sec:residual-robustness-zh}
+\subsubsection{KD 损失形式与近 cap bias}
+\label{sec:kd-loss-rewrite}
+\label{sec:kd-form-fix-en}
+\label{sec:kd-form-fix-zh}
 
-两项鲁棒性检查为这次爬升划定边界。\textbf{LONO 转移。}把残差转换应用到 MLP 各臂、按第~\ref{sec:svgp-lono-comparison-zh} 小节的 leave-one-nozzle-out 协议重跑——逐一留出改型喷嘴 N1、N2、N4、N5、N6，N0 保留在训练中，每个 fold 从头训练——显示残差头同样能泛化到未见的\emph{族内}喷嘴。在四个族内 fold（不含 N6）上，部署版喷嘴头平均 $\SI{7.44}{mm}\pm\SI{1.46}{mm}$ RMSE；残差头与 residual-FiLM 都降到 $\approx\SI{5.16}{mm}\pm\SI{0.65}{mm}$，约 31\% 的下降且离散度大幅收紧（表~\ref{tab:residual-lono}、图~\ref{fig:residual-lono}）。改进主要来自\textbf{偏差修复}：喷嘴头的均值偏差 $+\SI{5.07}{mm}$ 收缩到 $+\SI{0.78}{mm}$，逐 fold 最大增益在 N5（$-\SI{3.43}{mm}$）与 N2（$-\SI{3.37}{mm}$）。值得注意的是，FiLM 在域内相对纯残差头的优势（\num{4.510} vs \SI{4.631}{mm}）\emph{并不}转移：在 LONO 下两臂相差不到 \SI{0.01}{mm}，因此对未见族内喷嘴，廉价的输出残差与表示型 adapter 一样好。\textbf{数据敏感性。}把整理后的检查点在显式 Level-3 QC 门控数据集上重新评估，并把变化分解为数据清洗项与模型重训项，显示 residual SVGP 从 QC 门控中获益最多：$-\SI{0.067}{mm}$ 清洗加 $-\SI{0.073}{mm}$ 重训，复合为 $-\SI{0.140}{mm}$ 的净改进（到 \SI{3.922}{mm}），而 MLP 各臂的重训增益近乎持平——因此这一后续增益并非所用数据集的产物。
+另一项 Stage~3 诊断揭示了视野 cap 附近的系统性低估。
+Stage~2 教师在 cap 附近几乎无 bias，但
+早先的 forward-KL 学生引入了约 \(-\SI{2.70}{mm}\) 的
+额外近 cap bias。用均值 MSE 与
+对数方差 MSE 的混合蒸馏损失替换 KL 项，消除了方差膨胀的逃逸路径：
+选定的 \(\lambda_\sigma=5.0\) 设置将近 cap bias 拉回至
+约 \(-\SI{0.57}{mm}\)，接近教师的 \(-\SI{0.59}{mm}\)。在
+五个种子上，聚合近 cap RMSE 约为 \(\SI{4.881}{mm}\)，
+种子标准差为 \SI{0.024}{mm}；近 cap bias 的种子标准差
+为 \SI{0.079}{mm}。归档的分片级证据——损失
+形式、监督区间与删失分片表，以及
+校准漂移诊断——保留在
+附录~\ref{app:evaluation-diagnostics} 中。
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_overlay_baseline.png}
+\caption{Bias--truth 曲线。}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_modeA_per_seed.png}
+\caption{五种子稳定性。}
+\end{subfigure}
+\caption{归档 KD 形式诊断。混合蒸馏损失修复近 cap bias，同时保持稳定的五种子行为。}
+\label{fig:kd-form-rewrite}
+\end{figure}
+
+\subsubsection{事后适配：Residual、FiLM 与 SVGP 扩展}
+\label{sec:posthoc-residual-rewrite}
+
+residual 适配分析很有价值，但必须置于正确的
+证据层级。它是事后扩展，而非已部署 surrogate 的结论。
+按照前文引入的分阶段学习语言，Stage~1--3 MLP 是
+基础筛查 surrogate，而 residual-head 和 FiLM 变体用于检验
+围绕该基础预测器进行的轻量级训练后适配。SVGP
+residual 变体则以更尖锐的核
+主干检验相同的适配思路。
+
+residual multi-task SVGP 是一种加性路由 residual 模型。在缩放后的
+贯穿距离空间中，其均值形式为
+\(\hat{y}(x,f)=g_{\mathrm{shared}}(x)+\Delta g_f(x)\)，其中
+\(g_{\mathrm{shared}}\) 是冻结的共享 Stage~3 SVGP，\(\Delta g_f\) 是
+仅针对喷油器族 \(f\) 训练的零均值 residual SVGP。设计族
+标识符有意不作为核输入向量的一部分；它仅将
+各样本路由至相应的 residual 过程。若未来设计族没有
+已训练的 residual 过程，预测便回退至共享 SVGP，并令
+\(\Delta g_f=0\)。实现还在 residual 误差上训练最终的共享对数方差 GP，
+从而使均值修正与不确定度模型保持
+分离。
+
+在刷新的固定表格工件中，residual-SVGP 族是
+最强的域内方向：经 QC 重训练的 residual-SVGP 在主要 QC-gated
+未删失 CDF 表格上达到 \SI{3.848}{mm} RMSE。residual
+MLP 变体也阐明了喷油器 conditioning 的作用，但它们不能
+取代 LONO 结论，因为 residual-SVGP 并未以
+与主要 Stage~3 MLP 和 SVGP 比较相同的方式接受 LONO 检验。刷新后的
+设计比较表与 climb 表，以及归档的
+适配研究图，均收录于
+附录~\ref{app:evaluation-diagnostics}。
 
 \begin{table}[t]
 \centering
-\footnotesize
-\begin{tabular}{@{}L{0.30\linewidth}rrr@{}}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}L{0.29\linewidth}rrrY@{}}
 \toprule
-臂 & 族内 RMSE & 全 5-fold RMSE & 族内偏差 \\
- & （4 fold，mm） & （5 fold，mm） & （mm） \\
+适配或替代分支 & \(\Delta\)RMSE & \(\Delta\)MAE & 1$\sigma$ & 边界 \\
 \midrule
-部署版 family head & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
-残差头 & \textbf{5.16 $\pm$ 0.65} & 6.95 $\pm$ 4.05 & +0.78 \\
-Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
+单输出论文 SVGP & -0.098 & -0.121 & 0.717 & 主要替代主干；改善点误差，但不改善保守覆盖率。 \\
+Residual-family-head MLP & +0.334 & +0.169 & 0.858 & 喷油器 conditioning 的后备方案；未改善主要固定表格误差。 \\
+Residual-FiLM MLP & +0.216 & +0.057 & 0.798 & 更灵活的 MLP 适配器，但点误差仍落后于生产均值。 \\
+Residual-SVGP & -0.264 & -0.178 & 0.761 & 强劲的域内后续方向；尚未在匹配的 LONO 下检验转移能力。 \\
+经 QC 重训练的 residual-SVGP & \textbf{-0.337} & \textbf{-0.227} & 0.773 & 最佳固定表格点结果；转移能力仍需匹配的 LONO 检验。 \\
 \bottomrule
-\end{tabular}
-\caption{残差转换在 MLP 各臂上的 LONO 转移（逐一留出 N1/N2/N4/N5/N6，N0 在训练中，每 fold 从头训练）。族内汇总排除超出设计族的 N6 stress fold。残差转换把族内 RMSE 降低约 31\% 并修复均值偏差；在转移下 FiLM 与纯残差头不可区分。}
-\label{tab:residual-lono}
+\end{tabularx}
+\caption{刷新后主要固定表格上的增量事后适配证据。增量均相对于五种子生产 MLP 均值，因此负值表示 RMSE 或 MAE 得到改善；\(1\sigma\) 列表明，误差更低的分支通常不如生产 MLP 保守。该表被解释为未来开发信号，而非已部署 surrogate 结论的替代品。}
+\label{tab:posthoc-residual-rewrite}
 \end{table}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{images/residual_family_head_20260608/lono_modified_only_rmse_by_fold.png}
-\caption{部署版喷嘴头与残差头、residual-FiLM 的逐 fold LONO RMSE。四个族内 fold（N1、N2、N4、N5）改进 \SIrange{0.68}{3.43}{mm}；超出设计族的 N6 fold 回退约 \SI{2.3}{mm}，标记出廉价 adapter 的边界。}
-\label{fig:residual-lono}
-\end{figure}
+residual-MLP LONO 后续研究支持一项更窄的论断：在改型
+喷油器族内部，residual 转换修复了已部署
+喷嘴 head 的大部分 bias。在设计族内各折上，residual head 将
+RMSE 从约 \SI{7.44}{mm} 降至约 \SI{5.16}{mm}。这是
+设计族内适配的证据，而非真正新喷油器族
+零样本泛化的证明。
 
-\subsubsection{残差适配器的适用边界：Nozzle6 与 Nozzle0}
-\label{sec:residual-boundary-zh}
-
-残差的胜势受喷嘴设计族的限制，两个案例标出了这条边界。\textbf{Nozzle6} 是一个数据稀疏（\num{20758} 点）的 fold，所有 MLP 臂都坍缩到 \SIrange{12}{14}{mm}；残差臂在此比纯喷嘴头还差 $\approx\SI{2.3}{mm}$，并系统性低估（偏差 $\approx-\SI{10.5}{mm}$）——属过度专用化而非转移。\textbf{Nozzle0} 是唯一的第一代喷油器（BC2022）；即便做了动量归一化，其 early-time 贯穿响应仍约为改型喷嘴的 2.5 倍且始终不低于后者（图~\ref{fig:injector-comparison}），因此占据了冻结主干从未表示过的 early-time 包络（图~\ref{fig:injector-scatter} 将该分支分离）。完全留出时，N0 是真正的 zero-shot 情形：残差代理得到 \SI{33.16}{mm} RMSE，与第~\ref{sec:svgp-lono-comparison-zh} 小节报告的部署版 MLP 在 Nozzle0 上 \SI{34.76}{mm} 的 LONO 失效一致。
-
-一项 few-shot 研究量化了廉价逐族修正能把 N0 恢复到何种程度（图~\ref{fig:n0-fewshot}）。冻结整个 N0-留出模型、仅微调 N0 残差头于 $k$ 个 N0 工况上，RMSE 从 \SI{33.16}{mm}（$k=0$）下降，但即便用上全部 203 个工况也停在 $\approx\SI{15.7}{mm}$——远高于同一架构在族内 LONO fold 上达到的 $\approx\SI{5}{mm}$。两个效应限制了它。其一，冻结的对数方差头在超出设计族的 N0 特征上严重失配，扼制了 NLL 微调，使其停在比绕开它的 MSE 拟合高 $\approx\SI{4}{mm}$ 处；因此可部署的 adapter 必须同时适配方差头。其二，即便均值拟合不被扼制，delta 头能移除全局偏差（$k=2$ 时 $-27\to\approx0$ mm），却无法收紧残差离散——逐族输出偏移无法合成主干从未学到的表示。因此一个超出设计族的喷油器需要主干级容量（解冻、跨所有主干块的 FiLM，或重训），而不只是一个新的输出头。
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
-\end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
-\end{minipage}
-\caption{为何 Nozzle0 超出设计族。左：Nozzle0 的归一化 early-time 贯穿响应（约为改型喷嘴的 2.5 倍且始终不低于后者）。右：全喷嘴散点把 Nozzle0 的 early-time 分支分离出来，而冻结主干从未表示过该分支。}
-\label{fig:injector-comparison}
-\label{fig:injector-scatter}
-\end{figure}
+更广泛的结论是，喷油器身份可作为有用的 conditioning
+变量。它使 surrogate 能够学习设计族特有的偏移，并在受支持的
+设计族内部分修复喷嘴相关 bias。从这个意义上说，
+residual-head 和 FiLM 变体相当于围绕共享基础 surrogate 的轻量级训练后
+适配，而 residual multi-task SVGP
+通过路由的设计族 residual 过程实现相同思路。然而，不应
+将这描述为真正的零样本微调。Nozzle0 与 Nozzle6
+压力案例揭示了边界：喷油器标识符或输出 residual 可以
+偏移学习到的表示，却无法为共享 surrogate 从未表示过的
+未见设计族合成 trunk-level 特征。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.62\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
-\caption{Nozzle0 在冻结主干残差头上的 few-shot 适配。uncensored RMSE 随适配 N0 工况数 $k$ 的变化，分别为 MSE 微调（均值，不被扼制）与 NLL 微调（被冻结方差头扼制）。两者都停在远高于 $\approx\SI{5}{mm}$ 族内 LONO 带之上：delta-only 适配移除了偏差，却无法收紧离散。}
-\label{fig:n0-fewshot}
+\includegraphics[width=0.86\linewidth]{images/residual_family_head_20260608/lono_modified_only_rmse_by_fold.png}
+\caption{改型设计族喷嘴上的归档 residual-head LONO 后续研究。residual 适配器改善了设计族内各折，但在设计偏移案例上暴露出自身边界。}
+\label{fig:residual-lono-rewrite}
 \end{figure}
 
-总之，这一可选后续表明，冻结骨干上的加性残差可以改善喷嘴设计族内的自适应。Residual multi-task SVGP 在主 uncensored CDF 表上给出了最强域内后续结果（\SI{3.987}{mm} RMSE，\SI{2.08}{mm} P50，ECE $0.026$），在点误差与校准两方面都优于论文最强主线预测器；部署与可扩展性的缺口被零初始化残差及其自动的共享模型 fallback 在\emph{喷嘴设计族内}结构性地闭合；MLP 的 LONO 弱点也被部分修复（族内约 31\%）。Nozzle6 与 Nozzle0 两个案例诚实地划出边界：廉价 adapter 在设计族内有效，并会在一个真正全新的喷嘴族需要主干级容量时发出信号，而非将其掩盖。本扩展是一次后训练研究性后续——LONO 转移只在 MLP 残差臂上测量，因此 residual-SVGP 的跨喷嘴转移行为尚未确立——它并不改变前述各节的部署模型结论；MLP/SVGP 主结果仍以前文报告为准。
+\FloatBarrier
 
-\subsection{原型筛查输出与证据边界}
+\subsection{筛查演示与证据边界}
+\label{sec:screening-boundary-rewrite}
+\label{sec:prototype-screening-en}
 \label{sec:prototype-screening-zh}
 
-最终 surrogate 可以与一个简化的壁面接近筛查几何耦合。当前的 GUI 原型使用 MLP，因为它已经暴露出时间筛查显示所需的喷射起始（onset）辅助输出；SVGP 可以替代贯穿距离的 $\mu,\sigma$ 通道，但它本身不能直接替代该起始预测头。在默认的玩具输入下：
-\[
-\left\{
-\begin{aligned}
-d_n &= \SI{0.34}{mm},\\
-p_{\mathrm{inj}} &= \SI{2000}{bar},\\
-p_{\mathrm{amb}} &= \SI{15}{bar},\\
-\theta_{\mathrm{tilt}} &= 20^{\circ},\\
-N_{\mathrm{plume}} &= 10,\\
-t_{\mathrm{inj}} &= \SI{800}{\micro s},\\
-\mathrm{RPM} &= 250,
-\end{aligned}
-\right.
-\]
-原型在 0--\SI{5}{ms} 窗口内生成了用于绘图的非负均值 $\mu_{+}(t)\in[\SI{1.70}{mm},\,\SI{112.95}{mm}]$ 和 $\sigma_{\parallel}(t)\in[\SI{4.39}{mm},\,\SI{17.66}{mm}]$。面向排序的瞬时近壁截获分数在 $t=\SI{4.237}{ms}$ 时达到峰值 $P_{\mathrm{hit}}=\SI{77.66}{\percent}$，梯形积分得到的累积几何暴露量为 $E=\SI{2.475}{ms}$。这些数值说明，端到端链路已经能够将贯穿距离分布转化为时间分辨的筛查分数；它们并不代表有害液态壁面润湿的实测概率。图~\ref{fig:impingement-preview-zh} 给出峰值时刻的空间快照，图~\ref{fig:impingement-summary-zh} 总结了 \SI{5}{ms} 窗口内的概率几何时间历程。
+surrogate 的最终目的不只是最小化贯穿距离误差，
+而是为概率几何筛查界面提供输入。当前 GUI
+原型使用 MLP，因为已部署 MLP 工作流还为时间筛查显示提供
+喷射 onset 辅助输出。SVGP 可以
+替换 \(\mu,\sigma\) 贯穿距离通道，但不能直接
+提供这一辅助 onset 输出。
+
+在归档演示使用的默认玩具输入下，筛查
+原型将预测贯穿距离分布映射为随时间分辨的
+几何截获分数。对于 Design~A，面向排名的瞬时
+活塞分数峰值为 \(P_{\mathrm{hit}}=77.66\%\)，梯形积分得到的
+累积暴露在 \SI{5}{ms} 时达到 \(E=\SI{2.475}{ms}\)。仅改变
+几何与运动学即可改变结论：在相同
+\SI{250}{rpm} 下，更宽的 bowl 使 \(E\) 增至 \SI{3.364}{ms}；
+而 \SI{2250}{rpm} 下速度更快的 Hermite-profile
+活塞尽管瞬时开口较大，却将累积暴露降至
+\SI{1.446}{ms}。
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.62\linewidth]{images/impingement_preview.png}
-\caption{壁面接近筛查原型的空间快照（Design A，峰值几何截获帧，$t=\SI{4.24}{ms}$）。白色实线为活塞顶轮廓，红色虚线为缸壁，金色星号为喷嘴位置，白色虚线椭圆和青色点线椭圆分别为喷雾二维高斯密度的 $1\sigma$ 与 $2\sigma$ 等值线，色条表示喷雾概率密度（$\si{mm^{-2}}$）。该帧的面向排序的活塞截获分数为 $P_{\mathrm{hit}}=\SI{77.66}{\percent}$，缸壁截获分数为 $P_{\mathrm{wall}}=\SI{6.60}{\percent}$。}
-\label{fig:impingement-preview-zh}
+\includegraphics[width=0.82\linewidth]{images/impingement_summary.png}
+\caption{Design~A 壁面接近筛查原型的归档时间汇总。输出是由贯穿距离分布驱动的几何筛查分数，而非测得的液体-壁面润湿概率。}
+\label{fig:screening-design-a-rewrite}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.90\linewidth]{images/impingement_summary.png}
-\caption{壁面接近筛查原型的时间总结（Design A，转速 RPM~250，曲轴相位 $0^{\circ}$，$0$--$\SI{5}{ms}$）。上图为瞬时几何截获分数：蓝色实线为活塞分数，红色虚线为缸壁分数，蓝灰色点划线为喷射起始概率的辅助输出。中图为活塞截获分数的时间累积积分 $E=\int P_{\mathrm{hit}}\,\mathrm{d}t$，在 $\SI{5}{ms}$ 时达到 $\SI{2.475}{ms}$。下图为贯穿距离均值及其 $\pm1\sigma$ 区间。}
-\label{fig:impingement-summary-zh}
-\end{figure}
-
-由于筛查接口刻意将贯穿距离 surrogate（第4章）与下游几何投影层解耦，同一条固定的贯穿距离预测可以投影到不同的活塞碗形几何与曲轴运动学上。保持喷雾侧输入不变，仅改变活塞碗形设计与曲轴运动学，结果显示：即便底层贯穿距离预测完全不变，累积评分仍对几何与运动学高度敏感。图~\ref{fig:impingement-design-comparison-zh} 在上文 Design A 基准之外，再对比两个案例：同样 \SI{250}{rpm} 下采用更宽的碗形（Design B），把累积活塞撞击积分从 $E=\SI{2.475}{ms}$ 提高到 $\SI{3.364}{ms}$——在运动学完全相同的情况下，碗形几何单独就能使筛查结论改变约 $36\%$；而采用 Hermite 型活塞运动曲线、转速提高到 \SI{2250}{rpm} 时，撞击窗口反而会\emph{先打开再关闭}——瞬时活塞撞击概率在 $t\approx\SI{2.4}{ms}$ 附近升至峰值 $\approx\SI{59}{\percent}$，随后随活塞顶回缩在 $\SI{5}{ms}$ 时降到 \SI{5}{\percent} 以下，尽管瞬时峰值更高，其累积暴露量（$E=\SI{1.446}{ms}$）却比另外两个转速较低的案例都小。这种非单调的 Hermite 案例正是几何耦合设计所要捕捉的行为：模型纳入了活塞运动本身，但其诱发的缸内 swirl 被有意未建模（第~\ref{sec:future-validation-pathways-zh}节）。
-
-\begin{figure}[t]
+\begin{subfigure}[t]{0.49\linewidth}
 \centering
-\begin{minipage}[t]{0.485\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{images/impingement_summary_design_b.png}\\
-  （a）Design B —— 更宽碗形，RPM 250
-\end{minipage}\hfill
-\begin{minipage}[t]{0.485\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{images/impingement_summary_design_hermite.png}\\
-  （b）Design Hermite —— RPM 2250
-\end{minipage}
-\caption{另外两种活塞碗形设计下壁面接近筛查原型的时间总结，版式与喷雾侧输入与图~\ref{fig:impingement-summary-zh}（Design A）相同。（a）同样 \SI{250}{rpm} 下的更宽碗形：累积活塞撞击积分 $E=\SI{3.364}{ms}$，是三个案例中最差的。（b）转速 \SI{2250}{rpm} 的 Hermite 活塞运动曲线：瞬时活塞撞击概率先升至 $t\approx\SI{2.4}{ms}$ 附近的峰值 $\approx\SI{59}{\percent}$，再随活塞顶回缩而回落，尽管瞬时峰值更高，其累积暴露量（$E=\SI{1.446}{ms}$）却是三个设计中最小的。}
-\label{fig:impingement-design-comparison-zh}
+\includegraphics[width=\linewidth]{images/impingement_summary_design_b.png}
+\caption{Design~B，更宽的 bowl。}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/impingement_summary_design_hermite.png}
+\caption{Hermite-profile 活塞。}
+\end{subfigure}
+\caption{筛查层归档的几何与运动学敏感性。同一喷雾侧预测在投影至不同活塞运动剖面后，可以产生不同的面向排名的筛查分数。}
+\label{fig:screening-design-comparison-rewrite}
 \end{figure}
 
-证据边界同样重要。上述截获分数只应被解读为管道的演示和面向排序的几何 surrogate 指标，不能直接等同于真实发动机中发生有害液态撞壁的实际概率。本文验证过的贡献是其测量范围内的贯穿距离 surrogate 以及它与概率几何筛查接口的耦合，而不是对有害液态撞壁进行相态分辨的预测器。本文报告的数值声明均可追溯至清洗后的轨迹表、保存的检查点，以及项目归档中所包含的导出评估图。
+证据边界至关重要。这些截获分数并非
+工作发动机中有害液态撞壁经过验证的概率。
+它们是面向排名的几何筛查指标。经过验证的
+贡献是在测量域内具备删失感知的贯穿距离 surrogate，
+以及从预测分布到简化筛查界面的可复现耦合。
 
-\subsection{本章小结：回到评估地图}
-\label{sec:results-chapter-summary-zh}
+\FloatBarrier
 
-本章开篇即把每一个不同的评估论断映射到表~\ref{tab:results-claims-map-zh} 上，以避免把 uncensored、含删失、工况级与跨喷嘴转移等协议混为一张单一排行榜。在依次梳理完每个协议之后，该表所承诺的每一项论断如今都已各自配上其样本总体、种子数与主要数字得到确立；下面的清单按行回到该地图，并指出每个数字的推导位置。
+\subsection{本章小结}
+\label{sec:results-summary-rewrite}
 
-\begin{itemize}
-\item \textbf{域内点精度}：选定 MLP RMSE \SI{4.265}{mm}（覆盖率 0.887/0.989）；SVGP RMSE \SI{4.193}{mm}（第~\ref{sec:in-domain-accuracy-zh} 节）。
-\item \textbf{含删失（补充）}：MLP RMSE \SI{4.735}{mm}，P95 \SI{9.167}{mm}（第~\ref{sec:in-domain-accuracy-zh} 节）。
-\item \textbf{观测中位数检查}：SVGP RMSE \SI{2.649}{mm} 领先；MLP \SI{2.848}{mm}（第~\ref{sec:condition-level-checks-zh} 节）。
-\item \textbf{拟合延续检查}：排序反转，诊断 KD 变体以 \SI{10.358}{mm} 最优（第~\ref{sec:condition-level-checks-zh} 节）。
-\item \textbf{留一喷嘴转移（完整 LONO）}：SVGP \SI{10.16}{mm} $<$ MLP \SI{12.55}{mm}；Nozzle0 折对两种架构均崩塌（第~\ref{sec:lono-transfer-zh} 节）。
-\item \textbf{族内转移（剔除 Nozzle0）}：MLP \SI{7.00}{mm}，SVGP \SI{5.95}{mm}；覆盖率交织（第~\ref{sec:lono-transfer-zh} 节）。
-\item \textbf{课程消融}：$\mu$-anchor 教师加不确定区间混合变体胜出，差距远低于跨折标准差（第~\ref{sec:ablation-study-zh} 节）。
-\item \textbf{KD 形式修复}：近 cap 偏差从 \SI{-2.70}{mm} 改善到 \SI{-0.57}{mm}；主要 RMSE \SI{4.265}{mm} 在五个种子间保持稳定（第~\ref{sec:kd-form-fix-zh} 节）。
-\item \textbf{残差后续（可选）}：域内 RMSE \SI{3.987}{mm}（未经 LONO 检验）；族内 LONO 转移改进约 31\%（\SIrange{7.44}{5.16}{mm}）（第~\ref{sec:residual-family-head-zh} 节）。
-\item \textbf{原型筛查演示}：面向排序的几何截获分数（例如峰值 $P_{\mathrm{hit}}=\SI{77.66}{\percent}$）；并非经过验证的撞壁概率（第~\ref{sec:prototype-screening-zh} 节）。
-\end{itemize}
+表~\ref{tab:chapter-verdict-rewrite} 对本章进行汇总，且不将
+所有协议压缩成单一排名。在主线部署比较中，
+单输出 SVGP 是更好的点预测器，而
+生产 MLP 是更保守的筛查 surrogate。LONO 转移也
+在点精度上支持 SVGP，并揭示 Nozzle0 对两种架构而言都是跨设计族
+失效。原始图像失效检查说明，为何部分
+设计族内 plume 轨迹对于平滑延续目标仍然困难。
+residual 适配很有前景，但仍属事后扩展。
+筛查演示闭合了工作流，同时将撞壁
+论断保持在正确的证据层级。详细的逐折、逐区间和
+residual 适配诊断，以及早期章节组织的归档论断到证据
+映射，均收录于
+附录~\ref{app:evaluation-diagnostics}。
 
-这些结果为接下来两章设定了论述基础。第~6 章从讨论的角度重新审视分阶段 surrogate 设计——将阶段三定位为筛查模型而非第一性原理模型，陈述已验证的发现及其适用边界，并反思随时间变化的标度指数以及概率性撞壁筛查原型的未来验证路径。第~7 章随后回到第~1 章所构建的六阶段流水线，总结每一阶段已验证的内容，并收束全文，附上一张把 MLP/SVGP 权衡浓缩为单一表格的成绩单。
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}L{0.22\linewidth}L{0.30\linewidth}Y@{}}
+\toprule
+论断范围 & 证据支持最充分的结果 & 边界 \\
+\midrule
+域内固定表格精度 & 单输出论文 SVGP 以 \SI{4.087}{mm} RMSE 领跑主线比较；生产 MLP 均值为 \SI{4.185}{mm}。 & Residual 分支是事后适配证据，而非已部署 surrogate 的结论。 \\
+保守不确定度 & 生产 MLP 的 \(1\sigma/2\sigma\) 覆盖率为 0.888/0.990，高于更尖锐的 SVGP 变体。 & 保守覆盖率对筛查有用，但并非经认证的安全保证。 \\
+工况级行为 & 单输出论文 SVGP 在主线 P50 与 q1 点误差上领先；q1 仍是困难的正 bias 压力测试。 & 刷新工件中的 q1 网格缺少 CRPS/NLL，事后分支单独解释。 \\
+喷嘴转移 & 归档 LONO 在点转移上支持 SVGP；排除 Nozzle0 后，SVGP 为 \SI{5.95}{mm}，MLP 为 \SI{7.00}{mm}。 & Nozzle0 是跨设计族失效，而非普通折。 \\
+物理失效剖析 & Nozzle~3 图像和曲线显示违反平滑延续假设的平台状、阶跃状瞬态轨迹。 & 图像支持建模失效模式解释，而非唯一的因果流体力学诊断。 \\
+MLP 工作流依据 & 保留 MLP 是因为其部署保守、具备 onset 输出且消融成本可负担。 & 这是工作流层面的论证，而非普遍预测优越性的论断。 \\
+事后适配 & 经 QC 重训练的 residual-SVGP 以 \SI{3.848}{mm} RMSE 位于域内前沿；MLP residual 适配器修复设计族内 bias。 & Residual-SVGP 转移能力仍未在匹配的 LONO 下验证。 \\
+筛查演示 & 贯穿距离分布可以投影为几何敏感的排名分数。 & 分数是几何代理量，而非经验证的液态撞壁概率。 \\
+\bottomrule
+\end{tabularx}
+\caption{压缩后的结果结论。每行陈述证据支持的内容，以及防止过度声称的边界。}
+\label{tab:chapter-verdict-rewrite}
+\end{table}
+
+因此，下一章讨论不应重新罗列每项指标，其任务
+是解释权衡：本论文建立了一个可复现的
+删失感知 surrogate 工作流，具有保守不确定度和可运行的
+筛查投影；同时也表明，针对 residual-SVGP 的匹配 LONO 检验、
+更大规模的训练后适配实验和受控的
+last-block 解冻，是进一步提高点精度
+最可能的下一步。

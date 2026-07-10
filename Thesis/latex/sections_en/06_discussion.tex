@@ -87,17 +87,17 @@ The remaining boundaries fall into three categories: generalization and out-of-d
 
 \subsubsection*{Statistical and Sample-Independence Constraints}
 \begin{itemize}
-	\item Seed-to-seed RMSE is stable across the five anchor-off repeated training runs (std \SI{0.040}{mm}, Chapter~5), so the headline mean is not a single-seed artefact.
-	      It is still not a full statistical certification, however: bootstrap confidence bands have not yet been reported.
+	\item Seed-to-seed RMSE is stable across the five anchor-off repeated training runs (std \SI{0.039}{mm}, Chapter~5), so the headline mean is not a single-seed artefact.
+	      It is still not a full statistical certification, however: the refreshed fixed-table CSV reports cluster-bootstrap intervals for RMSE, MAE, and bias, while condition-level confidence intervals remain to be established.
 
-	\item The held-out RMSE and MAE are computed based on 542,565 point-wise samples, but the temporal point errors within the same trajectory are mutually correlated.
+	\item The held-out RMSE and MAE are computed based on 540,367 point-wise samples, but the temporal point errors within the same trajectory are mutually correlated.
 	      Thus, the number of independent samples is significantly smaller than the number of point-wise samples, and any confidence statements based on point-wise counts should be understood in conjunction with this correlation.
 	      Condition-level confidence intervals, preferably clustered by recording, condition, and nozzle, are still required before the tool can support formal acceptance thresholds.
 \end{itemize}
 
 \subsubsection*{Comparative-Baseline Boundaries}
 \begin{itemize}
-	\item Two categories of baselines are included in the comparison: physical empirical correlations (H-A and N-S) and a non-parametric probabilistic baseline (SVGP). Under the same evaluation protocol, both machine learning methods substantially outperform the physical correlations. Between the two, SVGP achieves slightly higher point accuracy (RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}), while the MLP produces more conservative uncertainty coverage ($1\sigma$/$2\sigma$ = 88.7\%/98.9\% vs.\ 71.6\%/94.5\%).
+	\item Two categories of baselines are included in the comparison: physical empirical correlations (H-A and N-S) and a non-parametric probabilistic baseline (SVGP). Under the same evaluation protocol, both machine learning methods substantially outperform the physical correlations. Between the two, SVGP achieves slightly higher point accuracy (RMSE \SI{4.087}{mm} vs.\ \SI{4.185}{mm}), while the MLP produces more conservative uncertainty coverage ($1\sigma$/$2\sigma$ = 88.8\%/99.0\% vs.\ 71.7\%/94.6\%).
 
 	      Lightweight regressors such as random forest, gradient boosting, or NARX have not been systematically included in the comparison; this thesis therefore makes no claim that the MLP's point accuracy is superior to all machine learning alternatives.
 
@@ -106,7 +106,7 @@ The remaining boundaries fall into three categories: generalization and out-of-d
 
 \subsubsection*{MLP vs.\ SVGP: Accuracy Trade-off and Model Selection}
 
-The accuracy trade-off is established in Chapter~5 and restated in the concluding scorecard (Table~\ref{tab:conclusions-scorecard}, Chapter~7): on raw point accuracy, the SVGP holds a marginal advantage (RMSE \SI{4.193}{mm} vs.\ \SI{4.265}{mm}, a gap of \SI{0.072}{mm}) and transfers more gracefully to unseen nozzles under LONO, while the MLP leads on uncertainty coverage (1$\sigma$/2$\sigma$: $0.887/0.989$ vs.\ $0.716/0.945$). The MLP was therefore selected not for overall accuracy superiority, but for three structural capabilities the kernel baseline cannot easily provide: the onset-CDF output head required by the screening interface (Section~\ref{sec:screening-interface-en}), the regime-aware censoring chain that mixes fitted synthetic targets with right-censored raw observations, and the design-axis ablations covering stage curriculum and KD form---structural choices that do not exist in the SVGP framework and therefore cannot be ablated there (Section~\ref{sec:mlp-ablation-affordability-en}).
+The accuracy trade-off is established in Chapter~5 and restated in the concluding scorecard (Table~\ref{tab:conclusions-scorecard}, Chapter~7): on raw point accuracy, the SVGP holds a marginal advantage (RMSE \SI{4.087}{mm} vs.\ \SI{4.185}{mm}, a gap of \SI{0.098}{mm}) and transfers more gracefully to unseen nozzles under LONO, while the MLP leads on uncertainty coverage (1$\sigma$/2$\sigma$: $0.888/0.990$ vs.\ $0.717/0.946$). The MLP was therefore selected not for overall accuracy superiority, but for three structural capabilities the kernel baseline cannot easily provide: the onset-CDF output head required by the screening interface (Section~\ref{sec:screening-interface-en}), the regime-aware censoring chain that mixes fitted synthetic targets with right-censored raw observations, and the design-axis ablations covering stage curriculum and KD form---structural choices that do not exist in the SVGP framework and therefore cannot be ablated there (Section~\ref{sec:mlp-ablation-affordability-en}).
 
 The optional per-family residual adapter illustrates a possible extension of this payoff.
 Adding a small correction head to the frozen trunk reduces in-family LONO RMSE by

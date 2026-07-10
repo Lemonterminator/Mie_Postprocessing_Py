@@ -22,18 +22,18 @@ Table~\ref{tab:conclusions-scorecard} summarizes the final validated surrogate p
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
 Evaluation protocol & RMSE [mm] & 1$\sigma$/2$\sigma$ & RMSE [mm] & 1$\sigma$/2$\sigma$ \\
 \midrule
-In-domain, uncensored CDF      & 4.265 & 0.887/0.989 & 4.193 & 0.716/0.945 \\
+In-domain, uncensored CDF      & 4.185 & 0.888/0.990 & 4.087 & 0.717/0.946 \\
 LONO, 5-fold mean              & 12.55 & 0.575/0.770 & 10.16 & 0.628/0.821 \\
 LONO, 4-fold (excl.\ Nozzle0)  & 7.00  & 0.696/0.923 & 5.95  & 0.697/0.890 \\
 \bottomrule
 \end{tabular}
-\caption{Final validated surrogate scorecard on the conservative uncensored CDF protocol (542{,}565 points; 5-seed means, seed std $\le\SI{0.04}{mm}$ RMSE) and leave-one-nozzle-out (LONO) transfer (5-fold means). The MLP is consistently more conservative in coverage; the SVGP is the stronger point predictor. Physical baselines and per-fold detail are in Chapter~5.}
+\caption{Final validated surrogate scorecard on the conservative uncensored CDF protocol (540{,}367 points; 5-seed means, seed std $\le\SI{0.04}{mm}$ RMSE) and leave-one-nozzle-out (LONO) transfer (5-fold means). The MLP is consistently more conservative in coverage; the SVGP is the stronger point predictor. Physical baselines and per-fold detail are in Chapter~5.}
 \label{tab:conclusions-scorecard}
 \end{table}
 
 \begin{itemize}
-  \item On the conservative uncensored CDF protocol---the primary in-domain point-wise metric---the production three-stage MLP (anchor-off, \texttt{kd\_mse\_mu\_plus\_sigma} loss, \(\lambda_\sigma=5.0\), five seeds 7/17/42/99/2024) reduces RMSE by 58\% and 54\% relative to the calibrated Hiroyasu--Arai (\SI{10.261}{mm}) and delayed Naber--Siebers (\SI{9.286}{mm}) baselines refit on this same protocol (Chapter~5). A censoring-inclusive supplementary evaluation on the full cleaned set, which additionally includes the right-censored points, is reported in Chapter~5.
-  \item In-distribution, the SVGP is the stronger point-wise regressor, but the MLP is markedly more conservative in uncertainty coverage (1$\sigma$/2$\sigma$ \(0.887/0.989\) versus \(0.716/0.945\)); the structural value of the MLP relative to the SVGP therefore lies in its conservative coverage rather than point accuracy.
+  \item On the conservative uncensored CDF protocol---the primary in-domain point-wise metric---the production three-stage MLP (anchor-off, \texttt{kd\_mse\_mu\_plus\_sigma} loss, \(\lambda_\sigma=5.0\), five seeds 7/17/42/99/2024) reduces RMSE by 59\% and 55\% relative to the calibrated Hiroyasu--Arai (\SI{10.192}{mm}) and delayed Naber--Siebers (\SI{9.212}{mm}) baselines refit on this same protocol (Chapter~5). A censoring-inclusive supplementary evaluation on the full cleaned set, which additionally includes the right-censored points, is reported in Chapter~5.
+  \item In-distribution, the SVGP is the stronger point-wise regressor, but the MLP is markedly more conservative in uncertainty coverage (1$\sigma$/2$\sigma$ \(0.888/0.990\) versus \(0.717/0.946\)); the structural value of the MLP relative to the SVGP therefore lies in its conservative coverage rather than point accuracy.
   \item Under leave-one-nozzle-out transfer the SVGP wins the point RMSE in four of five folds; after excluding the off-design Nozzle0 fold where both architectures collapse (MLP RMSE \(\sim\SI{35}{mm}\), SVGP \(\sim\SI{27}{mm}\)), the 1$\sigma$ coverage gap closes (\(0.696\) versus \(0.697\)). Once the off-design Nozzle0 fold is excluded, both surrogates fall well below the legacy LONO-scale physical-baseline reference (MLP \(\SI{7.00}{mm}\), SVGP \(\SI{5.95}{mm}\), versus Hiroyasu--Arai \(\SI{10.713}{mm}\pm\SI{1.542}{mm}\) and Naber--Siebers \(\SI{9.784}{mm}\pm\SI{2.102}{mm}\); Chapter~5). Nozzle0 is the single out-of-design-family fold---a different injector hardware family---and it alone lifts the five-fold mean: with it included, the MLP (\(\SI{12.55}{mm}\)) sits above both baselines and the SVGP (\(\SI{10.16}{mm}\)) falls below Hiroyasu--Arai but not Naber--Siebers. This split is the inductive-bias behaviour discussed in Section~\ref{sec:kernel-vs-nn-ood-en}; the low coverage on difficult nozzles shows that extrapolation risk to genuinely off-design geometries must still be reported explicitly.
 \end{itemize}
 
@@ -49,7 +49,7 @@ LONO, 4-fold (excl.\ Nozzle0)  & 7.00  & 0.696/0.923 & 5.95  & 0.697/0.890 \\
 \begin{enumerate}
   \item Validate $P_{\mathrm{hit}}(t)$ and cumulative exposure $E$ using matching optical experiments or CFD impingement data.
   \item Replace the current analytical constant-cone-angle envelope with a learnable two-dimensional envelope model.
-  \item Report condition-level confidence intervals (clustered by recording, condition, and nozzle) and bootstrap confidence bands, since the 542,565 point-wise samples are temporally correlated within a trajectory and cannot be treated as independent.
+  \item Report condition-level confidence intervals (clustered by recording, condition, and nozzle) and bootstrap confidence bands, since the 540,367 point-wise samples are temporally correlated within a trajectory and cannot be treated as independent.
   \item Introduce nozzle-conditioned transient priors so that difficult in-family cases such as Nozzle~3 (wake-driven slug/step-wise penetration) and the out-of-design-family Nozzle0 can be modeled more explicitly.
 \end{enumerate}
 
