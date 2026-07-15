@@ -28,7 +28,7 @@ checkpoint、拟合目标、模型工件和诊断图后，在已处理的 campai
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
-\caption{Nozzle~1 上 T24 工况的清洗后轨迹与 q1 拟合曲线（\textbf{清洗后的 CDF 贯穿距离}）。实线表示逐帧原始贯穿距离观测，虚线为对应的 $t^{1/4}$ 单分支（q1）拟合曲线。拟合曲线在观测结束后平滑外推至 $\SI{3}{ms}$，为 surrogate 训练提供具备删失感知能力的目标。}
+\caption{Nozzle~1 上 T24 工况的清洗后轨迹与 SGQR 拟合曲线（\textbf{清洗后的 CDF 贯穿距离}）。实线表示逐帧原始贯穿距离观测，虚线为对应的 $t^{1/4}$ 单分支（SGQR）拟合曲线。拟合曲线在观测结束后平滑外推至 $\SI{3}{ms}$，为 surrogate 训练提供具备删失感知能力的目标。}
 \label{fig:clean-fit-example}
 \end{figure}
 
@@ -57,7 +57,7 @@ checkpoint、拟合目标、模型工件和诊断图后，在已处理的 campai
 \addlinespace
 观测中位数检查 & P50-observed，工况级 & \num{4215} & MLP 5；SVGP seed-42 & SVGP、MLP & SVGP 以 \SI{2.516}{mm} 领先；MLP 为 \SI{2.831}{mm} \\
 \addlinespace
-拟合延续检查 & q1 延续网格 & \num{25245}（\num{21525} 个外推点） & MLP 5；SVGP seed-42 & SVGP、MLP & SVGP \SI{9.680}{mm}；MLP \SI{10.047}{mm}；延续区域存在强正 bias \\
+拟合延续检查 & SGQR 延续网格 & \num{25245}（\num{21525} 个外推点） & MLP 5；SVGP seed-42 & SVGP、MLP & SVGP \SI{9.680}{mm}；MLP \SI{10.047}{mm}；延续区域存在强正 bias \\
 \addlinespace
 喷嘴转移（完整） & LONO 5 折（留出 N0、N1、N2、N4、N5） & \num{458379} & seed-42 & MLP、SVGP；HA/\allowbreak NS 参考 & SVGP \SI{10.16}{mm} $<$ MLP \SI{12.55}{mm}；N0 折崩溃（34.76/\allowbreak26.99） \\
 \addlinespace
@@ -72,7 +72,7 @@ Residual 后续 & 未删失 CDF；residual-LONO（训练中保留 N0） & \num{5
 原型筛查演示 & 几何壁面接近筛查演示，玩具参数扫描（无实测真值） & 3 个设计变体 & n/a（单一已部署 checkpoint） & MLP（Stage~3，已部署） & 面向排名的几何分数（峰值 $P_{\mathrm{hit}}=77.66\%$，累积 $E$ 最高为 \SI{3.364}{ms}）；\emph{并非}经验证的撞壁概率 \\
 \bottomrule
 \end{tabular}
-\caption{结果论断映射表，从重构前章节保留以保证论断可追溯性。每行是一项不同的评估论断，列出其协议、预测目标、样本量、种子数、比较模型和核心结论。固定表格行引用刷新的评估 bundle；LONO、课程、KD 分片和筛查行保留归档工件。不同协议的种子结构不同：生产表格使用 5 个种子（7/17/42/99/2024），所有 SVGP 行与 LONO/消融行使用单一种子（42），KD 区间分片表使用单一种子（99）。归档 bundle 还包含 oracle-q1 P50 下界（\SI{1.010}{mm}，不可部署），以及在外推 q1 网格中领先的诊断 KD 变体（\SI{10.358}{mm}）；这些模型不在刷新名册中，因此从本映射表中省略。}
+\caption{结果论断映射表，从重构前章节保留以保证论断可追溯性。每行是一项不同的评估论断，列出其协议、预测目标、样本量、种子数、比较模型和核心结论。固定表格行引用刷新的评估 bundle；LONO、课程、KD 分片和筛查行保留归档工件。不同协议的种子结构不同：生产表格使用 5 个种子（7/17/42/99/2024），所有 SVGP 行与 LONO/消融行使用单一种子（42），KD 区间分片表使用单一种子（99）。归档 bundle 还包含 oracle-SGQR P50 下界（\SI{1.010}{mm}，不可部署），以及在外推 SGQR 网格中领先的诊断 KD 变体（\SI{10.358}{mm}）；这些模型不在刷新名册中，因此从本映射表中省略。}
 \label{tab:results-claims-map}
 \end{table}
 
@@ -121,21 +121,21 @@ Residual 后续 & 未删失 CDF；residual-LONO（训练中保留 N0） & \num{5
 \centering
 \begin{minipage}{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/mlp_seed99_coverage_curve.png}
+\includegraphics[width=\linewidth]{images/eval_20260714/full_clean_mlp_seed99_coverage_curve.png}
 \end{minipage}
 \hfill
 \begin{minipage}{0.49\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/mlp_seed99_sigma_bin_calibration.png}
 \end{minipage}
-\caption{seed-99 重复运行的刷新不确定度审计：经验覆盖率曲线（左）与按预测 $\sigma$ 分箱的校准（右）。二者取代了重构前章节的归档校准覆盖率审计。}
+\caption{seed-99 重复运行的刷新 full-clean 不确定度审计：经验覆盖率曲线（左）与按预测 $\sigma$ 分箱的校准（右）。二者取代了重构前章节的归档校准覆盖率审计。}
 \label{fig:app-seed99-calibration}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\linewidth]{images/eval_20260709/mlp_seed99_per_condition_rmse.png}
-\caption{刷新后的 QC-gated 未删失 CDF 表格上 seed-99 重复运行的逐工况 RMSE，取代归档的逐文件夹 RMSE 诊断。误差在工况间仍呈不均匀分布，与重构前章节报告的 campaign 文件夹离散程度一致（最容易的文件夹处于较低的 \SI{3}{mm} 范围，最困难的接近 \SI{9}{mm}）。}
+\includegraphics[width=0.94\linewidth]{images/eval_20260714/per_condition_rmse_lv2_vs_lv3_qc.png}
+\caption{seed-99 重复运行在 QC gate 前后的配对逐工况 RMSE。图中 20 个工况只按 LV2 full-clean 中最高的 RMSE 选择一次，再在 LV3 中匹配相同的工况键；标签已移除归档标识符。599 个工况身份均被保留，而 QC gate 在 74 个工况中共移除了 3{,}780 个点。若干工况的预 QC 高误差尾部显著下降，但也保留了未变化的条形；因此该图支持 QC 过滤异常轨迹贡献，而不宣称它消除了所有困难工况。}
 \label{fig:app-per-condition-rmse}
 \end{figure}
 
@@ -266,15 +266,47 @@ Anchor-off 变体 & 12.73 $\pm$ 12.44 & 9.86 $\pm$ 10.22 & $-7.11 \pm 11.51$ & 0
 
 \subsection{Residual 适配细节}
 
-下列两张表是第五章事后适配汇总背后的刷新细节：
-喷油器 conditioning 设计比较，以及带校准列的完整
-residual 逐步提升。二者均在 QC-gated
+Nozzle~1 至 Nozzle~8 与 Nozzle~0 使用了不同的喷油器（差异见正文
+第~\ref{sec:lono-boundaries-rewrite}~节图~\ref{fig:injector-comparison-rewrite}）：前 8
+者共用同一个整修过的喷油器，Nozzle~0 则是全新、刚出厂的参考件。在
+同一套 \(t^{1/4}\)（\(A\)-scaling）正则化下，Nozzle~0 的早期时间--贯穿距离
+响应相对 Nozzle~1--8 呈现系统性偏高。这一物理差异是本节
+residual/FiLM/SVGP 事后适配实验的动机：将喷油器身份作为 conditioning
+变量，检验能否在冻结的共享 Stage~3 主干之上，用轻量级训练后适配
+部分修复喷嘴相关的系统性偏差；各分支的架构对比现置于正文相应
+小节开头（图~\ref{fig:residual-architecture-rewrite}）。
+
+下列各表是第五章事后适配汇总背后的刷新细节：证据谱系的
+训练与评测协议披露、喷油器 conditioning 设计比较、带校准列的完整
+residual 逐步提升，以及受控链按喷油器族的切片分解。除披露表外均在 QC-gated
 未删失 CDF 协议上重新生成；它们取代了原始研究
 Level-2 时期的版本。后续图形归档自 2026-06-08
 适配研究：其标注数值反映该研究的 Level-2 时期协议，
 因此，当数值存在差异时，应以表格中的刷新结果为准。
 
-% --- 刷新表格（来源：05_results_update_temp/appendix_fragments_residual.tex，已对照运行 20260709_223144 的 metrics_wide.csv 验证）---
+\begin{table}[tbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.18\linewidth}L{0.24\linewidth}L{0.26\linewidth}L{0.24\linewidth}@{}}
+\toprule
+ & 生产（五种子） & 早期适配研究 & 受控链 \\
+\midrule
+特征变体 & \texttt{a\_plus\_pressures} & \texttt{a\_dp050\_plus\_pressures} & \texttt{a\_plus\_pressures} \\
+数据 & synthetic\_data\_20260509 & synthetic\_data & lv3 QC-gated \\
+Stage~2 教师 & 纯 NLL & NLL + \(\mu\)-anchor & 生产 Stage~2（纯 NLL） \\
+Onset 辅助头 & 有（\(\lambda_{\mathrm{onset}}=0.1\)） & 无 & 无 \\
+Stage~3 训练范围 & 全网络 & 冻结主干（含 family-head 基线） & P0 与 family head 全网络；residual/FiLM 冻结主干与共享 \(\mu\) \\
+种子 & \{7, 17, 42, 99, 2024\} & 42 & 99（单种子） \\
+逐级初始化 & --- & 逐级 warm-start（residual 含 10 epoch mimic 预热） & function-preserving 桥接（输出差 \(<10^{-6}\)），并以上一级为蒸馏教师 \\
+评测 run & 20260709\_223144 & 20260709\_223144 & 20260713\_123732 \\
+\bottomrule
+\end{tabular}
+\caption{三条证据谱系的训练与评测协议披露。早期适配研究与生产模型之间的跨谱系差值同时包含上述全部差异，不能读作架构效应；受控链固定所有非架构因素，逐级仅改变一个 conditioning 机制（正文表~\ref{tab:posthoc-residual-rewrite}）。}
+\label{tab:residual-lineage-disclosure}
+\end{table}
+
+% --- 刷新表格（来源：05_results_update_temp/appendix_fragments_residual.tex，已对照运行 20260709_223144 的 metrics_wide.csv 验证；受控链与切片表对照运行 20260713_123732 的 metrics_wide.csv 与 paired_and_family_slice.json 验证）---
 \begin{table}[tbp]
 \centering
 \footnotesize
@@ -283,12 +315,12 @@ Level-2 时期的版本。后续图形归档自 2026-06-08
 \toprule
 喷油器 conditioning 设计 & RMSE [mm] & 95\% CI [mm] & 未见喷嘴的后备方案 \\
 \midrule
-One-hot 喷嘴输入（已部署；五种子均值） & 4.185 & --- & 无（需要硬编码身份） \\
-独立逐喷嘴 head（\texttt{family\_head\_baseline}） & 4.901 & [4.845, 4.953] & 无（训练数据被分割） \\
+无喷油器身份输入（已部署生产 MLP；五种子均值） & 4.185 & --- & 不需要后备（纯物理特征输入） \\
+Direct family head（\texttt{family\_head\_baseline}；研究谱系） & 4.901 & [4.845, 4.953] & 无（须硬性路由到已有 family） \\
 Residual head，零初始化 $\Delta_f$（\texttt{residual\_fh}） & 4.519 & [4.463, 4.573] & 结构性后备（默认为共享模型） \\
 \bottomrule
 \end{tabular}
-\caption{刷新后的 QC-gated 未删失 CDF 协议（540{,}367 个点）上的喷油器 conditioning 设计。数值来自 \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142}；直接出现在 \texttt{metrics\_wide.csv} 中的单 checkpoint 设计显示 cluster-bootstrap 95\% 置信区间，而已部署结果是五种子生产 MLP 均值。}
+\caption{刷新后的 QC-gated 未删失 CDF 协议（540{,}367 个点）上的喷油器 conditioning 设计。数值来自 \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142}；直接出现在 \texttt{metrics\_wide.csv} 中的单 checkpoint 设计显示 cluster-bootstrap 95\% 置信区间，而已部署结果是五种子生产 MLP 均值。各行的谱系与协议差异见表~\ref{tab:residual-lineage-disclosure}。}
 \label{tab:residual-family-designs}
 \end{table}
 
@@ -310,16 +342,29 @@ Naber--Siebers（参考） & 9.212 & 7.154 & --- & 5.109 & 8.983 & --- \\
 \texttt{residual\_svgp} & \textbf{3.921} & \textbf{2.800} & \textbf{0.0267} & \textbf{2.019} & \textbf{2.026} & \textbf{3.848} \\
 \bottomrule
 \end{tabular}
-\caption{来自 \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142} 的刷新 \texttt{lv3\_qc\_gated} residual 模型逐步提升。RMSE、MAE、CRPS、P50 和经 QC 重训练的 RMSE 的单位为 mm；ECE 无量纲。CDF 指标使用 \texttt{cdf\_uncensored} 协议（540{,}367 个点），而 P50 是 \texttt{p50\_observed} 下的 RMSE（4{,}215 个点）；这些数值不得与早期 Level-2 表混用。Residual-SVGP 与经 QC 重训练的 residual-SVGP 变体未在匹配的 LONO 协议下评估。}
+\caption{来自 \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142} 的刷新 \texttt{lv3\_qc\_gated} residual 模型逐步提升。\texttt{family\_head\_baseline}、\texttt{residual\_fh} 与 \texttt{residual\_film} 属早期研究谱系，跨行差值包含谱系差异（表~\ref{tab:residual-lineage-disclosure}）；受控同谱系比较见正文表~\ref{tab:posthoc-residual-rewrite}。RMSE、MAE、CRPS、P50 和经 QC 重训练的 RMSE 的单位为 mm；ECE 无量纲。CDF 指标使用 \texttt{cdf\_uncensored} 协议（540{,}367 个点），而 P50 是 \texttt{p50\_observed} 下的 RMSE（4{,}215 个点）；这些数值不得与早期 Level-2 表混用。Residual-SVGP 与经 QC 重训练的 residual-SVGP 变体未在匹配的 LONO 协议下评估。}
 \label{tab:residual-climb}
 \end{table}
 
-\begin{figure}[t]
+\begin{table}[tbp]
 \centering
-\includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/mlp_family_conditioning_architecture.png}
-\caption{喷油器 conditioning 设计（归档研究）：独立逐喷嘴 head、加性 residual head 与 FiLM 调制。灰色 blocks 被冻结（从已部署 Stage~3 checkpoint 热启动）；绿色 blocks 是小型可训练逐喷嘴组件。}
-\label{fig:residual-architecture}
-\end{figure}
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{参考件族（Nozzle~0；57.6\% 行数）} & \multicolumn{3}{c}{整修族（Nozzle~1--8；42.4\%）} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+模型 & RMSE & Bias & CRPS & RMSE & Bias & CRPS \\
+\midrule
+P0 pooled & \textbf{3.136} & -0.019 & 1.816 & 5.298 & +1.223 & 2.918 \\
+\quad + direct family head & 3.243 & +0.174 & 1.894 & 5.263 & +0.796 & 2.934 \\
+\quad + residual \(\Delta_f\) & 3.199 & -0.099 & 1.797 & \textbf{5.227} & +0.253 & 2.833 \\
+\quad + FiLM（末块） & 3.197 & -0.293 & \textbf{1.750} & 5.257 & -0.290 & \textbf{2.792} \\
+\bottomrule
+\end{tabular}
+\caption{受控链按喷油器族的切片（\texttt{evalrun\_\allowbreak{}20260713\_\allowbreak{}123732}，QC-gated 未删失 CDF 表，单位 mm）。pooled 基线在多数族（参考件）上近乎无偏，把系统性高估留给整修族；residual 的偏差修复几乎全部发生在整修族（\(+1.223 \to +0.253\)；族内配对 \(\Delta\)RMSE \(-0.072\)，显著），代价是参考件族上轻微但显著的退化（\(+0.063\)），整体 RMSE 持平是两族相消的净值。FiLM 的均值修正在两族上几乎相同（\(-0.293/-0.290\)），其收益集中在概率指标。}
+\label{tab:residual-family-slice}
+\end{table}
 
 \begin{figure}[t]
 \centering
@@ -345,7 +390,7 @@ Naber--Siebers（参考） & 9.212 & 7.154 & --- & 5.109 & 8.983 & --- \\
 分支 & 设计族内 RMSE & 全部 5 折 RMSE & 设计族内 bias \\
  & （4 折，mm） & （5 折，mm） & （mm） \\
 \midrule
-已部署喷嘴 head & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
+Direct family head（研究谱系） & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
 Residual head & \textbf{5.16 $\pm$ 0.65} & 6.95 $\pm$ 4.05 & +0.78 \\
 Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 \bottomrule
@@ -353,22 +398,6 @@ Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 \caption{MLP 分支上 residual 转换的归档 LONO 转移（依次留出 N1/N2/N4/N5/N6，训练中保留 N0，每折从头训练）。设计族内汇总排除了设计族之外的 N6 压力折。residual 转换将设计族内 RMSE 降低 $\approx$31\%，并修复均值 bias；FiLM 与普通 residual head 在转移下无法区分。}
 \label{tab:residual-lono}
 \end{table}
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
-\end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
-\end{minipage}
-\caption{Nozzle0 为何属于设计族之外（归档研究）。左：Nozzle0 的归一化早期贯穿距离响应（约为改型喷嘴的 $\approx$2.5$\times$，且从未与之交叉至更低位置）。右：完整散点图分离出 Nozzle0 的早期分支，而冻结 trunk 从未表示过该分支。}
-\label{fig:injector-comparison}
-\label{fig:injector-scatter}
-\end{figure}
 
 \begin{figure}[t]
 \centering

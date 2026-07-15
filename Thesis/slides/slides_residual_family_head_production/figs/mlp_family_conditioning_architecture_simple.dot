@@ -1,0 +1,147 @@
+digraph MLPFamilyConditioningSimple {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    margin="0.04",
+    nodesep="0.26",
+    ranksep="0.42",
+    splines=ortho,
+    pack=true,
+    packmode="array_u3",
+    outputorder=edgesfirst,
+    fontname="Arial"
+  ];
+
+  node [
+    fontname="Arial",
+    fontsize=13,
+    color="#aeb8c2",
+    penwidth=1.0,
+    margin="0.10,0.07"
+  ];
+
+  edge [
+    color="#aeb8c2",
+    arrowsize=0.55,
+    penwidth=1.0,
+    fontname="Arial",
+    fontsize=10
+  ];
+
+  // Output cells use HTML labels so the caret is a separate superscript.
+  // The checked-in SVG export nudges those carets left over μ because
+  // Graphviz/Arial otherwise places a combining accent unevenly.
+
+  subgraph cluster_direct {
+    label="";
+    color="#1b1b1b";
+    penwidth=1.0;
+    style="rounded";
+    margin="0.16,0.14";
+
+    a_title [label="Direct Family Heads", shape=box, style="filled", fillcolor="#003b2f", color="#003b2f", fontcolor="white", fontsize=20, width=5.10, height=0.62, margin="0.18,0.13"];
+    a_input [label="7 inputs", shape=ellipse, style="filled", fillcolor="#26c47a", color="#26c47a", width=1.32, height=0.48];
+    a_family [label="Family ID", shape=diamond, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.55, height=0.74];
+    a_trunk [label="Shared Trunk\n(updated)", shape=box, style="rounded,filled", fillcolor="#a7ebc6", color="#a7ebc6", width=1.60, height=0.62];
+    a_mean [label="μ̂ Heads\n(updated)", shape=ellipse, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.62, height=0.62];
+    a_var [label="Shared log(σ²)\nHead\n(updated)", shape=ellipse, style="filled", fillcolor="#9be27f", color="#9be27f", width=1.62, height=0.82];
+    a_out [label=<<FONT POINT-SIZE="13">Joint Output</FONT><BR/><FONT POINT-SIZE="13">(μ<SUP>^</SUP>, log(σ<SUP>2</SUP>))</FONT>>, shape=ellipse, style="filled", fillcolor="#26c47a", color="#26c47a", width=1.75, height=0.65];
+    a_fallback [label="Unseen family slot:\nconfigured fallback ID = 1", shape=box, style="filled", fillcolor="#ff5a5f", color="#ff5a5f", fontcolor="#111111", width=2.55, height=0.70, fontsize=11];
+    a_warm [label="Warm-start from Stage 2\n(via P0 bridge)", shape=box, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", fontcolor="#111111", width=2.55, height=0.62, fontsize=11];
+
+    { rank=same; a_input; a_family; }
+    { rank=same; a_mean; a_var; }
+    { rank=same; a_fallback; a_warm; }
+
+    a_title:s -> a_input:n [style=invis];
+    a_title:s -> a_family:n [style=invis];
+    a_input:s -> a_trunk:n;
+    a_trunk:s -> a_mean:n;
+    a_trunk:s -> a_var:n;
+    a_family:s -> a_mean:n [label="Selects", constraint=false];
+    a_mean:s -> a_out:n;
+    a_var:s -> a_out:n;
+    a_out:s -> a_fallback:n [style=invis];
+    a_out:s -> a_warm:n [style=invis];
+  }
+
+  subgraph cluster_residual {
+    label="";
+    color="#1b1b1b";
+    penwidth=1.0;
+    style="rounded";
+    margin="0.16,0.14";
+
+    b_title [label="Residual Family Heads", shape=box, style="filled", fillcolor="#003b2f", color="#003b2f", fontcolor="white", fontsize=20, width=5.10, height=0.62, margin="0.18,0.13"];
+    b_input [label="7 inputs", shape=ellipse, style="filled", fillcolor="#26c47a", color="#26c47a", width=1.32, height=0.48];
+    b_family [label="Family ID", shape=diamond, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.55, height=0.74];
+    b_trunk [label="Shared Trunk\n(frozen)", shape=box, style="rounded,filled", fillcolor="#a7ebc6", color="#a7ebc6", width=1.60, height=0.62];
+    b_mean [label="Shared μ̂ Head\n(frozen)", shape=ellipse, style="filled", fillcolor="#9be27f", color="#9be27f", width=1.62, height=0.62];
+    b_delta [label="Residual Δ_f\nHeads\n(updated)", shape=ellipse, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.62, height=0.82];
+    b_var [label="Shared log(σ²)\nHead\n(updated)", shape=ellipse, style="filled", fillcolor="#9be27f", color="#9be27f", width=1.62, height=0.82];
+    b_sum [label="+", shape=circle, style="filled", fillcolor="#9be27f", color="#9be27f", fontname="Arial Bold", fontsize=21, width=0.42, height=0.42, margin="0.01,0.01"];
+    b_out [label=<<FONT POINT-SIZE="13">Joint Output</FONT><BR/><FONT POINT-SIZE="13">(μ<SUP>^</SUP> + Δ<SUB>f</SUB>, log(σ<SUP>2</SUP>))</FONT>>, shape=ellipse, style="filled", fillcolor="#26c47a", color="#26c47a", width=1.85, height=0.65];
+    b_fallback [label="Unseen family slot:\nΔ_f = 0 → shared μ only", shape=box, style="filled", fillcolor="#ff5a5f", color="#ff5a5f", fontcolor="#111111", width=2.55, height=0.70, fontsize=11];
+    b_warm [label="Warm-start from Direct Family\nHeads", shape=box, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", fontcolor="#111111", width=2.55, height=0.62, fontsize=11];
+
+    { rank=same; b_input; b_family; }
+    { rank=same; b_mean; b_delta; b_var; }
+    { rank=same; b_fallback; b_warm; }
+
+    b_title:s -> b_input:n [style=invis];
+    b_title:s -> b_family:n [style=invis];
+    b_input:s -> b_trunk:n;
+    b_trunk:s -> b_mean:n;
+    b_trunk:s -> b_delta:n;
+    b_trunk:s -> b_var:n;
+    b_family:s -> b_delta:n [label="Selects", constraint=false];
+    b_mean:s -> b_sum:n;
+    b_delta:s -> b_sum:n;
+    b_sum:s -> b_out:n;
+    b_var:s -> b_out:n;
+    b_out:s -> b_fallback:n [style=invis];
+    b_out:s -> b_warm:n [style=invis];
+  }
+
+  subgraph cluster_film {
+    label="";
+    color="#1b1b1b";
+    penwidth=1.0;
+    style="rounded";
+    margin="0.16,0.14";
+
+    c_title [label="Residual-FiLM", shape=box, style="filled", fillcolor="#003b2f", color="#003b2f", fontcolor="white", fontsize=20, width=5.10, height=0.62, margin="0.18,0.13"];
+    c_input [label="7 inputs", shape=ellipse, style="filled", fillcolor="#26c47a", color="#26c47a", width=1.32, height=0.48];
+    c_family [label="Family ID", shape=diamond, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.55, height=0.74];
+    c_trunk [label="Shared Trunk\n(frozen)", shape=box, style="rounded,filled", fillcolor="#a7ebc6", color="#a7ebc6", width=1.60, height=0.62];
+    c_film [label="Last block FiLM\n(updated)", shape=box, style="rounded,filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.72, height=0.62];
+    c_mean [label="Shared μ̂ Head\n(frozen)", shape=ellipse, style="filled", fillcolor="#9be27f", color="#9be27f", width=1.62, height=0.62];
+    c_delta [label="Residual Δ_f\nHeads\n(updated)", shape=ellipse, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", width=1.62, height=0.82];
+    c_var [label="Shared log(σ²)\nHead\n(updated)", shape=ellipse, style="filled", fillcolor="#9be27f", color="#9be27f", width=1.62, height=0.82];
+    c_sum [label="+", shape=circle, style="filled", fillcolor="#9be27f", color="#9be27f", fontname="Arial Bold", fontsize=21, width=0.42, height=0.42, margin="0.01,0.01"];
+    c_out [label=<<FONT POINT-SIZE="13">Joint Output</FONT><BR/><FONT POINT-SIZE="13">(μ<SUP>^</SUP> + Δ<SUB>f</SUB>, log(σ<SUP>2</SUP>))</FONT>>, shape=ellipse, style="filled", fillcolor="#26c47a", color="#26c47a", width=1.85, height=0.65];
+    c_fallback [label="Unseen family slot:\nγ = 1, β = 0; Δ_f = 0\n→ shared μ only", shape=box, style="filled", fillcolor="#ff5a5f", color="#ff5a5f", fontcolor="#111111", width=2.55, height=0.82, fontsize=11];
+    c_warm [label="Warm-start from Residual Family\nHeads", shape=box, style="filled", fillcolor="#dfa0ed", color="#dfa0ed", fontcolor="#111111", width=2.55, height=0.62, fontsize=11];
+
+    { rank=same; c_input; c_family; }
+    { rank=same; c_trunk; c_film; }
+    { rank=same; c_mean; c_delta; c_var; }
+    { rank=same; c_fallback; c_warm; }
+
+    c_title:s -> c_input:n [style=invis];
+    c_title:s -> c_family:n [style=invis];
+    c_input:s -> c_trunk:n;
+    c_trunk:s -> c_film:n;
+    c_family:s -> c_film:n [xlabel="Affine", color="#aeb8c2", constraint=false];
+    c_family:s -> c_delta:n [color="#aeb8c2", constraint=false];
+    c_film:s -> c_mean:n;
+    c_film:s -> c_delta:n;
+    c_film:s -> c_var:n;
+    c_mean:s -> c_sum:n;
+    c_delta:s -> c_sum:n;
+    c_sum:s -> c_out:n;
+    c_var:s -> c_out:n;
+    c_out:s -> c_fallback:n [style=invis];
+    c_out:s -> c_warm:n [style=invis];
+  }
+}

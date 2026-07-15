@@ -1,0 +1,46 @@
+{
+  "study": {
+    "design_id": "controlled_residual_no_onset_qc",
+    "role": "Residual parameterisation of the completed controlled family-head model, with the existing family functions preserved at initialisation.",
+    "teacher_lineage": "controlled family-head no-onset QC run 20260713_121535",
+    "reporting_rule": "This is a parameterisation/adaptation comparison under the same P0 bridge, QC data, seed, split, and no-onset loss."
+  },
+  "common": {
+    "teacher_run": "MLP/runs_mlp/controlled_p0_no_onset_qc/family_head_no_onset_qc_20260713_121535",
+    "runs_root": "MLP/runs_mlp/controlled_p0_no_onset_qc",
+    "synthetic_root": "MLP/synthetic_data_clean_lv3_qc_gated",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "seed": 42,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "student_architecture_mode": "residual_family_head",
+    "residual_shared_family_id": 1,
+    "skip_post_train_eval": true
+  },
+  "selection": {"metric": "rmse_mm", "mode": "min"},
+  "winner_eval": {"enabled": false},
+  "ablations": [
+    {
+      "name": "residual_function_preserving_qc_seed42",
+      "enabled": true,
+      "run_name_prefix": "residual_no_onset_qc",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0,
+        "residual_delta_l2_weight": 0.0001,
+        "residual_preserve_family_offsets": true,
+        "freeze_trunk": true,
+        "freeze_residual_shared_mu": true
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

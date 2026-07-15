@@ -1,0 +1,43 @@
+{
+  "promotion_date": "2026-07-14",
+  "purpose": "Replace visually corrected full-clean probabilistic figures and add controlled post-hoc probabilistic diagnostics without mixing model lineages.",
+  "figures": [
+    {
+      "destination": "full_clean_coverage_comparison.png",
+      "source_run": "evalrun_20260713_132105_thesis_fullclean_controlled_qc_swap",
+      "source": "figures/comparison/lv3_qc_gated/full_clean/coverage_comparison.png",
+      "sha256": "624c0d0f99528f9ea4641df62521dc2d6bd1e56bd7a3c7c27683d1005b14e376"
+    },
+    {
+      "destination": "full_clean_crps_sharpness_scatter.png",
+      "source_run": "evalrun_20260713_132105_thesis_fullclean_controlled_qc_swap",
+      "source": "figures/comparison/lv3_qc_gated/full_clean/crps_sharpness_scatter.png",
+      "sha256": "df2a64bbacf39e3dff9c153884fb5993f8c96016fc590d10cd5206b6de32f681"
+    },
+    {
+      "destination": "full_clean_mlp_seed99_coverage_curve.png",
+      "source_run": "evalrun_20260713_132105_thesis_fullclean_controlled_qc_swap",
+      "source": "figures/models/thesis_mlp_seed_99/lv3_qc_gated/full_clean/coverage_curve.png",
+      "sha256": "0cd579c2e666b1ac985c222309c65f007c447cb71bddbe36211e48c64f037981"
+    },
+    {
+      "destination": "posthoc_cdf_uncensored_coverage_comparison.png",
+      "source_run": "evalrun_20260713_131637_controlled_p0_no_onset_qc_plus_residual_svgp",
+      "source": "figures/comparison/lv3_qc_gated/cdf_uncensored/coverage_comparison.png",
+      "sha256": "9afd229c9dfbd1a59624ebb1a077d0955551cee2f3e0380ac99b9fd53efb7b9b"
+    },
+    {
+      "destination": "posthoc_cdf_uncensored_crps_sharpness_scatter.png",
+      "source_run": "evalrun_20260713_131637_controlled_p0_no_onset_qc_plus_residual_svgp",
+      "source": "figures/comparison/lv3_qc_gated/cdf_uncensored/crps_sharpness_scatter.png",
+      "sha256": "e563b973514d2e88ed5075cd04f137be9891d214545b70f91bea1c3e8cd43c69"
+    },
+    {
+      "destination": "per_condition_rmse_lv2_vs_lv3_qc.png",
+      "source_run": "evalrun_20260713_132105_thesis_fullclean_controlled_qc_swap",
+      "source": "figures/comparison/lv2_vs_lv3_qc/full_clean/per_condition_rmse_lv2_vs_lv3_qc.png",
+      "render_script": "MLP/eval_pipeline/render_qc_per_condition_comparison.py",
+      "sha256": "c0b19804310c2a70f9dc85e8c85d5882ee11adfc56e66dce1b4d54d57644adb6"
+    }
+  ]
+}

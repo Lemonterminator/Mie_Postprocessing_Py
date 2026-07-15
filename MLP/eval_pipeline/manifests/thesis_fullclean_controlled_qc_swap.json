@@ -1,0 +1,25 @@
+{
+  "description": "Derivative of the thesis full-clean roster. The legacy QC residual-FH and QC FiLM checkpoints are replaced by the controlled no-onset chain; direct QC family-head is added as qc_retrained_fh. The legacy residual-SVGP remains unchanged. Source roster: evalrun_20260709_230555_thesis_fullclean_bootstrap_fast_20260709_230553.",
+  "models": [
+    {"label": "thesis_mlp_seed_07", "family": "thesis_mlp_modeA", "kind": "mlp", "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_07", "seed": 7, "meta": {"training_dataset": "pre_qc_thesis"}},
+    {"label": "thesis_mlp_seed_17", "family": "thesis_mlp_modeA", "kind": "mlp", "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_17", "seed": 17, "meta": {"training_dataset": "pre_qc_thesis"}},
+    {"label": "thesis_mlp_seed_42", "family": "thesis_mlp_modeA", "kind": "mlp", "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_42", "seed": 42, "meta": {"training_dataset": "pre_qc_thesis"}},
+    {"label": "thesis_mlp_seed_99", "family": "thesis_mlp_modeA", "kind": "mlp", "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_99", "seed": 99, "meta": {"training_dataset": "pre_qc_thesis"}},
+    {"label": "thesis_mlp_seed_2024", "family": "thesis_mlp_modeA", "kind": "mlp", "path": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/seed_2024", "seed": 2024, "meta": {"training_dataset": "pre_qc_thesis"}},
+    {"label": "thesis_svgp_seed_42", "family": "thesis_svgp_singleoutput", "kind": "single_svgp", "path": "MLP/best_models/thesis_baselines/svgp_stage3_singleoutput/per_seed/seed_42/model.pt", "seed": 42, "meta": {"training_dataset": "pre_qc_thesis"}},
+    {"label": "family_head_baseline", "family": "family_head_baseline", "kind": "mlp", "path": "MLP/best_models/residual_study/family_head_baseline", "seed": 42, "meta": {"training_dataset": "pre_qc_production"}},
+    {"label": "residual_fh", "family": "residual_fh", "kind": "mlp", "path": "MLP/best_models/residual_study/residual_fh", "seed": 42, "meta": {"training_dataset": "pre_qc_production"}},
+    {"label": "residual_film", "family": "residual_film", "kind": "mlp", "path": "MLP/best_models/residual_study/residual_film", "seed": 42, "meta": {"training_dataset": "pre_qc_production"}},
+    {"label": "residual_svgp", "family": "residual_svgp", "kind": "residual_svgp", "path": "MLP/best_models/residual_study/residual_svgp", "seed": 42, "meta": {"training_dataset": "pre_qc_production"}},
+    {"label": "qc_retrained_fh", "family": "family_head_baseline", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/family_head_no_onset_qc_20260713_121535", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "family_head_direct", "lineage": "controlled_p0_no_onset_qc", "onset_head": false, "bridge": "function_preserving"}},
+    {"label": "qc_retrained_residual_fh", "family": "residual_fh", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/residual_no_onset_qc_20260713_121910", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "residual_family_head", "lineage": "controlled_p0_no_onset_qc", "onset_head": false, "bridge": "function_preserving"}},
+    {"label": "qc_retrained_residual_film", "family": "residual_film", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/film_last_block_no_onset_qc_20260713_122313", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "residual_film_last_block", "lineage": "controlled_p0_no_onset_qc", "onset_head": false, "bridge": "function_preserving"}},
+    {"label": "qc_retrained_residual_svgp", "family": "residual_svgp", "kind": "residual_svgp", "path": "MLP/best_models/qc_gated_retrains/residual_svgp", "seed": 42, "meta": {"training_dataset": "lv3_qc_gated"}},
+    {"label": "ha_baseline", "family": "hiroyasu_arai", "kind": "ha", "path": "MLP/baseline/Hiroyasu_Arai/outputs/20260521_145756_ha_calibrated_grouped_condition_all_thesis_refresh_20260521", "meta": {"training_dataset": "analytic_correlation"}},
+    {"label": "ns_baseline", "family": "naber_siebers", "kind": "ns", "path": "MLP/baseline/Naber_Siebers/outputs/20260521_145724_ns_delay_grouped_condition_thesis_refresh_20260521", "meta": {"training_dataset": "analytic_correlation"}}
+  ],
+  "datasets": [
+    {"name": "lv2", "root": "MLP/synthetic_data_clean_lv2"},
+    {"name": "lv3_qc_gated", "root": "MLP/synthetic_data_clean_lv3_qc_gated"}
+  ]
+}

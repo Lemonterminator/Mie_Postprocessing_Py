@@ -1,0 +1,47 @@
+{
+  "study": {
+    "design_id": "controlled_p0_no_onset_qc",
+    "role": "P0 pooled no-onset Stage-3 control; a development run, not a replacement for the legacy residual/FiLM comparison.",
+    "teacher_lineage": "official Production Mode-A shared Stage-2, two-output single MLP",
+    "data_lineage": "synthetic_data_clean_lv3_qc_gated",
+    "reporting_rule": "Compare only against later controls with the same QC-gated data, fixed split, no-onset target, and this teacher lineage."
+  },
+  "common": {
+    "teacher_run": "MLP/best_models/thesis_baselines/production_mlp_modeA_5seed/shared_stage2",
+    "runs_root": "MLP/runs_mlp/controlled_p0_no_onset_qc",
+    "synthetic_root": "MLP/synthetic_data_clean_lv3_qc_gated",
+    "device": "auto",
+    "series_split": "clean",
+    "sources": ["cdf"],
+    "batch_size": 128,
+    "epochs": 150,
+    "learning_rate": 0.003,
+    "patience": 20,
+    "seed": 42,
+    "num_workers": 0,
+    "pin_memory": true,
+    "precompute_dataset": true,
+    "student_architecture_mode": "single",
+    "skip_post_train_eval": true
+  },
+  "selection": {
+    "metric": "rmse_mm",
+    "mode": "min"
+  },
+  "winner_eval": {
+    "enabled": false
+  },
+  "ablations": [
+    {
+      "name": "p0_pooled_no_onset_qc_seed42",
+      "enabled": true,
+      "run_name_prefix": "p0_pooled_no_onset_qc",
+      "args": {
+        "lambda_anchor": 0.0,
+        "kd_mode": "mse_mu_plus_sigma",
+        "kd_sigma_weight": 5.0
+      }
+    }
+  ],
+  "sensitivity_ablations": []
+}

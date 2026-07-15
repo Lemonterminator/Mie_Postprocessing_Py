@@ -247,14 +247,12 @@ backbone, train only zero-/identity-initialised per-family residuals.}
 \begin{frame}{Architecture: Family Head vs Residual vs FiLM}
 \small
 \begin{center}
-\includegraphics[width=0.96\textwidth]{figs/mlp_family_conditioning_architecture.png}
+\includegraphics[width=0.96\textwidth,height=0.74\textheight,keepaspectratio]{figs/mlp_family_conditioning_architecture_simple.png}
 \end{center}
 \vspace{-0.2em}
 \footnotesize
 \centering
-Left: per-family decoders. Middle: shared mean $+$ zero-init residual.
-Right: last-block identity FiLM $+$ residual head; production refinement freezes the
-trunk and shared-mean head, then updates FiLM, residual, and log-variance heads.
+Direct head; residual; FiLM. Cells show status and fallback.
 \end{frame}
 
 % ------------------------------------------------------------------
@@ -303,8 +301,8 @@ Trainable params & 49{,}923: residual deltas $+$ shared log-var head \\
 {\scriptsize \textbf{The data} --- all nozzles, dimensionless penetration: the injector families separate \emph{systematically}, not by noise.}
 \column{0.34\textwidth}
 \centering
-\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{figs/mlp_family_conditioning_architecture.png}\\[0.3em]
-{\scriptsize \textbf{The architecture} --- frozen backbone $+$ zero-init per-family residual (Family Head / Residual / FiLM); unseen family $\to$ shared model.}
+\includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{figs/mlp_family_conditioning_architecture_simple.png}\\[0.3em]
+{\scriptsize \textbf{The architecture} --- direct family head, additive residual, and last-block FiLM; fallback is explicit for an unknown family.}
 \column{0.32\textwidth}
 \centering
 \includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{figs/residual_svgp_context_rmse_comparison.png}\\[0.3em]
@@ -618,6 +616,13 @@ the auditable deployment path.
 % ==================================================================
 \appendix
 \section{Backup: in-distribution training detail}
+
+% ------------------------------------------------------------------
+\begin{frame}{Appendix: Code-aligned architecture detail}
+\begin{center}
+\includegraphics[width=0.98\textwidth,height=0.76\textheight,keepaspectratio]{figs/mlp_family_conditioning_architecture.png}
+\end{center}
+\end{frame}
 
 
 % ------------------------------------------------------------------

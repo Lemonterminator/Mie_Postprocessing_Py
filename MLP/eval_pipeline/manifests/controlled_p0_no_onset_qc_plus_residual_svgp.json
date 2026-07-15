@@ -1,0 +1,13 @@
+{
+  "description": "Derivative of the controlled no-onset P0 to family-head to residual to FiLM chain, with the legacy QC-retrained residual SVGP added as the probabilistic GP comparator. Source MLP run: evalrun_20260713_123732_controlled_p0_no_onset_qc. Source SVGP artifact: evalrun_20260709_230555_thesis_fullclean_bootstrap_fast_20260709_230553.",
+  "models": [
+    {"label": "controlled_p0_pooled", "family": "controlled_pooled", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/p0_pooled_no_onset_qc_20260713_120407", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "single", "chain_position": "P0", "onset_head": false}},
+    {"label": "controlled_family_head", "family": "controlled_family_head", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/family_head_no_onset_qc_20260713_121535", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "family_head_direct", "chain_position": "P0_to_family_head", "onset_head": false, "bridge": "function_preserving"}},
+    {"label": "controlled_residual", "family": "controlled_residual", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/residual_no_onset_qc_20260713_121910", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "residual_family_head", "chain_position": "family_head_to_residual", "onset_head": false, "bridge": "function_preserving"}},
+    {"label": "controlled_film_last_block", "family": "controlled_film", "kind": "mlp", "path": "MLP/runs_mlp/controlled_p0_no_onset_qc/film_last_block_no_onset_qc_20260713_122313", "seed": 99, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "residual_film_last_block", "chain_position": "residual_to_film", "onset_head": false, "bridge": "function_preserving"}},
+    {"label": "qc_retrained_residual_svgp", "family": "residual_svgp", "kind": "residual_svgp", "path": "MLP/best_models/qc_gated_retrains/residual_svgp", "seed": 42, "meta": {"training_dataset": "lv3_qc_gated", "architecture": "residual_svgp", "lineage": "legacy_qc_retrain"}}
+  ],
+  "datasets": [
+    {"name": "lv3_qc_gated", "root": "MLP/synthetic_data_clean_lv3_qc_gated"}
+  ]
+}

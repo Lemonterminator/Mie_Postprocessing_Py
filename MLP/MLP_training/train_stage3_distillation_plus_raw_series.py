@@ -37,10 +37,10 @@ KL-based modes were evaluated but caused sigma-arbitrage near the FOV boundary:
 the student learned to reduce NLL by inflating sigma rather than improving mu,
 producing systematic under-prediction of small penetration depths near the nozzle.
 
-Production Stage-3 expects a family_head teacher trained on the
-a_dp050_plus_pressures feature set. The student is initialised from the teacher
-state dict verbatim and keeps output_dim=2 (mu, log_var); the old onset auxiliary
-channel is intentionally removed.
+Production Stage-3 supports either a pooled single teacher or a family_head
+teacher trained on the a_dp050_plus_pressures feature set. The student is
+initialised from the teacher state dict verbatim and keeps output_dim=2
+(mu, log_var); the old onset auxiliary channel is intentionally removed.
 
 Converted from MLP/notebooks/distillation_plus_raw_series.ipynb,
 updated to use the v2 engineered-feature common module (A-scaled penetration).
@@ -173,6 +173,7 @@ PRODUCTION_STAGE3_FEATURE_COLUMNS = [
     "log_chamber_pressure_bar_z",
     "family_id",
 ]
+PRODUCTION_STAGE3_SINGLE_FEATURE_COLUMNS = PRODUCTION_STAGE3_FEATURE_COLUMNS[:-1]
 
 
 def value_or_default(value: Any, default: float | int) -> float | int:
@@ -827,8 +828,13 @@ def validate_stage3_teacher_config(
         )
 
     architecture_mode = str(teacher_config.get("architecture_mode", "single")).lower()
-    allowed_teacher_arches = {"family_head"}
-    if str(student_architecture_mode).lower() in RESIDUAL_STUDENT_ARCHES:
+    student_architecture_mode = str(student_architecture_mode).lower()
+    if student_architecture_mode == "single":
+        # Controlled P0: continue the deployed pooled two-output Stage-2 model
+        # without adding a routing channel or any onset auxiliary head.
+        allowed_teacher_arches = {"single"}
+        expected_feature_columns = PRODUCTION_STAGE3_SINGLE_FEATURE_COLUMNS
+    elif student_architecture_mode in RESIDUAL_STUDENT_ARCHES:
         # Residual-style students can be hot-started either from the original
         # deployed family-head model or from a previously converted residual
         # production checkpoint.
@@ -838,6 +844,10 @@ def validate_stage3_teacher_config(
             "residual_film_last_block",
             "residual_film_all_blocks",
         }
+        expected_feature_columns = PRODUCTION_STAGE3_FEATURE_COLUMNS
+    else:
+        allowed_teacher_arches = {"family_head"}
+        expected_feature_columns = PRODUCTION_STAGE3_FEATURE_COLUMNS
     if architecture_mode not in allowed_teacher_arches:
         raise ValueError(
             "Stage-3 production teacher has unsupported architecture_mode; "
@@ -845,17 +855,17 @@ def validate_stage3_teacher_config(
         )
 
     feature_columns = list(teacher_config.get("feature_columns") or [])
-    if feature_columns != PRODUCTION_STAGE3_FEATURE_COLUMNS:
+    if feature_columns != expected_feature_columns:
         raise ValueError(
             "Stage-3 production teacher has unexpected feature_columns.\n"
-            f"Expected: {PRODUCTION_STAGE3_FEATURE_COLUMNS}\n"
+            f"Expected: {expected_feature_columns}\n"
             f"Got:      {feature_columns}"
         )
 
     input_dim = int(teacher_config.get("input_dim", len(feature_columns)))
-    if input_dim != len(PRODUCTION_STAGE3_FEATURE_COLUMNS):
+    if input_dim != len(expected_feature_columns):
         raise ValueError(
-            f"Stage-3 production teacher must have input_dim={len(PRODUCTION_STAGE3_FEATURE_COLUMNS)}; "
+            f"Stage-3 production teacher must have input_dim={len(expected_feature_columns)}; "
             f"got {input_dim}."
         )
 
@@ -863,15 +873,17 @@ def validate_stage3_teacher_config(
     if output_dim != 2:
         raise ValueError(f"Stage-3 production teacher must have output_dim=2; got {output_dim}.")
 
-    n_families = int(teacher_config.get("n_families", 2))
-    if n_families != 2:
-        raise ValueError(f"Stage-3 production teacher must have n_families=2; got {n_families}.")
+    if architecture_mode != "single":
+        n_families = int(teacher_config.get("n_families", 2))
+        if n_families != 2:
+            raise ValueError(f"Stage-3 production teacher must have n_families=2; got {n_families}.")
 
-    family_head_dims = [int(x) for x in teacher_config.get("family_head_dims", [128])]
-    if family_head_dims != [128]:
-        raise ValueError(
-            f"Stage-3 production teacher must use family_head_dims=[128]; got {family_head_dims}."
-        )
+        family_head_dims = [int(x) for x in teacher_config.get("family_head_dims", [128])]
+        if family_head_dims not in ([128], []):
+            raise ValueError(
+                "Stage-3 production teacher must use family_head_dims=[128] or [] "
+                f"for a function-preserving pooled bridge; got {family_head_dims}."
+            )
 
 
 def build_student_model_from_teacher(
@@ -881,6 +893,7 @@ def build_student_model_from_teacher(
     *,
     student_architecture_mode: str = "family_head",
     residual_shared_family_id: int = 1,
+    residual_preserve_family_offsets: bool = False,
 ) -> torch.nn.Module:
     student_architecture_mode = str(student_architecture_mode).lower()
     validate_stage3_teacher_config(
@@ -903,6 +916,7 @@ def build_student_model_from_teacher(
             teacher_model.state_dict(),
             student.state_dict(),
             shared_family_id=int(residual_shared_family_id),
+            preserve_family_offsets=bool(residual_preserve_family_offsets),
         )
         student.load_state_dict(mapped_state, strict=True)
         return student
@@ -1359,6 +1373,8 @@ def parse_args() -> argparse.Namespace:
                    help="Override seed inherited from Stage-2 train_config (controls split, init, dropout).")
     p.add_argument("--run-name-prefix", default="distill_cdf_family_head_v3",
                    help="Prefix for the refinement run directory under MLP/runs_mlp.")
+    p.add_argument("--runs-root", type=Path, default=None,
+                   help="Root directory for refinement runs. Defaults to MLP/runs_mlp.")
     p.add_argument("--ablation-name", default=None,
                    help="Optional label stored in refine_config.json.")
     p.add_argument("--lono-holdout", type=str, default=None,
@@ -1427,14 +1443,18 @@ def parse_args() -> argparse.Namespace:
                             help="Lambda for the log-var MSE term when --kd-mode=mse_mu_plus_sigma. "
                                  "Default 5.0.")
     loss_group.add_argument("--student-architecture-mode",
-                            choices=("family_head", "residual_family_head",
+                            choices=("single", "family_head", "residual_family_head",
                                      "residual_film_last_block", "residual_film_all_blocks"),
                             default="family_head",
-                            help="Student architecture. residual_family_head converts a family-head teacher "
+                            help="Student architecture. single continues a pooled single teacher; "
+                                 "residual_family_head converts a family-head teacher "
                                  "into shared-mu + per-family residual deltas. residual_film_* additionally "
                                  "inserts identity-initialized per-family FiLM adapters into the MLP trunk.")
     loss_group.add_argument("--residual-shared-family-id", type=int, default=1,
                             help="Family head to copy into the residual model's shared mu head.")
+    loss_group.add_argument("--residual-preserve-family-offsets", action="store_true", default=False,
+                            help="For direct family heads, initialise residual deltas so both family "
+                                 "predictions are preserved exactly at step zero.")
     loss_group.add_argument("--residual-delta-l2-weight", type=float, default=None,
                             help="Shrinkage weight on residual delta predictions in Stage-3 refinement.")
     loss_group.add_argument("--film-adapter-l2-weight", type=float, default=None,
@@ -1576,6 +1596,9 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
     if args.precompute_dataset is not None:
         refine_config["precompute_dataset"] = bool(args.precompute_dataset)
         overrides["precompute_dataset"] = bool(args.precompute_dataset)
+    if args.runs_root is not None:
+        refine_config["runs_root"] = str(args.runs_root.expanduser().resolve())
+        overrides["runs_root"] = refine_config["runs_root"]
     if getattr(args, "freeze_trunk", False):
         refine_config["freeze_trunk"] = True
         overrides["freeze_trunk"] = True
@@ -1617,6 +1640,9 @@ def apply_refine_config_overrides(refine_config: dict[str, Any], args: argparse.
     overrides["student_architecture_mode"] = str(args.student_architecture_mode)
     refine_config["residual_shared_family_id"] = int(args.residual_shared_family_id)
     overrides["residual_shared_family_id"] = int(args.residual_shared_family_id)
+    if getattr(args, "residual_preserve_family_offsets", False):
+        refine_config["residual_preserve_family_offsets"] = True
+        overrides["residual_preserve_family_offsets"] = True
     if args.residual_mimic_epochs is not None:
         refine_config["residual_mimic_epochs"] = max(0, int(args.residual_mimic_epochs))
         overrides["residual_mimic_epochs"] = max(0, int(args.residual_mimic_epochs))
@@ -1656,9 +1682,9 @@ def validate_refine_config(refine_config: dict[str, Any]) -> None:
         )
     if int(refine_config.get("num_workers", 0)) < 0:
         raise ValueError(f"num_workers must be >= 0, got {refine_config['num_workers']}.")
-    if str(refine_config.get("student_architecture_mode", "family_head")) not in {"family_head", *RESIDUAL_STUDENT_ARCHES}:
+    if str(refine_config.get("student_architecture_mode", "family_head")) not in {"single", "family_head", *RESIDUAL_STUDENT_ARCHES}:
         raise ValueError(
-            "student_architecture_mode must be 'family_head' or one of "
+            "student_architecture_mode must be 'single', 'family_head', or one of "
             f"{sorted(RESIDUAL_STUDENT_ARCHES)}, "
             f"got {refine_config.get('student_architecture_mode')!r}."
         )
@@ -1870,6 +1896,7 @@ def main() -> None:
         "kd_sigma_weight": 5.0,
         "student_architecture_mode": "family_head",
         "residual_shared_family_id": 1,
+        "residual_preserve_family_offsets": False,
         "residual_delta_l2_weight": 0.0,
         "residual_mimic_epochs": 0,
         "residual_mimic_delta_l2_weight": 0.0,
@@ -2002,6 +2029,7 @@ def main() -> None:
     student_build_kwargs = {
         "student_architecture_mode": str(refine_config.get("student_architecture_mode", "family_head")),
         "residual_shared_family_id": int(refine_config.get("residual_shared_family_id", 1)),
+        "residual_preserve_family_offsets": bool(refine_config.get("residual_preserve_family_offsets", False)),
     }
 
     # ── static check ──

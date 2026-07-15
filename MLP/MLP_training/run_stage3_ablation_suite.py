@@ -39,8 +39,10 @@ COMMON_OPTION_KEYS = {
     "save_figures",
     "seed",
     "skip_post_train_eval",
+    "runs_root",
     "student_architecture_mode",
     "residual_shared_family_id",
+    "residual_preserve_family_offsets",
     "residual_delta_l2_weight",
     "residual_mimic_epochs",
     "residual_mimic_delta_l2_weight",
@@ -162,16 +164,23 @@ def build_command(
     return cmd
 
 
-def find_latest_refinement_run(prefix: str, started_at: float) -> Path | None:
+def resolve_runs_root(value: str | Path | None) -> Path:
+    if value is None or str(value).strip() == "":
+        return MLP_ROOT / "runs_mlp"
+    path = Path(value)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def find_latest_refinement_run(prefix: str, started_at: float, runs_root: Path) -> Path | None:
     candidates = [
         path
-        for path in (MLP_ROOT / "runs_mlp").glob(f"{prefix}_*")
+        for path in runs_root.glob(f"{prefix}_*")
         if path.is_dir() and path.stat().st_mtime >= started_at - 2.0
     ]
     if not candidates:
         candidates = [
             path
-            for path in (MLP_ROOT / "runs_mlp").glob(f"{prefix}_*")
+            for path in runs_root.glob(f"{prefix}_*")
             if path.is_dir()
         ]
     if not candidates:
@@ -301,6 +310,7 @@ def main() -> None:
         common["seed"] = int(args.seed)
 
     teacher_run = resolve_teacher_run(common.pop("teacher_run", None))
+    runs_root = resolve_runs_root(common.get("runs_root"))
     python_exe = DEFAULT_PYTHON if DEFAULT_PYTHON.exists() else Path(sys.executable)
 
     requested = set(args.only or [])
@@ -328,6 +338,7 @@ def main() -> None:
 
     print(f"Config: {config_path}")
     print(f"Teacher run: {teacher_run}")
+    print(f"Runs root: {runs_root}")
     print(f"Python: {python_exe}")
     print(f"Selected ablations: {', '.join(str(item['name']) for item in ablations)}")
 
@@ -358,7 +369,7 @@ def main() -> None:
         if not args.dry_run:
             completed = subprocess.run(cmd, cwd=PROJECT_ROOT)
             returncode = int(completed.returncode)
-            run_dir = find_latest_refinement_run(run_name_prefix, start)
+            run_dir = find_latest_refinement_run(run_name_prefix, start, runs_root)
             post_eval = load_post_eval(run_dir)
         elapsed_s = time.time() - start
         results.append({
@@ -436,7 +447,7 @@ def main() -> None:
         print()
         print("Dry run complete; no suite summary saved.")
     else:
-        summary_dir = MLP_ROOT / "runs_mlp" / "stage3_ablation_suites"
+        summary_dir = runs_root / "stage3_ablation_suites"
         summary_dir.mkdir(parents=True, exist_ok=True)
         summary_path = summary_dir / f"suite_{suite_started}.json"
         summary_path.write_text(

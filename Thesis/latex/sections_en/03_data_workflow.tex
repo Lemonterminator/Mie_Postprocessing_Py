@@ -33,7 +33,7 @@ At the implementation level, this image-processing stage is built as a four-lane
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../images/surrogate_modelling_data_flow.png}
+\includegraphics[width=\linewidth]{surrogate_modelling_data_flow.png}
 \caption{Overview of the surrogate modeling data flow. The four swimlanes correspond to raw inputs, image processing, data augmentation and deep learning, and model deployment; arrows denote key data transfer and training connections (Median Filtering, Warm Start, Warm Start + Distillation, Supervised Fine-Tuning).}
 \label{fig:surrogate-data-flow}
 \end{figure}
@@ -134,17 +134,19 @@ s_{\mathrm{mm/px}}=\frac{90.0}{r_{\mathrm{outer,px}}},
 \]
 where $r_{\mathrm{outer,px}}$ is the \texttt{outer\_radius} saved in the configuration file.
 
+The optical path (lens focal length, working distance, and sensor alignment) was configured by the experimental team following standard high-speed imaging practice for the vessel geometry used in this campaign; no formal lens-distortion characterization (e.g.\ a checkerboard intrinsic calibration) was performed or is available for this archive. Because the axial measurement region of interest ($<\SI{90}{mm}$) is small relative to the camera-to-plume working distance, the resulting out-of-plane parallax from the 3D cone expansion of the spray is expected to be a second-order effect relative to the fixed pixel-to-millimeter scale calibrated above; quantitative validation of this assumption is deferred to the downstream LONO consistency checks of Chapter~5.
+
 \begin{figure}[t]
 \centering
 \begin{minipage}{0.47\linewidth}
 \centering
-\includegraphics[width=\linewidth]{../images/GUI_calibration_interface.png}\\
+\includegraphics[width=\linewidth]{GUI_calibration_interface.png}\\
 (a) Point selection
 \end{minipage}
 \hfill
 \begin{minipage}{0.47\linewidth}
 \centering
-\includegraphics[width=\linewidth]{../images/GUI_calibration_result.png}\\
+\includegraphics[width=\linewidth]{GUI_calibration_result.png}\\
 (b) Calibration overlay
 \end{minipage}
 \caption{Nozzle geometry calibration tool. (a) The operator marks visible nozzle-edge points on a representative frame for the algebraic circle fit; (b) the fitted center, plume guide lines, and annular processing mask are overlaid on the recorded spray pattern to verify the geometric anchor before batch processing.}
@@ -158,7 +160,7 @@ Calibrating only once and reusing the same center for all frames avoids inter-fr
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=1\linewidth]{../images/Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png}
+\includegraphics[width=1\linewidth]{Multi-Hole Top-View Mie Scattering Video Processing Pipeline.png}
 \caption{Overview of the multi-hole top-view Mie scattering processing pipeline, from raw \texttt{.cine} recordings, through calibration, CUDA-accelerated preprocessing, plume registration, and penetration extraction, to CSV export.}
 \label{fig:pipeline-overview}
 \end{figure}
@@ -230,12 +232,12 @@ Quantitative computations use a robust background estimation from pre-injection 
 \centering
 \begin{minipage}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{../images/GUI_gain_1.png}
+\includegraphics[width=\linewidth]{GUI_gain_1.png}
 \end{minipage}
 \hfill
 \begin{minipage}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{../images/GUI_gain_7.png}
+\includegraphics[width=\linewidth]{GUI_gain_7.png}
 \end{minipage}
 \caption{The same spray frame displayed in the interactive calibration GUI with gains of 1.0 and 7.0, with other display parameters held constant. The higher-gain view accentuates the bright halo around the spray, demonstrating that display mappings alter visual boundary perception; these gain views are for manual inspection only and do not serve as inputs for quantitative boundary extraction.}
 \label{fig:gui-gain-halo}
@@ -243,8 +245,8 @@ Quantitative computations use a robust background estimation from pre-injection 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_mie_preproc_background.pdf}
-\caption{Representative frame visualizations of the robust background stage. (a) Raw frame and calibration geometry; (b) background estimated from pre-injection frames; (c) foreground representation after log-ratio background subtraction.}
+\includegraphics[width=0.92\linewidth]{fig_mie_preproc_background.pdf}
+\caption{Representative frame visualizations of the robust background stage. (a) Raw frame and calibration geometry; (b) background estimated from pre-injection frames; (c) histogram-normalized background, used for manual inspection only; (d) foreground representation after logarithmic background subtraction.}
 \label{fig:mie-preproc-background}
 \end{figure}
 
@@ -270,7 +272,7 @@ The contribution here lies not in the Sobel operator itself, but in its integrat
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_mie_preproc_sobel.pdf}
+\includegraphics[width=0.92\linewidth]{fig_mie_preproc_sobel.pdf}
 \caption{Representative frame visualizations of the edge-enhancing high-pass stage. (a) Foreground after background subtraction; (b) Sobel gradient magnitude.}
 \label{fig:mie-preproc-sobel}
 \end{figure}
@@ -316,6 +318,7 @@ These guide angles define plume-local strip coordinates, but they do not force t
 Observed envelope asymmetry can arise from hole-to-hole hydraulic variation, cavitation and breakup, droplet-size-dependent scattering, illumination or projection effects, and plume interaction; Mie brightness is therefore not interpreted as a symmetric mass distribution.
 The registration step also incorporates a triangle-threshold occupancy mask and short-gap filling to exclude empty angular sectors.
 While FFT itself is standard, the contribution here is transforming the angular density signal into an automatic plume registration rule using the known multi-hole count of the injector while preserving plume-to-plume asymmetry in the downstream observables \cite{CooleyTukey1965FFT,Szeliski2010Vision}.
+This registration procedure is structurally robust to isolated plume anomalies because the phase estimate is derived from a signal already averaged over the full frame count and radial coordinate, giving a single malfunctioning hole limited leverage over the aggregate harmonic phase. Persistent hydraulic anomalies such as orifice blockage were not observed during this campaign; more importantly, the robust outlier and quality-control filtering applied downstream in the fitting pipeline (Section~\ref{sec:SGQR-target-construction-en}) is explicitly designed to flag and exclude trajectories exhibiting anomalous penetration behaviour, which would intercept such a failure mode even if the alignment step itself were mildly perturbed.
 
 The same occupied-angle mask also yields a simple proxy for the cone angle.
 The approach treats the bin-wise mask as a periodic signal over \([0,360^\circ)\), merges \texttt{True} segments crossing the \(0^\circ/360^\circ\) boundary, and converts each contiguous segment length from bins to degrees.
@@ -324,14 +327,14 @@ Both the total occupied angle and the average width of contiguous segments are r
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_angular_occupancy.pdf}
+\includegraphics[width=0.92\linewidth]{fig_angular_occupancy.pdf}
 \caption{Polar angular occupancy analysis. (a) Frame-wise angular signal heatmap; (b) time-summed angular profile, with light vertical lines marking estimated plume guide angles; (c) occupied angle mask obtained by profile thresholding and short-gap filling; (d) FFT harmonic spectrum, where the nozzle hole count is marked with a dashed vertical line and the computed angular offset is annotated.}
 \label{fig:angular-occupancy}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_angular_mask_comparison.png}
+\includegraphics[width=0.92\linewidth]{fig_angular_mask_comparison.png}
 \caption{Occupied-angle mask derived from the FFT-based plume registration, shown in two coordinate systems. (a) Cartesian view: angular bins occupied by the spray over the full video duration are rendered as white wedges, with the nozzle center (red cross) and the field of view (FOV) boundary (red dashed circle) overlaid; the annotation reports the total occupied angle, detected run count, and cone-angle proxy. (b) Polar unrolled view: each column corresponds to one 0.5$^\circ$ angular bin, with white indicating spray presence and the green horizontal line marking the FOV radius; individual run widths (cone-angle estimates per plume) are annotated at the top.}
 \label{fig:angular-mask-comparison}
 \end{figure}
@@ -371,7 +374,7 @@ Because the inverse map is precomputed once per plume angle, the per-frame overh
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_efficient_rotation.pdf}
+\includegraphics[width=0.92\linewidth]{fig_efficient_rotation.pdf}
 \caption{Inverse affine remapping and geometric metrics in strip coordinates. (a) Rotated single-plume high-pass strip, with the local orifice position, inner radius, $S_{\mathrm{CDF}}$ (CDF penetration front $\hat{x}_p$, defined in Section~\ref{subsec:penetration-measurement}), $S_{\mathrm{BW,x}}$ (axial binary penetration), and $R_{\mathrm{BW}}$ (polar binary penetration $R_p$, defined in Section~\ref{subsec:boundary-features}) overlaid in the same coordinate system; (b) triangular spray mask applied after remapping; (c) compact preview of the inverse mapping arrays, where color channels encode the source image sampling coordinates for each output strip pixel.}
 \label{fig:efficient-rotation}
 \end{figure}
@@ -380,7 +383,7 @@ Because the inverse map is precomputed once per plume angle, the per-frame overh
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_threshold_mask_repair_summary.pdf}
+\includegraphics[width=0.92\linewidth]{fig_threshold_mask_repair_summary.pdf}
 \caption{Compact example from high-pass representation to binary spray support. (a) High-pass intensity distribution across the annular region of the entire video, marking the fixed support threshold; (b) single-plume high-pass strip on a representative frame; (c) raw binary support obtained by fixed thresholding; (d) binary support after morphological repair, highlighting added and removed pixels.}
 \label{fig:threshold-mask-repair-summary}
 \end{figure}
@@ -432,14 +435,14 @@ j_p^\star=\min\{j:\Delta \hat{x}_p(j)<0\},
 \hat{x}_p(t)\leftarrow \mathrm{NaN}\quad \text{for}\quad t\ge j_p^\star .
 \]
 In this processing rule, truncation starts around the first negative difference, potentially sacrificing weaker reappearing signals later; this is a conservative choice made to avoid mistaking isolated noise spikes or boundary reflections for genuine penetration retractions.
-Following tail truncation, a valid frame mask is built and isolated short segments are removed using \texttt{remove\_short\_true\_runs(..., min\_len=5)}.
+Following tail truncation, a valid-frame mask is constructed and isolated short valid segments are removed.
 This CDF front is one of the pipeline's primary practical contributions: it is far less sensitive to fractured leading-edge pixels than a naive maximum-index definition, while still yielding a penetration quantity consistent with standard diesel spray conventions \cite{Dent1971Penetration,HiroyasuArai1990,NaberSiebers1996}.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/td_map.png}
+\includegraphics[width=0.92\linewidth]{td_map.png}
 \vspace{2pt}
-\includegraphics[width=0.92\linewidth]{../images/penetration_td.png}
+\includegraphics[width=0.92\linewidth]{penetration_td.png}
 \caption{Time-distance (TD) intensity maps illustrating the CDF penetration extraction on a representative single plume (single-hole recording; the same processing applies to all nozzles). Top: the TD map compresses the plume strip transversely, yielding a 2D view of axial spray development over time; hydraulic delay (white dashed) and nozzle closing (black dashed) are annotated. Bottom: the CDF penetration front $\hat{x}_p(t)$ (pink curve) overlaid on the gain-corrected TD map, extracted at quantile $q=0.995$.}
 \label{fig:td-map-penetration}
 \end{figure}
@@ -450,14 +453,15 @@ In the first recording (top), the CDF front rises to a stable plateau for every 
 In the second recording (bottom), all three metrics instead climb together and flatten at a common $\approx 92$\,mm ceiling---not a physical end of penetration but the spray crossing the finite camera field-of-view boundary before injection ends, so the observed trajectory is truncated rather than physically saturated. This structural mechanism is referred to hereafter as \emph{FOV right-censoring}.
 These two behaviours---late-time signal loss and field-of-view censoring---are precisely the structures that the explicit trajectory cleaning of this section, and the censoring-aware target construction that follows, are designed to handle.
 
-\begin{figure}[t]
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/raw_cv_signal_loss.png}
+\includegraphics[width=0.92\linewidth]{raw_cv_signal_loss.png}
 \vspace{3pt}
-\includegraphics[width=0.92\linewidth]{../images/raw_cv_fov_censoring.png}
-\caption{Raw per-recording CV output for the three penetration definitions---cumulative-distribution front (\texttt{penetration\_cdf}), maximum-index axial (\texttt{penetration\_bw\_x}), and outermost-boundary polar (\texttt{penetration\_bw\_polar})---with all ten plumes overlaid in each panel (top-view multi-hole recordings; batch identifiers removed). Top (signal loss): the CDF front holds a stable plateau while the two binary metrics fragment and collapse as the late-time Mie signal fades. Bottom (field-of-view censoring): all three metrics flatten at a common $\approx 92$\,mm ceiling as the spray crosses the camera window boundary, rather than reaching a physical penetration limit.}
+\includegraphics[width=0.92\linewidth]{raw_cv_fov_censoring.png}
+\caption{Raw per-recording CV output for the three penetration definitions---cumulative-distribution front (\texttt{penetration\_cdf}), maximum-index axial (\texttt{penetration\_bw\_x}), and outermost-boundary polar (\texttt{penetration\_bw\_polar})---with all ten plumes overlaid in each panel (top-view multi-hole recordings; batch identifiers removed). Together, these per-recording outputs form the three penetration datasets used by the downstream trajectory-cleaning stage. Top (signal loss): the CDF front holds a stable plateau while the two binary metrics fragment and collapse as the late-time Mie signal fades. Bottom (field-of-view censoring): all three metrics flatten at a common $\approx 92$\,mm ceiling as the spray crosses the camera window boundary, rather than reaching a physical penetration limit.}
 \label{fig:penetration-metric-comparison}
 \end{figure}
+\FloatBarrier
 
 \subsubsection{Spray Boundary Features and Equivalent-Volume Descriptors}\label{subsec:boundary-features}
 
@@ -499,8 +503,8 @@ The detection logic sums the binary support signal inside this window, applies a
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/nozzle_timing.png}
-\caption{Near-nozzle timing signal used to detect the hydraulic delay and nozzle closing event. The scaled patch signal (blue) rises above the high threshold (red dashed) at the hydraulic delay (solid red vertical line) and drops below the low threshold (orange dashed) at nozzle closing (black vertical line); the detected active injection interval is highlighted in green. Single-hole recording shown for clarity; the same detection algorithm is applied to all nozzles.}
+\includegraphics[width=0.92\linewidth]{nozzle_timing.png}
+\caption{Near-nozzle timing signal used to detect the hydraulic delay and nozzle closing event. The robustly normalized patch intensity (blue) is formed by summing, frame by frame, all pixels within the calibrated near-nozzle patch. It rises above the high threshold (red dashed) at the hydraulic delay (solid red vertical line) and drops below the low threshold (orange dashed) at nozzle closing (black vertical line); the detected active injection interval is highlighted in green. Single-hole recording shown for clarity; the same detection algorithm is applied to all nozzles.}
 \label{fig:nozzle-timing}
 \end{figure}
 
@@ -592,8 +596,8 @@ The GPU postprocessing-and-CDF stage is the only hotspot (${\sim}81\%$ of per-re
 The benefit of pool reuse is visible in the load stage: the first recording in each subfolder incurs a cold load of ${\sim}0.022$\,s, whereas subsequent identically-shaped recordings load in ${\sim}0.010$\,s once their device buffers are reused from the pool.
 
 The pipeline also maintains a resumable output contract.
-Every run writes to a checkpoint file \codepath{processing\_checkpoint.json} and explicitly flushes the filesystem after each recording; it tracks the \texttt{status}, \texttt{file}, \texttt{outputs}, \texttt{error}, and \texttt{updated\_at} fields for every file.
-The completion condition requires both the metrics CSV and the metadata JSON to exist; when boundary export is enabled, the corresponding boundary archive must also exist. Any partial results will trigger reprocessing rather than being silently accepted.
+Every run writes a checkpoint and explicitly flushes the filesystem after each recording.
+The completion condition requires both the image-derived feature CSV and the experimental-parameter metadata JSON to exist; when boundary export is enabled, the corresponding boundary archive must also exist. Any partial results will trigger reprocessing rather than being silently accepted.
 This contract allows a failed, hours-long batch job to resume from the last successful file without duplicating work.
 
 The same checkpoint logic is used to unify metadata from heterogeneous testing years.
@@ -611,17 +615,18 @@ No pixel-level ground-truth masks were annotated. Defining such masks for high-s
 
 Instead, boundary reliability is assessed through overlay inspection, temporal continuity, and agreement across multiple geometric proxies. This aligns with the goal of this work: extracting stable penetration, cone angle, and boundary envelope observables rather than training a semantic segmentation model.
 Quantitative downstream evidence for these CDF-based observables---in particular leave-one-nozzle-out (LONO) transfer diagnostics and censoring-controlled prediction behaviour under the FOV right-censoring defined above---is presented in Chapter~5.
+A systematic sensitivity sweep over the fixed thresholding and percentile-normalization parameters (Table~\ref{tab:ch3-preproc-params}) was judged to be outside the scope of the present work; any residual segmentation drift would instead be expected to surface as systematic bias or degraded transfer in the downstream LONO diagnostics of Chapter 5, rather than being characterized directly.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_mie_segmentation_boundary_overlay.png}
+\includegraphics[width=0.92\linewidth]{fig_mie_segmentation_boundary_overlay.png}
 \caption{Visual inspection of spray boundary extraction results. The grayscale foreground is obtained from the raw Mie image via logarithmic background division, Sobel gradient enhancement, and nearest-neighbor rotation remapping; the red contour is the BW boundary derived from the binary support image. This overlay demonstrates that the boundary proxy predominantly tracks the effective liquid-phase envelope formed by local contrast changes, rather than relying on a single foremost bright point.}
 \label{fig:mie-segmentation-boundary-overlay}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{../images/fig_mie_metrics_summary.pdf}
+\includegraphics[width=0.92\linewidth]{fig_mie_metrics_summary.pdf}
 \caption{Examples of primary quantitative outputs after alignment and binarization. (a) Three penetration descriptors versus frame index; (b) two cone angle proxies; (c) maximum binary strip projection for a representative plume, annotating the opening and closing frames near the nozzle.}
 \label{fig:mie-metrics-summary}
 \end{figure}

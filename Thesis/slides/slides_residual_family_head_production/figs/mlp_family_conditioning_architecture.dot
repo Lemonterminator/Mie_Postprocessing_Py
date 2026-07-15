@@ -1,16 +1,16 @@
 digraph MLPFamilyConditioning {
   graph [
-    rankdir=LR,
+    rankdir=TB,
     bgcolor="white",
-    pad="0.20",
-    nodesep="0.45",
-    ranksep="0.70",
+    pad="0.18",
+    nodesep="0.32",
+    ranksep="0.54",
     splines=ortho,
     pack=true,
     packmode="array_u3",
     outputorder=edgesfirst,
     fontname="Arial",
-    label="MLP family-conditioning variants",
+    label="Code-aligned MLP family conditioning (controlled QC-gated post-training)",
     labelloc=t,
     fontsize=22
   ];
@@ -19,46 +19,54 @@ digraph MLPFamilyConditioning {
     shape=box,
     style="rounded,filled",
     fontname="Arial",
-    fontsize=12,
+    fontsize=11,
     color="#52616b",
     penwidth=1.3,
     fillcolor="#f8fafc",
-    margin="0.09,0.06"
+    margin="0.10,0.07"
   ];
 
   edge [
     color="#52616b",
-    arrowsize=0.75,
-    penwidth=1.3,
+    arrowsize=0.72,
+    penwidth=1.25,
     fontname="Arial",
-    fontsize=10
+    fontsize=9
   ];
 
+  // The model returns exactly two channels: normalized mean and log-variance.
+  // family_id is appended as the last input channel, stripped before the trunk,
+  // and used only for routing / family-parameter lookup.
+
   subgraph cluster_family_head {
-    label="A. Family Head MLP";
+    label="A. Direct Family Head";
     color="#d7dde5";
     penwidth=1.2;
     style="rounded";
     fontname="Arial";
     fontsize=15;
 
-    fh_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
-    fh_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
-    fh_trunk [label="shared trunk", fillcolor="#e8f0fe", color="#4e79a7"];
-    fh_heads [label="family-specific\nmean head mu_f", fillcolor="#fff7ed", color="#c96f1a"];
-    fh_var [label="shared\nlog-var head", fillcolor="#f1f5f9", color="#64748b"];
-    fh_out [label="prediction\nmu_f, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
-    fh_note [label="unseen family needs fallback\nor a newly trained head", fillcolor="#fef2f2", color="#b85c5c"];
+    fh_input [label="7 engineered inputs\n(time included)", fillcolor="#eef2ff", color="#4f5f9f"];
+    fh_family [label="family id  f\n(routing only)", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
+    fh_trunk [label="shared trunk [512, 512, 128]\nupdated in this run", fillcolor="#e8f0fe", color="#4e79a7"];
+    fh_heads [label="select direct mean head\nmu_heads[f]: Linear(128 -> 1)\nupdated", fillcolor="#fff7ed", color="#c96f1a"];
+    fh_var [label="shared log-variance head\nlog_var_head: Linear(128 -> 1)\nupdated", fillcolor="#eaf7ef", color="#4c9a45"];
+    fh_out [label="2-channel network output\n(mu_hat_f, log sigma_hat^2)\nno onset head", fillcolor="#ecfdf3", color="#2f855a"];
+    fh_init [label="P0 -> family-head initialization:\ncopy trunk and log-var head;\nduplicate pooled mean into both heads\n(exact function match at step 0)", fillcolor="#f5f3ff", color="#7c5cc4", fontsize=9];
+    fh_note [label="Eval fallback is only for a configured\nbut untrained family: route to f = 1.\nA genuinely new id needs model expansion.", fillcolor="#fef2f2", color="#b85c5c", fontsize=9];
 
     { rank=same; fh_input; fh_family; }
+    { rank=same; fh_heads; fh_var; }
+    { rank=same; fh_init; fh_note; }
+
     fh_input:e -> fh_trunk:w;
-    fh_family:e -> fh_heads:w [color="#c96f1a", constraint=false];
     fh_trunk:e -> fh_heads:w;
     fh_trunk:e -> fh_var:w;
-    fh_heads:e -> fh_out:w;
-    fh_var:e -> fh_out:w;
-    // No deployment arrow here: the absence of a clean unseen-family fallback
-    // is the family-head caveat.
+    fh_family:s -> fh_heads:n [color="#c96f1a", style=dashed, xlabel="select f"];
+    fh_heads:e -> fh_out:w [xlabel="mu_hat"];
+    fh_var:e -> fh_out:w [xlabel="log-var"];
+    fh_out:s -> fh_init:n [style=invis];
+    fh_out:s -> fh_note:n [style=invis];
   }
 
   subgraph cluster_residual_fh {
@@ -69,61 +77,70 @@ digraph MLPFamilyConditioning {
     fontname="Arial";
     fontsize=15;
 
-    rfh_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
-    rfh_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
-    rfh_trunk [label="shared trunk\n(frozen)", fillcolor="#e8f0fe", color="#4e79a7"];
-    rfh_shared [label="shared mean\nmu_shared", fillcolor="#eaf7ef", color="#4c9a45"];
-    rfh_delta [label="family residual\nDelta_f", fillcolor="#fff7ed", color="#c96f1a"];
-    rfh_sum [label="add", shape=diamond, fillcolor="#ffffff", color="#52616b"];
-    rfh_var [label="shared\nlog-var head", fillcolor="#f1f5f9", color="#64748b"];
-    rfh_out [label="prediction\nmu, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
-    rfh_note [label="unseen family:\nDelta = 0 fallback", fillcolor="#fef2f2", color="#b85c5c"];
+    rfh_input [label="7 engineered inputs\n(time included)", fillcolor="#eef2ff", color="#4f5f9f"];
+    rfh_family [label="family id  f\n(routing only)", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
+    rfh_trunk [label="shared trunk [512, 512, 128]\nfrozen by config", fillcolor="#f1f5f9", color="#64748b"];
+    rfh_shared [label="shared mean head\nmu_shared_head: Linear(128 -> 1)\nfrozen by config", fillcolor="#f1f5f9", color="#64748b"];
+    rfh_delta [label="select residual head\ndelta_heads[f]: Linear(128 -> 1)\nupdated", fillcolor="#fff7ed", color="#c96f1a"];
+    rfh_sum [label="+", shape=diamond, fillcolor="#ffffff", color="#52616b", width=0.45, height=0.38, margin="0.02,0.01"];
+    rfh_var [label="shared log-variance head\nlog_var_head: Linear(128 -> 1)\nupdated", fillcolor="#eaf7ef", color="#4c9a45"];
+    rfh_out [label="2-channel network output\n(mu_hat_shared + Delta_f,\n log sigma_hat^2)\nno onset head", fillcolor="#ecfdf3", color="#2f855a"];
+    rfh_init [label="Family-head -> residual initialization:\nmu_shared <- mu_1;  Delta_f <- mu_f - mu_1\n(existing family functions preserved)", fillcolor="#f5f3ff", color="#7c5cc4", fontsize=9];
+    rfh_note [label="New family requires a new Delta head.\nZero initialization then gives\nthe shared-mean fallback.", fillcolor="#fef2f2", color="#b85c5c", fontsize=9];
 
     { rank=same; rfh_input; rfh_family; }
+    { rank=same; rfh_shared; rfh_delta; rfh_var; }
+    { rank=same; rfh_init; rfh_note; }
+
     rfh_input:e -> rfh_trunk:w;
-    rfh_family:e -> rfh_delta:w [color="#c96f1a", constraint=false];
     rfh_trunk:e -> rfh_shared:w;
     rfh_trunk:e -> rfh_delta:w;
+    rfh_trunk:e -> rfh_var:w;
+    rfh_family:e -> rfh_delta:w [color="#c96f1a", style=dashed, xlabel="select f", constraint=false];
     rfh_shared:e -> rfh_sum:w;
     rfh_delta:e -> rfh_sum:w;
-    rfh_sum:e -> rfh_out:w;
-    rfh_trunk:e -> rfh_var:w;
-    rfh_var:e -> rfh_out:w;
-    rfh_note:e -> rfh_sum:w [style=dashed, color="#b85c5c", constraint=false, xlabel="Delta=0"];
+    rfh_sum:e -> rfh_out:w [xlabel="mu_hat"];
+    rfh_var:e -> rfh_out:w [xlabel="log-var"];
+    rfh_out:s -> rfh_init:n [style=invis];
+    rfh_out:s -> rfh_note:n [style=invis];
   }
 
   subgraph cluster_residual_film {
-    label="C. Residual-FiLM";
+    label="C. Residual-FiLM (last block)";
     color="#d7dde5";
     penwidth=1.2;
     style="rounded";
     fontname="Arial";
     fontsize=15;
 
-    film_input [label="features\n+ time", fillcolor="#eef2ff", color="#4f5f9f"];
-    film_family [label="family id", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
-    film_trunk_a [label="shared trunk\n(frozen)", fillcolor="#f1f5f9", color="#64748b"];
-    film_adapter [label="last-block\nfamily affine", fillcolor="#f5edff", color="#7c5cc4"];
-    film_trunk_b [label="modulated\nrepresentation h'", fillcolor="#e8f0fe", color="#4e79a7"];
-    film_shared [label="shared mean\n(frozen)", fillcolor="#f1f5f9", color="#64748b"];
-    film_delta [label="family residual\nhead", fillcolor="#fff7ed", color="#c96f1a"];
-    film_sum [label="add", shape=diamond, fillcolor="#ffffff", color="#52616b"];
-    film_var [label="shared log-var\nhead", fillcolor="#eaf7ef", color="#4c9a45"];
-    film_out [label="prediction\nmu, sigma", fillcolor="#ecfdf3", color="#4c9a45"];
-    film_note [label="unseen family:\naffine = I, Delta = 0", fillcolor="#fef2f2", color="#b85c5c"];
+    film_input [label="7 engineered inputs\n(time included)", fillcolor="#eef2ff", color="#4f5f9f"];
+    film_family [label="family id  f\n(parameter lookup + routing)", shape=ellipse, fillcolor="#fff7ed", color="#c96f1a"];
+    film_trunk [label="shared trunk [512, 512, 128]\nfrozen by config", fillcolor="#f1f5f9", color="#64748b"];
+    film_adapter [label="last-block FiLM (128-D)\nh_f = gamma_f * h + beta_f\nupdated", fillcolor="#f5edff", color="#7c5cc4"];
+    film_shared [label="shared mean head\nmu_shared_head: Linear(128 -> 1)\nfrozen by config", fillcolor="#f1f5f9", color="#64748b"];
+    film_delta [label="select residual head\ndelta_heads[f]: Linear(128 -> 1)\nupdated", fillcolor="#fff7ed", color="#c96f1a"];
+    film_sum [label="+", shape=diamond, fillcolor="#ffffff", color="#52616b", width=0.45, height=0.38, margin="0.02,0.01"];
+    film_var [label="shared log-variance head\nlog_var_head: Linear(128 -> 1)\nupdated", fillcolor="#eaf7ef", color="#4c9a45"];
+    film_out [label="2-channel network output\n(mu_hat_shared + Delta_f,\n log sigma_hat^2)\nno onset head", fillcolor="#ecfdf3", color="#2f855a"];
+    film_init [label="Residual -> FiLM initialization:\ngamma_f = 1, beta_f = 0; other weights copied\n(exact function match at step 0)", fillcolor="#f5f3ff", color="#7c5cc4", fontsize=9];
+    film_note [label="New family requires a gamma/beta row\nand a Delta head. Identity + zero init\nthen gives the shared fallback.", fillcolor="#fef2f2", color="#b85c5c", fontsize=9];
 
     { rank=same; film_input; film_family; }
-    film_input:e -> film_trunk_a:w;
-    film_family:e -> film_adapter:w [color="#7c5cc4", constraint=false];
-    film_family:e -> film_delta:w [style=dashed, color="#c96f1a", constraint=false];
-    film_trunk_a:e -> film_adapter:w;
-    film_adapter:e -> film_trunk_b:w;
-    film_trunk_b:e -> film_shared:w;
-    film_trunk_b:e -> film_delta:w;
-    film_trunk_b:e -> film_var:w;
+    { rank=same; film_shared; film_delta; film_var; }
+    { rank=same; film_init; film_note; }
+
+    film_input:e -> film_trunk:w;
+    film_trunk:e -> film_adapter:w;
+    film_family:e -> film_adapter:w [color="#7c5cc4", style=dashed, xlabel="gamma_f, beta_f", constraint=false];
+    film_adapter:e -> film_shared:w;
+    film_adapter:e -> film_delta:w;
+    film_adapter:e -> film_var:w;
+    film_family:e -> film_delta:w [color="#c96f1a", style=dashed, xlabel="select f", constraint=false];
     film_shared:e -> film_sum:w;
     film_delta:e -> film_sum:w;
-    film_sum:e -> film_out:w;
-    film_var:e -> film_out:w;
+    film_sum:e -> film_out:w [xlabel="mu_hat"];
+    film_var:e -> film_out:w [xlabel="log-var"];
+    film_out:s -> film_init:n [style=invis];
+    film_out:s -> film_note:n [style=invis];
   }
 }

@@ -578,17 +578,77 @@ def _normalize_film_adapter_placement(value: str) -> str:
     return aliases[token]
 
 
+def single_state_dict_to_family_head(
+    single_state: Mapping[str, torch.Tensor],
+    family_state: Mapping[str, torch.Tensor],
+) -> dict[str, torch.Tensor]:
+    """Map a pooled two-output MLP into an exactly equivalent direct family head.
+
+    The target must use ``family_head_dims=[]``. Its trunk receives the pooled
+    trunk verbatim, the pooled mean row is duplicated into both family heads,
+    and the pooled variance row becomes the shared variance head.
+    """
+    target = {key: value.detach().clone() for key, value in family_state.items()}
+    output_weights = [
+        key for key, value in single_state.items()
+        if key.startswith("net.") and key.endswith(".weight") and value.ndim == 2 and value.shape[0] == 2
+    ]
+    if len(output_weights) != 1:
+        raise ValueError(
+            "Expected one pooled two-output Linear layer; "
+            f"found {output_weights}."
+        )
+    source_weight_key = output_weights[0]
+    source_bias_key = source_weight_key[:-len("weight")] + "bias"
+    if source_bias_key not in single_state:
+        raise KeyError(f"Missing pooled output bias: {source_bias_key}.")
+
+    for key, value in single_state.items():
+        if not key.startswith("net.") or key in {source_weight_key, source_bias_key}:
+            continue
+        mapped = "trunk." + key[len("net."):]
+        if mapped in target and target[mapped].shape == value.shape:
+            target[mapped] = value.detach().clone()
+
+    source_weight = single_state[source_weight_key]
+    source_bias = single_state[source_bias_key]
+    head_mapping = {
+        "mu_heads.0.0.weight": source_weight[0:1],
+        "mu_heads.0.0.bias": source_bias[0:1],
+        "mu_heads.1.0.weight": source_weight[0:1],
+        "mu_heads.1.0.bias": source_bias[0:1],
+        "log_var_head.0.weight": source_weight[1:2],
+        "log_var_head.0.bias": source_bias[1:2],
+    }
+    missing = [key for key in head_mapping if key not in target]
+    if missing:
+        raise ValueError(
+            "Target family head must use direct heads (family_head_dims=[]); "
+            f"missing keys: {missing}."
+        )
+    for key, value in head_mapping.items():
+        if target[key].shape != value.shape:
+            raise ValueError(f"Shape mismatch while mapping {key}: {target[key].shape} != {value.shape}.")
+        target[key] = value.detach().clone()
+    if "trained_families" in target:
+        target["trained_families"] = torch.ones_like(target["trained_families"], dtype=torch.bool)
+    return target
+
+
 def family_head_state_dict_to_residual(
     family_state: Mapping[str, torch.Tensor],
     residual_state: Mapping[str, torch.Tensor],
     *,
     shared_family_id: int = 1,
+    preserve_family_offsets: bool = False,
 ) -> dict[str, torch.Tensor]:
     """Map a FamilyAwarePenetrationMLP state dict into residual-head layout.
 
     ``mu_heads[shared_family_id]`` becomes ``mu_shared_head``. Delta heads keep
     the target residual model's zero-initialised values so the converted model
-    initially predicts the shared-family surface for every family.
+    initially predicts the shared-family surface for every family. With
+    ``preserve_family_offsets=True``, direct family heads are instead mapped to
+    direct residual deltas, preserving both family predictions at step zero.
     """
     out = {key: value.detach().clone() for key, value in residual_state.items()}
     shared_prefix = f"mu_heads.{int(shared_family_id)}."
@@ -608,6 +668,37 @@ def family_head_state_dict_to_residual(
             mapped = "mu_shared_head." + key[len(shared_prefix):]
             if mapped in out and out[mapped].shape == value.shape:
                 out[mapped] = value.detach().clone()
+    if preserve_family_offsets:
+        if "trained_families" not in out:
+            raise ValueError("Residual target is missing trained_families.")
+        n_families = int(out["trained_families"].numel())
+        required_source = {
+            f"mu_heads.{family_id}.0.{suffix}"
+            for family_id in range(n_families)
+            for suffix in ("weight", "bias")
+        }
+        required_target = {
+            f"delta_heads.{family_id}.0.{suffix}"
+            for family_id in range(n_families)
+            for suffix in ("weight", "bias")
+        }
+        missing = sorted(required_source - set(family_state)) + sorted(required_target - set(out))
+        if missing:
+            raise ValueError(
+                "Function-preserving residual conversion requires direct family and delta heads "
+                f"(family_head_dims=[]); missing keys: {missing}."
+            )
+        for family_id in range(n_families):
+            for suffix in ("weight", "bias"):
+                source_key = f"mu_heads.{family_id}.0.{suffix}"
+                shared_key = f"mu_heads.{int(shared_family_id)}.0.{suffix}"
+                target_key = f"delta_heads.{family_id}.0.{suffix}"
+                if out[target_key].shape != family_state[source_key].shape:
+                    raise ValueError(f"Shape mismatch while mapping {target_key}.")
+                out[target_key] = (
+                    family_state[source_key].detach().clone()
+                    - family_state[shared_key].detach().clone()
+                )
     return out
 
 

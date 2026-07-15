@@ -156,3 +156,6 @@ _minted-*/
 /Thesis/downloaded_papers/
 /Thesis/reference_sources/
 /Thesis/references/reference_sources/*.html
+/Thesis/regression_eval_study/audit/
+/Thesis/latex/AI_feedback/
+.vs/

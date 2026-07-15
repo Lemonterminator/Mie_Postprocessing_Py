@@ -30,7 +30,7 @@ faithful to the observed liquid-phase envelope.
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\linewidth]{images/representative_clean_fit.png}
-\caption{Cleaned trajectories and q1 fitted curves for condition T24 on Nozzle~1 (\textbf{cleaned CDF penetration}). Solid lines represent the frame-by-frame raw penetration observations, and dashed lines are the corresponding $t^{1/4}$ single-branch (q1) fitted curves. The fitted curves smoothly extrapolate to $\SI{3}{ms}$ after the observation ends, providing a censoring-aware target for the surrogate training.}
+\caption{Cleaned trajectories and SGQR fitted curves for condition T24 on Nozzle~1 (\textbf{cleaned CDF penetration}). Solid lines represent the frame-by-frame raw penetration observations, and dashed lines are the corresponding $t^{1/4}$ single-branch (SGQR) fitted curves. The fitted curves smoothly extrapolate to $\SI{3}{ms}$ after the observation ends, providing a censoring-aware target for the surrogate training.}
 \label{fig:clean-fit-example}
 \end{figure}
 
@@ -60,7 +60,7 @@ Censoring-inclusive (supplementary) & Full-clean CDF, incl.\ right-censored & \n
 \addlinespace
 Observed-median check & P50-observed, condition-level & \num{4215} & MLP 5; SVGP seed-42 & SVGP, MLP & SVGP \SI{2.516}{mm} leads; MLP \SI{2.831}{mm} \\
 \addlinespace
-Fitted-continuation check & q1 continuation grid & \num{25245} (\num{21525} extrapolated) & MLP 5; SVGP seed-42 & SVGP, MLP & SVGP \SI{9.680}{mm}; MLP \SI{10.047}{mm}; strong positive continuation bias \\
+Fitted-continuation check & SGQR continuation grid & \num{25245} (\num{21525} extrapolated) & MLP 5; SVGP seed-42 & SVGP, MLP & SVGP \SI{9.680}{mm}; MLP \SI{10.047}{mm}; strong positive continuation bias \\
 \addlinespace
 Nozzle transfer (full) & LONO 5-fold (hold out N0, N1, N2, N4, N5) & \num{458379} & seed-42 & MLP, SVGP; HA/\allowbreak NS ref & SVGP \SI{10.16}{mm} $<$ MLP \SI{12.55}{mm}; N0 fold collapses (34.76/\allowbreak26.99) \\
 \addlinespace
@@ -75,7 +75,7 @@ Residual follow-up & Uncensored CDF; residual-LONO (N0 kept in training) & \num{
 Prototype screening demo & Geometric wall-proximity screening demo, toy parameter sweep (no measured ground truth) & 3 design variants & n/a (single deployed checkpoint) & MLP (Stage~3, deployed) & Rank-oriented geometric scores (peak $P_{\mathrm{hit}}=77.66\%$, cumulative $E$ up to \SI{3.364}{ms}); \emph{not} validated impingement probabilities \\
 \bottomrule
 \end{tabular}
-\caption{Result claims map, preserved from the pre-restructure chapter for claims traceability. Each row is a distinct evaluation claim with its protocol, prediction target, sample size, seed count, models compared, and headline conclusion. Fixed-table rows quote the refreshed evaluation bundle; the LONO, curriculum, KD-slice, and screening rows retain archived artifacts. Seed structure differs across protocols: production tables use 5 seeds (7/17/42/99/2024), all SVGP rows and the LONO/ablation rows use a single seed (42), and the KD regime-slice table uses a single seed (99). The archived bundle additionally contained an oracle-q1 P50 lower bound (\SI{1.010}{mm}, undeployable) and a diagnostic KD variant that led the extrapolated q1 grid (\SI{10.358}{mm}); these models are not part of the refreshed roster and are therefore omitted from the map.}
+\caption{Result claims map, preserved from the pre-restructure chapter for claims traceability. Each row is a distinct evaluation claim with its protocol, prediction target, sample size, seed count, models compared, and headline conclusion. Fixed-table rows quote the refreshed evaluation bundle; the LONO, curriculum, KD-slice, and screening rows retain archived artifacts. Seed structure differs across protocols: production tables use 5 seeds (7/17/42/99/2024), all SVGP rows and the LONO/ablation rows use a single seed (42), and the KD regime-slice table uses a single seed (99). The archived bundle additionally contained an oracle-SGQR P50 lower bound (\SI{1.010}{mm}, undeployable) and a diagnostic KD variant that led the extrapolated SGQR grid (\SI{10.358}{mm}); these models are not part of the refreshed roster and are therefore omitted from the map.}
 \label{tab:results-claims-map}
 \end{table}
 
@@ -125,21 +125,21 @@ matching the convention of the earlier chapter.
 \centering
 \begin{minipage}{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/mlp_seed99_coverage_curve.png}
+\includegraphics[width=\linewidth]{images/eval_20260714/full_clean_mlp_seed99_coverage_curve.png}
 \end{minipage}
 \hfill
 \begin{minipage}{0.49\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/mlp_seed99_sigma_bin_calibration.png}
 \end{minipage}
-\caption{Refreshed uncertainty audit for the seed-99 repetition: empirical coverage curve (left) and calibration binned by predicted $\sigma$ (right). These replace the archived calibration coverage audit of the pre-restructure chapter.}
+\caption{Refreshed full-clean uncertainty audit for the seed-99 repetition: empirical coverage curve (left) and calibration binned by predicted $\sigma$ (right). These replace the archived calibration coverage audit of the pre-restructure chapter.}
 \label{fig:app-seed99-calibration}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\linewidth]{images/eval_20260709/mlp_seed99_per_condition_rmse.png}
-\caption{Per-condition RMSE for the seed-99 repetition on the refreshed QC-gated uncensored CDF table, replacing the archived per-folder RMSE diagnostic. Errors remain unevenly distributed across conditions, consistent with the campaign-folder spread reported in the pre-restructure chapter (easiest folders in the low \SI{3}{mm} range, hardest near \SI{9}{mm}).}
+\includegraphics[width=0.94\linewidth]{images/eval_20260714/per_condition_rmse_lv2_vs_lv3_qc.png}
+\caption{Paired per-condition RMSE for the seed-99 repetition before and after QC gating. The 20 displayed conditions are selected once as the highest-RMSE LV2 full-clean conditions, then matched to the same condition keys in LV3; archive identifiers are removed from the labels. All 599 condition identities remain represented, while QC gating removes 3{,}780 points across 74 conditions. The pre-QC high-error tail is substantially reduced for several conditions, but unchanged bars remain; the figure therefore supports filtering anomalous trajectory contributions rather than claiming that QC eliminates every difficult condition.}
 \label{fig:app-per-condition-rmse}
 \end{figure}
 
@@ -270,16 +270,53 @@ Trajectory Censored \& Near Cap & 47{,}676 & 4.95 & \(-\)0.69 & 0.28 \\
 
 \subsection{Residual-Adaptation Detail}
 
-The two tables below are the refreshed detail behind the post-hoc adaptation
-summary of Chapter~5: the injector-conditioning design comparison and the full
-residual climb with calibration columns. Both are regenerated on the QC-gated
-uncensored CDF protocol; they supersede the Level-2-era versions of the
-original study. The figures that follow are archived from the 2026-06-08
+Nozzle~1 through Nozzle~8 and Nozzle~0 use different injectors (see the
+comparison in Section~\ref{sec:lono-boundaries-rewrite}, Figure~\ref{fig:injector-comparison-rewrite}
+in the main text): the first eight share a single refurbished injector, while
+Nozzle~0 is a new, factory-fresh reference unit. Under the same \(t^{1/4}\)
+(\(A\)-scaling) regularization, Nozzle~0's early-time penetration response is
+systematically higher than Nozzle~1--8. This physical difference motivates
+the residual/FiLM/SVGP post-hoc adaptation experiments in this section:
+injector identity is used as a conditioning variable to test whether
+lightweight post-training adaptation on top of the frozen shared Stage~3
+backbone can partly repair this nozzle-dependent systematic bias; the
+architecture comparison across arms is now shown at the start of the
+corresponding main-text subsubsection (Figure~\ref{fig:residual-architecture-rewrite}).
+
+The tables below are the refreshed detail behind the post-hoc adaptation
+summary of Chapter~5: the training and evaluation protocol disclosure for the
+evidence lineages, the injector-conditioning design comparison, the full
+residual climb with calibration columns, and the injector-family slice of the
+controlled chain. Except for the disclosure table, all are regenerated on the
+QC-gated uncensored CDF protocol; they supersede the Level-2-era versions of
+the original study. The figures that follow are archived from the 2026-06-08
 adaptation study: their annotated values reflect the Level-2-era protocol of
 that study, so the refreshed equivalents in the tables take precedence where
 they differ.
 
-% --- Refreshed tables (source: 05_results_update_temp/appendix_fragments_residual.tex, verified against metrics_wide.csv of run 20260709_223144) ---
+\begin{table}[tbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}L{0.18\linewidth}L{0.24\linewidth}L{0.26\linewidth}L{0.24\linewidth}@{}}
+\toprule
+ & Production (five-seed) & Earlier adaptation study & Controlled chain \\
+\midrule
+Feature variant & \texttt{a\_plus\_pressures} & \texttt{a\_dp050\_plus\_pressures} & \texttt{a\_plus\_pressures} \\
+Data & synthetic\_data\_20260509 & synthetic\_data & lv3 QC-gated \\
+Stage~2 teacher & plain NLL & NLL + \(\mu\)-anchor & production Stage~2 (plain NLL) \\
+Onset auxiliary head & yes (\(\lambda_{\mathrm{onset}}=0.1\)) & no & no \\
+Stage~3 training scope & full network & frozen trunk (incl.\ family-head baseline) & P0 and family head full network; residual/FiLM freeze trunk and shared \(\mu\) \\
+Seeds & \{7, 17, 42, 99, 2024\} & 42 & 99 (single seed) \\
+Level-to-level init & --- & sequential warm-start (residual with 10-epoch mimic) & function-preserving bridge (output difference \(<10^{-6}\)), each level distilling from its predecessor \\
+Evaluation run & 20260709\_223144 & 20260709\_223144 & 20260713\_123732 \\
+\bottomrule
+\end{tabular}
+\caption{Training and evaluation protocol disclosure for the three evidence lineages. Cross-lineage deltas between the earlier adaptation study and the production model contain all of the above differences simultaneously and must not be read as architecture effects; the controlled chain fixes every non-architectural factor and changes exactly one conditioning mechanism per level (main-text Table~\ref{tab:posthoc-residual-rewrite}).}
+\label{tab:residual-lineage-disclosure}
+\end{table}
+
+% --- Refreshed tables (source: 05_results_update_temp/appendix_fragments_residual.tex, verified against metrics_wide.csv of run 20260709_223144; controlled-chain and slice tables verified against metrics_wide.csv and paired_and_family_slice.json of run 20260713_123732) ---
 \begin{table}[tbp]
 \centering
 \footnotesize
@@ -288,12 +325,12 @@ they differ.
 \toprule
 Injector-conditioning design & RMSE [mm] & 95\% CI [mm] & Fallback for unseen nozzle \\
 \midrule
-One-hot nozzle input (deployed; five-seed mean) & 4.185 & --- & none (needs a hard-coded identity) \\
-Independent per-nozzle heads (\texttt{family\_head\_baseline}) & 4.901 & [4.845, 4.953] & none (training data fragmented) \\
+No injector-identity input (deployed production MLP; five-seed mean) & 4.185 & --- & not needed (purely physical features) \\
+Direct family heads (\texttt{family\_head\_baseline}; study lineage) & 4.901 & [4.845, 4.953] & none (must hard-route to an existing family) \\
 Residual head, zero-init. $\Delta_f$ (\texttt{residual\_fh}) & 4.519 & [4.463, 4.573] & structural (defaults to shared model) \\
 \bottomrule
 \end{tabular}
-\caption{Injector-conditioning designs on the refreshed QC-gated uncensored CDF protocol (540{,}367 points). Values are from \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142}; cluster-bootstrap 95\% confidence intervals are shown for the single-checkpoint designs available directly in \texttt{metrics\_wide.csv}, while the deployed result is the five-seed production-MLP mean.}
+\caption{Injector-conditioning designs on the refreshed QC-gated uncensored CDF protocol (540{,}367 points). Values are from \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142}; cluster-bootstrap 95\% confidence intervals are shown for the single-checkpoint designs available directly in \texttt{metrics\_wide.csv}, while the deployed result is the five-seed production-MLP mean. Lineage and protocol differences per row are given in Table~\ref{tab:residual-lineage-disclosure}.}
 \label{tab:residual-family-designs}
 \end{table}
 
@@ -315,16 +352,29 @@ Single-output SVGP (reference) & 4.087 & 2.857 & 0.0214 & 2.063 & 2.516 & --- \\
 \texttt{residual\_svgp} & \textbf{3.921} & \textbf{2.800} & \textbf{0.0267} & \textbf{2.019} & \textbf{2.026} & \textbf{3.848} \\
 \bottomrule
 \end{tabular}
-\caption{Refreshed \texttt{lv3\_qc\_gated} residual-model climb from \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142}. RMSE, MAE, CRPS, P50, and QC-retrained RMSE are in mm; ECE is unitless. CDF metrics use the \texttt{cdf\_uncensored} protocol (540{,}367 points), whereas P50 is RMSE under \texttt{p50\_observed} (4{,}215 points); these values must not be mixed with the earlier 542{,}565-point Level-2 table. The residual-SVGP and QC-retrained residual-SVGP variants were not evaluated under a matched LONO protocol.}
+\caption{Refreshed \texttt{lv3\_qc\_gated} residual-model climb from \texttt{evalrun\_\allowbreak{}20260709\_\allowbreak{}223144\_\allowbreak{}thesis\_\allowbreak{}full\_\allowbreak{}fullclean\_\allowbreak{}bootstrap\_\allowbreak{}fast\_\allowbreak{}20260709\_\allowbreak{}223142}. The \texttt{family\_head\_baseline}, \texttt{residual\_fh}, and \texttt{residual\_film} rows belong to the earlier study lineage; cross-row deltas include lineage differences (Table~\ref{tab:residual-lineage-disclosure}), and the controlled same-lineage comparison is given in main-text Table~\ref{tab:posthoc-residual-rewrite}. RMSE, MAE, CRPS, P50, and QC-retrained RMSE are in mm; ECE is unitless. CDF metrics use the \texttt{cdf\_uncensored} protocol (540{,}367 points), whereas P50 is RMSE under \texttt{p50\_observed} (4{,}215 points); these values must not be mixed with the earlier 542{,}565-point Level-2 table. The residual-SVGP and QC-retrained residual-SVGP variants were not evaluated under a matched LONO protocol.}
 \label{tab:residual-climb}
 \end{table}
 
-\begin{figure}[t]
+\begin{table}[tbp]
 \centering
-\includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/mlp_family_conditioning_architecture.png}
-\caption{Injector-conditioning designs (archived study): independent per-nozzle head, additive residual head, and FiLM modulation. Grey blocks are frozen (hot-started from the deployed Stage~3 checkpoint); green blocks are the small trainable per-nozzle components.}
-\label{fig:residual-architecture}
-\end{figure}
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{Reference family (Nozzle~0; 57.6\% of rows)} & \multicolumn{3}{c}{Refurbished family (Nozzle~1--8; 42.4\%)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Model & RMSE & Bias & CRPS & RMSE & Bias & CRPS \\
+\midrule
+P0 pooled & \textbf{3.136} & -0.019 & 1.816 & 5.298 & +1.223 & 2.918 \\
+\quad + direct family head & 3.243 & +0.174 & 1.894 & 5.263 & +0.796 & 2.934 \\
+\quad + residual \(\Delta_f\) & 3.199 & -0.099 & 1.797 & \textbf{5.227} & +0.253 & 2.833 \\
+\quad + FiLM (last block) & 3.197 & -0.293 & \textbf{1.750} & 5.257 & -0.290 & \textbf{2.792} \\
+\bottomrule
+\end{tabular}
+\caption{Injector-family slice of the controlled chain (\texttt{evalrun\_\allowbreak{}20260713\_\allowbreak{}123732}, QC-gated uncensored CDF table, all values in mm). The pooled baseline is nearly unbiased on the majority (reference) family and leaves the systematic over-prediction to the refurbished family; the residual bias repair happens almost entirely on the refurbished family (\(+1.223 \to +0.253\); within-family paired \(\Delta\)RMSE \(-0.072\), significant) at the cost of a small but significant degradation on the reference family (\(+0.063\)), so the flat overall RMSE is a net of two opposing family effects. FiLM's mean correction is nearly identical on both families (\(-0.293/-0.290\)); its gains are concentrated in the probabilistic metrics.}
+\label{tab:residual-family-slice}
+\end{table}
 
 \begin{figure}[t]
 \centering
@@ -350,7 +400,7 @@ Single-output SVGP (reference) & 4.087 & 2.857 & 0.0214 & 2.063 & 2.516 & --- \\
 Arm & In-family RMSE & All-5 RMSE & In-family bias \\
  & (4 folds, mm) & (5 folds, mm) & (mm) \\
 \midrule
-Deployed nozzle head & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
+Direct family head (study lineage) & 7.44 $\pm$ 1.46 & 8.32 $\pm$ 2.33 & +5.07 \\
 Residual head & \textbf{5.16 $\pm$ 0.65} & 6.95 $\pm$ 4.05 & +0.78 \\
 Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 \bottomrule
@@ -358,22 +408,6 @@ Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 \caption{Archived LONO transfer of the residual conversion on the MLP arms (hold out N1/N2/N4/N5/N6 one at a time, N0 in training, trained from scratch per fold). The in-family aggregate excludes the out-of-design-family N6 stress fold. The residual conversion cuts in-family RMSE by $\approx$31\% and repairs the mean bias; FiLM and the plain residual head are indistinguishable under transfer.}
 \label{tab:residual-lono}
 \end{table}
-
-\begin{figure}[t]
-\centering
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
-\end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
-\centering
-\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
-\end{minipage}
-\caption{Why Nozzle0 is out-of-design-family (archived study). Left: normalized early-time penetration response of Nozzle0 ($\approx$2.5$\times$ the modified nozzles and never crossing below it). Right: the full scatter separates Nozzle0's early-time branch, which the frozen trunk never represented.}
-\label{fig:injector-comparison}
-\label{fig:injector-scatter}
-\end{figure}
 
 \begin{figure}[t]
 \centering

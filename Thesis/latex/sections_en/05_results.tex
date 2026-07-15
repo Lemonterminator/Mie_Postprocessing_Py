@@ -2,40 +2,43 @@
 
 Chapter~4 defined the penetration surrogate as a censoring-aware probabilistic
 regression problem embedded in an optical-archive-to-screening workflow. This
-chapter gives the quantitative verdict. The central result is not a single
-leaderboard winner. Instead, the evidence separates three claims: fixed-table
-in-domain accuracy, transfer to unseen nozzles, and usability as a conservative
+chapter systematically builds the evaluation evidence and gives the
+quantitative verdict: the evidence does not point to a single leaderboard
+winner, but instead separates into three claims -- fixed-table in-domain
+accuracy, transfer to unseen nozzles, and usability as a conservative
 screening surrogate.
 
 The fixed-table numbers in this chapter are taken from a refreshed evaluation
-bundle spanning two cleaned dataset roots and four fixed-table evaluation
-protocols, including the censoring-inclusive full-clean check. The important
-point is evidential scope: the refreshed bundle supports the fixed-table
-in-domain comparisons, while the transfer, curriculum-ablation, and screening
-claims continue to use their archived thesis artifacts. The refreshed run also
-exports cluster-bootstrap 95\% confidence intervals for the fixed-table point
-metrics, so headline gaps can be checked against trajectory-level resampling
-uncertainty rather than seed spread alone; seed standard deviations are still
-reported where multiple training seeds define the relevant summary statistic.
+bundle. The bundle spans two cleaned dataset roots -- the second-level
+cleaned root and the third-level quality-gated root -- and regenerates four
+fixed-table evaluation protocols on top of them: the uncensored CDF
+protocol, the censoring-inclusive full-clean CDF protocol, the observed P50
+protocol, and the SGQR continuation grid. Uncensored and full-clean are not
+two separate datasets but two protocol views of the same held-out
+population: the former excludes right-censored regions as the primary
+evaluation lens, while the latter retains them as a censoring-inclusive
+supplementary check. All four protocols are primarily reported against the
+third-level quality-gated root; the second-level root is used only as a
+dataset-sensitivity check, not the main verdict. In this thesis, ``QC''
+means quality control that applies numerical constraints to each trajectory
+through a pre-training plume gate; its concrete rules are given in
+Section~\ref{sec:qc-gate-heuristics-rewrite}.
+
+The boundary of evidential scope is therefore explicit: the refreshed bundle
+supports the fixed-table in-domain comparison after the canonical protocols;
+the transfer claim -- together with the curriculum-ablation evidence that
+supports it -- and the screening claim continue to use their archived thesis
+artifacts. The refreshed run also exports cluster-bootstrap 95\% confidence
+intervals for the fixed-table point metrics, so headline gaps can be checked
+against trajectory-level resampling uncertainty rather than seed spread
+alone; seed standard deviations are still reported where multiple training
+seeds define the relevant summary statistic.
 
 Table~\ref{tab:metric-vocabulary-rewrite} defines the metric vocabulary used in
 the chapter. RMSE and MAE measure point accuracy, bias measures signed
 systematic error, and tail metrics such as P95 absolute error identify rare but
 large misses. Coverage, PIT reliability, ECE, CRPS, NLL, and sharpness describe
-the predicted distribution rather than only the predicted mean. In this thesis,
-``QC'' means quality control through a pre-training plume gate. The
-third-level quality-gated dataset is materialized from the second-level cleaned
-export by auditing CDF wide-series traces before any surrogate is trained. The
-gate operates on whole condition--plume rows: it removes a plume under an
-operating condition when the measured trace shows repeated shape pathologies or
-systematically low penetration relative to the other holes under the same
-condition. The automated rules check negative steps, spike-like derivatives,
-plateau-then-jump behavior, same-condition low-penetration ratios at selected
-early times from \SI{0.6}{ms} to \SI{1.2}{ms}, repeated support across
-conditions, and optional manual image-evidence flags. The same drop decisions
-are then applied to the CDF, Cartesian-width, and polar-width exports. Thus QC
-here is a data-quality filter on the measured plume traces, not a post-hoc
-selection based on model performance.
+the predicted distribution rather than only the predicted mean.
 
 \begin{table}[t]
 \centering
@@ -90,15 +93,15 @@ deliberately remains the uncensored protocol.
 \toprule
 Protocol & Target population & Main metric role & Interpretation \\
 \midrule
-Uncensored CDF protocol & Held-out CDF points after censoring exclusion & Primary in-domain point and distributional evaluation & Tests the measured-domain surrogate without treating field-of-view disappearance as true spray termination. \\
 Full-clean CDF protocol & All cleaned held-out CDF points, including right-censored regions & Supplementary censoring-inclusive check & Regenerated on the refreshed roots; shows the effect of including right-censored regions instead of excluding them. \\
-Observed P50 protocol & Condition-level observed-window median trajectory points & Secondary observed-window check & Tests representative behavior inside the measured time window. \\
-q1 continuation grid & Fitted q1 continuation target & Secondary continuation check & Tests extrapolative smooth-target behavior; CRPS and NLL are not reported in the refreshed artifacts for this table. \\
+Uncensored CDF protocol & Held-out CDF points from the full-clean CDF protocol after censoring exclusion & Primary in-domain point and distributional evaluation & Tests the measured-domain surrogate without treating field-of-view disappearance as true spray termination. \\
+Observed P50 protocol & Condition-level observed-window median trajectory points from the uncensored CDF protocol & Secondary observed-window check & Tests representative behavior inside the measured time window. \\
+SGQR continuation grid & Fitted SGQR continuation target from the observed P50 protocol & Secondary continuation check & Tests extrapolative smooth-target behavior; CRPS and NLL are not reported in the refreshed artifacts for this table. \\
 LONO & Entire nozzles held out during training & Transfer and failure-boundary check & Tests whether the model generalizes to unseen injector families rather than merely interpolating among known nozzles. \\
 Screening geometry & Simplified piston/wall projection & Demonstration output & Produces rank-oriented geometric proximity scores, not validated liquid-impingement probabilities. \\
 \bottomrule
 \end{tabularx}
-\caption{Evaluation protocols used in this chapter. The uncensored CDF, full-clean CDF, observed P50, and q1 fixed-table protocols are regenerated by the evaluation pipeline for both explicit cleaned roots, while LONO, KD ablations, and screening demonstrations retain archived thesis artifacts.}
+\caption{Evaluation protocols used in this chapter, ordered from the widest data lineage to the narrowest. The full-clean CDF, uncensored CDF, observed P50, and SGQR fixed-table protocols are regenerated by the evaluation pipeline for both explicit cleaned roots, while LONO, KD ablations, and screening demonstrations retain archived thesis artifacts. The primary fixed-table conclusions still rest on the uncensored protocol; full-clean is its censoring-inclusive supplementary check.}
 \label{tab:protocol-map-rewrite}
 \end{table}
 
@@ -124,15 +127,15 @@ five-seed production MLP mean is close behind at \SI{4.185}{mm} RMSE and
 \SI{2.978}{mm} MAE, while both physical curve-fitting baselines are much less
 accurate.
 
-The production MLP therefore should not be presented as the best point
-predictor. Its compensating advantage is conservative coverage: the five-seed
-mean \(1\sigma/2\sigma\) coverage is 0.888/0.990, compared with 0.717/0.946 for
-the single-output SVGP. The correct mainline verdict is therefore an
-accuracy-coverage trade-off: the SVGP alternative backbone improves point
-accuracy, while the production MLP remains a conservative and operationally
+While the single-output SVGP delivers higher point accuracy, the production
+MLP offers more conservative coverage. Specifically, the five-seed mean
+\(1\sigma/2\sigma\) coverage is 0.888/0.990 for the MLP, compared with
+0.717/0.946 for the SVGP. The mainline comparison therefore indicates an
+accuracy--coverage trade-off: the SVGP backbone improves point prediction,
+whereas the production MLP serves as a conservative and operationally
 convenient screening surrogate. The residual-SVGP and residual-MLP extensions
-are interpreted later as post-hoc adaptation evidence, not as replacements for
-this deployed-surrogate verdict.
+are analyzed in Section~\ref{sec:posthoc-residual-rewrite} as post-hoc
+adaptation evidence rather than as part of the deployed-surrogate verdict.
 
 \begin{table}[t]
 \centering
@@ -171,7 +174,7 @@ Naber--Siebers baseline & 9.212 & 7.154 & +0.559 & 0.661 & 0.928 & 5.109 \\
 Hiroyasu--Arai baseline & 10.192 & 7.727 & +2.084 & 0.632 & 0.919 & 5.499 \\
 \bottomrule
 \end{tabular}
-\caption{Mainline in-domain comparison on the QC-gated uncensored CDF table (540{,}367 held-out points per seed). Error and CRPS units are mm. The production MLP row is the mean over seeds 7/17/42/99/2024. Cluster-bootstrap 95\% confidence intervals are exported for RMSE, MAE, and bias; for the leading rows they are narrow relative to the model gaps (SVGP RMSE 4.087 [4.032, 4.140]; the five per-seed MLP RMSE intervals jointly span [4.089, 4.296]). The residual/FiLM/SVGP adaptation arms are intentionally deferred to Table~\ref{tab:posthoc-residual-rewrite}.}
+\caption{Mainline in-domain comparison on the QC-gated uncensored CDF table (540{,}367 held-out points per seed). Error and CRPS units are mm. The production MLP row is the mean over seeds 7/17/42/99/2024. Cluster-bootstrap 95\% confidence intervals are exported for RMSE, MAE, and bias. For reference, the SVGP RMSE is 4.087 [4.032, 4.140], while the five per-seed MLP RMSE intervals jointly span [4.089, 4.296]; this span is not a confidence interval for the five-seed mean. These intervals quantify test-sample resampling uncertainty for fixed checkpoints and do not include training randomness. Because the SVGP and MLP use unmatched seed protocols, their point-error difference is interpreted descriptively rather than as a statistical-significance claim. The residual/FiLM/SVGP adaptation arms are intentionally deferred to Table~\ref{tab:posthoc-residual-rewrite}.}
 \label{tab:primary-leaderboard-rewrite}
 \end{table}
 
@@ -182,12 +185,13 @@ Hiroyasu--Arai baseline & 10.192 & 7.727 & +2.084 & 0.632 & 0.919 & 5.499 \\
 \label{fig:primary-metric-bars-rewrite}
 \end{figure}
 
-The same interpretation appears in the generated coverage comparison
-(Figure~\ref{fig:primary-coverage-rewrite}). The production MLP is
-intentionally wide: it sits well above nominal Gaussian coverage, reducing the
-risk of underestimating penetration uncertainty in a screening interface. The
-SVGP variants are sharper and more accurate, but they are less conservative.
-This is not a defect in the SVGP; it is a different operating point.
+A similar pattern appears in the empirical coverage comparison
+(Figure~\ref{fig:primary-coverage-rewrite}). The production MLP produces wider,
+over-dispersed intervals: its empirical coverage lies above nominal Gaussian
+levels, reducing the risk, under this evaluation protocol, of underestimating
+penetration uncertainty during screening. In contrast, the SVGP variants are
+sharper and more accurate but have lower empirical coverage, representing a
+different operating point in the accuracy--conservatism trade-off.
 
 \begin{figure}[t]
 \centering
@@ -203,20 +207,19 @@ This is not a defect in the SVGP; it is a different operating point.
 
 The primary CDF table does not by itself explain whether a model is accurate
 inside the observed window or merely stable under dense point-wise averaging.
-The observed P50 and q1 continuation-grid protocols provide that separation.
+The observed P50 and SGQR continuation-grid protocols provide that separation.
 Table~\ref{tab:secondary-protocols-rewrite} summarizes the refreshed
 QC-gated mainline comparison.
 
-On the observed P50 protocol, the single-output thesis SVGP improves point
-error relative to the production MLP mean (\SI{2.516}{mm} versus
-\SI{2.831}{mm} RMSE). On the q1 continuation grid, the same mainline direction
-holds (\SI{9.680}{mm} versus \SI{10.047}{mm}), while the production MLP keeps
-higher \(1\sigma\) coverage. The continuation grid is much more difficult than
-the observed P50 table: all models show a positive bias around the late-time
-continuation region. This means the q1 table should be read as a stress test of
-reduced-order continuation behavior, not as a direct frame-by-frame measurement
-score. The lower residual-SVGP values visible in the full-roster figures are
-reserved for the post-hoc adaptation section.
+On the observed P50 protocol, the single-output thesis SVGP yields lower point
+error than the production MLP mean (\SI{2.516}{mm} versus \SI{2.831}{mm}
+RMSE). On the SGQR continuation grid, the same relative ordering holds
+(\SI{9.680}{mm} versus \SI{10.047}{mm}), while the production MLP maintains
+higher \(1\sigma\) coverage. Because all models exhibit positive bias in the
+late-time continuation region, the SGQR grid serves as a stress test of
+reduced-order continuation under extrapolative conditions, not as a direct
+frame-by-frame measurement score. The residual-SVGP results are analyzed with
+the other post-hoc models in Section~\ref{sec:posthoc-residual-rewrite}.
 
 \begin{table}[t]
 \centering
@@ -229,11 +232,11 @@ Protocol & Model summary & RMSE & MAE & Bias & 1$\sigma$ coverage \\
 Observed P50 protocol & Single-output thesis SVGP & \textbf{2.516} & \textbf{1.571} & +0.314 & 0.944 \\
 & Production MLP, 5-seed mean & 2.831 & 1.865 & +1.121 & \textbf{0.967} \\
 \addlinespace
-q1 continuation grid & Single-output thesis SVGP & \textbf{9.680} & \textbf{6.342} & +5.415 & 0.530 \\
+SGQR continuation grid & Single-output thesis SVGP & \textbf{9.680} & \textbf{6.342} & +5.415 & 0.530 \\
 & Production MLP, 5-seed mean & 10.047 & 6.713 & +6.162 & \textbf{0.708} \\
 \bottomrule
 \end{tabular}
-\caption{Mainline secondary protocol checks on the QC-gated dataset root. Units are mm except coverage. CRPS and NLL are deliberately not reported for the q1 continuation grid because those columns are absent from the refreshed full-run artifacts; post-hoc adaptation arms are deferred to Table~\ref{tab:posthoc-residual-rewrite}.}
+\caption{Mainline secondary protocol checks on the QC-gated dataset root. Units are mm except coverage. CRPS and NLL are deliberately not reported for the SGQR continuation grid because those columns are absent from the refreshed full-run artifacts; post-hoc adaptation arms are deferred to Table~\ref{tab:posthoc-residual-rewrite}.}
 \label{tab:secondary-protocols-rewrite}
 \end{table}
 
@@ -248,9 +251,9 @@ q1 continuation grid & Single-output thesis SVGP & \textbf{9.680} & \textbf{6.34
 \begin{subfigure}[t]{0.49\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_q1_grid_all.png}
-\caption{q1 continuation grid.}
+\caption{SGQR continuation grid.}
 \end{subfigure}
-\caption{Secondary protocol point-error comparisons. The P50 protocol isolates representative behavior inside the measurement window, whereas the q1 grid tests continuation behavior from the fitted reduced-order target.}
+\caption{Secondary protocol point-error comparisons. The P50 protocol isolates representative behavior inside the measurement window, whereas the SGQR grid tests continuation behavior from the fitted reduced-order target.}
 \label{fig:secondary-protocol-bars-rewrite}
 \end{figure}
 
@@ -265,19 +268,21 @@ whether right-censored regions are included. It remains a supplementary check
 rather than the headline verdict because the primary comparison deliberately
 excludes regions where the target itself is shaped by field-of-view censoring.
 
-On the QC-gated root the refreshed full-clean table contains 689{,}162 held-out
-CDF prediction points, of which 148{,}795 (21.6\%) lie in right-censored
-regions. In the earlier archived bundle the same censoring pressure was
-quantified at the trajectory level: 9{,}630 of 24{,}316 cleaned held-out
-trajectories (39.6\%) were right-censored, which is the spatial censoring ratio
-quoted in the data chapters. Both views make the same point: treating the last
-visible point as a physical terminal penetration would be a material protocol
-error rather than a bookkeeping detail. On the refreshed censoring-inclusive
+On the QC-gated root, the refreshed full-clean table contains 689{,}162
+held-out CDF prediction points, of which 148{,}795 (21.6\%) lie in
+right-censored regions. In the earlier archived bundle, the same censoring
+pressure was quantified at the trajectory level: 9{,}630 of 24{,}316 cleaned
+trajectories (39.6\%) were right-censored. This is the spatial
+censoring ratio audited in Chapter~4 and cited in the data chapters. Both the
+point-level and trajectory-level views show that treating the last visible
+measurement as a physical terminal penetration would constitute a material
+protocol error rather than a bookkeeping detail. On the refreshed censoring-inclusive
 view, the five-seed production MLP reaches \SI{4.584}{mm} RMSE, \SI{3.211}{mm}
 MAE, \SI{+0.829}{mm} bias, and conservative \(1\sigma/2\sigma\) coverage of
 0.869/0.986. The Stage~3 SVGP is again the stronger point predictor (RMSE
 \SI{4.440}{mm} with 95\% interval [4.373, 4.499], MAE \SI{3.109}{mm}) but with
-sharper, less conservative coverage (0.706/0.942), and both physical baselines
+a sharper predictive distribution and less conservative coverage
+(0.706/0.942), and both physical baselines
 remain far behind (\SI{11.187}{mm} and \SI{10.442}{mm} RMSE, corresponding to
 MLP reductions of 59.0\% and 56.1\%). The censoring-inclusive ordering is
 therefore the same as the primary uncensored verdict.
@@ -310,7 +315,7 @@ SVGP, Stage~3 mode & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} &
 \hfill
 \begin{subfigure}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/coverage_comparison_full_clean.png}
+\includegraphics[width=\linewidth]{images/eval_20260714/full_clean_coverage_comparison.png}
 \caption{Empirical coverage.}
 \end{subfigure}
 \caption{Refreshed full-clean CDF supplementary diagnostics on the QC-gated root. The censoring-inclusive comparison reproduces the primary accuracy--coverage trade-off; the primary thesis verdict remains the QC-gated uncensored CDF protocol.}
@@ -327,7 +332,7 @@ SVGP, Stage~3 mode & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} &
 \hfill
 \begin{subfigure}[t]{0.49\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/crps_sharpness_scatter_full_clean.png}
+\includegraphics[width=\linewidth]{images/eval_20260714/full_clean_crps_sharpness_scatter.png}
 \caption{CRPS--sharpness plane.}
 \end{subfigure}
 \caption{Refreshed full-clean probabilistic calibration diagnostics. The SVGP is sharper with lower CRPS, while the production MLP has wider and more conservative intervals; the censoring-inclusive view supports the same accuracy--coverage trade-off as the primary protocol.}
@@ -351,12 +356,12 @@ conservative \(1\sigma\) coverage. The post-hoc QC-retrained residual-SVGP
 pushes CRPS lower again (\SI{1.988}{mm}) while still remaining less
 conservative than the production MLP.
 
-This distinction matters for the downstream screening interface. A model with
-the best mean prediction is not automatically the safest rank-oriented
-screening surrogate if its uncertainty intervals are too narrow for edge
-conditions. Conversely, conservative MLP intervals should not be oversold as a
-certified false-negative guarantee. They are evidence of a deliberately cautious
-predictive distribution under the measured protocol.
+This distinction is important for the downstream screening interface. A model
+with a more accurate mean prediction is not automatically a safer rank-oriented
+screening surrogate if its predictive distribution is under-dispersed for edge
+conditions. Conversely, the MLP's conservative empirical coverage reflects a
+deliberately cautious predictive distribution under the measured protocol; it
+does not constitute a certified bound on false-negative rates.
 
 \begin{figure}[t]
 \centering
@@ -396,24 +401,27 @@ from the cleaned dataset root. They do not answer whether the surrogate can
 generalize to an entirely unseen injector. That question is handled by the
 Leave-One-Nozzle-Out protocol retained from the archived thesis artifacts.
 
-Under the five-fold LONO protocol holding out Nozzle0, Nozzle1, Nozzle2,
-Nozzle4, and Nozzle5 in turn, the Stage~3 SVGP achieves a lower average RMSE
-than the MLP: \(\SI{10.16}{mm}\pm\SI{9.57}{mm}\) versus
-\(\SI{12.55}{mm}\pm\SI{12.46}{mm}\). Excluding the out-of-design-family
-Nozzle0 fold, the comparison remains in the same direction:
-\(\SI{5.95}{mm}\pm\SI{1.98}{mm}\) for the SVGP and
-\(\SI{7.00}{mm}\pm\SI{1.18}{mm}\) for the MLP. The coverage story is more
-intertwined: after removing Nozzle0, the \(1\sigma\) coverage is nearly equal
-(0.697 for SVGP and 0.696 for MLP), while the MLP has higher \(2\sigma\)
-coverage (0.923 versus 0.890). The \(\pm\) terms in this paragraph are
-cross-fold standard deviations from the archived single-seed LONO run, not
-multi-seed training uncertainty.
+Transfer performance is evaluated using a five-fold LONO protocol that holds
+out Nozzle0, Nozzle1, Nozzle2, Nozzle4, and Nozzle5 in turn. Across all five
+folds, the Stage~3 SVGP achieves a lower average RMSE than the MLP
+(\(\SI{10.16}{mm}\pm\SI{9.57}{mm}\) versus
+\(\SI{12.55}{mm}\pm\SI{12.46}{mm}\)). The same ordering remains after the
+out-of-design-family Nozzle0 fold is excluded: the SVGP gives
+\(\SI{5.95}{mm}\pm\SI{1.98}{mm}\), compared with
+\(\SI{7.00}{mm}\pm\SI{1.18}{mm}\) for the MLP.
 
-The main transfer verdict is therefore sharper than the in-domain verdict. The
-SVGP is the better point-transfer backbone under LONO. The MLP is retained not
-because it wins every transfer metric, but because it is conservative
-in-domain, exposes the auxiliary onset output used by the screening GUI, and
-supports cheap ablation of the training curriculum.
+The empirical coverage results are mixed. After Nozzle0 is excluded, the
+\(1\sigma\) coverage values are nearly identical (0.697 for the SVGP and 0.696
+for the MLP), whereas the MLP retains higher \(2\sigma\) coverage (0.923 versus
+0.890). The \(\pm\) terms denote cross-fold standard deviations from the
+archived single-seed LONO run, not multi-seed training variability.
+
+The LONO results therefore show a clearer point-transfer difference than the
+in-domain comparison: the SVGP is the more accurate point-transfer backbone.
+The production MLP remains the retained model in the active workflow because
+it provides conservative in-domain uncertainty estimates, exposes the
+auxiliary onset output required by the screening GUI, and supports affordable
+ablation of the training curriculum.
 
 \begin{figure}[t]
 \centering
@@ -434,10 +442,25 @@ supports cheap ablation of the training curriculum.
 \label{fig:svgp-lono-comparison-zh}
 \end{figure}
 
-The Nozzle0 collapse should not be hidden by averaging. Nozzle0 is the only
-factory-fresh reference injector in the campaign and has an early-time
-penetration envelope that the modified-injector training population does not
-represent. It is better interpreted as a cross-design-family extrapolation
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
+\end{minipage}
+\hfill
+\begin{minipage}{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
+\end{minipage}
+\caption{Why Nozzle0 is out-of-design-family (archived residual-family-head study). Nozzle1 through Nozzle8 share a single refurbished injector; Nozzle0 is a new, factory-fresh reference injector, and its early-time penetration envelope is not represented by the modified-injector training population. Left: normalized early-time penetration response of Nozzle0 ($\approx$2.5$\times$ the modified nozzles and never crossing below it). Right: the full scatter separates Nozzle0's early-time branch, which the frozen trunk never represented.}
+\label{fig:injector-comparison-rewrite}
+\label{fig:injector-comparison}
+\label{fig:injector-scatter}
+\end{figure}
+
+The Nozzle0 collapse should not be hidden by averaging: Figure~\ref{fig:injector-comparison-rewrite}
+gives direct visual evidence. It is better interpreted as a cross-design-family extrapolation
 failure than as an ordinary fold. This boundary is scientifically useful: it
 states where the learned surrogate requires either additional family coverage,
 trunk-level adaptation, or retraining.
@@ -499,6 +522,89 @@ look acceptable.
 \label{fig:failure-mode-nozzle3}
 \label{fig:failure-mode-nozzle3-zh}
 \end{figure}
+
+\subsubsection{Heuristic Data Quality Control: Plume-Level QC Gate}
+\label{sec:qc-gate-heuristics-rewrite}
+
+The third-level quality-gated dataset is materialized from the second-level
+cleaned export by auditing CDF wide-series traces before any surrogate is
+trained. The gate operates on whole condition--plume rows: it removes a
+plume under an operating condition when the measured trace shows repeated
+shape pathologies or systematically low penetration relative to the other
+holes under the same condition. The decision rests on two heuristic rule
+families:
+
+\begin{itemize}
+  \item \emph{Shape pathology}: each trace is checked for negative steps,
+  spike-like steps or first-/second-derivative jumps, and ``plateau-then-jump''
+  behavior (a run of small steps followed by a sudden large jump); when the
+  fraction of traces exhibiting these pathologies within a condition--plume
+  group exceeds a threshold, the group is flagged as a recurrent shape
+  pathology (thresholds in Table~\ref{tab:qc-shape-thresholds-rewrite}).
+  \item \emph{Systematic low penetration}: at several early time grid points,
+  each plume's median penetration is compared to the condition-level median
+  across the other holes under the same condition, giving a ratio and a
+  MAD-based robust $z$-score; if the ratio falls below threshold at enough
+  time points, the plume is flagged as systematically (or severely) low. If
+  the same plume\_idx on the same nozzle repeatedly earns this flag across
+  enough conditions, it additionally earns repeat support across conditions
+  (thresholds in Table~\ref{tab:qc-lowpen-thresholds-rewrite}).
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}L{0.26\linewidth}L{0.52\linewidth}Y@{}}
+\toprule
+Parameter & Meaning & Default \\
+\midrule
+Negative step & A drop in penetration between adjacent samples beyond this value flags a negative step & \SI{-2.0}{mm} \\
+Step-spike magnitude & A single-step jump reaching this value flags a spike-like step & \SI{14.0}{mm} \\
+First-derivative spike & A rate of change between adjacent samples reaching this value flags a spike & \SI{450}{mm/ms} \\
+Second-derivative spike & A second-difference magnitude reaching this value flags a spike & \SI{10000}{mm/ms^2} \\
+Plateau step ceiling & Upper bound on consecutive small steps counted as a ``plateau'' & \SI{1.3}{mm} \\
+Plateau-then-jump & A jump following a plateau reaching this value flags ``plateau-then-jump'' & \SI{8.0}{mm} \\
+Strict-mode criterion & Group trace count and pathology fraction combination that flags recurrent shape pathology & \(\geq3\) traces / \(\geq40\%\) \\
+Loose-mode criterion & Same, for groups with more traces and a lower fraction threshold & \(\geq5\) traces / \(\geq20\%\) \\
+\bottomrule
+\end{tabularx}
+\caption{Heuristic thresholds for the shape-pathology criteria (default configuration; script-level mapping in Appendix~\ref{app:implementation_mapping}).}
+\label{tab:qc-shape-thresholds-rewrite}
+\end{table}
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}L{0.26\linewidth}L{0.52\linewidth}Y@{}}
+\toprule
+Parameter & Meaning & Default \\
+\midrule
+Comparison time grid & Early time grid points used for the within-condition ratio and robust $z$-score & \SI{0.6}{}, \SI{0.8}{}, \SI{1.0}{}, \SI{1.2}{ms} \\
+Low-ratio threshold & Ratio of median penetration to the condition median below which a plume is flagged low & 0.75 \\
+Very-low-ratio threshold & A single time point below this ratio also flags low, relaxing the time-point-count requirement & 0.70 \\
+Severe-ratio threshold & Ratio below this value flags severely low & 0.65 \\
+Minimum low time points & Minimum number of qualifying time points required under the low-ratio threshold & 2 \\
+Minimum comparison plumes & Minimum number of comparable plumes required under a condition before the criterion is enabled & 4 \\
+Repeat minimum conditions & Minimum number of conditions in which the same plume\_idx on the same nozzle must be flagged to earn repeat support & 3 \\
+Repeat minimum fraction & Minimum fraction of that nozzle's total conditions the flag must cover & 0.25 \\
+\bottomrule
+\end{tabularx}
+\caption{Heuristic thresholds for the systematic-low-penetration and cross-condition repeat-support criteria (default configuration; script-level mapping in Appendix~\ref{app:implementation_mapping}).}
+\label{tab:qc-lowpen-thresholds-rewrite}
+\end{table}
+
+The hard-drop rule is an OR over three conditions: an optional manual
+image-evidence flag; systematic low penetration with either repeat support
+or the severe threshold; and recurrent shape pathology. The drop decision is
+then applied to the CDF, Cartesian-width, and polar-width export tables, as
+well as the CDF censoring-point table, for that condition--plume pair. The
+criterion is independent of any trained surrogate -- it rests only on
+measured trace shape, same-condition cross-hole comparison, and
+cross-condition repeat support (plus optional manual image evidence) --
+so QC here is a pre-training data-quality filter, not a post-hoc selection
+based on model performance.
 
 \FloatBarrier
 
@@ -602,13 +708,164 @@ Appendix~\ref{app:evaluation-diagnostics}.
 \subsubsection{Post-Hoc Adaptation: Residual, FiLM, and SVGP Extensions}
 \label{sec:posthoc-residual-rewrite}
 
-The residual-adaptation analysis is useful, but it must be kept in the correct
-evidential tier. It is a post-hoc extension, not the deployed-surrogate verdict.
-In the staged-learning language introduced earlier, the Stage~1--3 MLP is the
-base screening surrogate, while the residual-head and FiLM variants test
-lightweight post-training adaptation around that base predictor. The SVGP
-residual variants test the same adaptation idea with a sharper kernel
-backbone.
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/Architecture.png}
+\caption{Three injector-family conditioning mechanisms in increasing adaptation depth (left to right): direct family heads, residual family heads, and residual-FiLM.}
+\label{fig:residual-architecture-rewrite}
+\label{fig:residual-architecture}
+\end{figure}
+
+The residual/FiLM/SVGP post-hoc adaptation study tests a specific physical
+hypothesis. As documented in Appendix~\ref{app:evaluation-diagnostics},
+Nozzle~1--8 share a single refurbished injector while Nozzle~0 is a new,
+factory-fresh reference unit; this hardware-state difference survives the
+\(t^{1/4}\) (\(A\)-scaling) normalization, and no recorded operating feature
+encodes it. The binary injector-family identifier (fresh reference versus the
+pooled refurbished families, the family ID below) is therefore the only
+channel that carries this signal. On top of the Stage~1--3 trunk of
+Section~\ref{sec:mlp-curriculum-en}, this subsection tests three mechanisms of
+increasing adaptation depth for injecting that channel into the MLP
+(Figure~\ref{fig:residual-architecture-rewrite}):
+\begin{itemize}
+  \item \textbf{Direct family heads:} replace the single mean head after the shared trunk with one head per family
+  (\(\hat\mu = w_{\mu,f}^{\top} h(x)\)); the family ID only selects the output head and never enters the feature vector.
+  \item \textbf{Residual family heads:} freeze the trunk and the shared mean head, then route the family ID to a
+  zero-initialized additive correction (\(\hat\mu = w_{\mu}^{\top} h(x) + \Delta_f(h(x))\)).
+  \item \textbf{Residual-FiLM:} stack an identity-initialized last-block affine modulation
+  (\(\tilde h = \gamma_f \odot h + \beta_f\)~\cite{Perez2018FiLM}) on the residual family head while retaining the
+  \(\Delta_f\) branch.
+\end{itemize}
+For an unseen family, the residual and FiLM variants fall back to the shared
+predictor (\(\Delta_f=0\); \(\gamma=I,\beta=0\)), whereas a direct family head
+must hard-route to an existing ID. The figure also identifies which components
+are frozen or updated and gives each level's warm-start source. The shared
+log-variance head remains shared and trainable in all three mechanisms. This is
+the lightweight-adapter (PEFT) deployment pattern referenced in the Chapter~2
+workflow mapping (Table~\ref{tab:workflow-mapping-en})~\cite{Han2024PEFT}; the
+SVGP residual variants test the same routed-residual idea on a kernel backbone
+(below).
+
+The remainder of this subsection follows three evidence chains: the controlled
+MLP adaptation chain on the fixed table, the residual-SVGP in-domain
+point-error frontier, and the residual-MLP within-family LONO follow-up.
+
+The evidence in this subsection comes from two training lineages that must be
+read separately. The earlier adaptation study (archived 2026-06-08)
+established the family-head \(\to\) residual \(\to\) FiLM ladder on an
+independent single-seed lineage that differs from the five-seed production MLP
+in feature variant, Stage~2 teacher form, onset auxiliary head, and
+trunk-freezing policy (Appendix Table~\ref{tab:residual-lineage-disclosure});
+its numbers therefore support within-lineage comparisons only, and direct
+deltas against the production mean would misread lineage differences as
+architecture effects.
+
+\textbf{Controlled retraining lineage.} To isolate architectural effects from
+training-lineage differences, a single-head pooled baseline without family
+routing (the ``Stage~3 pooled baseline''; code label P0) was warm-started from
+the production Stage~2 winner. It was retrained on the QC-gated data with the
+raw-CDF/KD mixed supervision of Chapter~4 Stage~3, omitting only the Stage~3
+onset auxiliary head. This supplies a common-protocol starting point for the
+subsequent architectural changes rather than defining another training stage.
+The controlled chain then proceeds as pooled baseline \(\to\) direct family
+head \(\to\) residual \(\to\) FiLM.
+
+Unlike the pooled baseline, which is initialized from the Stage~2 teacher,
+each subsequent level is initialized from its predecessor in a
+function-preserving way. The maximum output difference remains below
+\(10^{-6}\) after bridging, and the FiLM identity initialization preserves the
+function exactly. Each level introduces one new mechanism and distills from
+its predecessor. The chain is single-seed and is evaluated on the same
+540{,}367-point QC-gated uncensored CDF fixed table as the primary comparison;
+for this controlled retraining lineage, the table includes training
+trajectories. Table~\ref{tab:posthoc-residual-rewrite} is therefore a controlled
+architecture comparison on a common physical scale, not an independent
+generalization test. The controlled pooled baseline (\SI{4.192}{mm}) is
+consistent with the five-seed production mean (\SI{4.185}{mm}), indicating
+that the chain starts from a representative operating point.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Model & RMSE [mm] & Bias [mm] & CRPS [mm] & NLL & ECE \\
+\midrule
+Stage~3 pooled baseline (controlled baseline) & 4.192 [4.134, 4.248] & +0.508 [+0.464, +0.550] & 2.283 & 2.852 & 0.074 \\
+\quad + direct family head & 4.219 [4.163, 4.274] & +0.438 [+0.394, +0.480] & 2.335 & 2.886 & 0.077 \\
+\quad + residual \(\Delta_f\) & \textbf{4.181} [4.127, 4.234] & +0.050 [+0.006, +0.092] & 2.236 & 2.809 & 0.061 \\
+\quad + FiLM (last block) & 4.196 [4.143, 4.248] & -0.292 [-0.335, -0.251] & \textbf{2.192} & \textbf{2.760} & \textbf{0.052} \\
+\midrule
+Production MLP (five-seed mean; reference) & 4.185 & --- & 2.301 & --- & --- \\
+Single-output SVGP (reference) & 4.087 & --- & 2.063 & --- & 0.021 \\
+Residual-SVGP (reference) & 3.921 & --- & 2.019 & --- & 0.027 \\
+QC-retrained residual-SVGP (reference) & \textbf{3.848} & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\caption{Controlled same-lineage adaptation chain (upper block) on the primary QC-gated uncensored CDF fixed table (540{,}367 points), \texttt{evalrun\_\allowbreak{}20260713\_\allowbreak{}123732}. Brackets are trajectory-cluster bootstrap 95\% confidence intervals (2{,}000 resamples); the chain is single-seed, and each level is function-preservingly initialized from its predecessor. The evaluation table includes training trajectories, so this is a controlled architecture comparison, not an independent generalization test. The lower block lists existing reference results from different lineages (protocol differences in Appendix Table~\ref{tab:residual-lineage-disclosure}) and is not differenced against the controlled chain. RMSE, bias, and CRPS in mm; ECE is dimensionless.}
+\label{tab:posthoc-residual-rewrite}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/eval_20260714/posthoc_cdf_uncensored_coverage_comparison.png}
+\caption{Empirical coverage.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.49\linewidth}
+\centering
+\includegraphics[width=\linewidth]{images/eval_20260714/posthoc_cdf_uncensored_crps_sharpness_scatter.png}
+\caption{CRPS--sharpness plane.}
+\end{subfigure}
+\caption{Controlled post-hoc probabilistic diagnostics on the QC-gated uncensored CDF table. The roster comprises the Stage~3 pooled baseline, direct family head, residual head, FiLM, and QC-retrained residual-SVGP; it is therefore evidence for the controlled adaptation chain in Table~\ref{tab:posthoc-residual-rewrite}, not a replacement for the primary production-MLP versus single-output-SVGP comparison.}
+\label{fig:posthoc-controlled-probabilistic}
+\end{figure}
+
+The controlled chain settles three points.
+
+\textbf{First, direct family heads bring no fixed-table benefit.}
+\begin{itemize}
+  \item \textbf{Point error:} relative to the pooled baseline, the paired trajectory-cluster bootstrap gives
+  \(\Delta\)RMSE \(=+0.028\;[+0.022,+0.034]\), with a confidence interval excluding zero.
+  \item \textbf{Probabilistic scores:} \(\Delta\)CRPS \(=+0.052\;[+0.049,+0.054]\),
+  \(\Delta\)NLL \(=+0.035\), and \(\Delta\)ECE \(=+0.003\) likewise show no improvement.
+  \item \textbf{Training objective versus fixed table:} its internal Stage~3 test loss falls from 2.362 to 2.231,
+  yet the physical-scale metrics degrade; an improvement of the composite distillation loss does not imply an
+  improvement on the fixed-table evaluation.
+\end{itemize}
+
+\textbf{Second, residual conversion is a bias-repair channel.}
+\begin{itemize}
+  \item \textbf{Overall bias:} it drops from \(+0.508\) to \(+0.050\), with paired
+  \(\Delta=-0.458\;[-0.467,-0.450]\).
+  \item \textbf{P50 observed-window bias:} it vanishes monotonically along the chain:
+  \(+0.935 \to +0.786 \to +0.379 \to +0.004\).
+  \item \textbf{Injector-family slice:} the repair happens almost entirely on the refurbished family. The pooled
+  baseline is nearly unbiased on the fresh reference family (57.6\% of fixed-table rows; bias \(-0.019\)), but leaves
+  \(+1.223\) systematic over-prediction to the refurbished family; the residual head cuts the latter to \(+0.253\),
+  with within-family paired \(\Delta\)RMSE \(=-0.072\), significant.
+  \item \textbf{Point-error trade-off:} the reference family degrades slightly but significantly (\(+0.063\)), so the
+  overall RMSE gain is only \(-0.011\;[-0.020,-0.000]\). The families' biases differ by about \SI{1.24}{mm}, which
+  quantifies the family-conditional bias under pooled training and shows why only a family-routing channel can repair it.
+\end{itemize}
+
+\textbf{Third, FiLM is a calibration channel rather than a point-error channel.}
+\begin{itemize}
+  \item \textbf{Probabilistic quality:} relative to the pooled baseline, CRPS improves from 2.283 to 2.192, NLL from
+  2.852 to 2.760, and ECE from 0.074 to 0.052; all paired confidence intervals exclude zero. This ordering also occurs
+  in the earlier study lineage and is the only result that replicates stably across both lineages.
+  \item \textbf{Sharpness:} the mean predictive standard deviation narrows from \SI{5.79}{mm} to \SI{4.98}{mm}.
+  \item \textbf{Point error and bias:} FiLM's RMSE difference against the pooled baseline is not significant
+  (\(+0.005\;[-0.009,+0.019]\), the only null paired delta in the chain). Its mean correction is nearly identical on
+  both families (\(-0.293/-0.290\)), closer to a global shift than to family discrimination, and overshoots the overall
+  bias to \(-0.292\). The FiLM-versus-residual RMSE ordering also flips between the two lineages, so RMSE differences
+  at this level carry no information.
+  \item \textbf{Extrapolation boundary:} no level of the chain reaches it; all four models have RMSE 10.66--10.74 on
+  the extrapolated SGQR grid, and central-90 coverage remains conservative (0.963--0.977).
+\end{itemize}
 
 The residual multi-task SVGP is an additive routed-residual model. In scaled
 penetration space its mean has the form
@@ -622,52 +879,48 @@ trained residual process, the prediction falls back to the shared SVGP with
 on the residual errors, so the mean correction and uncertainty model remain
 separate.
 
-In the refreshed fixed-table artifacts, the residual-SVGP family is the
-strongest in-domain direction: the QC-retrained residual-SVGP reaches
-\SI{3.848}{mm} RMSE on the primary QC-gated uncensored CDF table. The residual
-MLP variants also clarify the role of injector conditioning, but they do not
-replace the LONO conclusion because the residual-SVGP was not LONO-tested in
-the same way as the main Stage~3 MLP and SVGP comparison. The refreshed
-design-comparison and climb tables, together with the archived
+Among the reported fixed-table artifacts, the residual multi-task SVGP has the
+lowest point-error values: RMSE 3.921, reaching \SI{3.848}{mm} after QC
+retraining (Appendix Table~\ref{tab:residual-climb}). However, these results
+come from a different training lineage and are not differenced against the
+controlled MLP chain, so they do not isolate a causal kernel-backbone effect.
+The residual-SVGP was not LONO-tested in the
+same way as the main Stage~3 MLP and SVGP comparison, so transfer claims
+continue to rest on the MLP arms. The refreshed design-comparison, climb,
+lineage-disclosure, and family-slice tables, together with the archived
 adaptation-study figures, are collected in
 Appendix~\ref{app:evaluation-diagnostics}.
 
-\begin{table}[t]
-\centering
-\scriptsize
-\setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\linewidth}{@{}L{0.29\linewidth}rrrY@{}}
-\toprule
-Adaptation or alternative arm & \(\Delta\)RMSE & \(\Delta\)MAE & 1$\sigma$ & Boundary \\
-\midrule
-Single-output thesis SVGP & -0.098 & -0.121 & 0.717 & Main alternative backbone; improves point error but not conservative coverage. \\
-Residual-family-head MLP & +0.334 & +0.169 & 0.858 & Injector-conditioning fallback; does not improve the primary fixed-table error. \\
-Residual-FiLM MLP & +0.216 & +0.057 & 0.798 & More flexible MLP adapter, but still behind the production mean on point error. \\
-Residual-SVGP & -0.264 & -0.178 & 0.761 & Strong in-domain follow-up; transfer remains untested under matching LONO. \\
-QC-retrained residual-SVGP & \textbf{-0.337} & \textbf{-0.227} & 0.773 & Best fixed-table point result; transfer still needs matching LONO. \\
-\bottomrule
-\end{tabularx}
-\caption{Incremental post-hoc adaptation evidence on the refreshed primary fixed table. Deltas are relative to the five-seed production MLP mean, so negative values improve RMSE or MAE; the \(1\sigma\) column shows that the lower-error arms are generally less conservative than the production MLP. The table is interpreted as a future-development signal, not as a replacement for the deployed-surrogate verdict.}
-\label{tab:posthoc-residual-rewrite}
-\end{table}
+The residual-MLP LONO follow-up uses the earlier study-lineage protocol
+(Appendix Table~\ref{tab:residual-lono}). Within the modified injector family,
+the residual conversion repairs much of the bias of the direct family head and
+reduces RMSE across the in-family folds from about \SI{7.44}{mm} to about
+\SI{5.16}{mm}. This result supports within-family adaptation but does not
+establish zero-shot generalization to a genuinely new injector family.
 
-The residual-MLP LONO follow-up supports a narrower claim: inside the modified
-injector family, the residual conversion repairs much of the bias of the
-deployed nozzle head. Across the in-family folds, the residual head reduces
-RMSE from about \SI{7.44}{mm} to about \SI{5.16}{mm}. This is evidence for
-within-family adaptation, not proof of zero-shot generalization to a genuinely
-new injector family.
+The broader conclusion is that injector identity is a useful conditioning
+variable, but its value is channel-specific. In the controlled MLP chain,
+family identity does not materially improve fixed-table point error: all four
+levels lie between 4.18 and 4.22 with overlapping confidence intervals.
+Instead, the residual head repairs family-linked systematic bias, while FiLM
+improves uncertainty quality. These variants therefore act as lightweight
+post-training adapters around a shared base surrogate.
 
-The broader conclusion is that injector identity is useful as a conditioning
-variable. It allows the surrogate to learn family-specific offsets and partly
-repair nozzle-dependent bias within the supported design family. In this sense,
-the residual-head and FiLM variants behave like lightweight post-training
-adaptation around a shared base surrogate, and the residual multi-task SVGP
-implements the same idea with routed family residual processes. However, this
-should not be described as true zero-shot fine-tuning. The Nozzle0 and Nozzle6
-stress cases show the boundary: an injector identifier or output residual can
-shift a learned representation, but it cannot synthesize trunk-level features
-for an unseen design family that the shared surrogate never represented.
+The residual multi-task SVGP provides a parallel routed-family adaptation on a
+kernel backbone. Its reported fixed-table values define the in-domain
+point-error frontier, but the lineage difference prevents attributing that gap
+to the kernel backbone alone. The deployed pooled production MLP needs no
+identity input for point accuracy, whereas deployments targeting bias or
+calibration may consider residual/FiLM-style adaptation. The residual-SVGP has
+not been evaluated under a
+matching LONO protocol and therefore cannot yet be treated as the preferred
+transfer architecture. Because these adapters rely on known family
+identifiers, this adaptation is distinct from zero-shot transfer. The Nozzle0
+and Nozzle6 stress cases illustrate the boundary: an injector identifier or
+output residual can shift a learned representation, but it cannot synthesize
+trunk-level features for an unseen design family that the shared surrogate
+never represented; the extrapolated SGQR region is likewise unaffected by any
+conditioning mechanism.
 
 \begin{figure}[t]
 \centering
@@ -724,12 +977,12 @@ piston at \SI{2250}{rpm} reduces the cumulative exposure to
 \label{fig:screening-design-comparison-rewrite}
 \end{figure}
 
-The evidence boundary is essential. These interception scores are not
-validated probabilities of harmful liquid-state impingement in an operating
-engine. They are rank-oriented geometric screening metrics. The validated
-contribution is the censoring-aware penetration surrogate over its measured
-domain, together with a reproducible coupling from a predictive distribution to
-a simplified screening interface.
+Consequently, these interception scores are rank-oriented geometric screening
+metrics rather than validated probabilities of harmful liquid-state
+impingement in an operating engine. The validated contribution remains the
+censoring-aware penetration surrogate over its measured domain, together with
+a reproducible coupling from the predictive distribution to the simplified
+screening interface.
 
 \FloatBarrier
 
@@ -760,7 +1013,7 @@ Claim area & Best-supported result & Boundary \\
 \midrule
 In-domain fixed-table accuracy & Single-output thesis SVGP leads the mainline comparison at \SI{4.087}{mm} RMSE; production MLP mean is \SI{4.185}{mm}. & Residual arms are post-hoc adaptation evidence, not the deployed-surrogate verdict. \\
 Conservative uncertainty & Production MLP has \(1\sigma/2\sigma\) coverage of 0.888/0.990, above the sharper SVGP variants. & Conservative coverage is useful for screening but is not a certified safety guarantee. \\
-Condition-level behavior & Single-output thesis SVGP leads mainline P50 and q1 point error; q1 remains a hard positive-bias stress test. & q1 grid lacks CRPS/NLL in the refreshed artifacts, and post-hoc arms are interpreted separately. \\
+Condition-level behavior & Single-output thesis SVGP leads mainline P50 and SGQR point error; SGQR remains a hard positive-bias stress test. & SGQR grid lacks CRPS/NLL in the refreshed artifacts, and post-hoc arms are interpreted separately. \\
 Nozzle transfer & Archived LONO favors SVGP point transfer; excluding Nozzle0 gives SVGP \SI{5.95}{mm} vs. MLP \SI{7.00}{mm}. & Nozzle0 is a cross-design-family failure, not an ordinary fold. \\
 Physical failure anatomy & Nozzle~3 images and curves show a flat-top, step-like transient trajectory that violates smooth continuation assumptions. & The images support a modeling failure-mode interpretation, not a unique causal fluid-mechanical diagnosis. \\
 MLP workflow rationale & MLP is retained for conservative deployment, onset output, and affordable ablations. & This is a workflow argument, not a claim of universal predictive superiority. \\
@@ -775,7 +1028,7 @@ Screening demo & Penetration distributions can be projected into geometry-sensit
 The next discussion chapter should therefore not re-run every metric. Its task
 is to interpret the trade-off: the thesis establishes a reproducible
 censoring-aware surrogate workflow with conservative uncertainty and a working
-screening projection, while also showing that matching LONO tests for
-residual-SVGP, larger post-training adaptation experiments, and controlled
-last-block unfreezing are the likely next steps for point-accuracy
-improvements.
+screening projection, while also showing that matching LONO tests for the
+residual-SVGP, multi-seed replication of the controlled adaptation chain, and
+trunk-level capacity extensions beyond output heads are the likely next steps
+for point-accuracy improvements.
