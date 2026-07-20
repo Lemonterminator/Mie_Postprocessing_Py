@@ -286,12 +286,12 @@ This document is self-contained and offline (the math typesetting engine is embe
 <h3>0.2 Model outputs and derived quantities</h3>
 <p>Each probabilistic model outputs a Gaussian predictive distribution at point \(x_i\):</p>
 \[
-\hat{F}_i = \mathcal{N}(\mu_i,\ \sigma_i^2),\qquad \mu_i=\mu(x_i),\ \ \sigma_i=\sigma(x_i)>0 .
+\hat{F}_i = \mathcal{N}(\mu_i,\ \sigma_i^2),\qquad \mu_i=\mu(x_i),\ \ \sigma_i=\sigma(x_i)\gt 0 .
 \]
 <p>From this we define four derived quantities used throughout the document (<b>be sure to confirm the notation conventions first — they will not be repeated later</b>):</p>
 <table class="simple">
 <tr><th>Symbol</th><th>Definition</th><th>Meaning</th></tr>
-<tr><td>\(r_i = \mu_i - y_i\)</td><td>residual</td><td>\(r_i > 0\) indicates the model <b>over-predicts</b>; sign convention consistent with the thesis's Bias</td></tr>
+<tr><td>\(r_i = \mu_i - y_i\)</td><td>residual</td><td>\(r_i \gt  0\) indicates the model <b>over-predicts</b>; sign convention consistent with the thesis's Bias</td></tr>
 <tr><td>\(z_i = \dfrac{y_i-\mu_i}{\sigma_i}\)</td><td>standardized residual</td><td>note the numerator is \(y-\mu\), so \(r_i = -\sigma_i z_i\)</td></tr>
 <tr><td>\(u_i = \Phi(z_i)\)</td><td>PIT value (probability integral transform)</td><td>the quantile position at which the observation falls within its own predictive distribution; see §4</td></tr>
 <tr><td>\(\omega_i = \dfrac{y_i-\mu_i}{\sigma_i}\)</td><td>standardized quantity in the CRPS derivation</td><td>identical to \(z_i\); written \(\omega\) in §3 only to follow the literature's convention</td></tr>
@@ -346,7 +346,7 @@ The diagonal \(i=j\) recovers the \(N\) individual variances. Independence is su
 An estimated \(\rho_1\) near \(0.8\) is descriptive evidence of strong linear lag-one persistence. It does not by itself imply a conditional sign probability or identify frame rate or a slowly varying physical mechanism; those interpretations require a pinned empirical analysis.</p>
 </details>
 
-<p>To quantify the variance of the sample mean—and only that statistic—suppose \(r_1,\ldots,r_N\) come from a weakly stationary second-order process with \(0\lt s^2\lt\infty\), and assume \(\Var(\bar r)>0\). Then, exactly for this finite \(N\),</p>
+<p>To quantify the variance of the sample mean—and only that statistic—suppose \(r_1,\ldots,r_N\) come from a weakly stationary second-order process with \(0\lt s^2\lt\infty\), and assume \(\Var(\bar r)\gt 0\). Then, exactly for this finite \(N\),</p>
 \[
 \Var(\bar r)
 =\frac{1}{N^2}\sum_{i=1}^N\sum_{j=1}^N \operatorname{Cov}(r_i,r_j)
@@ -360,7 +360,7 @@ The first equality follows from (R2)+(R3). In the double sum, the diagonal contr
 \[
 D_N\longrightarrow D_\infty:=1+2\sum_{k\ge1}\rho_k.
 \]
-If \(D_\infty>0\), then \(N_{\mathrm{eff},N}/N\to D_\infty^{-1}\). If \(D_\infty=0\), this ratio formula is unavailable and the variance needs a separate rate analysis.<span class="qed">∎</span>
+If \(D_\infty\gt 0\), then \(N_{\mathrm{eff},N}/N\to D_\infty^{-1}\). If \(D_\infty=0\), this ratio formula is unavailable and the variance needs a separate rate analysis.<span class="qed">∎</span>
 </div>
 
 <div class="worked"><span class="label">Worked example (AR(1) errors) — how much smaller is \(N_{\mathrm{eff}}\)?</span>
@@ -373,7 +373,7 @@ For a fixed AR(1) correlation coefficient \(\phi\in[0,1)\), \(\rho_k=\phi^k\), a
 The displayed \(N=1000\) values—about 333, 111, and 53 for \(\phi=0.5,0.8,0.9\)—are large-\(N\) approximations under that fixed-\(\phi\) model. Changing frame rate changes \(N\) and may also change \(\phi\); without a model linking \(\phi\) to sampling interval, this calculation does not determine the net information gain. Additional injections or trajectories add independent evidence only insofar as those groups are independent or are analyzed with an explicit group-level dependence model.
 </div>
 
-<p>For the sample mean in (0.2), if \(W_N:=\sum_{k=1}^{N-1}(1-k/N)\rho_k>0\), then \(N_{\mathrm{eff},N}\lt N\); the magnitude depends on the full weighted sequence and need not be large, while negative correlation can give \(N_{\mathrm{eff},N}>N\). This sample-mean quantity does not calibrate coverage, KS, or other nonlinear statistics. Each requires its own dependence law—such as the long-run covariance of its hit or influence process—or a justified block/group-aware resampling scheme. Until supplied, iid p-values are sensitivity references only.</p>
+<p>For the sample mean in (0.2), if \(W_N:=\sum_{k=1}^{N-1}(1-k/N)\rho_k\gt 0\), then \(N_{\mathrm{eff},N}\lt N\); the magnitude depends on the full weighted sequence and need not be large, while negative correlation can give \(N_{\mathrm{eff},N}\gt N\). This sample-mean quantity does not calibrate coverage, KS, or other nonlinear statistics. Each requires its own dependence law—such as the long-run covariance of its hit or influence process—or a justified block/group-aware resampling scheme. Until supplied, iid p-values are sensitivity references only.</p>
 
 <div class="finance"><span class="label">💹 Quant-finance bridge.</span> The covariance double sum in (0.2) is a common starting point for dependence-aware finance calculations; it does not itself produce a Sharpe-ratio standard error, an annualization rule, or a multiple-testing threshold. Those require separate assumptions: finite moments and strictly positive return variance for Sharpe; covariance stationarity, a finite long-run covariance matrix, and delta-method regularity for dependence-adjusted standard errors; and an explicit joint null with cross-strategy dependence for multiple testing. <a href="#sec8">§8</a> states the corresponding conditions separately.</div>
 
@@ -403,11 +403,11 @@ Let \(m\in\mathbb{R}\).
 </div>
 <div class="proof"><span class="label">Proof.</span>
 (i) \(\E[(Y-m)^2]=\E[(Y-\E Y)^2]+(\E Y-m)^2\) (expanding the cross term to zero; this decomposition requires \(\E[Y^2]\lt\infty\), otherwise the objective is \(+\infty\) for all \(m\) and the minimization is degenerate); the second term is zero, and uniquely minimal, at \(m=\E Y\).
-(ii) Let \(g(m)=\E|Y-m|\). Integrability makes \(g\) finite and convex. For \(h>0\), set the pointwise quotients \(D_h^+(y)=[|y-(m+h)|-|y-m|]/h\) and \(D_h^-(y)=[|y-m|-|y-(m-h)|]/h\), so \(|D_h^\pm(y)|\le1\). As \(h\downarrow0\), \(D_h^+(y)\to\ind[y\le m]-\ind[y>m]\) and \(D_h^-(y)\to\ind[y\lt m]-\ind[y\ge m]\); at the atom \(y=m\) the limits are respectively \(+1\) and \(-1\). Dominated convergence gives the one-sided derivatives displayed below. The generalized-median set is nonempty: the CDF tail limits make \(A=\{x:F(x)\ge1/2\}\) nonempty and bounded below, so \(q=\inf A\in\mathbb R\); right continuity gives \(F(q)\ge1/2\), while \(x<q\Rightarrow F(x)<1/2\) gives \(F(q^-)\le1/2\).
+(ii) Let \(g(m)=\E|Y-m|\). Integrability makes \(g\) finite and convex. For \(h\gt 0\), set the pointwise quotients \(D_h^+(y)=[|y-(m+h)|-|y-m|]/h\) and \(D_h^-(y)=[|y-m|-|y-(m-h)|]/h\), so \(|D_h^\pm(y)|\le1\). As \(h\downarrow0\), \(D_h^+(y)\to\ind[y\le m]-\ind[y\gt m]\) and \(D_h^-(y)\to\ind[y\lt m]-\ind[y\ge m]\); at the atom \(y=m\) the limits are respectively \(+1\) and \(-1\). Dominated convergence gives the one-sided derivatives displayed below. The generalized-median set is nonempty: the CDF tail limits make \(A=\{x:F(x)\ge1/2\}\) nonempty and bounded below, so \(q=\inf A\in\mathbb R\); right continuity gives \(F(q)\ge1/2\), while \(x\lt q\Rightarrow F(x)\lt 1/2\) gives \(F(q^-)\le1/2\).
 \[
 g'_-(m)=\Prob(Y\lt m)-\Prob(Y\ge m)=2F(m^-)-1,
 \qquad
-g'_+(m)=\Prob(Y\le m)-\Prob(Y>m)=2F(m)-1.
+g'_+(m)=\Prob(Y\le m)-\Prob(Y\gt m)=2F(m)-1.
 \]
 For a finite convex function, \(m\) minimizes \(g\) if and only if \(g'_-(m)\le0\le g'_+(m)\), equivalently \(F(m^-)\le\tfrac12\le F(m)\). This includes atoms and continuous plateaus without assuming an ordinary two-sided derivative.<span class="qed">∎</span>
 </div>
@@ -460,10 +460,10 @@ Also \(\sqrt{\E r^2}=s\); dividing gives the result.<span class="qed">∎</span>
 </div>
 
 <h3>1.4 A ratio on pooled heteroscedastic data: an easily misread point <span class="star">★</span></h3>
-<p>The thesis's uncensored results give \(\mathrm{RMSE}/\mathrm{MAE}=4.265/3.032\approx 1.407>1.253\). Intuition might suggest "the residuals are fatter-tailed than Gaussian." The lemma below shows that <b>merely pooling residuals across different operating conditions (different σ) is already sufficient to inflate this ratio</b>, even if every individual operating condition is perfectly Gaussian.</p>
+<p>The thesis's uncensored results give \(\mathrm{RMSE}/\mathrm{MAE}=4.265/3.032\approx 1.407\gt 1.253\). Intuition might suggest "the residuals are fatter-tailed than Gaussian." The lemma below shows that <b>merely pooling residuals across different operating conditions (different σ) is already sufficient to inflate this ratio</b>, even if every individual operating condition is perfectly Gaussian.</p>
 
 <div class="lem"><span class="label">Lemma 1.6 (nonconstant scale mixing inflates the ratio and kurtosis).</span>
-Suppose \(\sigma>0\) almost surely, \(\E[\sigma^4]\lt\infty\), and, conditional on this random scale (representing operating-condition heterogeneity), \(r\,|\,\sigma\sim\mathcal{N}(0,\sigma^2)\). Then all displayed moments and ratios below are finite, their denominators are strictly positive, and
+Suppose \(\sigma\gt 0\) almost surely, \(\E[\sigma^4]\lt\infty\), and, conditional on this random scale (representing operating-condition heterogeneity), \(r\,|\,\sigma\sim\mathcal{N}(0,\sigma^2)\). Then all displayed moments and ratios below are finite, their denominators are strictly positive, and
 \[
 \frac{\sqrt{\E r^2}}{\E|r|}
 =\sqrt{\tfrac{\pi}{2}}\cdot\frac{\sqrt{\E[\sigma^2]}}{\E[\sigma]}
@@ -477,7 +477,7 @@ with equality in both places if and only if \(\sigma\) is constant (homoscedasti
 Using the tower property (conditioning on \(\sigma\) first): \(\E r^2=\E[\E(r^2|\sigma)]=\E[\sigma^2]\);
 \(\E|r|=\E\bigl[\sigma\sqrt{2/\pi}\bigr]=\sqrt{2/\pi}\,\E[\sigma]\) (applying Lemma 1.5 conditionally);
 \(\E r^4=\E[3\sigma^4]=3\E[\sigma^4]\) (Gaussian fourth moment).
-The assumptions give \(0<\E\sigma\le(\E\sigma^2)^{1/2}<\infty\) and \(0<\E\sigma^2\le(\E\sigma^4)^{1/2}<\infty\), so the denominators are legitimate. Jensen gives \((\E\sigma)^2\le\E[\sigma^2]\) and \((\E\sigma^2)^2\le\E[\sigma^4]\); strict convexity makes equality in either inequality equivalent to \(\sigma\) being almost surely constant.<span class="qed">∎</span>
+The assumptions give \(0\lt \E\sigma\le(\E\sigma^2)^{1/2}\lt \infty\) and \(0\lt \E\sigma^2\le(\E\sigma^4)^{1/2}\lt \infty\), so the denominators are legitimate. Jensen gives \((\E\sigma)^2\le\E[\sigma^2]\) and \((\E\sigma^2)^2\le\E[\sigma^4]\); strict convexity makes equality in either inequality equivalent to \(\sigma\) being almost surely constant.<span class="qed">∎</span>
 </div>
 
 <p><b>Defense point:</b> observing a ratio of 1.407 <b>cannot</b> directly imply "errors within a single operating condition are non-Gaussian"; heteroscedasticity introduced purely by pooling is one sufficient explanation. Candidate mechanisms may be investigated with operating-condition-stratified diagnostics and, where useful, coverage curves binned by predicted σ. Such curves can reveal heterogeneity, but σ bins need not coincide with operating conditions, and similar patterns can arise from bias, tail-shape changes, mixtures, or other confounding. They are diagnostic, not identifying.</p>
@@ -615,7 +615,7 @@ That is: <b>if</b> the residuals were a single rescaled Gaussian, the predicted 
 but the measured value is \(0.989\).</li>
 <li>Inverting instead from the 2σ coverage: \(\Phi^{-1}(0.9945)=2.543\), \(\tau_2=2/2.543=0.787\ne\tau_1\).</li>
 </ol>
-<b>Conclusion:</b> the rounded plug-in values give \(\hat\tau_1=0.631\) and \(\hat\tau_2=0.787\), so the point estimates do not exactly match one common rescaled-Gaussian description. This is descriptive model-checking evidence, not proof of a population inequality: the estimates are nonlinear transforms of rounded, dependent empirical hit fractions. Rejecting a common-\(\tau\) population model requires a predeclared tolerance and a joint trajectory/group-aware uncertainty analysis that preserves their covariance. The two coverages identify only the probabilities of \(|Z|\le1\), \(1<|Z|\le2\), and \(|Z|>2\); they do not identify symmetry, density shape, condition-specific mixtures, or a nozzle mechanism. Any such explanation requires nozzle-stratified residual, coverage, and PIT evidence.
+<b>Conclusion:</b> the rounded plug-in values give \(\hat\tau_1=0.631\) and \(\hat\tau_2=0.787\), so the point estimates do not exactly match one common rescaled-Gaussian description. This is descriptive model-checking evidence, not proof of a population inequality: the estimates are nonlinear transforms of rounded, dependent empirical hit fractions. Rejecting a common-\(\tau\) population model requires a predeclared tolerance and a joint trajectory/group-aware uncertainty analysis that preserves their covariance. The two coverages identify only the probabilities of \(|Z|\le1\), \(1\lt |Z|\le2\), and \(|Z|\gt 2\); they do not identify symmetry, density shape, condition-specific mixtures, or a nozzle mechanism. Any such explanation requires nozzle-stratified residual, coverage, and PIT evidence.
 <span class="pencil">☞ pencil-and-paper checkpoint</span>: invert \(\tau_1,\tau_2\) yourself using a \(\Phi\) table.
 </div>
 
@@ -637,9 +637,9 @@ but the measured value is \(0.989\).</li>
 <b>Possible follow-up questions and answers:</b> "Does lower CRPS rule out inflated width?" — no. CRPS is sensitive to both location and spread; better location accuracy can offset excessive width. A lower aggregate CRPS on the same observations, weights, units, and aggregation rule establishes a better total-score trade-off on that evaluated sample, not that scale inflation is absent. Report width/sharpness summaries and conditional coverage/PIT separately; claim statistical significance only after a predeclared paired trajectory/group-aware analysis with an exact artifact locator.
 </div>
 
-<div class="finance"><span class="label">💹 Quant-finance bridge.</span> Coverage and VaR backtesting both use binary encodings, but for different events: central two-sided hits versus one-sided quantile exceptions. For a lower-tail level \(0<\alpha<1\), define the generalized quantile \(q_t(\alpha)=\inf\{x:F_t(x)\ge\alpha\}\). If \(F_t\) has an atom at \(q_t\), neither \(R_t<q_t\) nor \(R_t\le q_t\) generally has probability \(\alpha\); an exact-level convention can use
+<div class="finance"><span class="label">💹 Quant-finance bridge.</span> Coverage and VaR backtesting both use binary encodings, but for different events: central two-sided hits versus one-sided quantile exceptions. For a lower-tail level \(0\lt \alpha\lt 1\), define the generalized quantile \(q_t(\alpha)=\inf\{x:F_t(x)\ge\alpha\}\). If \(F_t\) has an atom at \(q_t\), neither \(R_t\lt q_t\) nor \(R_t\le q_t\) generally has probability \(\alpha\); an exact-level convention can use
 \[
-I_t=\mathbf1\{R_t<q_t\}+B_t\mathbf1\{R_t=q_t\},\qquad
+I_t=\mathbf1\{R_t\lt q_t\}+B_t\mathbf1\{R_t=q_t\},\qquad
 B_t\sim\operatorname{Bernoulli}\!\left(\frac{\alpha-F_t(q_t^-)}{F_t(q_t)-F_t(q_t^-)}\right),
 \]
 with \(B_t\) conditionally independent of the return. A count is binomial only for declared independent Bernoulli units with one common probability. Kupiec's iid-Bernoulli unconditional-coverage model, Christoffersen's additional transition-independence model, and the Basel traffic-light rule's fixed regulatory horizon, level, and exception definition have separate conditions; <a href="#sec9">§9</a> must preserve the same quantile/tie convention rather than derive all three from one binomial CDF.</div>
@@ -740,7 +740,7 @@ Adding: \(2\varphi(\omega)+\omega\bigl(2\Phi(\omega)-1\bigr)\).<span class="qed"
 </div>
 
 <div class="thm"><span class="label">Theorem 3.6 (Gaussian CRPS).</span>
-Let \(\sigma>0\), \(F=\mathcal N(\mu,\sigma^2)\), and \(\omega=\dfrac{y-\mu}{\sigma}\). Then
+Let \(\sigma\gt 0\), \(F=\mathcal N(\mu,\sigma^2)\), and \(\omega=\dfrac{y-\mu}{\sigma}\). Then
 \[
 \mathrm{CRPS}\bigl(\mathcal N(\mu,\sigma^2),\,y\bigr)
 =\sigma\Bigl[\,\omega\bigl(2\Phi(\omega)-1\bigr)+2\varphi(\omega)-\frac{1}{\sqrt{\pi}}\,\Bigr].
@@ -792,7 +792,7 @@ g'(\omega)=\bigl(2\Phi(\omega)-1\bigr)+2\omega\varphi(\omega)+2\varphi'(\omega)
 \[
 \boxed{\ \sigma^\ast =\frac{|y-\mu|}{\sqrt{\ln 2}}\approx 1.201\,|y-\mu|\ }
 \]
-<p>Uniqueness: in (3.5), \(\varphi(\delta/\sigma)\) is strictly increasing in \(\sigma\) (since \(|\omega|\) decreases), so the derivative rises monotonically from \(-1/\sqrt\pi\lt0\) at \(\sigma\to0^+\) to \(\sqrt{2/\pi}-1/\sqrt\pi\gt0\) at \(\sigma\to\infty\), changing sign exactly once. <b>Interpretation:</b> for a fixed mean and one observation with a nonzero miss, the CRPS-preferred positive scale is about 1.2 times that realized miss distance. If \(y=\mu\), P2 shows that the infimum occurs only at the excluded boundary \(\sigma\downarrow0\). <b>The population level is different:</b> on the unrestricted finite-first-moment class, P4 says that expected CRPS is minimized by the full true conditional distribution. It does not imply that the CRPS projection of a non-Gaussian conditional law onto a Gaussian family has scale equal to the true conditional standard deviation. Only when the true conditional law itself is Gaussian with \(0<\Var(Y|x)<\infty\) does the optimal Gaussian scale equal that standard deviation. Theorem 5.1 is a separate ideal Gaussian-NLL result under its own regularity conditions.</p>
+<p>Uniqueness: in (3.5), \(\varphi(\delta/\sigma)\) is strictly increasing in \(\sigma\) (since \(|\omega|\) decreases), so the derivative rises monotonically from \(-1/\sqrt\pi\lt0\) at \(\sigma\to0^+\) to \(\sqrt{2/\pi}-1/\sqrt\pi\gt0\) at \(\sigma\to\infty\), changing sign exactly once. <b>Interpretation:</b> for a fixed mean and one observation with a nonzero miss, the CRPS-preferred positive scale is about 1.2 times that realized miss distance. If \(y=\mu\), P2 shows that the infimum occurs only at the excluded boundary \(\sigma\downarrow0\). <b>The population level is different:</b> on the unrestricted finite-first-moment class, P4 says that expected CRPS is minimized by the full true conditional distribution. It does not imply that the CRPS projection of a non-Gaussian conditional law onto a Gaussian family has scale equal to the true conditional standard deviation. Only when the true conditional law itself is Gaussian with \(0\lt \Var(Y|x)\lt \infty\) does the optimal Gaussian scale equal that standard deviation. Theorem 5.1 is a separate ideal Gaussian-NLL result under its own regularity conditions.</p>
 
 <p><b>P4 (strict propriety).</b> This is the core of CRPS's legitimacy as an evaluation metric: <b>telling the truth is the unique optimal strategy</b>.</p>
 <div class="thm"><span class="label">Theorem 3.7.</span>
@@ -815,7 +815,7 @@ Integrating over \(z\) (the difference is nonnegative and integrable: \((F-G)^2\
 <p>Let \(F\) and \(G\) have finite first moments and let \(Y,Y'\) be independent draws from \(G\). The energy identity in Theorem 3.4 first gives \(\E_G\mathrm{CRPS}(G,Y)=\tfrac12\E|Y-Y'|\); combining that baseline with Theorem 3.7's regret term yields
 \(\E_G\mathrm{CRPS}(F,Y)=\underbrace{\tfrac12\E|Y-Y'|}_{\text{intrinsic dispersion of the data}}+\underbrace{\textstyle\int(F-G)^2\dd z}_{\text{deviation of the predictive distribution}}\). Within this finite-score class, the former is a floor no predictive distribution can beat and the latter is the improvable part.</p>
 
-<p><b>P5 (tail behavior: CRPS linear, NLL quadratic).</b> Fix \(\sigma>0\), let \(d=|y-\mu|\to\infty\), and put \(u=d/\sigma\). Formula (3.4) is even in \(\omega\), so the same calculation covers positive and negative residuals. Applying the Mills ratio to \(u\to\infty\):
+<p><b>P5 (tail behavior: CRPS linear, NLL quadratic).</b> Fix \(\sigma\gt 0\), let \(d=|y-\mu|\to\infty\), and put \(u=d/\sigma\). Formula (3.4) is even in \(\omega\), so the same calculation covers positive and negative residuals. Applying the Mills ratio to \(u\to\infty\):
 \[
 \mathrm{CRPS}=\sigma\bigl[u-2u(1-\Phi(u))+2\varphi(u)-\tfrac1{\sqrt\pi}\bigr]
 =d-\frac{\sigma}{\sqrt\pi}+O\!\bigl(\sigma\varphi(d/\sigma)\bigr),
@@ -824,7 +824,7 @@ Integrating over \(z\) (the difference is nonnegative and integrable: \((F-G)^2\
 \]
 i.e., at fixed scale one observation contributes <b>linearly</b> rather than quadratically in a large miss. This is a pointwise score-growth comparison, not by itself a theorem of estimator, optimization, bounded-influence, or contamination robustness. Any Nozzle 3 mechanism claim requires a pinned anomaly analysis.</p>
 
-<p><b>P6 (scale equivariance).</b> For \(a>0\): \(\mathrm{CRPS}\bigl(\mathcal N(a\mu,a^2\sigma^2),\,ay\bigr)=a\cdot\mathrm{CRPS}\bigl(\mathcal N(\mu,\sigma^2),y\bigr)\) (in (3.4), \(\omega\) is unchanged and the prefactor \(\sigma\mapsto a\sigma\)). So CRPS carries units of mm and is compatible with the thesis's \(A\)-scaling (\(\mu_S=A\hat\mu,\ \sigma_S=A\hat\sigma\)): computing in physical space, or computing in scaled space and multiplying by \(A\), gives the same result.</p>
+<p><b>P6 (scale equivariance).</b> For \(a\gt 0\): \(\mathrm{CRPS}\bigl(\mathcal N(a\mu,a^2\sigma^2),\,ay\bigr)=a\cdot\mathrm{CRPS}\bigl(\mathcal N(\mu,\sigma^2),y\bigr)\) (in (3.4), \(\omega\) is unchanged and the prefactor \(\sigma\mapsto a\sigma\)). So CRPS carries units of mm and is compatible with the thesis's \(A\)-scaling (\(\mu_S=A\hat\mu,\ \sigma_S=A\hat\sigma\)): computing in physical space, or computing in scaled space and multiplying by \(A\), gives the same result.</p>
 
 
 <div class="demo" id="demo4">
@@ -903,7 +903,7 @@ is Uniform(0,1). Pooling all the \(u_i\) and plotting a histogram should give an
 <p>Turn the statement "U-shaped = overconfident, hump-shaped = over-dispersed, skewed = mean bias" into a theorem. Consider the idealized setting: the true \(Y\sim\mathcal N(m,s^2)\), predicted \(\mathcal N(\mu,\sigma^2)\).</p>
 
 <div class="thm"><span class="label">Theorem 4.2 (PIT density).</span>
-Suppose \(s>0\) and \(\sigma>0\). Then
+Suppose \(s\gt 0\) and \(\sigma\gt 0\). Then
 The density of \(U=\Phi\bigl(\tfrac{Y-\mu}{\sigma}\bigr)\) is
 \[
 p_U(u)=\frac{\sigma}{s}\cdot
@@ -926,10 +926,10 @@ p_U(u)=\kappa\,\exp\!\Bigl[-\tfrac{q^2}{2}\bigl(\kappa^2-1\bigr)\Bigr],
 \qquad q=\Phi^{-1}(u).
 \]
 <ul>
-<li>\(\kappa>1\) (σ too wide, conservative): since \(\kappa^2-1>0\), \(\log p_U(u)=\log\kappa-\tfrac12(\kappa^2-1)q^2\) strictly decreases as \(|q|\) increases, so \(p_U\) is strictly decreasing in \(|q|\) — largest at the center \(p_U(\tfrac12)=\kappa>1\) and, as \(u\to0,1\) (\(q\to\mp\infty\)), the exponent \(\to-\infty\) so the density \(\to0\), giving a genuinely <b>hump-shaped</b> distribution (monotone on each half, not merely matched at three points).</li>
+<li>\(\kappa\gt 1\) (σ too wide, conservative): since \(\kappa^2-1\gt 0\), \(\log p_U(u)=\log\kappa-\tfrac12(\kappa^2-1)q^2\) strictly decreases as \(|q|\) increases, so \(p_U\) is strictly decreasing in \(|q|\) — largest at the center \(p_U(\tfrac12)=\kappa\gt 1\) and, as \(u\to0,1\) (\(q\to\mp\infty\)), the exponent \(\to-\infty\) so the density \(\to0\), giving a genuinely <b>hump-shaped</b> distribution (monotone on each half, not merely matched at three points).</li>
 <li>\(0\lt\kappa\lt 1\) (σ too narrow, overconfident): since \(\kappa^2-1\lt0\), \(\log p_U(u)=\log\kappa-\tfrac12(\kappa^2-1)q^2\) strictly increases as \(|q|\) increases, so \(p_U\) is strictly increasing in \(|q|\) — smallest at the center \(p_U(\tfrac12)=\kappa\lt 1\) and the endpoint density \(\to\infty\), giving a genuinely <b>U-shaped</b> distribution (monotone on each half, not merely matched at two points).</li>
 <li>\(\kappa=1\): \(p_U(u)\equiv1\), so the PIT is uniform.</li>
-<li>\(\mu\ne m\): the shift in (4.1) makes the density no longer symmetric about \(u=\tfrac12\). Since \(Y\sim\mathcal N(m,s^2)\), \(Z=(Y-\mu)/\sigma\) is Gaussian with mean \((m-\mu)/\sigma\), so \(U=\Phi(Z)\) has \(\operatorname{med}(U)=\Phi((m-\mu)/\sigma)\); because \(\Phi\) is strictly increasing, \(\mu>m\) (systematic over-prediction) makes \((m-\mu)/\sigma\lt0\), so \(\operatorname{med}(U)\lt\tfrac12\) and, for fixed \(Y\), increasing \(\mu\) strictly decreases \(Z\) and hence \(U\) pointwise — \(U\) is <b>stochastically smaller</b>, giving a histogram <b>weighted toward the left</b>; \(\mu\lt m\) reverses both inequalities, making \(U\) stochastically larger.</li>
+<li>\(\mu\ne m\): the shift in (4.1) makes the density no longer symmetric about \(u=\tfrac12\). Since \(Y\sim\mathcal N(m,s^2)\), \(Z=(Y-\mu)/\sigma\) is Gaussian with mean \((m-\mu)/\sigma\), so \(U=\Phi(Z)\) has \(\operatorname{med}(U)=\Phi((m-\mu)/\sigma)\); because \(\Phi\) is strictly increasing, \(\mu\gt m\) (systematic over-prediction) makes \((m-\mu)/\sigma\lt0\), so \(\operatorname{med}(U)\lt\tfrac12\) and, for fixed \(Y\), increasing \(\mu\) strictly decreases \(Z\) and hence \(U\) pointwise — \(U\) is <b>stochastically smaller</b>, giving a histogram <b>weighted toward the left</b>; \(\mu\lt m\) reverses both inequalities, making \(U\) stochastically larger.</li>
 </ul>
 </div>
 <p><span class="pencil">☞ pencil-and-paper checkpoint</span>: substitute \(\kappa=1,\mu=m\) into (4.1) and verify \(p_U\equiv1\). The U/hump/shift dictionary is a theorem only inside this positive-variance Gaussian family, and the scale-only U/hump statements additionally require \(\mu=m\). Selected empirical overcoverage outside that model does not identify \(\kappa\), a global PIT shape, or a physical cause.</p>
@@ -942,7 +942,7 @@ The empirical CDF of the PIT values is \(\widehat R(p)=\frac1N\sum_i\ind[u_i\le 
 <ul>
 <li>The curve forms an S-shape, "low then high" (below the diagonal at low \(p\), above at high \(p\)), implying the PIT is concentrated at the center, implying over-dispersion (conservative).</li>
 <li>An inverse-S shape implies a U-shaped PIT, implying overconfidence.</li>
-<li>Overall above the diagonal implies \(u_i\) skews small, implying systematic over-prediction (\(\mu>y\) predominates); overall below implies under-prediction.</li>
+<li>Overall above the diagonal implies \(u_i\) skews small, implying systematic over-prediction (\(\mu\gt y\) predominates); overall below implies under-prediction.</li>
 </ul>
 <p>Outside that model, a reliability-curve shape is a diagnostic pattern rather than a uniquely identified mechanism. Moreover, by Lemma 2.3, inclusive coverage is the interval mass \(\widehat{\mathrm{Cov}}_{k\sigma}=\widehat R(\Phi(k))-\widehat R(\Phi(-k)^-)\); the left limit is needed when a PIT value ties the lower endpoint. The reliability diagram displays many such CDF evaluations, but selected coverage levels do not determine the full curve.</p>
 
@@ -1041,7 +1041,7 @@ Subtracting the conditional risk at \((m,v_0)\) from that at \((\mu,v)\) yields
 +\frac{v_0}{v}-1-\log\!\left(\frac{v_0}{v}\right)
 \right]\ge0.
 \]
-The first term is nonnegative and \(a-1-\log a\ge0\) for \(a>0\), with equality only at \(a=1\). Hence equality holds only when \(\mu=m\) and \(v=v_0\). Integrating this nonnegative excess under the theorem's well-defined-risk convention proves global optimality and uniqueness modulo \(P_X\)-null sets.<span class="qed">∎</span>
+The first term is nonnegative and \(a-1-\log a\ge0\) for \(a\gt 0\), with equality only at \(a=1\). Hence equality holds only when \(\mu=m\) and \(v=v_0\). Integrating this nonnegative excess under the theorem's well-defined-risk convention proves global optimality and uniqueness modulo \(P_X\)-null sets.<span class="qed">∎</span>
 </div>
 <p><b>Interpretation.</b> The theorem is a population function-space targeting identity. It says what the Gaussian NLL targets when its moment, log-integrability, measurability, and admissible-class hypotheses hold. It does not say that a finite, clipped, jointly optimized network attains those functions, that its empirical estimator is unbiased, or that a fitted variance head is calibrated without held-out checks.</p>
 <div class="remark"><b>★ Remark — misspecification: the estimate survives, the error bars do not (sandwich covariance).</b>
@@ -1053,11 +1053,11 @@ B=\E\bigl[\nabla_\theta\,\ell(\theta^\ast)\,\nabla_\theta\,\ell(\theta^\ast)^{\!
 \quad\Longrightarrow\quad
 \sqrt{n}\,\bigl(\hat\theta-\theta^\ast\bigr)\ \xrightarrow{\;d\;}\ \mathcal N\!\bigl(0,\ A^{-1}B\,A^{-1}\bigr)
 \]
-with sandwich covariance \(A^{-1}BA^{-1}\). Under correct likelihood specification the information-matrix equality gives \(A=B\); under misspecification it generally does not. As a separate exact calculation, if \(Y_1,\ldots,Y_n\) are iid with known mean \(m\), variance \(\sigma^2>0\), and finite fourth moment \(\E(Y-m)^4=\kappa\sigma^4\), then \(\hat\sigma^2=n^{-1}\sum_i(Y_i-m)^2\) has \(\Var(\hat\sigma^2)=(\kappa-1)\sigma^4/n\). If the mean is estimated, the finite-sample formula changes, although the same leading variance holds under the corresponding joint regularity. Singular \(A\), boundary optima, unidentified parameters, infinite score variance, or failure of the sampling LLN/CLT lie outside the displayed normal limit. The sandwich concerns parameter uncertainty; it does not by itself recalibrate predictive intervals.
+with sandwich covariance \(A^{-1}BA^{-1}\). Under correct likelihood specification the information-matrix equality gives \(A=B\); under misspecification it generally does not. As a separate exact calculation, if \(Y_1,\ldots,Y_n\) are iid with known mean \(m\), variance \(\sigma^2\gt 0\), and finite fourth moment \(\E(Y-m)^4=\kappa\sigma^4\), then \(\hat\sigma^2=n^{-1}\sum_i(Y_i-m)^2\) has \(\Var(\hat\sigma^2)=(\kappa-1)\sigma^4/n\). If the mean is estimated, the finite-sample formula changes, although the same leading variance holds under the corresponding joint regularity. Singular \(A\), boundary optima, unidentified parameters, infinite score variance, or failure of the sampling LLN/CLT lie outside the displayed normal limit. The sandwich concerns parameter uncertainty; it does not by itself recalibrate predictive intervals.
 </div>
 
 <div class="remark"><b>★ Remark — finite samples: jointly-fitted σ² is biased low; FGLS and REML.</b>
-Theorem 5.1 is a population statement, not a universal finite-sample bias formula. In the exact linear case, let \(y=X\beta+\varepsilon\), where \(X\in\mathbb R^{n\times p}\) is fixed with rank \(r<n\), \(\varepsilon\sim\mathcal N(0,\sigma^2I)\), and \(\hat\beta\) is a least-squares solution. If \(\hat\sigma^2_{\mathrm{MLE}}=\mathrm{RSS}/n\), projection-matrix algebra gives
+Theorem 5.1 is a population statement, not a universal finite-sample bias formula. In the exact linear case, let \(y=X\beta+\varepsilon\), where \(X\in\mathbb R^{n\times p}\) is fixed with rank \(r\lt n\), \(\varepsilon\sim\mathcal N(0,\sigma^2I)\), and \(\hat\beta\) is a least-squares solution. If \(\hat\sigma^2_{\mathrm{MLE}}=\mathrm{RSS}/n\), projection-matrix algebra gives
 \[
 \E[\mathrm{RSS}]=(n-r)\sigma^2,
 \qquad
@@ -1068,7 +1068,7 @@ Only when \(X\) has full column rank does \(r=p\) recover the familiar \((n-p)/n
 
 <h3>5.3 NLL is also a strictly proper scoring rule (log score)</h3>
 <div class="thm"><span class="label">Theorem 5.2 (Gibbs' inequality).</span>
-Let \(f\) and \(g\) be probability densities with respect to one fixed σ-finite measure \(\nu\), and assume \(\int g|\log g|\,d\nu<\infty\). Assign infinite forecast loss when \(f=0\) on a set of positive \(g\)-mass, and otherwise define the log-score risk by the finite baseline plus extended-valued regret:
+Let \(f\) and \(g\) be probability densities with respect to one fixed σ-finite measure \(\nu\), and assume \(\int g|\log g|\,d\nu\lt \infty\). Assign infinite forecast loss when \(f=0\) on a set of positive \(g\)-mass, and otherwise define the log-score risk by the finite baseline plus extended-valued regret:
 \[
 L_g(f):=L_g(g)+\mathrm{KL}(g\|f),\qquad
 L_g(g)=-\int g\log g\,d\nu.
@@ -1076,19 +1076,19 @@ L_g(g)=-\int g\log g\,d\nu.
 This agrees with \(-\int g\log f\,d\nu\) whenever that integral is well-defined. Then \(L_g(f)\ge L_g(g)\), with equality if and only if \(f=g\) \(\nu\)-almost everywhere.
 </div>
 <div class="proof"><span class="label">Proof.</span>
-On \(\{g>0\}\), put \(t=f/g\) and use \(h(t)=-\log t-1+t\ge0\), with \(h(t)=0\) only at \(t=1\). With the support-failure convention,
+On \(\{g\gt 0\}\), put \(t=f/g\) and use \(h(t)=-\log t-1+t\ge0\), with \(h(t)=0\) only at \(t=1\). With the support-failure convention,
 \[
 \mathrm{KL}(g\|f)
-=\int_{\{g>0\}}g\,h(f/g)\,d\nu
-+1-\int_{\{g>0\}}f\,d\nu
+=\int_{\{g\gt 0\}}g\,h(f/g)\,d\nu
++1-\int_{\{g\gt 0\}}f\,d\nu
 \ge0.
 \]
-This nonnegative decomposition is valid in the extended sense and never subtracts two infinite expectations. Equality forces \(f/g=1\) \(g\)-almost everywhere and \(\int_{\{g>0\}}f=1\); normalization then gives \(f=g\) \(\nu\)-almost everywhere. The converse is immediate.<span class="qed">∎</span>
+This nonnegative decomposition is valid in the extended sense and never subtracts two infinite expectations. Equality forces \(f/g=1\) \(g\)-almost everywhere and \(\int_{\{g\gt 0\}}f=1\); normalization then gives \(f=g\) \(\nu\)-almost everywhere. The converse is immediate.<span class="qed">∎</span>
 </div>
 
 <h3>5.4 The NLL in scaled space and physical space differ by log A</h3>
 <div class="lem"><span class="label">Lemma 5.3.</span>
-Let \(S=A\hat S\) (\(A>0\) is that sample's amplitude scaling factor), and suppose the model reports \(\mathcal N(\hat\mu,\hat\sigma^2)\) in scaled space, equivalently \(\mathcal N(A\hat\mu,A^2\hat\sigma^2)\) in physical space. Then the single-point NLL satisfies
+Let \(S=A\hat S\) (\(A\gt 0\) is that sample's amplitude scaling factor), and suppose the model reports \(\mathcal N(\hat\mu,\hat\sigma^2)\) in scaled space, equivalently \(\mathcal N(A\hat\mu,A^2\hat\sigma^2)\) in physical space. Then the single-point NLL satisfies
 \[
 \mathrm{NLL}_{\mathrm{phys}}=\mathrm{NLL}_{\mathrm{scaled}}+\log A .
 \]
@@ -1106,7 +1106,7 @@ Density transformation: \(f_S(s)=\frac1A f_{\hat S}(s/A)\), and taking the negat
 (or the corresponding common weighted average), so the common term preserves their ranking. If observations, weights, target populations, transforms, or aggregation differ, Lemma 5.3 gives no ranking invariance. In particular, Stage 2 scaled NLL and a Stage 3 composite loss are not one leaderboard.</p>
 
 <h3>5.5 Two common questions</h3>
-<p><b>(a) Why can NLL be negative?</b> A continuous density can exceed 1. For the constant-included Gaussian NLL at \(y=\mu\), the value is \(\tfrac12\log(2\pi\sigma^2)\), negative exactly when \(\sigma<1/\sqrt{2\pi}\). For a heterogeneous validation set under the constant-dropped convention,
+<p><b>(a) Why can NLL be negative?</b> A continuous density can exceed 1. For the constant-included Gaussian NLL at \(y=\mu\), the value is \(\tfrac12\log(2\pi\sigma^2)\), negative exactly when \(\sigma\lt 1/\sqrt{2\pi}\). For a heterogeneous validation set under the constant-dropped convention,
 \[
 \bar\ell=\tfrac12\{\overline{\log\sigma_i^2}+\overline{z_i^2}\},
 \qquad
@@ -1130,13 +1130,13 @@ The pinned epoch-116 value \(\bar\ell=-0.322555205\) comes from <code>MLP/runs_m
 <p>Thus the implementation choice is pragmatic rather than a new theorem: under Theorem 5.1's conditions, NLL is a differentiable function-space objective for conditional moments, while the clipped network may not attain that optimum. CRPS (on its finite-first-moment domain), coverage, PIT, and explicit width summaries are complementary held-out diagnostics. The precise robustness statement used here is only that fixed-scale Gaussian CRPS has linear large-residual growth; no breakdown-point or bounded-influence claim is made.</p>
 
 <div class="card"><span class="label">Defense summary card — Heteroscedastic NLL</span><br>
-<b>In one sentence:</b> under finite conditional second moments, \(0<\Var(Y|X)<\infty\) almost surely, a finite log-integrable baseline, and an admissible measurable function class containing the conditional moments, Gaussian NLL is uniquely minimized modulo \(P_X\)-null sets by the conditional mean and variance; this function-space result need not be attained by a clipped network.<br>
+<b>In one sentence:</b> under finite conditional second moments, \(0\lt \Var(Y|X)\lt \infty\) almost surely, a finite log-integrable baseline, and an admissible measurable function class containing the conditional moments, Gaussian NLL is uniquely minimized modulo \(P_X\)-null sets by the conditional mean and variance; this function-space result need not be attained by a clipped network.<br>
 <b>What it answers:</b> "How can a single scalar loss learn both μ(x) and σ(x) simultaneously during training?"<br>
 <b>Its role in this thesis:</b> the Stage 2 data-fitting convention is pinned in <code>Thesis/latex/sections_en/04_trajectory_surrogate_screening.tex</code> and <code>MLP/MLP_training/efc/objectives.py</code>; reporting uses held-out CRPS, coverage, PIT, and width summaries rather than treating training optimality as calibration.<br>
 <b>Possible follow-up questions and answers:</b> "The validation NLL is negative — is that a bug?" — not by itself; §5.5(a) separates the pointwise density threshold from the dataset-level geometric-mean identity. "Why can't NLL be compared across stages?" — Lemma 5.3 preserves rankings only on matched observations with identical weights, aggregation, and transforms; the stage objectives and populations differ.
 </div>
 
-<div class="finance"><span class="label">💹 Quant-finance bridge.</span> Theorem 5.1 proves only a static pointwise conditional-risk target. Consistency of a fitted GARCH QMLE additionally needs correctly specified conditional mean/variance dynamics, a positive stationary ergodic solution, identification, an interior parameter, suitable moments, and uniform-LLN/optimization regularity. The base QLIKE loss \(\log h+p/h\) is defined for \(h>0\) and finite \(p\ge0\), so a zero proxy is legal and no log-integrability of \(p\) is required; its conditional-risk minimizer is \(h=m\) when \(0<m=\E[p\mid\mathcal F]<\infty\), while for \(m=0\) there is only an unattained boundary infimum as \(h\downarrow0\), not a positive-domain minimizer. Only the normalized divergence form, containing \(\log p\) or \(\log(p/h)\), needs positive log-integrable forecasts/proxies; matching the proxy's conditional mean to the latent variance via the stated conditional-unbiasedness relation is a loss-targeting property, not automatic dynamic-estimator consistency. These are separate estimator/loss theorems, not consequences of the pointwise algebra; <a href="#sec12">§12</a> must state their source-specific conditions.</div>
+<div class="finance"><span class="label">💹 Quant-finance bridge.</span> Theorem 5.1 proves only a static pointwise conditional-risk target. Consistency of a fitted GARCH QMLE additionally needs correctly specified conditional mean/variance dynamics, a positive stationary ergodic solution, identification, an interior parameter, suitable moments, and uniform-LLN/optimization regularity. The base QLIKE loss \(\log h+p/h\) is defined for \(h\gt 0\) and finite \(p\ge0\), so a zero proxy is legal and no log-integrability of \(p\) is required; its conditional-risk minimizer is \(h=m\) when \(0\lt m=\E[p\mid\mathcal F]\lt \infty\), while for \(m=0\) there is only an unattained boundary infimum as \(h\downarrow0\), not a positive-domain minimizer. Only the normalized divergence form, containing \(\log p\) or \(\log(p/h)\), needs positive log-integrable forecasts/proxies; matching the proxy's conditional mean to the latent variance via the stated conditional-unbiasedness relation is a loss-targeting property, not automatic dynamic-estimator consistency. These are separate estimator/loss theorems, not consequences of the pointwise algebra; <a href="#sec12">§12</a> must state their source-specific conditions.</div>
 
 <h2 id="sec6">§6 The mathematics of the evaluation protocol: pooling, censoring, and LONO</h2>
 
@@ -1155,7 +1155,7 @@ Let \(S\) and \(C\) be nonnegative integrable random variables, and let the obse
 \[
 \E[Y]=\E[S]-\E[(S-C)^+]\ \le\ \E[S].
 \]
-The inequality is strict exactly when \(\Pr(S>C)>0\). If a pointwise oracle reports \(\mu=S\), evaluation against \(Y\) records \(\mu-Y=(S-C)^+\ge0\).
+The inequality is strict exactly when \(\Pr(S\gt C)\gt 0\). If a pointwise oracle reports \(\mu=S\), evaluation against \(Y\) records \(\mu-Y=(S-C)^+\ge0\).
 </div>
 <div class="proof"><span class="label">Proof.</span>
 The identity \(\min(S,C)=S-(S-C)^+\) holds pointwise. Nonnegativity gives \(0\le(S-C)^+\le S\) and \(0\le Y\le S\), so all displayed expectations are finite. Taking expectations gives the equality and weak inequality. A nonnegative integrable random variable has positive expectation exactly when it is positive with positive probability, which gives the strictness condition. The oracle identity follows pointwise.<span class="qed">∎</span>
@@ -1266,7 +1266,7 @@ This gives \(12.73\pm12.44\), matching the thesis table digit for digit. This is
 </table>
 
 <div class="lem"><span class="label">Lemma 7.1 (the Gaussian correction factor for MAD).</span>
-Let \(X\sim\mathcal N(\mu,\sigma^2)\) with \(\sigma>0\), and define the population \(\MAD=\med\bigl(|X-\med(X)|\bigr)\). Then
+Let \(X\sim\mathcal N(\mu,\sigma^2)\) with \(\sigma\gt 0\), and define the population \(\MAD=\med\bigl(|X-\med(X)|\bigr)\). Then
 \[
 \MAD=\sigma\,\Phi^{-1}(0.75)\approx0.6745\,\sigma,
 \qquad\text{so that}\qquad
@@ -1287,7 +1287,7 @@ Let \(X\sim\mathcal N(\mu,\sigma^2)\) with \(\sigma>0\), and define the populati
 <tr><td>MAE</td><td>\(N^{-1}\sum|r_i|\). The population target requires \(Y\in L^1\), hence \(\E[|Y|\mid X]\lt\infty\) almost surely; it is the possibly nonunique conditional-median set in an admissible measurable predictor class (Theorem 1.2).</td><td>absolute-error magnitude in the declared cohort</td><td>3.032 mm; same uncensored five-seed cohort as RMSE [P1]</td></tr>
 <tr><td>Bias</td><td>\(\bar r\), with \(s_{r,N}^2=N^{-1}\sum_i(r_i-\bar r)^2\) and \(\mathrm{RMSE}^2=\bar r^2+s_{r,N}^2\) for one residual vector.</td><td>signed global offset</td><td>+0.562 mm; uncensored five-seed mean [P1]. The displayed \(0.562^2/4.265^2\approx1.74\%\) is a ratio of aggregate means, not a seedwise variance decomposition.</td></tr>
 <tr><td>P95</td><td>Left empirical quantile \(|r|_{(\lceil0.95N\rceil)}\); other software interpolation conventions must be named. \(1.96s\) is only a zero-mean Gaussian reference.</td><td>one declared upper depth of absolute error</td><td>9.167 mm; <i>full-clean</i> 692,942-point cohort, mean of five seed-level P95 values [P2], not the uncensored cohort</td></tr>
-<tr><td>Coverage</td><td>\(N^{-1}\#\{|z_i|\le k\}\), \(z_i=(y_i-\mu_i)/\sigma_i\), \(\sigma_i>0\). The target \(2\Phi(k)-1\) requires conditionally standard-normal calibrated residuals.</td><td>empirical central-interval hit fraction at each stated \(k\)</td><td>0.887 / 0.989 for \(k=1,2\); uncensored five-seed means [P1]. These are descriptive overcoverage values, not a distributional identification.</td></tr>
+<tr><td>Coverage</td><td>\(N^{-1}\#\{|z_i|\le k\}\), \(z_i=(y_i-\mu_i)/\sigma_i\), \(\sigma_i\gt 0\). The target \(2\Phi(k)-1\) requires conditionally standard-normal calibrated residuals.</td><td>empirical central-interval hit fraction at each stated \(k\)</td><td>0.887 / 0.989 for \(k=1,2\); uncensored five-seed means [P1]. These are descriptive overcoverage values, not a distributional identification.</td></tr>
 <tr><td>CRPS</td><td>CDF/energy/quantile forms under finite first moment; Gaussian closed form additionally requires positive scale. Strict propriety is a population expected-score statement.</td><td>accuracy and sharpness on a common physical-unit cohort</td><td>2.493 mm for the production MLP versus 5.838 / 6.152 mm for the two calibrated physical baselines; full-clean cohort [P3], with no significance claim</td></tr>
 <tr><td>PIT / reliability / ECE</td><td>Uniform PIT requires the correct continuous conditional CDF; atoms require randomized PIT. ECE also requires fixed grid, endpoint, and tie conventions.</td><td>descriptive distributional calibration on a pinned evaluation population</td><td>No single cross-row value: use the full-clean calibration artifact [P3]; variant rankings require a common population and uncertainty/tolerance rule.</td></tr>
 <tr><td>NLL</td><td>Positive finite variance, finite log-risk, and the unrestricted measurable function-space boundary of Theorem 5.1; a parameterized network need not attain that optimum.</td><td>training objective for a declared likelihood and scale</td><td>−0.323; one seed-99 Stage-2 <i>validation</i> epoch in scaled target space [P4], not a physical-mm test metric</td></tr>
@@ -1384,11 +1384,11 @@ A desk tries \(M=1{,}000\) variants and reports the winner: annualized SR 2.0 ov
 
 <h2 id="sec9">§9 From coverage to VaR backtesting: Kupiec, Christoffersen, and the Basel traffic light</h2>
 
-<p>§2 counted how often central ±kσ intervals contain the observation. Value-at-Risk backtesting counts breaches of a <b>one-sided</b> conditional predictive quantile. Let \(\mathcal F_{t-1}\) be the declared full information set, let the forecast CDF \(F_t(\cdot)=\Prob(r_t\le\cdot\mid\mathcal F_{t-1})\) and threshold \(q_t(\alpha)=\inf\{y:F_t(y)\ge\alpha\}\) be \(\mathcal F_{t-1}\)-measurable, and fix \(0<\alpha<1\). With \(U_t\overset{\mathrm{iid}}{\sim}\mathrm{Unif}(0,1)\) independent of the entire original data-and-forecast sigma-field, define</p>
+<p>§2 counted how often central ±kσ intervals contain the observation. Value-at-Risk backtesting counts breaches of a <b>one-sided</b> conditional predictive quantile. Let \(\mathcal F_{t-1}\) be the declared full information set, let the forecast CDF \(F_t(\cdot)=\Prob(r_t\le\cdot\mid\mathcal F_{t-1})\) and threshold \(q_t(\alpha)=\inf\{y:F_t(y)\ge\alpha\}\) be \(\mathcal F_{t-1}\)-measurable, and fix \(0\lt \alpha\lt 1\). With \(U_t\overset{\mathrm{iid}}{\sim}\mathrm{Unif}(0,1)\) independent of the entire original data-and-forecast sigma-field, define</p>
 \[
 \mathrm{VaR}^{\alpha}_t=-q_t(\alpha),\qquad
-I_t=\ind[r_t<q_t]+\ind[U_t\le\gamma_t]\ind[r_t=q_t],\qquad
-\gamma_t=\frac{\alpha-\Prob(r_t<q_t\mid\mathcal F_{t-1})}{\Prob(r_t=q_t\mid\mathcal F_{t-1})}
+I_t=\ind[r_t\lt q_t]+\ind[U_t\le\gamma_t]\ind[r_t=q_t],\qquad
+\gamma_t=\frac{\alpha-\Prob(r_t\lt q_t\mid\mathcal F_{t-1})}{\Prob(r_t=q_t\mid\mathcal F_{t-1})}
 \tag{9.1}
 \]
 <p>when the denominator is positive; if there is no atom, the second term vanishes and continuity at \(q_t\) gives the ordinary strict-hit rule. Put \(\mathcal G_{t-1}=\mathcal F_{t-1}\vee\sigma(U_1,\ldots,U_{t-1})\). Independence of the auxiliaries gives \(\Prob(I_t=1\mid\mathcal G_{t-1})=\alpha\). Iterated conditioning on these \(\mathcal G_{t-1}\) then factorizes every finite-dimensional hit probability, so the <b>hit sequence</b> is iid Bernoulli\((\alpha)\). In contrast, correct unconditional coverage alone gives only the first item below and does not imply the second:</p>
@@ -1399,7 +1399,7 @@ I_t=\ind[r_t<q_t]+\ind[U_t\le\gamma_t]\ind[r_t=q_t],\qquad
 
 <h3>9.1 Kupiec's proportion-of-failures test</h3>
 <div class="thm"><span class="label">Theorem 9.1 (Kupiec 1995).</span>
-Let \(I_1,\ldots,I_T\overset{\mathrm{iid}}{\sim}\mathrm{Bernoulli}(\alpha)\) under \(H_0\), with fixed \(0<\alpha<1\), and let \(x=\sum_{t=1}^T I_t\). Maximize over the closed parameter set \(\pi\in[0,1]\), use \(0^0:=1\) (equivalently \(0\log0:=0\)), and set \(\hat\pi=x/T\), including \(x=0,T\). Then, as \(T\to\infty\),
+Let \(I_1,\ldots,I_T\overset{\mathrm{iid}}{\sim}\mathrm{Bernoulli}(\alpha)\) under \(H_0\), with fixed \(0\lt \alpha\lt 1\), and let \(x=\sum_{t=1}^T I_t\). Maximize over the closed parameter set \(\pi\in[0,1]\), use \(0^0:=1\) (equivalently \(0\log0:=0\)), and set \(\hat\pi=x/T\), including \(x=0,T\). Then, as \(T\to\infty\),
 \[
 \mathrm{LR}_{\mathrm{pof}}
 =-2\ln\frac{(1-\alpha)^{T-x}\,\alpha^{x}}{(1-\hat\pi)^{T-x}\,\hat\pi^{x}}
@@ -1409,7 +1409,7 @@ Let \(I_1,\ldots,I_T\overset{\mathrm{iid}}{\sim}\mathrm{Bernoulli}(\alpha)\) und
 \]
 </div>
 <div class="proof"><span class="label">Derivation.</span>
-For \(0<x<T\), strict concavity of \((T-x)\log(1-\pi)+x\log\pi\) gives its unique maximizer \(x/T\). If \(x=0\), the likelihood \((1-\pi)^T\) is maximized at \(\pi=0\); if \(x=T\), \(\pi^T\) is maximized at \(\pi=1\). Thus the same closed-domain MLE covers both boundaries and (9.2) remains finite under the stated conventions. Under the fixed interior iid null, the boundary-count events vanish in probability and the regular one-restriction likelihood-ratio limit is \(\chi^2_1\).<span class="qed">∎</span>
+For \(0\lt x\lt T\), strict concavity of \((T-x)\log(1-\pi)+x\log\pi\) gives its unique maximizer \(x/T\). If \(x=0\), the likelihood \((1-\pi)^T\) is maximized at \(\pi=0\); if \(x=T\), \(\pi^T\) is maximized at \(\pi=1\). Thus the same closed-domain MLE covers both boundaries and (9.2) remains finite under the stated conventions. Under the fixed interior iid null, the boundary-count events vanish in probability and the regular one-restriction likelihood-ratio limit is \(\chi^2_1\).<span class="qed">∎</span>
 </div>
 <div class="worked"><span class="label">Worked example (T=250, α=1%, 6 exceptions).</span>
 \(\hat\pi=0.024\): \(\mathrm{LR}_{\mathrm{pof}}=3.5554\), with asymptotic \(\chi^2_1\) \(p\)-value \(0.0594\), so this calibration <b>fails to reject</b> at 5%; failure to reject is not acceptance. For comparison, an exact one-sided upper-binomial tail gives \(\Prob_{\alpha=0.01}(X\ge6)=0.04118\), while an exact two-sided likelihood-ratio ordering gives \(p=0.12224\): the rule and sidedness matter at small counts. A power claim additionally requires a specified alternative, rejection rule, size convention, and rejection-probability calculation. Six exceptions are in the current Basel amber zone for its specified 250-day 99%-VaR setting (§9.3), which is a regulatory classification rather than a consequence of this \(p\)-value.
@@ -1432,7 +1432,7 @@ For a consistently indexed conditional-coverage test on these same \(N\) transit
 \mathrm{LR}_{\mathrm{cc},N}=\mathrm{LR}_{\mathrm{uc},N}+\mathrm{LR}_{\mathrm{ind}}\xrightarrow{\ d\ }\chi^2_2.
 \tag{9.4}
 \]
-This exact decomposition uses the same \(N=T-1\) transitions in both components; the \(T\)-observation Kupiec statistic in (9.2) remains a separate statistic. The limits require \(T\to\infty\) under a true interior, irreducible, stationary ergodic Markov chain with nonsingular information; the joint null is \(\pi_{01}=\pi_{11}=\alpha\), \(0<\alpha<1\). They do not describe a single finite degenerate path. Testing the distribution of \(I_1\) as well would require a separately specified initial-state likelihood.
+This exact decomposition uses the same \(N=T-1\) transitions in both components; the \(T\)-observation Kupiec statistic in (9.2) remains a separate statistic. The limits require \(T\to\infty\) under a true interior, irreducible, stationary ergodic Markov chain with nonsingular information; the joint null is \(\pi_{01}=\pi_{11}=\alpha\), \(0\lt \alpha\lt 1\). They do not describe a single finite degenerate path. Testing the distribution of \(I_1\) as well would require a separately specified initial-state likelihood.
 </div>
 <div class="proof"><span class="label">Derivation sketch.</span>
 The unrestricted conditional transition likelihood is the denominator of (9.3), maximized row by row; the one-probability likelihood is its numerator, maximized at \(M/N\). Empty factors disappear under \(0^0=1\). Equality of the two row probabilities is one regular restriction, giving the \(\chi^2_1\) limit. Fixing their common value at \(\alpha\) adds a second restriction on the same transition likelihood, and its nested likelihood-ratio statistic decomposes exactly as (9.4), giving \(\chi^2_2\) only under the stated regular asymptotic conditions.<span class="qed">∎</span>
@@ -1464,7 +1464,7 @@ If the 250 hits are iid Bernoulli\((0.01)\), then \(X=\sum I_t\sim\mathrm{Bin}(2
 Let \((\mathcal G_t)_{t\ge0}\) be a filtration. For each \(t\ge1\), let \(r_t\) be \(\mathcal G_t\)-measurable, and let \(F_t(\omega,x)=\Prob(r_t\le x\mid\mathcal G_{t-1})(\omega)\) be a jointly measurable regular conditional CDF whose \(x\)-section is continuous for almost every \(\omega\). Then \((u_t)_{t\ge1}\), \(u_t=F_t(\omega,r_t)\), are <b>iid</b> \(\mathrm U(0,1)\).
 </div>
 <div class="proof"><span class="label">Derivation.</span>
-The conditional PIT theorem gives \(\Prob(u_t\le a\mid\mathcal G_{t-1})=a\) almost surely for every \(a\in[0,1]\). Each earlier PIT event is \(\mathcal G_{t-1}\)-measurable. Thus, for arbitrary \(t_1<\cdots<t_k\) and \(a_j\in[0,1]\), successive conditioning removes the last factor:
+The conditional PIT theorem gives \(\Prob(u_t\le a\mid\mathcal G_{t-1})=a\) almost surely for every \(a\in[0,1]\). Each earlier PIT event is \(\mathcal G_{t-1}\)-measurable. Thus, for arbitrary \(t_1\lt \cdots\lt t_k\) and \(a_j\in[0,1]\), successive conditioning removes the last factor:
 \(\Prob(\bigcap_{j=1}^k\{u_{t_j}\le a_j\})=a_k\Prob(\bigcap_{j=1}^{k-1}\{u_{t_j}\le a_j\})=\prod_{j=1}^k a_j\). This factors every finite ordered subcollection and proves iid uniformity.<span class="qed">∎</span>
 </div>
 <p>For atoms, replace \(F_t(r_t)\) by the fresh randomized PIT \(F_t(r_t^-)+V_t[F_t(r_t)-F_t(r_t^-)]\), where \(V_t\) are iid uniform and independent of the entire original data-and-forecast sigma-field; the same proof applies after adjoining the past auxiliaries to the filtration. A model that omits relevant conditional-scale dynamics <i>may</i> have marginally uniform PIT values yet dependent transforms such as \(|z_t|\). A histogram discards ordering, so assess marginal shape and sequential dependence separately.</p>
@@ -1475,7 +1475,7 @@ The conditional PIT theorem gives \(\Prob(u_t\le a\mid\mathcal G_{t-1})=a\) almo
 z_t-\mu=\rho\,(z_{t-1}-\mu)+\varepsilon_t,\qquad \varepsilon_t\ \text{iid}\ \mathcal N(0,\sigma^2),
 \tag{10.1}
 \]
-<p>For \(T\ge2\), \(\sigma^2>0\), and \(|\rho|<1\), initialize \(z_1\sim\mathcal N(\mu,\sigma^2/(1-\rho^2))\). With respect to Lebesgue measure, the exact stationary log-likelihood is</p>
+<p>For \(T\ge2\), \(\sigma^2\gt 0\), and \(|\rho|\lt 1\), initialize \(z_1\sim\mathcal N(\mu,\sigma^2/(1-\rho^2))\). With respect to Lebesgue measure, the exact stationary log-likelihood is</p>
 \[
 \mathcal L(\mu,\sigma^2,\rho)
 =-\frac T2\log(2\pi)-\frac T2\log\sigma^2+\frac12\log(1-\rho^2)
@@ -1494,16 +1494,16 @@ z_t-\mu=\rho\,(z_{t-1}-\mu)+\varepsilon_t,\qquad \varepsilon_t\ \text{iid}\ \mat
 <h3>10.2 Heuristic PIT symptoms, possible causes, and candidate follow-ups</h3>
 <table class="simple">
 <tr><th>Symptom</th><th>Restricted-family interpretation</th><th>Other possible causes</th><th>Candidate follow-up to validate</th></tr>
-<tr><td>U-shaped PIT histogram</td><td>Only in Cor. 4.3's centered positive-variance Gaussian scale family: \(\kappa=\sigma/s<1\)</td><td>tail-shape error, mixtures, regime change, or dependence</td><td>conditional/sequential diagnostics; then compare scale or tail models</td></tr>
-<tr><td>hump-shaped PIT</td><td>Only in that same family: \(\kappa>1\)</td><td>mixtures, conditioning error, or dependence can mimic shape</td><td>stratify and test candidate scale changes; do not infer capital cost from shape alone</td></tr>
+<tr><td>U-shaped PIT histogram</td><td>Only in Cor. 4.3's centered positive-variance Gaussian scale family: \(\kappa=\sigma/s\lt 1\)</td><td>tail-shape error, mixtures, regime change, or dependence</td><td>conditional/sequential diagnostics; then compare scale or tail models</td></tr>
+<tr><td>hump-shaped PIT</td><td>Only in that same family: \(\kappa\gt 1\)</td><td>mixtures, conditioning error, or dependence can mimic shape</td><td>stratify and test candidate scale changes; do not infer capital cost from shape alone</td></tr>
 <tr><td>skewed PIT</td><td>A location shift is one cause inside (4.1)</td><td>skewed tails or omitted conditioning variables</td><td>inspect conditional location and tail diagnostics before re-specifying mean</td></tr>
 <tr><td>\(|z_t|\) autocorrelated, histogram fine</td><td>Ordering failure not visible in a histogram</td><td>may reflect omitted conditional-scale dynamics under suitable stationarity/moment conditions</td><td>compare dependence models; this does not uniquely diagnose GARCH</td></tr>
 </table>
-<p>Here \(\kappa=\sigma/s\) is defined only in Corollary 4.3's centered Gaussian model with \(s,\sigma>0\); it is unrelated to any later kurtosis notation. Outside that family these rows are non-identifying heuristics, not one-to-one diagnoses or implied repairs.</p>
+<p>Here \(\kappa=\sigma/s\) is defined only in Corollary 4.3's centered Gaussian model with \(s,\sigma\gt 0\); it is unrelated to any later kurtosis notation. Outside that family these rows are non-identifying heuristics, not one-to-one diagnoses or implied repairs.</p>
 
 <h2 id="sec11">§11 Quantiles, pinball loss, and elicitability: pinball trains quantile targets; ES uses joint scoring</h2>
 
-<p>Under §3.6's finite-first-moment assumption and generalized-quantile convention \(F^{-1}(\tau)=\inf\{q:F(q)\ge\tau\}\), \(\mathrm{CRPS}(F,y)=2\int_0^1\rho_\tau\bigl(y-F^{-1}(\tau)\bigr)\dd\tau\): CRPS is <b>twice</b> the Lebesgue average of the pinball losses over \(0<\tau<1\); endpoint choices are immaterial to this integral. The scalar loss is the check loss of <a href="https://doi.org/10.2307/1913643">Koenker–Bassett (1978, eq. (3.4), printed p. 38)</a>. Without the moment condition, this identity needs an extended-value convention and does not supply a finite training objective. This chapter now studies a single \(\tau\)-slice.</p>
+<p>Under §3.6's finite-first-moment assumption and generalized-quantile convention \(F^{-1}(\tau)=\inf\{q:F(q)\ge\tau\}\), \(\mathrm{CRPS}(F,y)=2\int_0^1\rho_\tau\bigl(y-F^{-1}(\tau)\bigr)\dd\tau\): CRPS is <b>twice</b> the Lebesgue average of the pinball losses over \(0\lt \tau\lt 1\); endpoint choices are immaterial to this integral. The scalar loss is the check loss of <a href="https://doi.org/10.2307/1913643">Koenker–Bassett (1978, eq. (3.4), printed p. 38)</a>. Without the moment condition, this identity needs an extended-value convention and does not supply a finite training objective. This chapter now studies a single \(\tau\)-slice.</p>
 
 <h3>11.1 The pinball loss elicits quantiles</h3>
 <div class="thm"><span class="label">Theorem 11.1 (quantile consistency of the pinball loss).</span>
@@ -1526,8 +1526,8 @@ By convexity, \(q\) minimizes \(L\) iff \(0\) lies between its one-sided derivat
 <p><b>Consequence: pinball targets the quantile set.</b> Under finite expected loss, \(\rho_\alpha\) is consistent for the set in (11.1), and it is strictly consistent for a single quantile only under unique crossing. Conditionally, population pinball minimization targets the conditional quantile set when the conditional first moment is finite; a restricted predictor class instead targets its best in-class projection unless it represents the desired quantile and the population optimum is attained. Thus quantile regression and pinball-trained neural models need no parametric distributional family for the loss identity, but they retain model-class, data, and optimization assumptions. Under §9's return convention they train \(q_\alpha\), while the reported loss VaR is \(-q_\alpha\).</p>
 
 <h3>11.2 Expected Shortfall is not elicitable alone — but (VaR, ES) jointly is <span class="star">★</span></h3>
-<p>For \(0<\alpha<1\), an integrable lower tail, and generalized quantiles, define \(\mathrm{ES}_\alpha(F)=\alpha^{-1}\int_0^\alpha F^{-1}(u)\dd u\). Writing \(q_\alpha=F^{-1}(\alpha)\), the atom-safe form is \(\alpha^{-1}\{\E[r\ind(r<q_\alpha)]+q_\alpha[\alpha-F(q_\alpha^-)]\}\). Only when there is no boundary atom does this reduce to \(\E[r\mid r\le q_\alpha]\). By sign reflection, <a href="https://doi.org/10.1198/jasa.2011.r10138">Gneiting (2011, Theorem 11, Section 3.4, printed p. 756, PDF p. 11)</a> shows that ES alone is not elicitable relative to classes containing all finite-support laws or the finite mixtures of compactly supported absolutely continuous laws; this is a class-scoped result, not a statement about every conceivable distribution class.</p>
-<p>For a conservative sufficient joint-consistency scope, assume \(F\) is absolutely continuous with \(\E|r|<\infty\), crosses \(\alpha\) strictly at a unique \(q_\alpha<0\) (for example, has positive continuous density nearby), and has a nondegenerate lower tail with \(\mathrm{ES}_\alpha<q_\alpha\). On \(\mathcal A=\{(v,e):e\le v<0\}\), the following FZ0 score is strictly consistent for \((q_\alpha,\mathrm{ES}_\alpha)\) under <a href="https://doi.org/10.1214/16-AOS1439">Fissler–Ziegel (2016, Theorem 5.2, Section 5, printed pp. 1701–1702)</a> as qualified by <a href="https://doi.org/10.1214/20-AOS2014">its 2021 correction (printed p. 614)</a>; the displayed parameterization is <a href="https://doi.org/10.1016/j.jeconom.2018.10.008">Patton, Ziegel &amp; Chen (2019), Proposition 1, eq. (6), printed p. 392, PDF p. 5</a>:</p>
+<p>For \(0\lt \alpha\lt 1\), an integrable lower tail, and generalized quantiles, define \(\mathrm{ES}_\alpha(F)=\alpha^{-1}\int_0^\alpha F^{-1}(u)\dd u\). Writing \(q_\alpha=F^{-1}(\alpha)\), the atom-safe form is \(\alpha^{-1}\{\E[r\ind(r\lt q_\alpha)]+q_\alpha[\alpha-F(q_\alpha^-)]\}\). Only when there is no boundary atom does this reduce to \(\E[r\mid r\le q_\alpha]\). By sign reflection, <a href="https://doi.org/10.1198/jasa.2011.r10138">Gneiting (2011, Theorem 11, Section 3.4, printed p. 756, PDF p. 11)</a> shows that ES alone is not elicitable relative to classes containing all finite-support laws or the finite mixtures of compactly supported absolutely continuous laws; this is a class-scoped result, not a statement about every conceivable distribution class.</p>
+<p>For a conservative sufficient joint-consistency scope, assume \(F\) is absolutely continuous with \(\E|r|\lt \infty\), crosses \(\alpha\) strictly at a unique \(q_\alpha\lt 0\) (for example, has positive continuous density nearby), and has a nondegenerate lower tail with \(\mathrm{ES}_\alpha\lt q_\alpha\). On \(\mathcal A=\{(v,e):e\le v\lt 0\}\), the following FZ0 score is strictly consistent for \((q_\alpha,\mathrm{ES}_\alpha)\) under <a href="https://doi.org/10.1214/16-AOS1439">Fissler–Ziegel (2016, Theorem 5.2, Section 5, printed pp. 1701–1702)</a> as qualified by <a href="https://doi.org/10.1214/20-AOS2014">its 2021 correction (printed p. 614)</a>; the displayed parameterization is <a href="https://doi.org/10.1016/j.jeconom.2018.10.008">Patton, Ziegel &amp; Chen (2019), Proposition 1, eq. (6), printed p. 392, PDF p. 5</a>:</p>
 \[
 S(v,e;\,r)= -\frac{1}{\alpha e}\,\ind[r\le v]\,(v-r)\;+\;\frac ve\;+\;\ln(-e)\;-\;1 .
 \tag{11.2}
@@ -1544,7 +1544,7 @@ Model \(\mathcal N(\mu,\sigma^2)\); realization \(10\sigma\) below \(\mu\). Per-
 <p>Part I's punchline for training was Theorem 5.1: the heteroscedastic Gaussian NLL has its stationary point at the conditional mean and conditional variance. Volatility modeling is that theorem run as an industry.</p>
 
 <h3>12.1 Volatility clustering and GARCH(1,1)</h3>
-<p>Asset returns are nearly unpredictable in level but strongly predictable in <i>magnitude</i>: quiet days follow quiet days, wild days follow wild days. Let \((\mathcal F_t)\) be the return filtration. The canonical <a href="https://doi.org/10.1016/0304-4076(86)90063-1">GARCH(1,1) model (Bollerslev 1986, Theorem 1, Section 1, printed pp. 307–308 and 310)</a> specifies an \(\mathcal F_{t-1}\)-measurable, positive conditional variance recursively, with \(\omega>0,\ a,b\ge0\), and iid innovations independent of \(\mathcal F_{t-1}\):</p>
+<p>Asset returns are nearly unpredictable in level but strongly predictable in <i>magnitude</i>: quiet days follow quiet days, wild days follow wild days. Let \((\mathcal F_t)\) be the return filtration. The canonical <a href="https://doi.org/10.1016/0304-4076(86)90063-1">GARCH(1,1) model (Bollerslev 1986, Theorem 1, Section 1, printed pp. 307–308 and 310)</a> specifies an \(\mathcal F_{t-1}\)-measurable, positive conditional variance recursively, with \(\omega\gt 0,\ a,b\ge0\), and iid innovations independent of \(\mathcal F_{t-1}\):</p>
 \[
 r_t=\sigma_t\,\varepsilon_t,\quad \varepsilon_t\ \text{iid and independent of }\mathcal F_{t-1},\ \ \E\varepsilon_t=0,\ \E\varepsilon_t^2=1;
 \qquad
@@ -1552,28 +1552,28 @@ r_t=\sigma_t\,\varepsilon_t,\quad \varepsilon_t\ \text{iid and independent of }\
 \tag{12.1}
 \]
 <div class="lem"><span class="label">Lemma 12.1 (unconditional variance).</span>
-Under the displayed positivity conditions, \(a+b<1\) gives covariance stationarity with a finite second moment, and \(\bar\sigma^2=\E[r_t^2]=\dfrac{\omega}{1-a-b}\).
+Under the displayed positivity conditions, \(a+b\lt 1\) gives covariance stationarity with a finite second moment, and \(\bar\sigma^2=\E[r_t^2]=\dfrac{\omega}{1-a-b}\).
 </div>
 <div class="proof"><span class="label">Derivation.</span>
 Because \(\sigma_t^2\) is \(\mathcal F_{t-1}\)-measurable and \(\varepsilon_t\) is independent of that field, \(\E[r_t\mid\mathcal F_{t-1}]=0\) and \(\E[r_t^2\mid\mathcal F_{t-1}]=\sigma_t^2\); hence \(\E r_t^2=\E[\sigma_t^2\,\E(\varepsilon_t^2)]=\E\sigma_t^2\). Taking expectations of the recursion for the covariance-stationary finite-second-moment solution gives \(\bar\sigma^2=\omega+(a+b)\bar\sigma^2\). (<span class="pencil">☞ pencil-and-paper checkpoint</span>.)<span class="qed">∎</span>
 </div>
-<p>\(a+b\) is the volatility <i>persistence</i> (typically 0.95–0.99 for daily equities). Given \(h_0>0\), the boundary \(\omega=0,\ a=1-\lambda,\ b=\lambda\) recursion \(h_t=(1-\lambda)r_{t-1}^2+\lambda h_{t-1}\), \(\lambda=0.94\) daily, is the <a href="https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a">RiskMetrics EWMA (1996, Section 5.3, printed p. 97)</a>: \(h_t=\lambda^t h_0+(1-\lambda)\sum_{j=1}^{t}\lambda^{j-1}r_{t-j}^2\). It is the integrated \(a+b=1\) boundary, with infinite lag support but geometrically decaying weights; it has no finite unconditional variance or usual covariance-stationary mean reversion.</p>
+<p>\(a+b\) is the volatility <i>persistence</i> (typically 0.95–0.99 for daily equities). Given \(h_0\gt 0\), the boundary \(\omega=0,\ a=1-\lambda,\ b=\lambda\) recursion \(h_t=(1-\lambda)r_{t-1}^2+\lambda h_{t-1}\), \(\lambda=0.94\) daily, is the <a href="https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a">RiskMetrics EWMA (1996, Section 5.3, printed p. 97)</a>: \(h_t=\lambda^t h_0+(1-\lambda)\sum_{j=1}^{t}\lambda^{j-1}r_{t-j}^2\). It is the integrated \(a+b=1\) boundary, with infinite lag support but geometrically decaying weights; it has no finite unconditional variance or usual covariance-stationary mean reversion.</p>
 
 <h3>12.2 Gaussian QMLE: a dynamic likelihood problem, not Theorem 5.1 verbatim</h3>
 <p>For the zero-conditional-mean specification (otherwise filter the residual about its modeled conditional mean), initialize a positive filtered variance \(h_0(\theta)\), compute \(h_t(\theta)\), and minimize \(Q_T(\theta)=(2T)^{-1}\sum_{t=1}^{T}\{\log h_t(\theta)+r_t^2/h_t(\theta)\}\). The pointwise population identity in Theorem 5.1 explains why a correctly specified conditional variance is the target; it does <i>not</i> itself prove a result for this recursively filtered, dependent M-estimator. A <a href="https://doi.org/10.1080/07474939208800229">Bollerslev–Wooldridge (1992, Theorem 2.1, Section 2, printed pp. 148–150)</a> QMLE conclusion additionally needs correct conditional first and second moments; an interior, identified \(\theta_0\) with \(h_t(\theta)=h_t(\theta_0)\) a.s. implying \(\theta=\theta_0\); a stationary ergodic data/filter process; an integrable envelope and ULLN for the criterion; an initialization/filter error that vanishes; an optimizer attaining the population minimum; a score CLT; and the required finite moments (including fourth moments for the stated asymptotic normality).</p>
 <div class="remark"><b>★ Robust standard errors.</b> Under non-Gaussian innovations the information-matrix equality need not hold, so the asymptotic parameter covariance is the sandwich \(A^{-1}BA^{-1}\), not a generic Fisher inverse. In the special zero-mean, variance-only Gaussian-QMLE normalization with \(\E\varepsilon^4=\kappa\), the variance-parameter covariance multiplier is \((\kappa-1)/2\); for \(t_5\)-like innovations \(\kappa=9\), this is \(4\) in covariance and \(2\) in standard errors. Outside that special block, estimate the full sandwich rather than importing the factor.</div>
 
 <h3>12.3 QLIKE: the NLL core as an evaluation loss</h3>
-<p>Out of sample the true variance is unobservable, so a forecast \(h=\hat\sigma_t^2>0\) is scored against a noisy <b>proxy</b> \(p_t\ge0\) — the squared return \(r_t^2\), or realized variance from intraday data — satisfying \(\E[p_t\mid\mathcal F_{t-1}]=\sigma_t^2\). The base QLIKE loss is \(\ell_Q(h;p)=\log h+p/h\), which is defined at \(p=0\). Only for \(p>0\) may it be normalized to zero at \(h=p\) as follows:</p>
+<p>Out of sample the true variance is unobservable, so a forecast \(h=\hat\sigma_t^2\gt 0\) is scored against a noisy <b>proxy</b> \(p_t\ge0\) — the squared return \(r_t^2\), or realized variance from intraday data — satisfying \(\E[p_t\mid\mathcal F_{t-1}]=\sigma_t^2\). The base QLIKE loss is \(\ell_Q(h;p)=\log h+p/h\), which is defined at \(p=0\). Only for \(p\gt 0\) may it be normalized to zero at \(h=p\) as follows:</p>
 \[
-\mathrm{D}_{Q}(\hat\sigma^2;\,p)=\frac{p}{\hat\sigma^2}-\ln\frac{p}{\hat\sigma^2}-1\;\ge\;0,\qquad p>0 .
+\mathrm{D}_{Q}(\hat\sigma^2;\,p)=\frac{p}{\hat\sigma^2}-\ln\frac{p}{\hat\sigma^2}-1\;\ge\;0,\qquad p\gt 0 .
 \tag{12.2}
 \]
 <div class="thm"><span class="label">Theorem 12.2 (proxy-robustness of QLIKE).</span>
-If \(0<\sigma^2(x)<\infty\), \(\E[p\mid x]=\sigma^2(x)\), and the displayed conditional expectation is finite, then \(\displaystyle\arg\min_{h>0}\E\bigl[\ell_Q(h;p)\,\big|\,x\bigr]=\sigma^2(x)\). When \(p>0\), \(\mathrm D_Q\) differs from \(\ell_Q\) only by a proxy-dependent constant, so it gives the same conditional expected ranking; this is not a claim about an individual noisy realization.
+If \(0\lt \sigma^2(x)\lt \infty\), \(\E[p\mid x]=\sigma^2(x)\), and the displayed conditional expectation is finite, then \(\displaystyle\arg\min_{h\gt 0}\E\bigl[\ell_Q(h;p)\,\big|\,x\bigr]=\sigma^2(x)\). When \(p\gt 0\), \(\mathrm D_Q\) differs from \(\ell_Q\) only by a proxy-dependent constant, so it gives the same conditional expected ranking; this is not a claim about an individual noisy realization.
 </div>
 <div class="proof"><span class="label">Derivation (same technique as Theorem 5.1).</span>
-\(\dfrac{\partial}{\partial h}\,\E\bigl[\ell_Q(h;p)\mid x\bigr]=-\dfrac{\E[p\mid x]}{h^2}+\dfrac1h=(h-\sigma^2(x))/h^2\), which is negative below \(\sigma^2(x)\) and positive above it; hence \(h^*=\sigma^2(x)\) is the unique global minimizer. The calculation needs no \(\log p\), which is why it remains legal when \(p=0\). (<span class="pencil">☞ pencil-and-paper checkpoint</span>: repeat with the tempting loss \((\ln p-\ln h)^2\) only on \(p>0\) and watch the optimum drift away from \(\sigma^2\) — that is proxy <i>non</i>-robustness.)<span class="qed">∎</span>
+\(\dfrac{\partial}{\partial h}\,\E\bigl[\ell_Q(h;p)\mid x\bigr]=-\dfrac{\E[p\mid x]}{h^2}+\dfrac1h=(h-\sigma^2(x))/h^2\), which is negative below \(\sigma^2(x)\) and positive above it; hence \(h^*=\sigma^2(x)\) is the unique global minimizer. The calculation needs no \(\log p\), which is why it remains legal when \(p=0\). (<span class="pencil">☞ pencil-and-paper checkpoint</span>: repeat with the tempting loss \((\ln p-\ln h)^2\) only on \(p\gt 0\) and watch the optimum drift away from \(\sigma^2\) — that is proxy <i>non</i>-robustness.)<span class="qed">∎</span>
 </div>
 <p><a href="https://doi.org/10.1016/j.jeconom.2010.03.034">Patton (2011, Propositions 1–2, Sections 2–3, printed p. 251)</a> characterizes an infinite proxy-robust loss class. MSE and QLIKE are unique only within the paper's respective error and standardized-error parameterizations, not the only robust losses without qualification. For the population ratio \(u=\hat\sigma^2/\sigma^2\), the normalized QLIKE shape is \(\tfrac1u+\ln u-1\): it gives \(0.307\) at \(u=\tfrac12\) and \(0.193\) at \(u=2\), whereas MSE \(\propto(u-1)^2\) is larger on the over-forecast side. Choosing that asymmetry is a decision-policy preference, not a proxy-robustness theorem.</p>
 
@@ -1589,7 +1589,7 @@ If \(0<\sigma^2(x)<\infty\), \(\E[p\mid x]=\sigma^2(x)\), and the displayed cond
 </div>
 
 <h3>12.4 Student-t innovations: the tail dial that NLL can learn</h3>
-<p>Even with \(\sigma_t\) exactly right, Gaussian innovations can understate tail quantiles. The unit-variance Student-t replaces (12.1)'s \(\varepsilon\); enforce \(\nu>2\) for finite variance (and \(\nu>4\) only when a finite fourth moment is required):</p>
+<p>Even with \(\sigma_t\) exactly right, Gaussian innovations can understate tail quantiles. The unit-variance Student-t replaces (12.1)'s \(\varepsilon\); enforce \(\nu\gt 2\) for finite variance (and \(\nu\gt 4\) only when a finite fourth moment is required):</p>
 \[
 \varepsilon=t_\nu\,\sqrt{\tfrac{\nu-2}{\nu}},
 \qquad
@@ -1598,7 +1598,7 @@ If \(0<\sigma^2(x)<\infty\), \(\E[p\mid x]=\sigma^2(x)\), and the displayed cond
 \tag{12.3}
 \]
 \[
-\ell_t(\theta,\nu)=\tfrac12\log h_t(\theta)-\log f_\nu\!\left(r_t/\sqrt{h_t(\theta)}\right),\qquad h_t(\theta)>0,
+\ell_t(\theta,\nu)=\tfrac12\log h_t(\theta)-\log f_\nu\!\left(r_t/\sqrt{h_t(\theta)}\right),\qquad h_t(\theta)\gt 0,
 \tag{12.4}
 \]
 <p>The second line is the conditional Jacobian that the innovation-only score lacks. Equations (12.3)–(12.4) follow <a href="https://doi.org/10.2307/1924234">Bollerslev (1987, Eq. (2.3), Section 2, printed p. 544)</a>; they converge to the Gaussian conditional NLL as \(\nu\to\infty\). One extra trainable parameter is one possible tail extension:</p>
@@ -1619,7 +1619,7 @@ If \(0<\sigma^2(x)<\infty\), \(\E[p\mid x]=\sigma^2(x)\), and the displayed cond
 Random variables \(Z_1,\dots,Z_{m}\) are <b>exchangeable</b> if their joint law is invariant under every permutation \(\pi\): \((Z_1,\dots,Z_m)\overset{d}{=}(Z_{\pi(1)},\dots,Z_{\pi(m)})\). iid is the special case; no independence is required. (The concept already appeared negatively in §6: the LONO folds are <i>not</i> exchangeable, which is why \(s_m\) there is not a standard error. Here it appears positively.)
 </div>
 <div class="lem"><span class="label">Lemma 13.2 (quantile lemma; <a href="https://doi.org/10.1080/01621459.2017.1307116">Lei et al. 2018, Theorem 2, §2.2, printed pp. 1097–1098</a>).</span>
-Let \(E_1,\dots,E_{n+1}\) be exchangeable. Fix \(\alpha\in(0,1)\), let \(k=\lceil(1-\alpha)(n+1)\rceil\) and let \(\hat Q\) be the \(k\)-th smallest of \(E_1,\dots,E_n\) (with \(\hat Q=+\infty\) if \(k>n\)). Then
+Let \(E_1,\dots,E_{n+1}\) be exchangeable. Fix \(\alpha\in(0,1)\), let \(k=\lceil(1-\alpha)(n+1)\rceil\) and let \(\hat Q\) be the \(k\)-th smallest of \(E_1,\dots,E_n\) (with \(\hat Q=+\infty\) if \(k\gt n\)). Then
 \[
 \Prob\bigl(E_{n+1}\le \hat Q\bigr)\;\ge\;1-\alpha ,
 \tag{13.1}
@@ -1627,7 +1627,7 @@ Let \(E_1,\dots,E_{n+1}\) be exchangeable. Fix \(\alpha\in(0,1)\), let \(k=\lcei
 and if the \(E_i\) are almost surely distinct, also \(\Prob(E_{n+1}\le\hat Q)\le 1-\alpha+\frac{1}{n+1}\).
 </div>
 <div class="proof"><span class="label">Proof.</span>
-For the lower bound, attach iid continuous \(U_i\), independent of \(E_1,\dots,E_{n+1}\), and rank the exchangeable pairs \((E_i,U_i)\) lexicographically. Their rank \(R\) for the new pair is uniform on \(\{1,\dots,n+1\}\). If \(R\le k\), fewer than \(k\) calibration pairs precede the new pair; were \(E_{n+1}>\hat Q\), at least \(k\) calibration scores would be strictly smaller and hence precede it — a contradiction. Thus \(\{R\le k\}\subseteq\{E_{n+1}\le\hat Q\}\), giving \(k/(n+1)\ge1-\alpha\). If the <i>raw</i> scores are almost surely distinct, the auxiliary \(U_i\) are unnecessary and the two events are equal, so the probability is \(k/(n+1)<1-\alpha+\tfrac1{n+1}\). This distinct-score equality, not randomized ordering of a different prediction set, is the stated upper-bound condition.<span class="qed">∎</span>
+For the lower bound, attach iid continuous \(U_i\), independent of \(E_1,\dots,E_{n+1}\), and rank the exchangeable pairs \((E_i,U_i)\) lexicographically. Their rank \(R\) for the new pair is uniform on \(\{1,\dots,n+1\}\). If \(R\le k\), fewer than \(k\) calibration pairs precede the new pair; were \(E_{n+1}\gt \hat Q\), at least \(k\) calibration scores would be strictly smaller and hence precede it — a contradiction. Thus \(\{R\le k\}\subseteq\{E_{n+1}\le\hat Q\}\), giving \(k/(n+1)\ge1-\alpha\). If the <i>raw</i> scores are almost surely distinct, the auxiliary \(U_i\) are unnecessary and the two events are equal, so the probability is \(k/(n+1)\lt 1-\alpha+\tfrac1{n+1}\). This distinct-score equality, not randomized ordering of a different prediction set, is the stated upper-bound condition.<span class="qed">∎</span>
 </div>
 <p>(<span class="pencil">☞ pencil-and-paper checkpoint</span>: \(n=99\), \(\alpha=0.1\): \(k=\lceil 0.9\times100\rceil=90\), so \(\hat Q\) is the 90th smallest of 99 values. The lower coverage bound is 0.900; it is <i>exactly</i> \(90/100=0.900\) only when all 100 raw scores are almost surely distinct. Note the level is the \((1-\alpha)(1+\tfrac1n)\) empirical quantile, not the \((1-\alpha)\) one — the \(+\tfrac1n\) is what pays for the new, \((n{+}1)\)-th point.)</p>
 
@@ -1668,7 +1668,7 @@ Under the exchangeability and training/calibration separation of Theorem 13.3, \
 \(Y\in C(X)\iff\max(\hat q_{\mathrm{lo}}(X)-Y,\ Y-\hat q_{\mathrm{hi}}(X))\le\hat Q\iff E_{n+1}\le\hat Q\); Theorem 13.3 with score (13.3).<span class="qed">∎</span>
 </div>
 <p><b>Why this can improve on a constant-width band:</b> when the score set is nonempty, its endpoint separation \(\bigl(\hat q_{\mathrm{hi}}-\hat q_{\mathrm{lo}}\bigr)(x)+2\hat Q\) inherits the model's \(x\)-dependence — narrow where the fitted quantile spread is small, wide where it is large — while the common calibration adjustment repairs marginal coverage when that fitted spread is wrong. A positive or negative \(\hat Q\) records this particular calibration sample's outside-band order statistic; by itself it neither identifies a particular PIT shape nor supplies conditional coverage. Crossed quantile heads or a sufficiently negative adjustment can instead give the explicitly empty set in (13.4).</p>
-<div class="remark"><b>★ The ±kσ version, i.e. §2 run backwards.</b> On the domain where the training-only scale predictor satisfies \(0<\hat\sigma(x)<\infty\), apply Theorem 13.3 to \(E_i=|Y_i-\hat\mu(X_i)|/\hat\sigma(X_i)=|z_i|\): the conformal set is \(\hat\mu(x)\pm\hat k\,\hat\sigma(x)\), where, for \(k=\lceil(1-\alpha)(n+1)\rceil\le n\), \(\hat k\) is the \(k\)-th smallest \(|z_i|\) (locally adaptive conformal, Lei et al. 2018). §2 fixed \(k\in\{1,2\}\) and <i>checked</i> the hit rate against \(2\Phi(k)-1\); conformal instead chooses an order-statistic threshold. Among the \(n\) calibration scores, the covered fraction is exactly \(k/n\) when the scores are distinct and at least \(k/n\) with ties. This calibration fraction is not generally \(1-\alpha\) and is not itself the future-unit guarantee: under exchangeability, the rank argument of Lemma 13.2 gives \(\Prob(E_{\mathrm{new}}\le\hat k)\ge1-\alpha\).</div>
+<div class="remark"><b>★ The ±kσ version, i.e. §2 run backwards.</b> On the domain where the training-only scale predictor satisfies \(0\lt \hat\sigma(x)\lt \infty\), apply Theorem 13.3 to \(E_i=|Y_i-\hat\mu(X_i)|/\hat\sigma(X_i)=|z_i|\): the conformal set is \(\hat\mu(x)\pm\hat k\,\hat\sigma(x)\), where, for \(k=\lceil(1-\alpha)(n+1)\rceil\le n\), \(\hat k\) is the \(k\)-th smallest \(|z_i|\) (locally adaptive conformal, Lei et al. 2018). §2 fixed \(k\in\{1,2\}\) and <i>checked</i> the hit rate against \(2\Phi(k)-1\); conformal instead chooses an order-statistic threshold. Among the \(n\) calibration scores, the covered fraction is exactly \(k/n\) when the scores are distinct and at least \(k/n\) with ties. This calibration fraction is not generally \(1-\alpha\) and is not itself the future-unit guarantee: under exchangeability, the rank argument of Lemma 13.2 gives \(\Prob(E_{\mathrm{new}}\le\hat k)\ge1-\alpha\).</div>
 <div class="worked"><span class="label">Worked example (a population heuristic beside the actual calibration order statistic).</span>
 Target the <i>nominal</i> 68.3% level, \(\alpha=0.317\). With studentized scores \(E_i=|z_i|\) on \(n=999\) calibration points, \(k=\lceil0.683\times1000\rceil=683\): the actual conformal multiplier is the observed 683rd smallest \(|z_i|\), not a number inferred from §2. For the thesis's MLP, §2 measured \(\Prob(|z|\le1)\approx0.887\), and §2.4 used the illustrative scale approximation \(|z|\approx0.631\,|Z|\), \(Z\sim\mathcal N(0,1)\). <i>Under that population approximation only</i>, the 68.3% quantile is \(0.631\times\Phi^{-1}(0.8415)\approx0.63\), a 37% narrower population scale than ±1σ̂. A real calibration sample can give a different \(\hat k\). Its score-defined band has the finite-sample lower bound \(0.683\) under the declared exchangeable unit; only if the 1000 raw scores are almost surely distinct does the corresponding upper bound \(0.684\) apply. This is a calibration procedure, not a theorem that this thesis's next calibration sample outputs 0.63.
 </div>
@@ -1677,7 +1677,7 @@ Target the <i>nominal</i> 68.3% level, \(\alpha=0.317\). With studentized scores
 <li><b>Split.</b> Declare the observational unit whose calibration score and future target are exchangeable conditional on training. Respect the dependence structure of §0.1/§0.3: if <b>operating-condition groups</b> are the units, define exactly one justified real-valued score per group (or a valid block-conformal construction), order those group scores, and define the future group-level target consistently — sampling whole groups into calibration keeps groups intact and prevents leakage, but does <i>not</i> by itself prove exchangeability, and the effective \(N_{\mathrm{eff}}\) of (0.2) must never be substituted for the exchangeable-unit count \(n\). If exchangeability cannot be defended for the chosen unit, do not claim the split-conformal finite-sample band below.</li>
 <li><b>Fit.</b> \(\hat q_{\mathrm{lo}},\hat q_{\mathrm{hi}}\) at levels \(\alpha/2,\ 1-\alpha/2\) by pinball loss (Theorem 11.1) on the training split — or reuse the Gaussian head's \(\hat\mu\pm\Phi^{-1}(1-\alpha/2)\,\hat\sigma\).</li>
 <li><b>Score.</b> \(E_i=\max(\hat q_{\mathrm{lo}}(X_i)-Y_i,\ Y_i-\hat q_{\mathrm{hi}}(X_i))\) on the calibration set.</li>
-<li><b>Quantile.</b> \(\hat Q\leftarrow\) the \(\lceil(1-\alpha)(n+1)\rceil\)-th smallest score; if \(\lceil(1-\alpha)(n+1)\rceil>n\), report "calibration set too small for this α" (the honest answer, not a clamped one).</li>
+<li><b>Quantile.</b> \(\hat Q\leftarrow\) the \(\lceil(1-\alpha)(n+1)\rceil\)-th smallest score; if \(\lceil(1-\alpha)(n+1)\rceil\gt n\), report "calibration set too small for this α" (the honest answer, not a clamped one).</li>
 <li><b>Report and audit.</b> Report the score-defined set \(C(x)\) in (13.4), including \(\varnothing\) if its endpoints cross; it carries the marginal guarantee \(\Prob\{Y_{\mathrm{new}}\in C(X_{\mathrm{new}})\}\ge1-\alpha\). The upper bound \(1-\alpha+\frac1{n+1}\) additionally requires almost-surely distinct raw scores. Empirical coverage over \(M\) held-out test units is a separate random proportion — under independent Bernoulli\((p)\) hits conditional on the realized calibration set, it has Binomial\((M,p)\) sampling variation and should be reported with a stated confidence interval, not asserted to fall inside the marginal-probability band.</li>
 </ol>
 </div>

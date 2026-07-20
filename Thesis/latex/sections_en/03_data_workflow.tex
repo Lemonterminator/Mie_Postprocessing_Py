@@ -268,7 +268,7 @@ where $\mathbf{g}$ is a discrete Gaussian envelope and $\mathbf{d}_g$ is its der
 
 This is followed by another robust rescaling and the application of an annular geometric mask.
 This step is critical at the implementation level because it transforms the low-contrast grayscale spray into an edge-dominant representation, while keeping the entire operation on the CuPy backend.
-The contribution here lies not in the Sobel operator itself, but in its integration into a batch video workflow that avoids repeated host-device copies, preparing a consistent downstream geometric processing for each plume \cite{GonzalezWoodsDIP,Szeliski2010Vision}.
+The contribution here lies not in the Sobel operator itself, but in its integration into a batch video workflow that avoids repeated host-device copies, preparing a consistent downstream geometric processing for each plume \cite{GonzalezWoodsDIP,Szeliski2011Vision}.
 
 \begin{figure}[t]
 \centering
@@ -292,7 +292,7 @@ D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 \]
 where \(\mathcal{B}_k\) is the set of pixels falling into angle bin \(k\), \(I_t(x,y) = F_t(x,y)\) is the background-subtracted foreground intensity (defined in Section~\ref{subsec:background-normalization}), \(A_t(k)\) is the accumulated angular signal, \(D_t(k)\) is the average angular density, and \(\#\mathcal{B}_k\) is the pixel count in that bin.
 In the CuPy implementation, both angular-bin assignment and weighted summation are executed directly on GPU arrays.
-Conceptually, this radially compresses the 2D image into a 1D angular occupancy signal; for multi-hole alignment, it is significantly more stable than edge fragments in the raw frames \cite{Szeliski2010Vision}.
+Conceptually, this radially compresses the 2D image into a 1D angular occupancy signal; for multi-hole alignment, it is significantly more stable than edge fragments in the raw frames \cite{Szeliski2011Vision}.
 
 \subsubsection{Fourier-Based Orientation Alignment of Multi-Hole Sprays}\label{subsec:plume-registration}
 
@@ -317,7 +317,7 @@ where the FFT phase supplies the measured global angular offset.
 These guide angles define plume-local strip coordinates, but they do not force the measured envelopes to be symmetric: plume width, occupied angular support, penetration, and boundary descriptors are still extracted from the image response after remapping.
 Observed envelope asymmetry can arise from hole-to-hole hydraulic variation, cavitation and breakup, droplet-size-dependent scattering, illumination or projection effects, and plume interaction; Mie brightness is therefore not interpreted as a symmetric mass distribution.
 The registration step also incorporates a triangle-threshold occupancy mask and short-gap filling to exclude empty angular sectors.
-While FFT itself is standard, the contribution here is transforming the angular density signal into an automatic plume registration rule using the known multi-hole count of the injector while preserving plume-to-plume asymmetry in the downstream observables \cite{CooleyTukey1965FFT,Szeliski2010Vision}.
+While FFT itself is standard, the contribution here is transforming the angular density signal into an automatic plume registration rule using the known multi-hole count of the injector while preserving plume-to-plume asymmetry in the downstream observables \cite{CooleyTukey1965FFT,Szeliski2011Vision}.
 This registration procedure is structurally robust to isolated plume anomalies because the phase estimate is derived from a signal already averaged over the full frame count and radial coordinate, giving a single malfunctioning hole limited leverage over the aggregate harmonic phase. Persistent hydraulic anomalies such as orifice blockage were not observed during this campaign; more importantly, the robust outlier and quality-control filtering applied downstream in the fitting pipeline (Section~\ref{sec:SGQR-target-construction-en}) is explicitly designed to flag and exclude trajectories exhibiting anomalous penetration behaviour, which would intercept such a failure mode even if the alignment step itself were mildly perturbed.
 
 The same occupied-angle mask also yields a simple proxy for the cone angle.
@@ -370,7 +370,7 @@ where \(\mathbf{c}=(c_x,c_y)^\top\) is the nozzle center and \(\mathbf{t}\) is t
 For each plume, the inverse sampling coordinate maps are precomputed exactly once from the forward affine transform, and the video cube is then remapped and resampled using nearest-neighbor, bilinear, bicubic, or Lanczos kernels.
 These maps store source image sampling coordinates rather than spray intensities: the X-map pixel values give the \(x\)-coordinates sampled in the source image for the output strip pixels, while the Y-map stores the corresponding \(y\)-coordinates.
 Following remapping, the multi-hole pipeline applies a fixed standardized strip size and a triangular plume mask.
-Because the inverse map is precomputed once per plume angle, the per-frame overhead is rotation-agnostic; all subsequent metrics are measured in this shared local strip coordinate system \cite{Szeliski2010Vision}.
+Because the inverse map is precomputed once per plume angle, the per-frame overhead is rotation-agnostic; all subsequent metrics are measured in this shared local strip coordinate system \cite{Szeliski2011Vision}.
 
 \begin{figure}[t]
 \centering

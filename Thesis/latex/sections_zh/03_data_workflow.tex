@@ -267,7 +267,7 @@ K_x = \mathbf{g} \otimes \mathbf{d}_g, \qquad K_y = \mathbf{d}_g \otimes \mathbf
 
 随后再次进行稳健缩放，并施加环形几何掩码。
 这一步在处理链中很关键，因为它把低对比度灰度喷雾转化为边缘主导的表示，同时让整个操作都停留在 CuPy 后端。
-这里的贡献不在于 Sobel 算子本身，而在于把它集成进一条避免反复主机--设备拷贝的批量视频工作流中，为每个羽流准备一致的下游几何处理 \cite{GonzalezWoodsDIP,Szeliski2010Vision}。
+这里的贡献不在于 Sobel 算子本身，而在于把它集成进一条避免反复主机--设备拷贝的批量视频工作流中，为每个羽流准备一致的下游几何处理 \cite{GonzalezWoodsDIP,Szeliski2011Vision}。
 
 \begin{figure}[t]
 \centering
@@ -291,7 +291,7 @@ D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 \]
 其中 \(\mathcal{B}_k\) 是角度落入箱 \(k\) 的像素集合，\(I_t(x,y) = F_t(x,y)\) 是扣除背景后的前景强度（定义见第~\ref{subsec:background-normalization}~节），\(A_t(k)\) 是累积角度信号，\(D_t(k)\) 是平均角度密度，\(\#\mathcal{B}_k\) 则是该箱中的像素数。
 在 CuPy 实现中，角度分箱和加权求和都直接在 GPU 数组上完成。
-概念上，这是把 2D 图像径向压缩成一个 1D 角度占用信号；对多孔对齐而言，它比原始帧中的边缘碎片稳定得多 \cite{Szeliski2010Vision}。
+概念上，这是把 2D 图像径向压缩成一个 1D 角度占用信号；对多孔对齐而言，它比原始帧中的边缘碎片稳定得多 \cite{Szeliski2011Vision}。
 
 \subsubsection{多孔喷雾的傅里叶取向对齐}\label{subsec:plume-registration}
 
@@ -313,7 +313,7 @@ D_t(k)=\frac{A_t(k)}{\#\mathcal{B}_k},
 \phi_p=\frac{360^\circ p}{P}-\hat{\phi}_0, \qquad p=0,\dots,P-1,
 \]
 并结合三角阈值占用掩码和短间隙填充来排除空角扇区。
-FFT 本身是标准方法；这里的贡献在于利用已知喷油器多孔数，把角度密度信号转成一条自动羽流配准规则 \cite{CooleyTukey1965FFT,Szeliski2010Vision}。
+FFT 本身是标准方法；这里的贡献在于利用已知喷油器多孔数，把角度密度信号转成一条自动羽流配准规则 \cite{CooleyTukey1965FFT,Szeliski2011Vision}。
 该配准流程对孤立的单孔异常在结构上是稳健的：相位估计所依据的信号已经在整段帧数和径向坐标上求和平均，因此单个故障孔对聚合谐波相位的影响有限。持续性的液压异常（如喷孔堵塞）在本次测试中未被观察到；更重要的是，拟合流程下游所应用的稳健离群点与质量控制过滤（第~\ref{sec:SGQR-target-construction-en}~节）被专门设计用来标记并剔除表现出异常贯穿距离行为的轨迹，即便配准本身受到轻微扰动，该机制也能拦截这类失效模式。
 
 同一个 occupied-angle mask 还可以给出一个简单的锥角代理量。
@@ -366,7 +366,7 @@ u\\v
 对每条羽流，逆采样坐标图只需从正向仿射变换中预先计算一次，随后用最近邻、双线性、双三次或 Lanczos 核对整个视频立方体进行重映射和重采样。
 这些图保存的是源图像采样坐标，而不是喷雾强度：X 图像素值给出输出条带像素在源图像中采样的 \(x\) 坐标，Y 图则保存对应的 \(y\) 坐标。
 多孔流程在重映射后应用固定的标准化条带尺寸和三角形羽流掩码。
-每个羽流角只需预计算一次逆映射，因此逐帧开销与旋转无关；后续所有度量都在同一个局部条带坐标系里测量 \cite{Szeliski2010Vision}。
+每个羽流角只需预计算一次逆映射，因此逐帧开销与旋转无关；后续所有度量都在同一个局部条带坐标系里测量 \cite{Szeliski2011Vision}。
 
 \begin{figure}[t]
 \centering
