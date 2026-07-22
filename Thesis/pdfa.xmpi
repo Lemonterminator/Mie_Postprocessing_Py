@@ -62,6 +62,16 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"> 
    <dc:format>application/pdf</dc:format> 
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">Data-Driven Penetration Prediction and Probabilistic Impingement Screening Using Mie Scattering Imaging</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>Linan Jiang</rdf:li></rdf:Seq></dc:creator>
+   <dc:language><rdf:Bag><rdf:li>en</rdf:li></rdf:Bag></dc:language>
+   <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></dc:rights>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">Pilot diesel injections in multi-fuel marine engines are short, highly transient events. If the liquid spray reaches the piston crown or cylinder wall before ignition develops, it can cause wall wetting, lubricant dilution, and poor mixture preparation. This thesis develops an engineering screening workflow that converts high-speed Mie-scattering spray videos into penetration measurements and trained surrogate models for early spray--wall impingement risk assessment. The data consist of room-temperature, non-reacting, top-view recordings from the Wärtsilä Optical Spray Combustion Chamber, covering multiple operating conditions and nozzle geometries. The workflow combines multi-hole video processing, plume-wise feature extraction, and a reduced-order trajectory fit that smooths noisy labels and mitigates the downward bias caused by right-censoring at the camera field-of-view limit. On these fitted targets, a neural network produced by three-stage curriculum training predicts the penetration mean together with a heteroscedastic uncertainty estimate, staged so that disappearance from the image window is not mistaken for physical saturation. On 540,367 points from 9 nozzle campaigns under an uncensored evaluation protocol, the final multilayer perceptron (MLP) model achieves a five-seed mean root mean squared error (RMSE) of 4.19 mm and mean absolute error (MAE) of 2.98 mm with conservative 1-sigma/2-sigma uncertainty coverage of 88.8%/99.0%, reducing RMSE by more than 54% relative to calibrated Hiroyasu--Arai and Naber--Siebers baselines. Relative to a controlled pooled baseline, post-training FiLM adaptation improved probabilistic calibration scores without a statistically significant change in RMSE; this evidence is limited to additional known-family adaptation experiments. A sparse variational Gaussian process (SVGP) alternative attains better point accuracy (4.09 mm in-distribution; 5.95 mm versus 7.00 mm in leave-one-nozzle-out tests) but markedly less conservative coverage; the two backbones represent different accuracy--coverage trade-offs under the same censoring-aware protocol. A simplified geometric projection finally maps the predicted penetration distribution onto probabilistic wall-impingement screening scores. The workflow is intended as an early-stage screening tool within its measured operating domain, ahead of---not in place of---computational fluid dynamics (CFD) simulation and engine testing.</rdf:li></rdf:Alt></dc:description>
+   <dc:subject><rdf:Bag><rdf:li>Mie scattering</rdf:li>
+     <rdf:li>spray imaging</rdf:li>
+     <rdf:li>penetration</rdf:li>
+     <rdf:li>computer vision</rdf:li>
+     <rdf:li>surrogate modeling</rdf:li></rdf:Bag></dc:subject>
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:prism="http://prismstandard.org/namespaces/basic/2.2/"> 
   </rdf:Description> 
@@ -73,15 +83,18 @@
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"> 
    <xmp:CreatorTool>LaTeX with hyperref</xmp:CreatorTool> 
-   <xmp:ModifyDate>2026-07-15T19:17:07+03:00</xmp:ModifyDate> 
-   <xmp:CreateDate>2026-07-15T19:17:07+03:00</xmp:CreateDate> 
-   <xmp:MetadataDate>2026-07-15T19:17:07+03:00</xmp:MetadataDate> 
+   <xmp:ModifyDate>2026-07-21T22:42:39+03:00</xmp:ModifyDate> 
+   <xmp:CreateDate>2026-07-21T22:42:39+03:00</xmp:CreateDate> 
+   <xmp:MetadataDate>2026-07-21T22:42:39+03:00</xmp:MetadataDate> 
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmpRights = "http://ns.adobe.com/xap/1.0/rights/"> 
+   <xmpRights:Marked>True</xmpRights:Marked>
+   <xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></xmpRights:UsageTerms>
+   <xmpRights:WebStatement>https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en</xmpRights:WebStatement>
   </rdf:Description> 
   <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"> 
-   <xmpMM:DocumentID>uuid:F78D18BF-7FBF-2447-F37B-95D09FF822DB</xmpMM:DocumentID> 
-   <xmpMM:InstanceID>uuid:D7565CDB-3D81-BC92-098C-0BEDECCA228F</xmpMM:InstanceID> 
+   <xmpMM:DocumentID>uuid:C8CFC28F-88E1-7995-E9AD-F6D12EAD346B</xmpMM:DocumentID> 
+   <xmpMM:InstanceID>uuid:1B3A9B27-972B-178D-5FBC-D475E5857C12</xmpMM:InstanceID> 
   </rdf:Description> 
  </rdf:RDF> 
 </x:xmpmeta> 

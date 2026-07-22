@@ -25,7 +25,7 @@ Therefore, attempting to directly invert the complete spray physical state from 
 Different optical diagnostic methods possess distinct response mechanisms to spray information.
 DBI (Diffuse Background Illumination) measures path-integrated extinction by applying the Beer--Lambert law to a spatially uniform diffuse transmitted-light field, yielding a measurement proportional to the liquid volume fraction integrated along the line of sight, and is typically suitable for extracting liquid-phase contours \cite{Pickett2011DBISAEref};
 Schlieren responds to the first spatial derivative of the refractive index field, while Shadowgraph responds to its second derivative (the Laplacian); both can image liquid-spray boundaries through the refractive index discontinuity at the liquid–gas interface, but their signals are simultaneously modulated by gas-phase density gradients and vapour-phase distributions in evaporating conditions, making it harder to isolate the pure liquid-phase boundary compared to droplet scattering methods;
-LIF characterizes vapor distribution or equivalence ratio through fuel or tracer fluorescence (liquid-phase LIF and exciplex techniques can also separate liquid and vapor contributions \cite{Suzuki1993}, but both require fluorescent additives or dedicated tracer compounds that impose chemical compatibility constraints, which effectively precludes their use with commercial diesel in facilities such as the OSCC);
+LIF characterizes vapor distribution or equivalence ratio through fuel or tracer fluorescence (liquid-phase LIF and exciplex techniques can also separate liquid and vapor contributions \cite{Suzuki1993}, but both require fluorescent additives or dedicated tracer compounds that impose chemical compatibility constraints, which effectively precludes their use with commercial diesel in facilities such as the Optical Spray Combustion Chamber (OSCC));
 PIV focuses on velocity fields and turbulent structures;
 PDPA provides single-point droplet size and velocity information; reconstructing a two-dimensional spray envelope requires spatial scanning, making it unsuitable for instantaneous full-field multi-plume characterisation.
 While all these methods have their respective values, their alignment with the target observables differs for the non-evaporating, non-reacting liquid-phase diesel sprays focused on in this thesis:
@@ -187,7 +187,7 @@ This judgment is consistent with boundary extraction experience in existing spra
 Johnson et al. pointed out that traditional threshold-based cone angle estimation from back-scattered diesel images is highly sensitive to the chosen intensity threshold, proposing contour-based methods to reduce this subjectivity \cite{JohnsonNaberLee2012}.
 Existing studies thereby indicate that spray boundary and cone angle estimations cannot be defined independently of the specific imaging modality, post-processing rules, and research objectives.
 Accordingly, this thesis treats boundary metrics as operational geometric descriptors rather than direct measurements of a precise liquid-phase envelope;
-the penetration front is established as a CDF-front quantile on the axial cumulative distribution obtained after transverse summation of each cleaned plume strip (formalized in Section~\ref{subsec:penetration-measurement}), supplemented by multiple boundary proxy metrics, avoiding reliance on a single breakup pixel at the very front or a single global fixed threshold.
+the penetration front is established as a cumulative distribution function (CDF) front quantile on the axial cumulative distribution obtained after transverse summation of each cleaned plume strip (formalized in Section~\ref{subsec:penetration-measurement}), supplemented by multiple boundary proxy metrics, avoiding reliance on a single breakup pixel at the very front or a single global fixed threshold.
 
 \subsubsection{Multi-Plume Registration and Symmetry Utilization}
 
@@ -199,7 +199,7 @@ Furthermore, single-hole configurations studied with DBI or Schlieren typically 
 Therefore, a key task in this thesis is not only detecting which pixels belong to the spray, but also stably registering the repeating plumes across frames, records, and operating conditions.
 To this end, the workflow transitions from Cartesian image coordinates to nozzle-centered polar coordinates, folding the 2D repeating structure into a 1D occupancy signal along the angular axis \cite{Szeliski2011Vision}.
 Under this representation, the number of holes defines the natural angular frequency, and the phase of the corresponding primary harmonic provides an estimate of the rotational offset (modulo the inter-plume angular spacing); this polar--Fourier phase-correlation approach follows established image registration principles \cite{KuglinHines1975PhaseCorrelation,DeCastroMorandi1987RotationFFT}.
-The crux of this design lies not in using the FFT itself, but in explicitly using the nozzle symmetry:
+The crux of this design lies not in using the fast Fourier transform (FFT) itself, but in explicitly using the nozzle symmetry:
 after polar expansion, the multiple spray boundaries previously scattered across the 2D image are compressed into a periodic signal on the angular axis, and the primary harmonic corresponding to the hole number naturally carries the rotational offset information.
 Subsequent inverse remapping transforms the aligned results into a dense, plume-by-plume strip representation, preventing the holes produced by naive forward mapping and providing a unified coordinate system for batch feature extraction per plume.
 
@@ -234,7 +234,7 @@ How to build a \emph{reliable} data-driven system, by contrast, is precisely the
 \midrule
 1 & Data extraction: CV\,+\,CUDA, Mie video $\to$ 1D penetration & Web-scale corpus acquisition \cite{Penedo2023RefinedWeb} \\
 2 & Censoring-aware curation; three derived data populations & Data-centric curation and quality filtering \cite{Albalak2024DataSelection} \\
-3 & $A$-scaling feature; $\mathrm{SGQR}$ penetration targets & Target and distillation-label construction \cite{Xu2024LLMDistillation} \\
+3 & $A$-scaling feature; $\mathrm{SGQR}$ (sigmoid-gated quarter-root) penetration targets & Target and distillation-label construction \cite{Xu2024LLMDistillation} \\
 4 & Three-stage MLP with knowledge distillation & Pre-training $\to$ distillation $\to$ fine-tuning \cite{Zhao2023LLMSurvey} \\
 5 & Leave-one-nozzle-out and calibration checks & Held-out / out-of-distribution benchmarks and calibration \cite{Chang2024LLMEval} \\
 6 & Family-head / residual adapters and screening GUI & Serving with adapter (PEFT) fine-tuning \cite{Han2024PEFT} \\

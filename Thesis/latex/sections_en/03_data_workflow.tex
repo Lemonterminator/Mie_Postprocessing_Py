@@ -20,7 +20,7 @@ These tasks are performed based on data from the Wärtsilä OSCC.
 The raw materials are terabytes of room-temperature, non-reacting, top-view Mie scattering recordings, acquired across multiple operating conditions and nozzle geometries under a fixed camera setup.
 The pipeline first manually calibrates the nozzle geometry, then generates plume-resolved observables via CUDA-accelerated preprocessing, polar registration, and plume strip extraction,
 and constructs penetration targets through reduced-order fitting, which are subsequently passed to the three-stage MLP surrogate described in Chapter~4.
-At the implementation level, this image-processing stage is built as a four-lane overlapped pipeline---disk prefetch, GPU compute, CPU feature extraction, and asynchronous output running concurrently---governed by a resumable checkpoint contract, so that the multi-terabyte archive is reprocessed end-to-end on a single workstation GPU rather than through serial frame-by-frame processing (Section~\ref{subsec:concurrency-architecture}).
+At the implementation level, this image-processing stage is built as a four-lane overlapped pipeline---disk prefetch, GPU compute, central processing unit (CPU) feature extraction, and asynchronous output running concurrently---governed by a resumable checkpoint contract, so that the multi-terabyte archive is reprocessed end-to-end on a single workstation GPU rather than through serial frame-by-frame processing (Section~\ref{subsec:concurrency-architecture}).
 
 \smallskip\noindent\textbf{Contributions of this chapter.} This chapter contributes five reusable methodological elements to the image-to-observable pipeline:
 \begin{enumerate}
@@ -107,7 +107,7 @@ the commanded injection duration from 340 to 1,200\,\si{\micro s},
 and the chamber pressure from 4.42 to 35\,bar.
 Each operating condition subfolder typically contains five repeated recordings,
 and each recording is cropped to approximately 100 frames to limit GPU memory footprint.
-At the camera frame rates of 25{,}000 and 34{,}000\,FPS used in this study, 100 frames define a physical time window of 4.0\,ms and 2.94\,ms respectively, which is sufficient to capture the pilot injection and its early relaxation tail.
+At the camera frame rates of 25{,}000 and 34{,}000\,frames per second (FPS) used in this study, 100 frames define a physical time window of 4.0\,ms and 2.94\,ms respectively, which is sufficient to capture the pilot injection and its early relaxation tail.
 The processed archive totals 266 test condition subfolders and 2{,}992 recording files
 (one CSV per \texttt{.cine}); the cropped working archive occupies tens of GB,
 while the full uncropped recordings constitute terabytes of raw input.

@@ -61,6 +61,11 @@
   % metadata a paragraph-break-free copy while leaving the visible abstract intact.
   \tl_set:Nn \l_tmpa_tl {#1}
   \tl_replace_all:Nnn \l_tmpa_tl { \par } { ~ }
+  % pdfx cannot convert math-mode content to a PDF/A XMP metadata string
+  % (it undefined-control-sequences on \sigma outside real math mode);
+  % give the metadata copy a plain-text stand-in.
+  \tl_replace_all:Nnn \l_tmpa_tl { $1\sigma$ } { 1-sigma }
+  \tl_replace_all:Nnn \l_tmpa_tl { $2\sigma$ } { 2-sigma }
   \exp_args:NV \thesisabstract \l_tmpa_tl
 }
 \ExplSyntaxOff
