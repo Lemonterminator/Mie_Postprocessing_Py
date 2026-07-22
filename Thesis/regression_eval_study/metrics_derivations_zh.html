@@ -794,10 +794,14 @@
     <span class="qed">∎</span>
   </div>
 
-  <p><b>條件解讀：</b>對 \(P_X\)-幾乎每個 \(x\)，若 \(\E[Y^2\mid X=x]\lt\infty\)，逐點條件平方風險由可測版本 \(h_2^*(x)=\E[Y\mid X=x]\)
-    唯一最小化；預測器類別只有在包含該版本時才可達到此 Bayes rule，否則其極小解（若存在）只是在受限類別內最佳。若 \(\E[|Y|\mid X=x]\lt\infty\)，逐點條件絕對風險由集合
-    \(\{m:\Prob(Y\lt m\mid X=x)\le\tfrac12\le\Prob(Y\le m\mid X=x)\}\) 最小化；admissible 預測器是這些集合的可測選擇，並在
-    \(P_X\)-幾乎處處意義下成立且不必唯一。相應總風險有限時，母體 RMSE 與平方風險有相同極小解。報告經驗 RMSE 或 MAE 不會迫使已擬合模型實現這些目標；RMSE/MAE 差異也不能唯一診斷離群值。P50
+  <p><b>條件解讀：</b>假設 \(X,Y\) 所在空間允許正則條件分佈。對 \(P_X\)-幾乎每個 \(x\)，若 \(\E[Y^2\mid X=x]\lt\infty\)，逐點條件平方風險由可測版本
+    \(h_2^*(x)=\E[Y\mid X=x]\) 唯一最小化；若 \(\E[|Y|\mid X=x]\lt\infty\)，逐點條件絕對風險由集合
+    \(\{m:\Prob(Y\lt m\mid X=x)\le\tfrac12\le\Prob(Y\le m\mid X=x)\}\) 最小化，admissible 預測器是這些集合的可測選擇，並在
+    \(P_X\)-幾乎處處意義下成立且不必唯一。這兩者是逐點 Bayes action，尚未涉及全域風險。若進一步有全域矩條件 \(\E[Y^2]\lt\infty\)（相應地
+    \(\E|Y|\lt\infty\)），則上述可測版本才同時最小化總風險 \(\E[(Y-h(X))^2]\)（相應地 \(\E|Y-h(X)|\)）——此時
+    \(\E[(Y-h(X))^2]=\E[\Var(Y\mid X)]+\E[(\E[Y\mid X]-h(X))^2]\) 直接給出唯一性。預測器類別只有在包含該全域 Bayes rule
+    時才可達到它，否則其極小解（若存在）只是在受限類別內最佳。相應總風險有限時，母體 RMSE 與平方風險有相同極小解。報告經驗 RMSE 或 MAE
+    不會迫使已擬合模型實現這些目標；RMSE/MAE 差異也不能唯一診斷離群值。P50
     協定只受中位數目標啟發；定理 1.2 不證明其聚合規則，也不會把 mean-trained head 變成 conditional-median estimator。</p>
 
   <h3>1.3 三個結構性關係（含證明）</h3>

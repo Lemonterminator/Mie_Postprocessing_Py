@@ -842,16 +842,20 @@
     <span class="qed">∎</span>
   </div>
 
-  <p><b>Conditional interpretation:</b> For \(P_X\)-almost every \(x\), if \(\E[Y^2\mid X=x]\lt\infty\), pointwise
-    conditional squared risk is uniquely minimized by a measurable version \(h_2^*(x)=\E[Y\mid X=x]\); a predictor class
-    attains this Bayes rule only if it contains that version, and otherwise any optimizer is merely best within the
-    restricted class. If \(\E[|Y|\mid X=x]\lt\infty\), pointwise conditional absolute risk is minimized by the set
-    \(\{m:\Prob(Y\lt m\mid X=x)\le\tfrac12\le\Prob(Y\le m\mid X=x)\}\); an admissible predictor is a measurable
-    selection from these sets \(P_X\)-almost surely, and need not be unique. Population RMSE has the squared-risk
-    minimizers when the corresponding total risk is finite. Reporting empirical RMSE or MAE does not force a fitted
-    model to realize these targets. A large RMSE/MAE contrast is not a unique outlier diagnosis. The P50 protocol is
-    motivated by a median target; Theorem 1.2 does not prove its aggregation rule or turn a mean-trained head into a
-    conditional-median estimator.</p>
+  <p><b>Conditional interpretation:</b> Assume \(X,Y\) live on spaces admitting regular conditional distributions. For
+    \(P_X\)-almost every \(x\), if \(\E[Y^2\mid X=x]\lt\infty\), pointwise conditional squared risk is uniquely
+    minimized by a measurable version \(h_2^*(x)=\E[Y\mid X=x]\); if \(\E[|Y|\mid X=x]\lt\infty\), pointwise
+    conditional absolute risk is minimized by the set \(\{m:\Prob(Y\lt m\mid X=x)\le\tfrac12\le\Prob(Y\le
+    m\mid X=x)\}\), and an admissible predictor is a measurable selection from these sets \(P_X\)-almost surely, not
+    necessarily unique. Both are pointwise Bayes actions and do not yet concern global risk. If in addition the global
+    moment condition \(\E[Y^2]\lt\infty\) (respectively \(\E|Y|\lt\infty\)) holds, the same measurable version also
+    minimizes the total risk \(\E[(Y-h(X))^2]\) (respectively \(\E|Y-h(X)|\)) — here
+    \(\E[(Y-h(X))^2]=\E[\Var(Y\mid X)]+\E[(\E[Y\mid X]-h(X))^2]\) gives uniqueness directly. A predictor class attains
+    this global Bayes rule only if it contains that version, and otherwise any optimizer is merely best within the
+    restricted class. Population RMSE has the squared-risk minimizers when the corresponding total risk is finite.
+    Reporting empirical RMSE or MAE does not force a fitted model to realize these targets. A large RMSE/MAE contrast
+    is not a unique outlier diagnosis. The P50 protocol is motivated by a median target; Theorem 1.2 does not prove
+    its aggregation rule or turn a mean-trained head into a conditional-median estimator.</p>
 
   <h3>1.3 Three structural relationships (with proofs)</h3>
 
