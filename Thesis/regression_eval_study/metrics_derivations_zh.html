@@ -856,6 +856,84 @@
   <p>論文的 uncensored 結果給出 \(\mathrm{RMSE}/\mathrm{MAE}=4.265/3.032\approx 1.407\gt
     1.253\)。直覺上會想說「殘差比高斯肥尾」。下述引理說明：<b>光是把不同工況（不同 σ）的殘差池化在一起，就足以推高這個比值</b>，即使每個工況內部都是完美高斯。</p>
 
+  <div class="defn"><span class="label">描述統計量的讀法（均值、標準差、偏度與峰度）.</span>
+    <p>以下均指母體量。令殘差 \(r\) 的均值與方差為
+      \[
+      \mu_r:=\E r,
+      \qquad
+      v_r:=\Var(r)=\E[(r-\mu_r)^2],
+      \qquad 0\lt v_r\lt\infty .
+      \]
+      在相應高階矩存在時，定義
+      \[
+      \operatorname{Std}(r)=\sqrt{v_r},
+      \qquad
+      \operatorname{Skew}(r)=\frac{\E[(r-\mu_r)^3]}{v_r^{3/2}},
+      \qquad
+      \operatorname{Kurt}(r)=\frac{\E[(r-\mu_r)^4]}{v_r^2}.
+      \]
+    </p>
+
+    <table>
+      <tr>
+        <th>量</th>
+        <th>主要描述</th>
+        <th>零均值高斯基準</th>
+        <th>單位</th>
+        <th>離群值敏感度（定性）</th>
+      </tr>
+      <tr>
+        <td>均值 \(\mu_r\)</td>
+        <td>殘差的整體位置或系統性偏移</td>
+        <td>\(0\)</td>
+        <td>與 \(r\) 相同</td>
+        <td>高</td>
+      </tr>
+      <tr>
+        <td>標準差 \(\operatorname{Std}(r)\)</td>
+        <td>殘差圍繞均值的散布尺度</td>
+        <td>高斯尺度參數</td>
+        <td>與 \(r\) 相同</td>
+        <td>高</td>
+      </tr>
+      <tr>
+        <td>偏度 \(\operatorname{Skew}(r)\)</td>
+        <td>正、負兩側三階偏差的不平衡程度</td>
+        <td>\(0\)</td>
+        <td>無量綱</td>
+        <td>很高</td>
+      </tr>
+      <tr>
+        <td>峰度 \(\operatorname{Kurt}(r)\)</td>
+        <td>極端觀測對總體波動的標準化四階貢獻</td>
+        <td>\(3\)</td>
+        <td>無量綱</td>
+        <td>極高</td>
+      </tr>
+    </table>
+
+    <p>
+      正偏度表示正側三次偏差占優，通常對應較長或較強的右尾；負偏度則相反。
+      此處的 \(\operatorname{Kurt}\) 是普通峰度；超額峰度定義為
+      \(\operatorname{Kurt}(r)-3\)，故高斯基準分別為 \(3\) 與 \(0\)。
+      高峰度主要由尾部或極端觀測驅動，並不必然表示分布中央更尖。
+    </p>
+
+    <p>
+      均值及上述經典矩統計量皆非穩健統計量：均值對極端偏差呈線性反應，
+      標準差涉及平方偏差，偏度與峰度則分別涉及三次與四次偏差，因此階數愈高，
+      單一極端觀測通常愈可能主導估計結果。
+    </p>
+
+    <p>
+      在殘差診斷中，\(\operatorname{Kurt}(r)\gt3\) 常被描述為相對高斯「較肥尾」，
+      更精確地說是具有超高斯峰度（leptokurtic）。僅憑峰度大於 \(3\) 不能推出概率論
+      嚴格意義下的 heavy-tailed；例如有限個不同方差高斯分布的混合可以具有大於 \(3\)
+      的峰度，但仍為 light-tailed。對下一引理而言，\(\sigma\) 非常數等價於
+      \(\operatorname{Var}(\sigma^2)\gt0\)，這正是峰度嚴格大於 \(3\) 的條件。
+    </p>
+  </div>
+
   <div class="lem"><span class="label">引理 1.6（非常數尺度混合推高比值與峰度）.</span>
     假設 \(\sigma\gt 0\) 幾乎處處、\(\E[\sigma^4]\lt\infty\)，且條件於此隨機尺度（代表工況異質性）有
     \(r\,|\,\sigma\sim\mathcal{N}(0,\sigma^2)\)。則下列 moments 與 ratios 皆有限、分母嚴格為正，且
@@ -902,14 +980,105 @@
   </div>
   <h3>1.5 P95 與高斯尾部參考</h3>
   <div class="lem"><span class="label">引理 1.7（半高斯分位數）.</span>
-    若 \(r\sim\mathcal{N}(0,s^2)\)（無偏），則 \(|r|\) 的 CDF 為 \(\Prob(|r|\le t)=2\Phi(t/s)-1\)，故
+    若殘差 \(r\sim\mathcal{N}(0,s^2)\)，則對 \(t\ge0\)，\(|r|\) 的 CDF 為
     \[
-    \mathrm{P95}(|r|) = s\,\Phi^{-1}(0.975)\approx 1.960\,s = 1.960\times\mathrm{RMSE}.
+    \Prob(|r|\le t)=\Prob(-t\le r\le t)=2\Phi(t/s)-1。
+    \]
+    因此
+    \[
+    \boxed{\mathrm{P95}(|r|)=s\,\Phi^{-1}(0.975)\approx1.959964\,s\approx1.960\,s}。
+    \]
+    若殘差為零均值，則 \(s=\mathrm{RMSE}\)，故
+    \[
+    \boxed{\mathrm{P95}(|r|)\approx1.960\times\mathrm{RMSE}}。
     \]
   </div>
   <div class="proof"><span class="label">證明.</span>
-    \(\Prob(|r|\le t)=\Phi(t/s)-\Phi(-t/s)=2\Phi(t/s)-1\)。令其等於
-    \(0.95\)：\(\Phi(t/s)=0.975\)，\(t=s\,\Phi^{-1}(0.975)\)。無偏時 \(s=\mathrm{RMSE}\)。<span class="qed">∎</span>
+    令 \(Z=r/s\)，則 \(Z\sim\mathcal{N}(0,1)\)。對 \(t\ge0\)，
+    \[
+    \begin{aligned}
+    \Prob(|r|\le t)
+    &=\Prob(-t\le r\le t)\\
+    &=\Prob(-t/s\le Z\le t/s)\\
+    &=\Phi(t/s)-\Phi(-t/s).
+    \end{aligned}
+    \]
+    由標準高斯分布的對稱性 \(\Phi(-x)=1-\Phi(x)\)，可得
+    \[
+    \Prob(|r|\le t)=2\Phi(t/s)-1。
+    \]
+    P95 的定義要求 \(\Prob(|r|\le t_{0.95})=0.95\)，所以
+    \[
+    2\Phi(t_{0.95}/s)-1=0.95
+    \quad\Longrightarrow\quad
+    \Phi(t_{0.95}/s)=0.975。
+    \]
+    取反函數後，\(t_{0.95}=s\,\Phi^{-1}(0.975)\approx1.959964\,s\)。最後，零均值時
+    \[
+    \mathrm{RMSE}=\sqrt{\mathbb{E}[r^2]}=\sqrt{\operatorname{Var}(r)}=s。
+    \]
+    <span class="qed">∎</span>
+  </div>
+
+  <div class="remark">
+    <b>雙側分位數的原因。</b>
+    條件 \(\Prob(|r|\le t)=0.95\) 表示中央區間包含 95% 的機率，因此剩餘的 5% 平均分布在左右兩端：
+    \[
+    \Prob(r&lt;-t)=0.025,\qquad \Prob(r&gt;t)=0.025。
+    \]
+    所以右側臨界點對應標準高斯的 0.975 分位數，而不是 0.95 分位數。
+  </div>
+
+  <div class="remark">
+    <b>與中心 95% 區間的等價性。</b>
+    在零均值高斯假設下，
+    \[
+    \Prob(-1.960s\le r\le1.960s)\approx0.95。
+    \]
+    因此「\(|r|\) 的 P95 約為 \(1.960s\)」與「\(r\) 的中心 95% 區間約為
+    \([-1.960s,1.960s]\)」是同一結果的兩種表述。
+  </div>
+
+  <div class="remark">
+    <b>不要與有符號殘差的 P95 混淆。</b>
+    對有符號殘差 \(r\) 本身，
+    \[
+    \mathrm{P95}(r)=s\,\Phi^{-1}(0.95)\approx1.645s。
+    \]
+    \(1.645s\) 是單側第 95 百分位；只有絕對殘差 \(|r|\) 的 P95 才對應雙側常數 \(1.960s\)。
+  </div>
+
+  <div class="lem">
+    <span class="label">一般化.</span>
+    對任意 \(p\in(0,1)\)，若 \(r\sim\mathcal{N}(0,s^2)\)，則
+    \(\Prob(|r|\le t_p)=p\) 等價於
+    \[
+    2\Phi(t_p/s)-1=p。
+    \]
+    因此
+    \[
+    \boxed{\mathrm{P}_p(|r|)=s\,\Phi^{-1}\left(\frac{1+p}{2}\right)}。
+    \]
+    零均值時也可寫成
+    \[
+    \boxed{\mathrm{P}_p(|r|)=\mathrm{RMSE}\,\Phi^{-1}\left(\frac{1+p}{2}\right)}。
+    \]
+    例如 \(\mathrm{P}_{0.90}(|r|)\approx1.645\,\mathrm{RMSE}\)、
+    \(\mathrm{P}_{0.95}(|r|)\approx1.960\,\mathrm{RMSE}\)、
+    \(\mathrm{P}_{0.99}(|r|)\approx2.576\,\mathrm{RMSE}\)。
+  </div>
+
+  <div class="remark">
+    <b>適用條件與經驗數值的解讀。</b>
+    比例 \(\mathrm{P95}(|r|)\approx1.960\,\mathrm{RMSE}\) 依賴於零均值、同一尺度以及高斯分布假設。
+    若殘差均值為 \(\mu\ne0\)，則
+    \[
+    \mathrm{RMSE}=\sqrt{s^2+\mu^2}，
+    \]
+    而 \(|r|\) 不再是上述半高斯分布，而是折疊正態分布；此時通常不能直接使用
+    \(1.960\times\mathrm{RMSE}\)。異方差高斯混合、偏態分布或厚尾分布也可能使經驗
+    \(\mathrm{P95}(|r|)/\mathrm{RMSE}\) 偏離 1.960，且偏離方向不能只由這兩個摘要量預先確定。
+    因此該比例應視為參考診斷，而不是高斯性的檢驗。
   </div>
 
   <div class="worked"><span class="label">實例（full-clean 協定）.</span>

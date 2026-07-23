@@ -917,6 +917,86 @@
       residuals across different operating conditions (different σ) is already sufficient to inflate this ratio</b>,
     even if every individual operating condition is perfectly Gaussian.</p>
 
+  <div class="defn"><span class="label">How to read the descriptive statistics (mean, standard deviation, skewness, and kurtosis).</span>
+    <p>All quantities below are population quantities. Let the residual \(r\) have mean and variance
+      \[
+      \mu_r:=\E r,
+      \qquad
+      v_r:=\Var(r)=\E[(r-\mu_r)^2],
+      \qquad 0\lt v_r\lt\infty .
+      \]
+      When the corresponding higher moments exist, define
+      \[
+      \operatorname{Std}(r)=\sqrt{v_r},
+      \qquad
+      \operatorname{Skew}(r)=\frac{\E[(r-\mu_r)^3]}{v_r^{3/2}},
+      \qquad
+      \operatorname{Kurt}(r)=\frac{\E[(r-\mu_r)^4]}{v_r^2}.
+      \]
+    </p>
+
+    <table>
+      <tr>
+        <th>Quantity</th>
+        <th>What it describes</th>
+        <th>Zero-mean Gaussian reference</th>
+        <th>Units</th>
+        <th>Outlier sensitivity (qualitative)</th>
+      </tr>
+      <tr>
+        <td>Mean \(\mu_r\)</td>
+        <td>Overall location or systematic offset of the residuals</td>
+        <td>\(0\)</td>
+        <td>Same as \(r\)</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Standard deviation \(\operatorname{Std}(r)\)</td>
+        <td>Dispersion scale of the residuals around their mean</td>
+        <td>Gaussian scale parameter</td>
+        <td>Same as \(r\)</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Skewness \(\operatorname{Skew}(r)\)</td>
+        <td>Imbalance between third-order deviations on the positive and negative sides</td>
+        <td>\(0\)</td>
+        <td>Dimensionless</td>
+        <td>Very high</td>
+      </tr>
+      <tr>
+        <td>Kurtosis \(\operatorname{Kurt}(r)\)</td>
+        <td>Standardized fourth-order contribution of extreme observations to overall variation</td>
+        <td>\(3\)</td>
+        <td>Dimensionless</td>
+        <td>Extremely high</td>
+      </tr>
+    </table>
+
+    <p>
+      Positive skewness means that positive-side third-order deviations dominate, which often corresponds to a longer
+      or stronger right tail; negative skewness is the opposite. The \(\operatorname{Kurt}\) used here is ordinary
+      kurtosis. Excess kurtosis is \(\operatorname{Kurt}(r)-3\), so the Gaussian references are \(3\) and \(0\),
+      respectively. High kurtosis is driven mainly by tails or extreme observations and does not necessarily mean that
+      the center of the distribution is sharper.
+    </p>
+
+    <p>
+      The mean and the classical moment statistics above are all non-robust: the mean responds linearly to an extreme
+      deviation, the standard deviation uses squared deviations, and skewness and kurtosis use third- and fourth-order
+      deviations. Thus, as the order increases, a single extreme observation can more easily dominate the estimate.
+    </p>
+
+    <p>
+      In residual diagnostics, \(\operatorname{Kurt}(r)\gt3\) is often described as relatively "fatter-tailed" than
+      Gaussian; more precisely, it indicates super-Gaussian kurtosis (leptokurtic behavior). Kurtosis above \(3\)
+      alone does not imply heavy tails in the strict probabilistic sense: for example, a mixture of finitely many
+      Gaussian distributions with different variances can have kurtosis above \(3\) while remaining light-tailed. For
+      the lemma below, nonconstant \(\sigma\) is equivalent to \(\operatorname{Var}(\sigma^2)\gt0\), which is exactly
+      the condition for kurtosis to be strictly greater than \(3\).
+    </p>
+  </div>
+
   <div class="lem"><span class="label">Lemma 1.6 (nonconstant scale mixing inflates the ratio and kurtosis).</span>
     Suppose \(\sigma\gt 0\) almost surely, \(\E[\sigma^4]\lt\infty\), and, conditional on this random scale
     (representing operating-condition heterogeneity), \(r\,|\,\sigma\sim\mathcal{N}(0,\sigma^2)\). Then all displayed
@@ -974,14 +1054,108 @@
   </div>
   <h3>1.5 P95 and the Gaussian tail reference</h3>
   <div class="lem"><span class="label">Lemma 1.7 (half-Gaussian quantile).</span>
-    If \(r\sim\mathcal{N}(0,s^2)\) (unbiased), then the CDF of \(|r|\) is \(\Prob(|r|\le t)=2\Phi(t/s)-1\), so
+    If the residual \(r\sim\mathcal{N}(0,s^2)\), then for \(t\ge0\) the CDF of \(|r|\) is
     \[
-    \mathrm{P95}(|r|) = s\,\Phi^{-1}(0.975)\approx 1.960\,s = 1.960\times\mathrm{RMSE}.
+    \Prob(|r|\le t)=\Prob(-t\le r\le t)=2\Phi(t/s)-1.
+    \]
+    Therefore
+    \[
+    \boxed{\mathrm{P95}(|r|)=s\,\Phi^{-1}(0.975)\approx1.959964\,s\approx1.960\,s}.
+    \]
+    For a zero-mean residual, \(s=\mathrm{RMSE}\), so
+    \[
+    \boxed{\mathrm{P95}(|r|)\approx1.960\times\mathrm{RMSE}}.
     \]
   </div>
   <div class="proof"><span class="label">Proof.</span>
-    \(\Prob(|r|\le t)=\Phi(t/s)-\Phi(-t/s)=2\Phi(t/s)-1\). Setting this equal to \(0.95\): \(\Phi(t/s)=0.975\),
-    \(t=s\,\Phi^{-1}(0.975)\). When unbiased, \(s=\mathrm{RMSE}\).<span class="qed">∎</span>
+    Let \(Z=r/s\), so \(Z\sim\mathcal{N}(0,1)\). For \(t\ge0\),
+    \[
+    \begin{aligned}
+    \Prob(|r|\le t)
+    &=\Prob(-t\le r\le t)\\
+    &=\Prob(-t/s\le Z\le t/s)\\
+    &=\Phi(t/s)-\Phi(-t/s).
+    \end{aligned}
+    \]
+    By the symmetry of the standard Gaussian distribution, \(\Phi(-x)=1-\Phi(x)\), hence
+    \[
+    \Prob(|r|\le t)=2\Phi(t/s)-1.
+    \]
+    The P95 definition requires \(\Prob(|r|\le t_{0.95})=0.95\), so
+    \[
+    2\Phi(t_{0.95}/s)-1=0.95
+    \quad\Longrightarrow\quad
+    \Phi(t_{0.95}/s)=0.975.
+    \]
+    Applying the inverse CDF gives \(t_{0.95}=s\,\Phi^{-1}(0.975)\approx1.959964\,s\).
+    Finally, for a zero-mean residual,
+    \[
+    \mathrm{RMSE}=\sqrt{\mathbb{E}[r^2]}=\sqrt{\operatorname{Var}(r)}=s.
+    \]
+    <span class="qed">∎</span>
+  </div>
+
+  <div class="remark">
+    <b>Why the quantile is two-sided.</b>
+    The condition \(\Prob(|r|\le t)=0.95\) means that the central interval contains 95% of the probability,
+    leaving 5% split equally between the two tails:
+    \[
+    \Prob(r&lt;-t)=0.025,\qquad \Prob(r&gt;t)=0.025.
+    \]
+    The right-hand critical point therefore corresponds to the 0.975 standard-Gaussian quantile, not the 0.95 quantile.
+  </div>
+
+  <div class="remark">
+    <b>Equivalence with the central 95% interval.</b>
+    Under the zero-mean Gaussian assumption,
+    \[
+    \Prob(-1.960s\le r\le1.960s)\approx0.95.
+    \]
+    Thus “the P95 of \(|r|\) is approximately \(1.960s\)” and “the central 95% interval of \(r\) is approximately
+    \([-1.960s,1.960s]\)” are two expressions of the same result.
+  </div>
+
+  <div class="remark">
+    <b>Do not confuse this with the P95 of the signed residual.</b>
+    For the signed residual \(r\) itself,
+    \[
+    \mathrm{P95}(r)=s\,\Phi^{-1}(0.95)\approx1.645s.
+    \]
+    The value \(1.645s\) is a one-sided 95th percentile; the absolute residual \(|r|\) has the two-sided constant \(1.960s\).
+  </div>
+
+  <div class="lem">
+    <span class="label">Generalization.</span>
+    For any \(p\in(0,1)\), if \(r\sim\mathcal{N}(0,s^2)\), then
+    \(\Prob(|r|\le t_p)=p\) is equivalent to
+    \[
+    2\Phi(t_p/s)-1=p.
+    \]
+    Therefore
+    \[
+    \boxed{\mathrm{P}_p(|r|)=s\,\Phi^{-1}\left(\frac{1+p}{2}\right)}.
+    \]
+    For a zero-mean residual this can also be written as
+    \[
+    \boxed{\mathrm{P}_p(|r|)=\mathrm{RMSE}\,\Phi^{-1}\left(\frac{1+p}{2}\right)}.
+    \]
+    For example, \(\mathrm{P}_{0.90}(|r|)\approx1.645\,\mathrm{RMSE}\),
+    \(\mathrm{P}_{0.95}(|r|)\approx1.960\,\mathrm{RMSE}\), and
+    \(\mathrm{P}_{0.99}(|r|)\approx2.576\,\mathrm{RMSE}\).
+  </div>
+
+  <div class="remark">
+    <b>Scope and interpretation of empirical values.</b>
+    The ratio \(\mathrm{P95}(|r|)\approx1.960\,\mathrm{RMSE}\) relies on zero mean, a common scale, and a Gaussian residual distribution.
+    If the residual mean is \(\mu\ne0\), then
+    \[
+    \mathrm{RMSE}=\sqrt{s^2+\mu^2},
+    \]
+    while \(|r|\) follows a folded-normal rather than the half-Gaussian distribution above; the factor
+    \(1.960\times\mathrm{RMSE}\) should then not be applied directly. Heteroscedastic Gaussian mixtures, skewed distributions,
+    or heavy-tailed distributions may likewise make the empirical \(\mathrm{P95}(|r|)/\mathrm{RMSE}\) ratio depart from 1.960,
+    and the direction of departure cannot be determined from these two summaries alone. The ratio is therefore a reference diagnostic,
+    not a test of Gaussianity.
   </div>
 
   <div class="worked"><span class="label">Worked example (full-clean protocol).</span>
