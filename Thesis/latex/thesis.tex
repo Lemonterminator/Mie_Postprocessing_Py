@@ -33,6 +33,7 @@
 \setlength{\headheight}{36pt}
 \setlength{\emergencystretch}{2em}
 \newcommand{\thesisinput}[1]{%
+  \clearpage%
   \IfFileExists{#1.tex}{%
     \input{#1}%
   }{%
