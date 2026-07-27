@@ -39,7 +39,7 @@ def main() -> None:
     ref = frames[CURVES[0][0]]
     x, labels = _xpos(ref)
 
-    fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.0), dpi=180)
+    fig, axes = plt.subplots(2, 1, figsize=(8.5, 10.0), dpi=180)
 
     # ── left: RMSE vs k with error band ─────────────────────────────────────
     ax = axes[0]

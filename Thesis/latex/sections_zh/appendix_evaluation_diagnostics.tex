@@ -112,8 +112,8 @@ Residual 后续 & 未删失 CDF；residual-LONO（训练中保留 N0） & \num{5
 \begin{figure}[p]
 \centering
 \includegraphics[width=0.94\linewidth]{images/eval_20260709/mlp_seed99_trajectory_best.png}\\[0.8em]
-\includegraphics[width=0.94\linewidth]{images/eval_20260709/mlp_seed99_trajectory_worst.png}
-\caption{刷新表格上 seed-99 重复运行自动选出的最佳拟合（上）和最差拟合（下）留出轨迹；选择准则为单条轨迹 RMSE 的最低值和最高值。最差案例重现了第五章 Nozzle-3 失效模式检查中讨论的瞬态形状失配。}
+\includegraphics[width=0.94\linewidth]{images/neural_network_fit_results_20260521/worst_traj_seed42.png}
+\caption{刷新表格上 seed-99 重复运行自动选出的最佳拟合留出轨迹（上），以及一条能代表 Nozzle-3 瞬态形状失配问题的高误差轨迹示例（下），对应第五章 Nozzle-3 失效模式检查中的讨论。两幅子图取自不同的评测批次，并非同一次自动最佳/最差选择下的配对。}
 \label{fig:app-seed99-trajectories}
 \end{figure}
 
@@ -186,7 +186,8 @@ $\pm$ 项为跨折标准差。
 \begin{table}[t]
 \centering
 \footnotesize
-\begin{tabular}{lrrrrr}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}L{0.28\linewidth}rrrrr@{}}
 \toprule
 配置 & RMSE [mm] & MAE [mm] & Bias [mm] & 1$\sigma$ 覆盖率 & 2$\sigma$ 覆盖率 \\
 \midrule
@@ -228,7 +229,7 @@ Anchor-off 变体 & 12.73 $\pm$ 12.44 & 9.86 $\pm$ 10.22 & $-7.11 \pm 11.51$ & 0
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \begin{tabular}{lrrrr}
 \toprule
 分片 & n & RMSE [mm] & Bias [mm] & 中位数 \(|\sigma_s-\sigma_t|\) [mm] \\
@@ -362,18 +363,19 @@ P0 pooled & \textbf{3.136} & -0.019 & 1.816 & 5.298 & +1.223 & 2.918 \\
 \quad + FiLM（末块） & 3.197 & -0.293 & \textbf{1.750} & 5.257 & -0.290 & \textbf{2.792} \\
 \bottomrule
 \end{tabular}
-\caption{受控链按喷油器族的切片（\texttt{evalrun\_\allowbreak{}20260713\_\allowbreak{}123732}，QC-gated 未删失 CDF 表，单位 mm）。pooled 基线在多数族（参考件）上近乎无偏，把系统性高估留给整修族；residual 的偏差修复几乎全部发生在整修族（\(+1.223 \to +0.253\)；族内配对 \(\Delta\)RMSE \(-0.072\)，显著），代价是参考件族上轻微但显著的退化（\(+0.063\)），整体 RMSE 持平是两族相消的净值。FiLM 的均值修正在两族上几乎相同（\(-0.293/-0.290\)），其收益集中在概率指标。}
+\caption{受控链按喷油器族的切片\\
+（\texttt{evalrun\_20260713\_123732}，QC-gated 未删失 CDF 表，单位 mm）。pooled 基线在多数族（参考件）上近乎无偏，把系统性高估留给整修族；residual 的偏差修复几乎全部发生在整修族（\(+1.223 \to +0.253\)；族内配对 \(\Delta\)RMSE \(-0.072\)，显著），代价是参考件族上轻微但显著的退化（\(+0.063\)），整体 RMSE 持平是两族相消的净值。FiLM 的均值修正在两族上几乎相同（\(-0.293/-0.290\)），其收益集中在概率指标。}
 \label{tab:residual-family-slice}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.49\linewidth}
+\begin{minipage}{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/delta_l2_sweep.png}
 \end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
+\par\medskip
+\begin{minipage}{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/residual_svgp_context_rmse_comparison.png}
 \end{minipage}
@@ -401,7 +403,7 @@ Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.62\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
+\includegraphics[width=0.90\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
 \caption{冻结 trunk residual head 的归档 Nozzle0 few-shot 适配。横轴为适配的 N0 工况数 $k$，纵轴为未删失 RMSE；比较 MSE 微调（均值、不受限制）与 NLL 微调（受冻结方差 head 限制）。二者均在远高于 $\approx\SI{5}{mm}$ 设计族内 LONO 区间的位置进入平台：仅 delta 适配可消除 bias，却无法缩小离散范围。}
 \label{fig:n0-fewshot}
 \end{figure}

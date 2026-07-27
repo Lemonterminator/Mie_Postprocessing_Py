@@ -1336,7 +1336,19 @@
   \ifdefstrequal{\MainLang}{\AbstractLang}{}{\end{otherlanguage*}}%
   \vspace{2pt}%
   \@bsbre@k%
-  \@bsfield{\keywordsname}{\k@ywords\par\vspace{0.3ex}}%
+  % Put the final border inside the Keywords value box.  A trailing rule from
+  % \@bsfield itself is otherwise discarded by the immediately following
+  % \clearpage.  The compensating skip preserves the original row height, so
+  % the unbreakable Keywords field remains on this page.
+  \begingroup
+    % Suppress \@bsfield's usual *additional* trailing separator: at the end
+    % of the page it is deferred to a blank page.  The rule above is the final
+    % border for this field.
+    \let\@bsbre@k\relax
+    \@bsfield{\keywordsname}{\k@ywords\par\vspace{0.3ex}%
+      \noindent\hspace*{-\dimexpr\auxwidth+1ex\relax}%
+      \smash{\rlap{\rule{\abstractwidth}{0.4pt}}}\par\vspace{-\baselineskip}}%
+  \endgroup
   \setcounter{advisors}{0}%
   \clearpage%
   \fancyhead{}%

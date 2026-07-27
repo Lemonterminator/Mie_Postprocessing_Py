@@ -33,12 +33,16 @@ exit /b 0
 :build
 echo.
 echo === Building %1.pdf ===
-pdflatex -interaction=nonstopmode -file-line-error -output-directory=pdf latex\%1.tex
+pushd latex
+set "TEXINPUTS=..;%TEXINPUTS%"
+set "BIBINPUTS=..;%BIBINPUTS%"
+pdflatex -interaction=nonstopmode -file-line-error -output-directory=..\pdf %1.tex
 if errorlevel 1 exit /b 1
-biber --output-directory=pdf pdf\%1
+biber --output-directory=..\pdf ..\pdf\%1
 if errorlevel 1 exit /b 1
-pdflatex -interaction=nonstopmode -file-line-error -output-directory=pdf latex\%1.tex
+pdflatex -interaction=nonstopmode -file-line-error -output-directory=..\pdf %1.tex
 if errorlevel 1 exit /b 1
-pdflatex -interaction=nonstopmode -file-line-error -output-directory=pdf latex\%1.tex
+pdflatex -interaction=nonstopmode -file-line-error -output-directory=..\pdf %1.tex
 if errorlevel 1 exit /b 1
+popd
 exit /b 0

@@ -36,6 +36,88 @@ faithful to the observed liquid-phase envelope.
 
 \FloatBarrier
 
+\subsection{Time-Resolved Scaling Robustness}
+\label{app:time-scaling-robustness}
+
+The time-windowed scaling analysis is regenerated from explicit, resolved data
+roots rather than the legacy \codepath{MLP/synthetic\_data} junction. The
+Level-3 QC-gated archive is the sole primary lineage; Level~2 is retained only
+as a robustness check. The analysis manifest stores SHA-256 hashes for all four
+point tables and both upstream censoring manifests, together with the fixed
+\SI{85}{mm} cap, density-loss settings, canonical chamber-state mapping, row
+counts, condition counts, and regression configuration.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llcrrrr@{}}
+\toprule
+Lineage & Observation protocol & $t$ [ms] & $a_{\Delta P}$ & $b_{P_{\mathrm{ch}}}$ & $R^2$ & $N$ \\
+\midrule
+Level-3 QC & Censor-truncated & 0.3 & 0.688 & -0.234 & 0.355 & 72\,940 \\
+Level-3 QC & Censor-truncated & 0.4 & 0.527 & -0.248 & 0.394 & 63\,725 \\
+Level-3 QC & Censor-truncated & 0.5 & 0.477 & -0.232 & 0.412 & 55\,853 \\
+Level-3 QC & Censor-truncated & 0.6 & 0.524 & -0.192 & 0.434 & 46\,220 \\
+Level-3 QC & Censor-truncated & 0.7 & 0.450 & -0.155 & 0.367 & 37\,489 \\
+\addlinespace
+Level-3 QC & Censoring-inclusive & 0.3 & 0.682 & -0.235 & 0.356 & 73\,815 \\
+Level-3 QC & Censoring-inclusive & 0.4 & 0.615 & -0.265 & 0.439 & 67\,849 \\
+Level-3 QC & Censoring-inclusive & 0.5 & 0.534 & -0.282 & 0.518 & 64\,042 \\
+Level-3 QC & Censoring-inclusive & 0.6 & 0.434 & -0.269 & 0.542 & 55\,520 \\
+Level-3 QC & Censoring-inclusive & 0.7 & 0.461 & -0.234 & 0.511 & 49\,040 \\
+\addlinespace
+Level-2 & Censor-truncated & 0.3 & 0.685 & -0.232 & 0.351 & 73\,217 \\
+Level-2 & Censor-truncated & 0.4 & 0.523 & -0.246 & 0.387 & 63\,996 \\
+Level-2 & Censor-truncated & 0.5 & 0.472 & -0.229 & 0.398 & 56\,117 \\
+Level-2 & Censor-truncated & 0.6 & 0.521 & -0.189 & 0.417 & 46\,466 \\
+Level-2 & Censor-truncated & 0.7 & 0.448 & -0.154 & 0.355 & 37\,686 \\
+\addlinespace
+Level-2 & Censoring-inclusive & 0.3 & 0.678 & -0.233 & 0.352 & 74\,092 \\
+Level-2 & Censoring-inclusive & 0.4 & 0.612 & -0.263 & 0.432 & 68\,120 \\
+Level-2 & Censoring-inclusive & 0.5 & 0.531 & -0.280 & 0.508 & 64\,306 \\
+Level-2 & Censoring-inclusive & 0.6 & 0.431 & -0.267 & 0.530 & 55\,783 \\
+Level-2 & Censoring-inclusive & 0.7 & 0.458 & -0.232 & 0.499 & 49\,302 \\
+\bottomrule
+\end{tabular}
+\caption{Point-level OLS robustness across data lineage and observation protocol.
+The Level-3 censor-truncated rows are the primary result. Level~2 changes the
+primary coefficients by no more than 0.004 over this interval, whereas the
+censoring protocol has a larger effect as observability begins to decrease.}
+\label{tab:time-scaling-lineage-protocol}
+\end{table}
+
+Because the point-level fit weights conditions in proportion to their surviving
+observations, Table~\ref{tab:time-scaling-weighting-sensitivity} reports three
+additional views of the Level-3 censor-truncated \(\Delta P\) coefficient. The
+condition-median fit gives one response value per condition; the fixed-cohort
+fit retains only the 177 conditions still represented in the
+\(\pm\SI{0.05}{ms}\) window at \SI{1.0}{ms}; and the LONO range refits after
+omitting each nozzle in turn.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}crrrcrr@{}}
+\toprule
+$t$ [ms] & Point OLS & Condition median & Fixed cohort & LONO range & Conditions & Point $R^2$ \\
+\midrule
+0.3 & 0.688 & 0.666 & 0.407 & [0.574, 0.844] & 589 & 0.355 \\
+0.5 & 0.477 & 0.409 & 0.377 & [0.379, 0.616] & 495 & 0.412 \\
+0.7 & 0.450 & 0.489 & 0.335 & [0.378, 0.489] & 363 & 0.367 \\
+1.0 & 0.232 & 0.199 & 0.232 & [0.135, 0.300] & 177 & 0.093 \\
+\bottomrule
+\end{tabular}
+\caption{Weighting and support sensitivity of \(a_{\Delta P}\) for the primary
+Level-3 censor-truncated analysis. The late-time value is directionally stable,
+but the early pooled magnitude and any transition time are not invariant to
+condition weighting or support.}
+\label{tab:time-scaling-weighting-sensitivity}
+\end{table}
+
+\FloatBarrier
+
 \subsection{Claims-to-Evidence Map}
 
 Table~\ref{tab:results-claims-map} preserves the claims-to-evidence map of the
@@ -116,8 +198,8 @@ matching the convention of the earlier chapter.
 \begin{figure}[p]
 \centering
 \includegraphics[width=0.94\linewidth]{images/eval_20260709/mlp_seed99_trajectory_best.png}\\[0.8em]
-\includegraphics[width=0.94\linewidth]{images/eval_20260709/mlp_seed99_trajectory_worst.png}
-\caption{Automatically selected best-fit (top) and worst-fit (bottom) held-out trajectories for the seed-99 repetition on the refreshed table; the selection criterion is the lowest and highest single-trajectory RMSE. The worst case reproduces the transient shape mismatch discussed in the Nozzle-3 failure-mode check of Chapter~5.}
+\includegraphics[width=0.94\linewidth]{images/neural_network_fit_results_20260521/worst_traj_seed42.png}
+\caption{Automatically selected best-fit held-out trajectory for the seed-99 repetition on the refreshed table (top), alongside a representative high-error Nozzle-3 trajectory (bottom) illustrating the transient shape mismatch discussed in the Nozzle-3 failure-mode check of Chapter~5. The two panels are drawn from different evaluation runs and are not a matched best/worst pair from a single automatic selection.}
 \label{fig:app-seed99-trajectories}
 \end{figure}
 
@@ -190,7 +272,8 @@ Variant & Nozzle0 & Nozzle1 & Nozzle2 & Nozzle4 & Nozzle5 & Mean \\
 \begin{table}[t]
 \centering
 \footnotesize
-\begin{tabular}{lrrrrr}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}L{0.28\linewidth}rrrrr@{}}
 \toprule
 Configuration & RMSE [mm] & MAE [mm] & Bias [mm] & 1$\sigma$ Coverage & 2$\sigma$ Coverage \\
 \midrule
@@ -232,7 +315,7 @@ than the refreshed headline.
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \begin{tabular}{lrrrr}
 \toprule
 Slice & n & RMSE [mm] & Bias [mm] & Median \(|\sigma_s-\sigma_t|\) [mm] \\
@@ -360,6 +443,10 @@ Single-output SVGP (reference) & 4.087 & 2.857 & 0.0214 & 2.063 & 2.516 & --- \\
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
+% Natural table width exceeds \linewidth by ~47.6pt (overfull hbox); the two
+% family-header labels drive it. Rather than truncate them, resize the whole
+% table (vector text, so this is lossless) to land exactly at \linewidth.
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{@{}lrrrrrr@{}}
 \toprule
  & \multicolumn{3}{c}{Reference family (Nozzle~0; 57.6\% of rows)} & \multicolumn{3}{c}{Refurbished family (Nozzle~1--8; 42.4\%)} \\
@@ -371,19 +458,21 @@ P0 pooled & \textbf{3.136} & -0.019 & 1.816 & 5.298 & +1.223 & 2.918 \\
 \quad + residual \(\Delta_f\) & 3.199 & -0.099 & 1.797 & \textbf{5.227} & +0.253 & 2.833 \\
 \quad + FiLM (last block) & 3.197 & -0.293 & \textbf{1.750} & 5.257 & -0.290 & \textbf{2.792} \\
 \bottomrule
-\end{tabular}
-\caption{Injector-family slice of the controlled chain (\texttt{evalrun\_\allowbreak{}20260713\_\allowbreak{}123732}, QC-gated uncensored CDF table, all values in mm). The pooled baseline is nearly unbiased on the majority (reference) family and leaves the systematic over-prediction to the refurbished family; the residual bias repair happens almost entirely on the refurbished family (\(+1.223 \to +0.253\); within-family paired \(\Delta\)RMSE \(-0.072\), significant) at the cost of a small but significant degradation on the reference family (\(+0.063\)), so the flat overall RMSE is a net of two opposing family effects. FiLM's mean correction is nearly identical on both families (\(-0.293/-0.290\)); its gains are concentrated in the probabilistic metrics.}
+\end{tabular}%
+}
+\caption{Injector-family slice of the controlled chain\\
+(\texttt{evalrun\_20260713\_123732}, QC-gated uncensored CDF table, all values in mm). The pooled baseline is nearly unbiased on the majority (reference) family and leaves the systematic over-prediction to the refurbished family; the residual bias repair happens almost entirely on the refurbished family (\(+1.223 \to +0.253\); within-family paired \(\Delta\)RMSE \(-0.072\), significant) at the cost of a small but significant degradation on the reference family (\(+0.063\)), so the flat overall RMSE is a net of two opposing family effects. FiLM's mean correction is nearly identical on both families (\(-0.293/-0.290\)); its gains are concentrated in the probabilistic metrics.}
 \label{tab:residual-family-slice}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.49\linewidth}
+\begin{minipage}{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/delta_l2_sweep.png}
 \end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
+\par\medskip
+\begin{minipage}{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/residual_svgp_context_rmse_comparison.png}
 \end{minipage}
@@ -411,7 +500,7 @@ Residual-FiLM & 5.15 $\pm$ 0.67 & 6.96 $\pm$ 4.08 & +0.75 \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.62\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
+\includegraphics[width=0.90\linewidth]{images/residual_family_head_20260608/n0_fewshot_adaptation_curve.png}
 \caption{Archived Nozzle0 few-shot adaptation of the frozen-trunk residual head. Uncensored RMSE versus the number of adapted N0 conditions $k$, for the MSE fine-tune (mean, unthrottled) and the NLL fine-tune (throttled by the frozen variance head). Both plateau far above the $\approx\SI{5}{mm}$ in-family LONO band: delta-only adaptation removes the bias but cannot close the spread.}
 \label{fig:n0-fewshot}
 \end{figure}

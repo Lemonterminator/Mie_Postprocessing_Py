@@ -19,13 +19,48 @@ The two supervision signals are combined through a mixed KD loss that consists o
 Because both the teacher and student output unimodal Gaussian distributions, this loss has a closed-form solution, so Monte Carlo sampling is not needed and no additional sampling noise is introduced.
 This hybrid supervision explains why Stage~3 shows higher fidelity in early periods and more conservative behavior in late periods.
 
-\subsection{Validated Findings and Boundaries of Applicability}
+\subsection{Synthesis of Validated Results and Boundaries of Applicability}
 
-Within the scope of this thesis, the results support the following four conclusions.
-First, the optical workflow reliably extracts repeatable penetration targets from large-scale multi-hole Mie scattering video archives, with all processing steps traceable and reproducible.
-Second, the reduced-order fitting handles right-censored observations while providing trajectory smoothing and constructing the target quantities used in subsequent modelling.
-Third, the staged surrogate advances from mean prediction to full-dataset prediction with uncertainty quantification, with final screening performance validated against the raw CDF.
-Fourth, the final uncertainty intervals are conservative by design, supporting early-stage engineering design ranking and screening rather than precise point prediction.
+The validation evidence from Chapters~4 and~5 supports four principal interpretations.
+First, finite-window censoring is a substantial property of the archive: 39.6\% of the cleaned CDF penetration trajectories reach their nozzle-specific field-of-view limit.
+The three-parameter \(\mathrm{SGQR}\) fit addresses the resulting target-construction problem more robustly than the four-parameter two-branch candidate, increasing the post-fit-shielding pass rate from 61.3\% to 90.0\% while retaining a median accepted-fit RMSE of \SI{1.27}{mm}.
+This evidence supports its use as a smooth trajectory compressor and target generator, but does not validate physical continuation beyond the camera window.
+
+Second, the time-resolved scaling analysis shows that the effective pressure-difference exponent is close to 0.5 over the well-supported early-to-mid transient window before moving towards the classical post-breakup asymptote.
+Relative to the \(\Delta P^{0.25}\) alternative, the adopted \(\Delta P^{0.5}\) scaling produces an approximately \(6.6\times\) tighter collapse of the representative trajectory population.
+This result provides the empirical basis for the amplitude scaling and residual-pressure feature design used by the surrogate; its physical interpretation is developed further in Section~\ref{sec:time-varying-scaling-discussion-en}.
+
+Third, on the primary uncensored CDF protocol (540{,}367 held-out points per seed from the nine-nozzle archive), the production MLP achieves a five-seed mean RMSE of \SI{4.185}{mm} and MAE of \SI{2.978}{mm}.
+Under this dataset, protocol, and the refitted baseline definitions, this is a 58.9\% RMSE reduction relative to Hiroyasu--Arai (\SI{10.192}{mm}) and a 54.6\% reduction relative to Naber--Siebers (\SI{9.212}{mm}).
+On the same fixed table, the seed-42 SVGP reference attains lower RMSE and CRPS (\SI{4.087}{mm} and \SI{2.063}{mm}, versus \SI{4.185}{mm} and \SI{2.301}{mm} for the MLP), whereas the MLP produces wider in-domain intervals (\(1\sigma/2\sigma\) coverage 0.888/0.990 versus 0.717/0.946) and supports the onset output and regime-aware distillation chain used by the screening workflow.
+Because the seed protocols are unmatched, this comparison is descriptive rather than a statistical-significance claim, and conservative coverage is not a false-negative safety guarantee.
+
+Fourth, the five-fold LONO study defines a clear transfer boundary.
+After excluding Nozzle~0, the four-fold mean RMSE is \SI{7.00}{mm} for the MLP and \SI{5.95}{mm} for the SVGP, indicating useful but imperfect transfer within the evaluated design lineage.
+On Nozzle~0, the corresponding errors rise to approximately \SI{35}{mm} and \SI{27}{mm}.
+Nozzle~0 is a factory-fresh reference injector outside the prototype design lineage, so this fold combines operating-condition extrapolation with an injector-population shift; it should not be interpreted as an ordinary in-family fold or generalized into a claim about all unseen hardware families.
+
+Table~\ref{tab:discussion-validated-results} consolidates the quantitative evidence and the boundary attached to each interpretation.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{L{3.2cm} Y L{4.2cm}}
+\toprule
+Finding / Theme & Quantitative Evidence & Operational Scope / Boundary \\
+\midrule
+FOV Right-Censoring & 39.6\% of cleaned CDF trajectories reach the FOV limit & Common to the finite-window Mie archive \\
+SGQR Fit Robustness & Pass rate improved from 61.3\% to 90.0\% (median RMSE \SI{1.27}{mm}) & Trajectory compressor; wide-FOV continuation unvalidated \\
+Transient Pressure Scaling & \(\Delta P^{0.5}\) gives \(\sim6.6\times\) tighter collapse than \(\Delta P^{0.25}\) & Supported early-to-mid transient window \\
+Empirical Baseline Gain & MLP RMSE reduced by 58.9\% (H--A) and 54.6\% (N--S) & Primary protocol and refitted baselines only \\
+Model Trade-off & SVGP RMSE/CRPS: \SI{4.087}{mm}/\SI{2.063}{mm}; MLP: \SI{4.185}{mm}/\SI{2.301}{mm} with wider coverage & Descriptive comparison with unmatched seed protocols \\
+LONO Transfer Boundary & Excluding Nozzle~0: MLP \SI{7.00}{mm}, SVGP \SI{5.95}{mm}; Nozzle~0: MLP approx.\ \SI{35}{mm}, SVGP approx.\ \SI{27}{mm} & Nozzle~0 combines extrapolation and injector-population shift \\
+\bottomrule
+\end{tabularx}
+\caption{Synthesis of the primary validated results, their quantitative evidence, and their operational boundaries.}
+\label{tab:discussion-validated-results}
+\end{table}
 
 The intended industrial value of this workflow is as an early screening layer that reuses existing optical archives at low cost, narrows the set of nozzle and operating-condition candidates advanced to CFD simulation or bench testing, and flags geometrically high-risk cases for closer inspection, though the magnitude of that narrowing has not itself been measured in this thesis (see the cost-savings caveat below).
 Its scope should be stated clearly.
@@ -110,7 +145,7 @@ The remaining boundaries fall into three categories: generalization and out-of-d
 
 \subsubsection*{MLP vs.\ SVGP: Accuracy Trade-off and Model Selection}
 
-The accuracy trade-off is established in Chapter~5 and restated in the concluding scorecard (Table~\ref{tab:conclusions-scorecard}, Chapter~7): on raw point accuracy, the SVGP holds a marginal advantage (RMSE \SI{4.087}{mm} vs.\ \SI{4.185}{mm}, a gap of \SI{0.098}{mm}) and transfers more gracefully to unseen nozzles under LONO, while the MLP leads on uncertainty coverage (1$\sigma$/2$\sigma$: $0.888/0.990$ vs.\ $0.717/0.946$). The MLP was therefore selected not for overall accuracy superiority, but for three structural capabilities the kernel baseline cannot easily provide: the onset-CDF output head required by the screening interface (Section~\ref{sec:screening-interface-en}), the regime-aware censoring chain that mixes fitted synthetic targets with right-censored raw observations, and the design-axis ablations covering stage curriculum and KD form. These structural choices do not exist in the SVGP framework and therefore cannot be ablated there (Section~\ref{sec:mlp-ablation-affordability-en}).
+The accuracy trade-off is established in Chapter~5 and synthesized in Table~\ref{tab:discussion-validated-results}: on raw point accuracy, the SVGP holds a marginal advantage (RMSE \SI{4.087}{mm} vs.\ \SI{4.185}{mm}, a gap of \SI{0.098}{mm}) and transfers more gracefully to unseen nozzles under LONO, while the MLP leads on uncertainty coverage (1$\sigma$/2$\sigma$: $0.888/0.990$ vs.\ $0.717/0.946$). The MLP was therefore selected not for overall accuracy superiority, but for three structural capabilities the kernel baseline cannot easily provide: the onset-CDF output head required by the screening interface (Section~\ref{sec:screening-interface-en}), the regime-aware censoring chain that mixes fitted synthetic targets with right-censored raw observations, and the design-axis ablations covering stage curriculum and KD form. These structural choices do not exist in the SVGP framework and therefore cannot be ablated there (Section~\ref{sec:mlp-ablation-affordability-en}).
 
 The optional per-family residual adapter illustrates a possible extension of this payoff.
 Adding a small correction head to the frozen trunk reduces in-family LONO RMSE by
@@ -122,23 +157,24 @@ a new head. Kernel baselines do not naturally support the same adapter paradigm:
 new family requires re-optimising the full set of variational parameters and inducing
 points, which is closer to a full retrain than a lightweight fine-tune.
 
-\subsection{Time-Varying Nature of Empirical Scaling Exponents and Its Implications for Feature Engineering}
+\subsection{Empirical Physical Finding: Time-Dependent Pressure Scaling in Short Pilot Injections}
+\label{sec:time-varying-scaling-discussion-en}
 
-The time-windowed log-log regression in Chapter~4 (Figure~\ref{fig:time-windowed-exponents}) and the feature engineering LONO ablations (Section~\ref{sec:stage1-lono-ablation}) collectively unveil a physically significant finding: within the observable window of short pilot injections, the proportionality exponent in classical empirical penetration laws is not a global constant, but a monotonically time-varying quantity.
+The time-windowed log-log regression in Chapter~4 (Figure~\ref{fig:time-windowed-exponents}) provides the thesis's main empirical physical finding: within the observable window of short pilot injections, a single global pressure-difference exponent does not describe the full archive. On the Level-3 QC-gated, censor-truncated population, the pooled effective \(\Delta P\) exponent spans approximately 0.45--0.69 over the high-support \SIrange{0.3}{0.7}{ms} interval and then moves towards the Hiroyasu--Arai post-breakup reference value. The trajectory is not strictly monotone---for example, the estimate rises locally between 0.5 and \SI{0.6}{ms}---so it is evidence of an overall time dependence, not a fitted switching law.
 
-Specifically, the \(\Delta P\) exponent smoothly descends from \(\approx0.58\)--\(0.68\) during the early injection phase (\(t\approx0.3\)--\(0.4\,\si{ms}\)) to \(\approx0.25\) at \(t\approx\SI{1.0}{ms}\), which is the Hiroyasu--Arai post-breakup asymptotic value; the exponent for the ambient density proxy \(P_\mathrm{ch}\) also drifts from \(-0.25\) towards a smaller absolute value within the same window. This pattern aligns with the stage-wise transition of spray physical mechanisms: the early injection is dominated by orifice flow and pre-breakup momentum, with the exponent biased towards the Bernoulli value of \(\approx0.5\); as droplet breakup and entrainment progressively dominate, the system asymptotes to the H--A post-breakup self-similar solution.
+The early-to-mid estimates retain a Bernoulli/orifice-velocity imprint, whereas the later pooled values are consistent with movement towards the H--A asymptote. That interpretation is physically plausible, but the analysis does not identify a unique regime-transition time. Under the censor-truncated protocol, \(a_{\Delta P}\) reaches about 0.30 at \SI{0.8}{ms} and 0.23 at \SIrange{0.9}{1.0}{ms}; at the same time, the represented condition count falls from 589 at \SI{0.3}{ms} to 177 at \SI{1.0}{ms}, and point-level \(R^2\) falls to about 0.09. The censoring-inclusive curve approaches the same range later. A fixed cohort of conditions that remains observable at \SI{1.0}{ms} also trends downward, but begins near 0.41 rather than the pooled 0.69. Thus, part of the apparent evolution reflects changing observational support as well as physical time evolution.
 
-The second finding originates from the regression under fixed \(\Delta P\): \(P_\mathrm{ch}\) still exhibits a non-zero independent coefficient (\(\approx-0.21\) to \(-0.27\)), indicating that injection pressure and back pressure exert independent effects on penetration beyond what can be described by their difference. This comports with the physical picture of orifice throttling, cavitation, and internal nozzle flow: \(P_\mathrm{inj}\) and \(P_\mathrm{ch}\) independently affect the internal flow state of the nozzle, and are not solely coupled to the external spray via \(\Delta P\).
+The regression also retains a measurable ambient-pressure coefficient conditional on \(\Delta P\) and the diameter control. It is approximately \(-0.23\) to \(-0.25\) over \SIrange{0.3}{0.5}{ms}, which is consistent with the classical ambient-density exponent and shows that a \(\Delta P\)-only scaling is incomplete in this archive. Because physical chamber pressure and ambient density are proportional under the present constant-temperature mapping, the regression cannot separate these two descriptions. Nor can it attribute the partial coefficient causally to cavitation, throttling, or internal nozzle flow: changing \(P_\mathrm{ch}\) while holding \(\Delta P\) also changes \(P_\mathrm{inj}\), and the nozzle/pressure support is confounded.
 
-The above two findings concurrently demonstrate that any global constant exponent assumption (including the \(\Delta P^{1/4}\) of H--A and the empirically selected \(\Delta P^{0.5}\) of this thesis) is a mean-field approximation, valid only within a specific temporal and conditional domain. For short pilot injections, the training mass window is dominated by the transitional momentum phase (the effective observation interval for most trajectories is concentrated between \(0.3\) and \(\SI{1.0}{ms}\)), rather than being governed by the post-breakup asymptotic phase. This is precisely the empirical motivation for selecting \(\Delta P^{0.5}\) instead of \(\Delta P^{0.25}\) as the magnitude scaling group in this thesis, and it concurrently elucidates why the LONO ablation achieved consistent gains when \(\log P_\mathrm{inj}\) and \(\log P_\mathrm{ch}\) were input as independent residuals: the network needs to learn a time-varying, condition-dependent residual structure superimposed on the fixed \(\Delta P\), and this is precisely the degree of freedom that a single global exponent fails to afford.
+Together, these results show that any fixed exponent used by the surrogate---whether the H--A \(\Delta P^{0.25}\) term or the adopted \(\Delta P^{0.5}\) term---is a mean-field preconditioner valid only for a specified temporal and conditional domain. The feature-representation LONO ablation supports the predictive utility of \(\Delta P^{0.5}\) and the residual pressure channels within the present data distribution; it does not independently prove the proposed mechanism. The appropriate physical claim is therefore a censoring-aware, time-resolved empirical scaling result, not a new universal penetration law.
 
-It is imperative to note that this finding does not negate the physical validity of the Hiroyasu--Arai relation as a post-breakup asymptotic law. The contribution of this thesis here is to document that: within the specific observable time window of short pilot injections, the H--A asymptote has not yet been fully established, transitional momentum physics dominates, and this conclusion carries quantifiable practical significance for the feature design of the surrogate model.
+This finding does not invalidate the Hiroyasu--Arai relation as a post-breakup asymptotic law. It shows instead that the observable mass of these short-pilot-injection records includes a substantial transitional interval in which the post-breakup asymptote is not a sufficient global description. That distinction is both the physical result and the empirical basis for the surrogate's feature design.
 
 \subsection{Future Validation Pathways for the Probabilistic Wall-Impingement Screening Prototype}
 \label{sec:future-validation-pathways-en}
 
 The wall-impingement screening prototype delineated in Section~\ref{sec:screening-interface-en} realizes the probabilistic proxy advocated in the literature review, but the frame-by-frame impingement probability score \(P_{\mathrm{hit}}(t)\) has not yet been benchmarked against physical spray-wall observations.
-This gap constitutes a well-defined subsequent endeavor rather than an open-ended limitation, as the requisite reference data already exists within the experimental dataset of the industrial collaborator.
+This gap defines a specific next validation step because the required reference data are already available in the industrial collaborator's experimental dataset.
 
 For industrial deployment, five criteria should be satisfied before the prototype is used as anything stronger than a rank-oriented pre-screen.
 First, the \(\mathrm{SGQR}\)-based late continuation should be validated against wide-field single-plume Mie recordings by artificially truncating the field of view and comparing the extrapolated trajectory with the full visible measurement.
@@ -149,7 +185,7 @@ Fifth, the fixed half-cone angle should be replaced or bounded by a learned, tim
 
 The most direct validation target is high-speed optical experiments under representative piston geometries, namely, frame-by-frame imaging of the injection process under engine-representative boundary conditions.
 Such experiments can directly observe the expansion of the spray in the vicinity of the piston crown and compare it with \(P_{\mathrm{hit}}(t)\):
-The first frame in which spray contact is observed provides an empirical boundary for impingement onset, and the cumulative spray exposure within the injection window can be juxtaposed with the integrated score \(E = \int P_{\mathrm{hit}}\,\mathrm{d}t\).
+The first frame in which spray contact is observed provides an empirical boundary for impingement onset, and the cumulative spray exposure within the injection window can be compared with the integrated score \(E = \int P_{\mathrm{hit}}\,\mathrm{d}t\).
 This comparison will scrutinize the axial penetration surrogate under dynamic geometric conditions that the training dataset cannot provide.
 
 Another complementary pathway is CFD numerical simulation.

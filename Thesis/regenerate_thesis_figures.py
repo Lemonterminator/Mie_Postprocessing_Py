@@ -136,6 +136,7 @@ IMPINGEMENT_NPZ = _latest_impingement_npz()
 # subdirs; the spatial-censoring audit needs the full cdf/all + series_wide_all
 # layout, which survives in lv2.
 LV2_ROOT = PROJECT_ROOT / "MLP/synthetic_data_clean_lv2"
+LV3_QC_ROOT = PROJECT_ROOT / "MLP/synthetic_data_clean_lv3_qc_gated"
 LV2_AUDIT_DIR = LV2_ROOT / "spatial_censoring_audit"
 LV2_AUDIT_CSV = LV2_AUDIT_DIR / "plume_spatial_censoring_audit.csv"
 # Production stage-3 run whose cdf_regime_bins.csv feeds the B.5 coverage heatmap.
@@ -207,12 +208,25 @@ STEPS: list[Step] = [
     ),
     Step(
         name="time_windowed",
-        desc="time_windowed_exponents.png",
-        cmds=[_script("MLP/curve_fit/reports/time_windowed_exponent_regression.py")],
-        copies=[(
-            PROJECT_ROOT / "MLP/synthetic_data/fit_diagnostics/time_windowed_exponent/time_windowed_exponents.png",
-            IMAGES / "time_windowed_exponents.png",
+        desc="time_windowed_exponents_protocol_comparison.png",
+        cmds=[_script(
+            "MLP/curve_fit/reports/time_windowed_exponent_regression.py",
+            "--primary-root", str(LV3_QC_ROOT),
+            "--robustness-root", str(LV2_ROOT),
+            "--output-dir", str(
+                LV3_QC_ROOT / "fit_diagnostics/time_windowed_exponent"
+            ),
+            "--thesis-figure", str(
+                IMAGES / "time_windowed_exponents_protocol_comparison.png"
+            ),
         )],
+        requires=[
+            LV3_QC_ROOT
+            / "cdf_right_censoring_points/cdf_points_uncensored.csv",
+            LV3_QC_ROOT / "cdf_right_censoring_points/cdf_points_all.csv",
+            LV2_ROOT / "cdf_right_censoring_points/cdf_points_uncensored.csv",
+            LV2_ROOT / "cdf_right_censoring_points/cdf_points_all.csv",
+        ],
     ),
     Step(
         name="spatial_censoring_audit",

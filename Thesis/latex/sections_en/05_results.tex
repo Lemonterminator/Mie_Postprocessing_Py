@@ -42,7 +42,7 @@ the predicted distribution rather than only the predicted mean.
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.30\linewidth}Y@{}}
 \toprule
@@ -87,7 +87,7 @@ deliberately remains the uncensored protocol.
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.21\linewidth}L{0.20\linewidth}Y@{}}
 \toprule
@@ -145,7 +145,7 @@ adaptation evidence rather than as part of the deployed-surrogate verdict.
 \toprule
 Stage & Supervision target & Core held-out metrics & Interpretation \\
 \midrule
-Stage~1 & Representative fitted trajectories (599 rows; 421/89/89 split) &
+Stage~1 & Representative fitted trajectories (1,800 rows; 1,260/270/270 split) &
 Test MAE~\SI{2.91}{mm} (production 7-feature variant: \(\alpha=0.5\) with pressure residual) &
 Stable mean anchor after \(A\)-scaling, one representative curve per condition. \\
 Stage~2 & Full filtered fitted set (49{,}908 train / 10{,}961 val / 10{,}831 test trajectories) &
@@ -162,7 +162,7 @@ Selected in-domain screening surrogate; final core metrics refer to the refreshe
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}L{0.34\linewidth}rrrrrr@{}}
 \toprule
@@ -223,7 +223,7 @@ the other post-hoc models in Section~\ref{sec:posthoc-residual-rewrite}.
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}L{0.22\linewidth}L{0.28\linewidth}rrrr@{}}
 \toprule
@@ -242,13 +242,13 @@ SGQR continuation grid & Single-output thesis SVGP & \textbf{9.680} & \textbf{6.
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.60\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_p50_observed.png}
 \caption{Observed P50 protocol.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.60\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_q1_grid_all.png}
 \caption{SGQR continuation grid.}
@@ -307,13 +307,13 @@ SVGP, Stage~3 mode & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} &
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_full_clean.png}
 \caption{Point and tail errors.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/full_clean_coverage_comparison.png}
 \caption{Empirical coverage.}
@@ -324,13 +324,13 @@ SVGP, Stage~3 mode & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} &
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/reliability_overlay_full_clean.png}
 \caption{Reliability diagram.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/full_clean_crps_sharpness_scatter.png}
 \caption{CRPS--sharpness plane.}
@@ -365,15 +365,15 @@ does not constitute a certified bound on false-negative rates.
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/reliability_overlay.png}
+\includegraphics[width=\linewidth]{\thesisimage{eval_20260709/reliability_overlay.png}}
 \caption{Reliability overlay.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/crps_sharpness_scatter.png}
+\includegraphics[width=\linewidth]{\thesisimage{eval_20260709/crps_sharpness_scatter.png}}
 \caption{CRPS--sharpness plane.}
 \end{subfigure}
 \caption{Distributional diagnostics on the primary QC-gated uncensored CDF table. The SVGP variants occupy the sharper and lower-CRPS region, while the production MLP trades point sharpness for conservative coverage.}
@@ -425,13 +425,13 @@ ablation of the training curriculum.
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/lono_20260509/lono_rmse_by_fold.png}
 \caption{Per-fold RMSE.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/lono_20260509/lono_coverage_by_fold.png}
 \caption{Per-fold \(1\sigma\) coverage.}
@@ -444,12 +444,12 @@ ablation of the training curriculum.
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.49\linewidth}
+\begin{minipage}{0.82\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
 \end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
+\par\medskip
+\begin{minipage}{0.82\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
 \end{minipage}
@@ -553,7 +553,7 @@ families:
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.26\linewidth}L{0.52\linewidth}Y@{}}
 \toprule
@@ -575,7 +575,7 @@ Loose-mode criterion & Same, for groups with more traces and a lower fraction th
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.26\linewidth}L{0.52\linewidth}Y@{}}
 \toprule
@@ -690,13 +690,13 @@ Appendix~\ref{app:evaluation-diagnostics}.
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_overlay_baseline.png}
 \caption{Bias--truth curves.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_modeA_per_seed.png}
 \caption{Five-seed stability.}
@@ -809,13 +809,13 @@ QC-retrained residual-SVGP (reference) & \textbf{3.848} & --- & --- & --- & --- 
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/posthoc_cdf_uncensored_coverage_comparison.png}
 \caption{Empirical coverage.}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/posthoc_cdf_uncensored_crps_sharpness_scatter.png}
 \caption{CRPS--sharpness plane.}

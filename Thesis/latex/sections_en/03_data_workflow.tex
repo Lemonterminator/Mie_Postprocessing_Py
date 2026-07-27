@@ -40,6 +40,7 @@ At the implementation level, this image-processing stage is built as a four-lane
 
 \begin{table}[t]
 \centering
+\footnotesize
 \begin{tabular}{|L{0.21\linewidth}|L{0.26\linewidth}|L{0.33\linewidth}|}
 \hline
 Stage & Primary Function & Primary Output \\
@@ -138,15 +139,15 @@ The optical path (lens focal length, working distance, and sensor alignment) was
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.47\linewidth}
+\begin{minipage}{0.495\linewidth}
 \centering
-\includegraphics[width=\linewidth]{GUI_calibration_interface.png}\\
+\includegraphics[height=0.328\textwidth,keepaspectratio]{GUI_calibration_interface.png}\\
 (a) Point selection
 \end{minipage}
 \hfill
-\begin{minipage}{0.47\linewidth}
+\begin{minipage}{0.495\linewidth}
 \centering
-\includegraphics[width=\linewidth]{GUI_calibration_result.png}\\
+\includegraphics[height=0.328\textwidth,keepaspectratio]{GUI_calibration_result.png}\\
 (b) Calibration overlay
 \end{minipage}
 \caption{Nozzle geometry calibration tool. (a) The operator marks visible nozzle-edge points on a representative frame for the algebraic circle fit; (b) the fitted center, plume guide lines, and annular processing mask are overlaid on the recorded spray pattern to verify the geometric anchor before batch processing.}
@@ -516,7 +517,9 @@ Processing the full archive end-to-end on a single GPU requires keeping that GPU
 Video loading employs depth-1 producer-consumer prefetching: while recording \(N\) is processed on the GPU, a background worker reads recording \(N+1\) from disk, overlapping GPU computation with disk I/O rather than executing serially.
 Host-to-device transfers and CuPy array construction are deliberately kept in the main thread because the CuPy CUDA context is thread-bound; this allows kernel scheduling, synchronization, and memory pool states to be centrally managed by the same thread without locking overhead.
 Output writing is handled by a long-lived three-worker I/O pool: metrics CSVs, metadata JSONs, boundary archives, and optional preview video files are submitted as futures immediately after the GPU stage finishes, overlapping the GPU processing of the next recording with the disk writes of the previous one.
-A fourth, CPU-bound lane runs concurrently with the GPU stage: once a recording's binarized plume volumes are copied back to the host, per-plume boundary and geometric features are extracted across a thread pool of up to \(\lfloor n_{\mathrm{cores}}/2\rfloor\) workers. Because this feature extraction is \texttt{numpy}/\texttt{scipy}-bound and releases the global interpreter lock (GIL), threads, rather than processes, provide concurrency without the Windows \texttt{spawn} cost of duplicating large plume arrays across process boundaries. All lanes share a single backend abstraction (\texttt{xp}/\texttt{cp}): when a CUDA runtime is available the heavy operations dispatch to CuPy on one GPU, and the identical code path falls back to NumPy otherwise. On load, each video is additionally cast to \texttt{float16} and normalized on the device, halving its working-set footprint and memory bandwidth relative to \texttt{float32}.
+A fourth, CPU-bound lane runs concurrently with the GPU stage. Once a recording's binarized plume volumes are copied back to the host, per-plume boundary and geometric features are extracted across a thread pool of up to \(\lfloor n_{\mathrm{cores}}/2\rfloor\) workers. Because this feature extraction is \texttt{numpy}/\texttt{scipy}-bound and releases the global interpreter lock (GIL), threads, rather than processes, provide concurrency without the Windows \texttt{spawn} cost of duplicating large plume arrays across process boundaries.
+
+All lanes share a single backend abstraction (\texttt{xp}/\texttt{cp}): when a CUDA runtime is available the heavy operations dispatch to CuPy on one GPU, and the identical code path falls back to NumPy otherwise. On load, each video is additionally cast to \texttt{float16} and normalized on the device, halving its working-set footprint and memory bandwidth relative to \texttt{float32}.
 
 \begin{figure}[t]
 \centering

@@ -19,12 +19,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # MLP_training/
 from efc.models import reconstruct_penetration_series  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Production Stage-1 run (7-feature a_dp050_plus_pressures variant, 1800 representative
+# rows). The earlier path pointed at runs_mlp/old/stage1_engineered_mse_a_only_*, i.e. the
+# deprecated 5-feature pure-scaling baseline, so the rendered collapse ratios did not match
+# the production model the thesis reports.
 ROW_TABLE = (
     PROJECT_ROOT
     / "MLP"
     / "runs_mlp"
-    / "old"
-    / "stage1_engineered_mse_a_only_20260508_235519"
+    / "stage1_engineered_mse_a_plus_pressures_20260519_161130"
     / "row_table.csv"
 )
 OUT_PATH = PROJECT_ROOT / "Thesis" / "images" / "collapse_dp_exponent_comparison.png"

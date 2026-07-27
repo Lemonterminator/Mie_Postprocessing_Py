@@ -66,8 +66,11 @@ def make_lono_figure(df: pd.DataFrame,
                      labels: list[str],
                      colors: list[str],
                      out_path: Path,
-                     title_prefix: str) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.0), dpi=180)
+                     title_prefix: str,
+                     vertical: bool = False) -> None:
+    layout = (2, 1) if vertical else (1, 2)
+    figsize = (8.5, 10.0) if vertical else (13.0, 5.0)
+    fig, axes = plt.subplots(*layout, figsize=figsize, dpi=180)
 
     n_folds = len(FOLD_ORDER)
     n_ab = len(ablations)
@@ -339,7 +342,8 @@ def main() -> None:
     make_lono_figure(
         df2, STAGE2_ABLATIONS, STAGE2_LABELS, STAGE2_COLORS,
         IMAGE_DIR / "stage2_anchor_ablation.png",
-        "Stage-2 anchor ablation (LONO)"
+        "Stage-2 anchor ablation (LONO)",
+        vertical=True,
     )
     make_lono_figure(
         df3, STAGE3_ABLATIONS, STAGE3_LABELS, STAGE3_COLORS,

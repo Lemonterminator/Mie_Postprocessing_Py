@@ -30,7 +30,7 @@ NLL 和 sharpness 描述的是预测分布，而不仅是预测均值。
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.30\linewidth}Y@{}}
 \toprule
@@ -70,7 +70,7 @@ Sharpness & 平均预测标准差 & 预测分布的宽度；越尖锐表示越�
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.18\linewidth}L{0.21\linewidth}L{0.20\linewidth}Y@{}}
 \toprule
@@ -122,7 +122,7 @@ RMSE 为 \SI{4.087}{mm}，MAE 为 \SI{2.857}{mm}。五种子生产 MLP 均值
 \toprule
 阶段 & 监督目标 & 核心留出指标 & 解释 \\
 \midrule
-Stage~1 & 代表性拟合轨迹（599 行；421/89/89 划分） &
+Stage~1 & 代表性拟合轨迹（1,800 行；1,260/270/270 划分） &
 测试 MAE~\SI{2.91}{mm}（生产七特征变体：\(\alpha=0.5\)，含压力 residual） &
 经 \(A\)-scaling 后得到稳定的均值锚点，每个工况一条代表性曲线。 \\
 Stage~2 & 完整过滤拟合集（49{,}908 个训练 / 10{,}961 个验证 / 10{,}831 个测试轨迹） &
@@ -139,7 +139,7 @@ Stage~3 & 由 regime-aware KD 引导的原始 CDF，均值/对数方差混合 MS
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}L{0.34\linewidth}rrrrrr@{}}
 \toprule
@@ -195,7 +195,7 @@ QC-gated 主线比较。
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}L{0.22\linewidth}L{0.28\linewidth}rrrr@{}}
 \toprule
@@ -214,13 +214,13 @@ SGQR 延续网格 & 单输出论文 SVGP & \textbf{9.680} & \textbf{6.342} & +5.
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.60\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_p50_observed.png}
 \caption{观测 P50 协议。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.60\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_q1_grid_all.png}
 \caption{SGQR 延续网格。}
@@ -274,13 +274,13 @@ SVGP，Stage~3 模式 & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95_full_clean.png}
 \caption{点误差与尾部误差。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/full_clean_coverage_comparison.png}
 \caption{经验覆盖率。}
@@ -291,13 +291,13 @@ SVGP，Stage~3 模式 & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260709/reliability_overlay_full_clean.png}
 \caption{可靠性图。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/full_clean_crps_sharpness_scatter.png}
 \caption{CRPS--sharpness 平面。}
@@ -328,15 +328,15 @@ SVGP，Stage~3 模式 & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/reliability_overlay.png}
+\includegraphics[width=\linewidth]{\thesisimage{eval_20260709/reliability_overlay.png}}
 \caption{可靠性叠加图。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
-\includegraphics[width=\linewidth]{images/eval_20260709/crps_sharpness_scatter.png}
+\includegraphics[width=\linewidth]{\thesisimage{eval_20260709/crps_sharpness_scatter.png}}
 \caption{CRPS--sharpness 平面。}
 \end{subfigure}
 \caption{主要 QC-gated 未删失 CDF 表格上的分布诊断。SVGP 变体位于更尖锐、CRPS 更低的区域，而生产 MLP 以点预测 sharpness 换取保守覆盖率。}
@@ -383,13 +383,13 @@ MLP 为 \(\SI{7.00}{mm}\pm\SI{1.18}{mm}\)。
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/lono_20260509/lono_rmse_by_fold.png}
 \caption{逐折 RMSE。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/lono_20260509/lono_coverage_by_fold.png}
 \caption{逐折 \(1\sigma\) 覆盖率。}
@@ -402,12 +402,12 @@ MLP 为 \(\SI{7.00}{mm}\pm\SI{1.18}{mm}\)。
 
 \begin{figure}[t]
 \centering
-\begin{minipage}{0.49\linewidth}
+\begin{minipage}{0.82\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_comparison_dp050.png}
 \end{minipage}
-\hfill
-\begin{minipage}{0.49\linewidth}
+\par\medskip
+\begin{minipage}{0.82\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/residual_family_head_20260608/injector_scatter_all_nozzles.png}
 \end{minipage}
@@ -503,7 +503,7 @@ LONO 均值可以识别转移边界，但无法展示困难案例背后的原始
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.26\linewidth}L{0.52\linewidth}Y@{}}
 \toprule
@@ -525,7 +525,7 @@ LONO 均值可以识别转移边界，但无法展示困难案例背后的原始
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}L{0.26\linewidth}L{0.52\linewidth}Y@{}}
 \toprule
@@ -636,13 +636,13 @@ Stage~2 教师在 cap 附近几乎无 bias，但
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_overlay_baseline.png}
 \caption{Bias--truth 曲线。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/neural_network_fit_results/stage3_kd_mse_mu_plus_sigma_modeA_per_seed.png}
 \caption{五种子稳定性。}
@@ -736,13 +736,13 @@ Residual-SVGP（参考） & 3.921 & --- & 2.019 & --- & 0.027 \\
 
 \begin{figure}[t]
 \centering
-\begin{subfigure}[t]{0.49\linewidth}
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/posthoc_cdf_uncensored_coverage_comparison.png}
 \caption{经验覆盖率。}
 \end{subfigure}
-\hfill
-\begin{subfigure}[t]{0.49\linewidth}
+\par\medskip
+\begin{subfigure}[t]{0.74\linewidth}
 \centering
 \includegraphics[width=\linewidth]{images/eval_20260714/posthoc_cdf_uncensored_crps_sharpness_scatter.png}
 \caption{CRPS--sharpness 平面。}
