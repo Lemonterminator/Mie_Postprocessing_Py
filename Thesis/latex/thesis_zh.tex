@@ -14,12 +14,28 @@
 \fi
 \usepackage{graphicx}
 \graphicspath{{images/}{../images/}{latex/../images/}}
+% Resolve promoted thesis figures consistently whether this file is compiled
+% from Thesis/latex or through Thesis/build/build_thesis.cmd.
+\IfFileExists{../images/eval_20260709/crps_sharpness_scatter.png}{%
+  \newcommand{\thesisimagepath}{../images/}%
+}{%
+  \newcommand{\thesisimagepath}{images/}%
+}
+\newcommand{\thesisimage}[1]{\thesisimagepath#1}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
 \usepackage{array}
+% Give wrapped multi-line table cells more breathing room against
+% single-line neighbours; applies to every tabular in the thesis.
+\renewcommand{\arraystretch}{1.2}
 \usepackage{booktabs}
 \usepackage{float}
 \usepackage{tabularx}
+% The List of Abbreviations grows over time and a plain tabular cannot break
+% across pages: once it exceeds \textheight it silently runs off the bottom
+% (no Overfull \vbox warning, since nothing stretches -- the box simply does
+% not fit). longtable lets it page-break instead.
+\usepackage{longtable}
 \usepackage{subcaption}
 \usepackage{placeins}
 \usepackage{siunitx}
@@ -78,7 +94,7 @@
 \thesistitle{基于 Mie 散射成像的数据驱动贯穿距离预测与概率性撞壁筛查}
 \thesissubtitle{面向多孔柴油喷雾的不确定性感知代理模型工作流}
 \place{Espoo}
-\date{19 May 2026}
+\date{31 July 2026}
 \supervisor{Prof.\ Ossi Kaario}
 \advisor{Dr Zeeshan Ahmad}
 \advisor{Dr Qiang Cheng}

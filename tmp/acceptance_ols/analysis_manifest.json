@@ -1,0 +1,152 @@
+{
+  "script": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\curve_fit\\reports\\time_windowed_exponent_regression.py",
+  "analysis_role": {
+    "primary": "lv3_qc_gated",
+    "robustness_only": "lv2"
+  },
+  "primary_root": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv3_qc_gated",
+  "robustness_root": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv2",
+  "legacy_junction_used": false,
+  "protocols": [
+    "censor-truncated",
+    "censoring-inclusive"
+  ],
+  "regression": {
+    "formula": "log(S_mm) ~ log(delta_pressure_bar_phys) + log(ambient_pressure_bar_phys) + log(diameter_mm)",
+    "time_centers_ms": [
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0,
+      1.1
+    ],
+    "half_width_ms": 0.05,
+    "interval": "[center-half_width, center+half_width)",
+    "bootstrap_unit": "condition_key",
+    "bootstrap_reps": 50,
+    "bootstrap_seed": 20260726,
+    "condition_median_sensitivity": true,
+    "leave_one_nozzle_out_sensitivity": true,
+    "fixed_cohort_reference_ms": 1.0
+  },
+  "source_censoring_manifests": {
+    "lv3_qc_gated": {
+      "resolved_path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv3_qc_gated\\cdf_right_censoring_points\\manifest.json",
+      "sha256": "8417951bd461b3ee7d2e873e3c10dfc134d07e8e77619285d81f2eb3a24e5247",
+      "n_points_all": 689162,
+      "n_points_uncensored": 540367,
+      "n_conditions_source": 599,
+      "estimate_fov_cap": false,
+      "fov_cap_mm": 85.0,
+      "fov_cap_fraction": 0.95,
+      "density_ratio": 0.7,
+      "density_min_count": 4,
+      "density_consecutive_bins": 2,
+      "density_smooth_window": 3
+    },
+    "lv2": {
+      "resolved_path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv2\\cdf_right_censoring_points\\manifest.json",
+      "sha256": "8c08b31fe0c654aa0ea6966ee778fabaf43dfebc387726424a3e5b6b61921b14",
+      "n_points_all": 692942,
+      "n_points_uncensored": 542565,
+      "n_conditions_source": 599,
+      "estimate_fov_cap": false,
+      "fov_cap_mm": 85.0,
+      "fov_cap_fraction": 0.95,
+      "density_ratio": 0.7,
+      "density_min_count": 4,
+      "density_consecutive_bins": 2,
+      "density_smooth_window": 3
+    }
+  },
+  "inputs": {
+    "lv3_qc_gated/censor-truncated": {
+      "resolved_path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv3_qc_gated\\cdf_right_censoring_points\\cdf_points_uncensored.csv",
+      "sha256": "c726c4fbc6dc67c33a54813d7367f3f9122ea7b0268995ff5c57895336e44ae1",
+      "n_rows_total": 540367,
+      "n_rows_positive_penetration": 529876,
+      "n_rows_log_ols_effective": 529875,
+      "n_conditions_total": 592,
+      "n_conditions_positive_penetration": 592,
+      "n_conditions_log_ols_effective": 592,
+      "canonicalization_mode_counts": {
+        "raw_pressure_bar": 311149,
+        "physical_pressure_from_test_matrix": 229218
+      },
+      "lineage_role": "primary",
+      "protocol": "censor-truncated",
+      "output_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\lv3_qc_gated_censor_truncated.csv",
+      "n_rows_in_analysis_horizon": 424774
+    },
+    "lv3_qc_gated/censoring-inclusive": {
+      "resolved_path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv3_qc_gated\\cdf_right_censoring_points\\cdf_points_all.csv",
+      "sha256": "5a940e585249fbe3cdeb5a32003f39cc32c8b5467dfb35852145e868b67cba0c",
+      "n_rows_total": 689162,
+      "n_rows_positive_penetration": 678665,
+      "n_rows_log_ols_effective": 678664,
+      "n_conditions_total": 599,
+      "n_conditions_positive_penetration": 599,
+      "n_conditions_log_ols_effective": 599,
+      "canonicalization_mode_counts": {
+        "raw_pressure_bar": 374174,
+        "physical_pressure_from_test_matrix": 314988
+      },
+      "lineage_role": "primary",
+      "protocol": "censoring-inclusive",
+      "output_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\lv3_qc_gated_censoring_inclusive.csv",
+      "n_rows_in_analysis_horizon": 517768
+    },
+    "lv2/censor-truncated": {
+      "resolved_path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv2\\cdf_right_censoring_points\\cdf_points_uncensored.csv",
+      "sha256": "a0b5390d26ba0da5d4bf82805d3d4b48cf06a4cbeea350866b749937effd2581",
+      "n_rows_total": 542565,
+      "n_rows_positive_penetration": 531978,
+      "n_rows_log_ols_effective": 531977,
+      "n_conditions_total": 592,
+      "n_conditions_positive_penetration": 592,
+      "n_conditions_log_ols_effective": 592,
+      "canonicalization_mode_counts": {
+        "raw_pressure_bar": 311149,
+        "physical_pressure_from_test_matrix": 231416
+      },
+      "lineage_role": "robustness",
+      "protocol": "censor-truncated",
+      "output_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\lv2_censor_truncated.csv",
+      "n_rows_in_analysis_horizon": 426554
+    },
+    "lv2/censoring-inclusive": {
+      "resolved_path": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\MLP\\synthetic_data_clean_lv2\\cdf_right_censoring_points\\cdf_points_all.csv",
+      "sha256": "400c3b6ec2b1058f1a3f9275e03e2a74d160a495a2e57f4129f1decff44ba6ca",
+      "n_rows_total": 692942,
+      "n_rows_positive_penetration": 682349,
+      "n_rows_log_ols_effective": 682348,
+      "n_conditions_total": 599,
+      "n_conditions_positive_penetration": 599,
+      "n_conditions_log_ols_effective": 599,
+      "canonicalization_mode_counts": {
+        "raw_pressure_bar": 374174,
+        "physical_pressure_from_test_matrix": 318768
+      },
+      "lineage_role": "robustness",
+      "protocol": "censoring-inclusive",
+      "output_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\lv2_censoring_inclusive.csv",
+      "n_rows_in_analysis_horizon": 520319
+    }
+  },
+  "outputs": {
+    "combined_csv": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\lineage_protocol_comparison.csv",
+    "comparison_figure": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\time_windowed_exponents_protocol_comparison.png",
+    "thesis_figure": "C:\\Users\\Jiang\\Documents\\Mie_Postprocessing_Py\\tmp\\acceptance_ols\\acceptance_figure.png"
+  },
+  "software": {
+    "python": "3.12.10",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "matplotlib": "3.10.8"
+  }
+}

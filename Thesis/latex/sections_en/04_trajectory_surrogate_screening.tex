@@ -53,14 +53,14 @@ where \(n(i)\) is the nozzle family of trajectory \(i\).
 
 The cleaned split contains \(\num{\scrNTotal}\) CDF penetration trajectories, of which \(\num{\scrNCensored}\) satisfy this spatial right-censoring criterion, yielding a spatial censoring rate of \(\scrRatePct\%\). The median nozzle-specific cap is \(\SI{92.52}{mm}\). Among the censored cleaned trajectories, the median time to first hit the cap is \(\SI{1.76}{ms}\), equivalent to \(44.4\%\) of the raw positive observation span. If a naive target construction method simply held the final cleaned CDF penetration value forward, its median gap relative to the accepted SGQR continuation at \(\SI{5}{ms}\) would be approximately \(\SI{\scrNaiveHoldGapMedianMm}{mm}\); if the cap itself were treated as a terminal saturation value, the corresponding median gap would still be \(\SI{43.96}{mm}\). These continuation gaps are not viewed as errors against a wide-field ground truth. They quantify the magnitude of target bias that would be introduced by reading cap-hitting trajectories as physical saturation observations.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.88\linewidth]{images/fig_spatial_censoring_fraction_by_nozzle_clean.png}
 \caption{Spatial right-censoring fraction by nozzle for cleaned CDF penetration trajectories. A trajectory is flagged when its raw or cleaned trace reaches the nozzle-specific FOV cap estimated from the raw Mie output; the caps differ across nozzle families because the optical configurations differ. Overall, \(\scrRatePct\%\) of the cleaned trajectories are spatially censored.}
 \label{fig:spatial-censoring-by-nozzle-clean}
 \end{figure}
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \begin{tabular}{@{}L{0.58\linewidth}L{0.34\linewidth}@{}}
@@ -96,7 +96,7 @@ This population is derived by aggregating the observations in Dataset \#1 per op
 \textbf{Dataset \#3: Per-Trajectory SGQR Fitted Archive.}
 For every accepted plume trajectory, the reduced-order SGQR model described in Section~\ref{sec:SGQR-target-construction-en} stores the fitted parameters and associated fit diagnostics. This population provides smooth, differentiable, and extrapolatable targets over the surrogate model horizon. Stage~1 selects a representative fitted trajectory from this population for each operating condition group, and Stage~2 trains on all SGQR trajectories that pass post-fit shielding. Dataset~\#3 is therefore the training source for the clean-plume Stage~2 teacher, but it also carries an explicit selection bias: it favors optically clean, monotonic trajectories that are well represented by SGQR.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -187,6 +187,37 @@ Out of \(23{,}495\) CDF penetration sequences in the nine-nozzle campaign, the f
 
 Based on this ablation, SGQR was promoted to the production fitting target. Its curves serve as direct targets for Stages~1 and~2; Stage~3 receives their influence through the frozen Stage~2 teacher while also using reliable raw observations from Dataset~\#1. The four-parameter results are retained merely as a historical baseline for structural diagnostics and to motivate the model reduction step. Consequently, the practical purpose of this fit is not to claim a universal penetration law, but rather to compress noisy plume trajectories into smooth, differentiable, and trainable targets, while preserving the heteroscedastic variations within the dataset for the subsequent learning stages.
 
+\subsubsection{Shape Properties of the SGQR Form}
+\label{sec:SGQR-shape-properties-en}
+
+Two shape properties follow directly from the SGQR construction and are worth stating explicitly, because they determine what the fitted family can and cannot represent.
+
+\textbf{Monotonicity is structural.} Differentiating \(S(t)=k_{1/4}\,w(t)\,t^{1/4}\) with \(w(t)=\sigma((t-t_0)/s)\) gives
+\[
+  S'(t)=k_{1/4}\,w(t)\,t^{1/4}\left[\frac{1-w(t)}{s}+\frac{1}{4t}\right]>0
+  \qquad (t>0),
+\]
+since the log-space parameterization enforces \(k_{1/4}>0\) and \(s>0\), and every bracketed term is positive. The fitted family therefore cannot represent a retreating front for any admissible parameter vector: monotonicity is a property of the functional form, not an outcome of the optimizer. The cleaned CDF archive contains no negative increments, so model and data agree on monotonicity by construction of the processing chain rather than by empirical discovery. This agreement should not be read as evidence that a physical spray front never recedes.
+
+\textbf{Curvature switches sign twice.} The second derivative is
+\[
+  S''(t)=k_{1/4}\,w\,t^{1/4}
+  \left[\frac{(1-w)(1-2w)}{s^{2}}
+        +\frac{1-w}{2st}
+        -\frac{3}{16t^{2}}\right].
+\]
+Both limits are concave: \(S''(t)\to-\infty\) as \(t\to 0^{+}\), and \(S''(t)\sim-\tfrac{3}{16}k_{1/4}t^{-7/4}<0\) as \(t\to\infty\), where the gate saturates and the quarter-root branch governs the shape. At the gate centre \(t=t_0\) the sigmoid curvature term vanishes and
+\[
+  \operatorname{sign}S''(t_0)=\operatorname{sign}\!\left(4t_0-3s\right),
+\]
+so the curve is convex at \(t_0\) precisely when \(t_0>3s/4\). The sign change is therefore not located at \(t_0\) by construction: the inflection points are set by the competition between gate opening and quarter-root deceleration, and \(t_0\) only marks where the gate curvature term drops out.
+
+Across the accepted CDF archive, \(99.9\%\) of fits satisfy \(t_0/s>3/4\) (median \(t_0/s\approx2.08\), 1st percentile \(\approx1.11\)) and consequently exhibit exactly two curvature sign changes. The typical shape is a very brief initial concave segment, an early convex window, and a long concave tail: the median first inflection falls at \(\approx\SI{0.044}{ms}\) and the median second at \(\approx\SI{0.365}{ms}\). The remaining \(0.1\%\) are concave throughout.
+
+This structure is consistent with the gated concavity penalty applied to the neural surrogate (Section~\ref{sec:mlp-curriculum-en}), whose soft gate opens at \(\SI{0.9}{ms}\) in Stage~1 and \(\SI{0.5}{ms}\) in Stage~2, in both cases after the median second inflection, so the penalty does not act against the early convex window that the SGQR targets themselves contain.
+
+These are statements about the shape of the fitted curve, not about spray mechanism. \(S'>0\) asserts that the recovered visible front does not retreat, not that any material element continuously accelerates; \(S''>0\) describes an increasing apparent penetration rate that also absorbs injection ramp-up, front identification, and onset-alignment effects. Because \(t_0\) and \(s\) are strongly correlated (reported below), neither inflection time should be identified with breakup, end of injection, or any other individually resolvable physical event.
+
 \subsubsection{SGQR Diagnostics: Scaling, Residuals, and Identifiability}
 
 \textbf{Empirical Scaling Check.} After fitting each trajectory, three parameter values \((k_{1/4},\,t_0,\,s)\) are obtained. Because the fit constraints force the gating parameters \((t_0,s)\) to make the sigmoid product converge to near 1 within a finite time window, the end of the observable time period and the extrapolation segment satisfy \(S(t)\approx k_{1/4}\cdot t^{1/4}\); therefore, \(k_{1/4}\) is not an abstract fit amplitude, but the asymptotic linear scaling coefficient of the \(t^{1/4}\) penetration law, which can be directly compared with the proportionality coefficients of classical empirical formulas. Performing an ex-post log-log regression on it allows testing whether the fitting results follow the power-law expected by classical penetration theory with respect to the operating conditions. Regressing across \(24{,}316\) accepted fits via Ordinary Least Squares:
@@ -199,7 +230,7 @@ Comparison against classical Hiroyasu--Arai theory reveals varying degrees of ag
 
 As a cross-check, direct log-log regressions on the raw discrete observations within fixed \(\SI{0.1}{ms}\) time bins yielded an \(R^2\) of roughly \(0.47\)--\(0.51\) in the mid-trajectory window (\(0.35\)--\(0.75\) ms), confirming that the three physical variables indeed explain a meaningful portion of the raw penetration variance in the well-sampled region. The lower \(R^2\approx0.27\) obtained from the compressed \(k_{1/4}\) parameter reflects the integral effect over noisy onset and post-injection regions rather than a model failure; the qualitative trends of the \(\Delta P\) exponent (\(0.44\)--\(0.65\), spanning values around the Bernoulli value \(0.5\) while remaining above the H--A value \(0.25\)) and the chamber pressure exponent (\(\approx-0.25\)) remain consistent across both analyses.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.96\linewidth]{images/fig_q1_param_scaling.png}
 \caption{Empirical scaling of the SGQR parameters \((k_{1/4},t_0,s)\) against \(\Delta P=P_{\mathrm{inj}}-P_{\mathrm{ch}}\), coloured by chamber pressure \(P_{\mathrm{ch}}\). Panel titles report the exponents and \(R^2\) from \(\log y=a\log\Delta P+b\log\rho_a+c\log d_n+\mathrm{constant}\). The fitted amplitude coefficient follows the expected ambient-density trend, whereas the diameter and gating-parameter scalings are weaker.}
@@ -210,7 +241,7 @@ As a cross-check, direct log-log regressions on the raw discrete observations wi
 
 Systematic biases exist at both boundary ends: an early positive bias of \(\sim\SI{+1.7}{mm}\) at \(t=\SI{0.05}{ms}\) with \(\sigma_{\mathrm{robust}}\approx\SI{1.8}{mm}\), stemming from imprecise onset alignment and the steep transition of the sigmoid gate near \(t_0\); and a late negative bias of \(\sim\SI{-1.6}{mm}\) at \(t=\SI{1.55}{ms}\) with \(\sigma_{\mathrm{robust}}\approx\SI{0.7}{mm}\), arising from the right-censoring of the surviving plume population, where the frame count per bin drops drastically from \(\sim 65{,}000\) at \(t=\SI{0.15}{ms}\) to fewer than \(200\) frames by \(t=\SI{1.55}{ms}\). Thus, the envelope is U-shaped rather than monotonically growing. This dual-end bias is the core motivation for introducing mixed supervision in Stage 3: the SGQR fitting target exhibits structural errors in both the early pre-injection segment and the late observable tail, which ultimately need to be corrected via direct supervision signals rather than relying solely on the extension of the fitted curve. Moreover, the significant temporal variation of the residual scale indicates that a fixed-variance loss is inappropriate, necessitating the use of input-dependent \(\sigma\) in Stage 2's negative log-likelihood (NLL) loss.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.92\linewidth]{images/fig_q1_residual_structure.png}
 \caption{Temporal residual structure of the SGQR production fit over all \(24{,}316\) cleaned trajectories. The top panel shows the median residual with \(\pm\sigma_{\mathrm{robust}}\); the bottom shows \(\sigma_{\mathrm{robust}}(t)=1.4826\,\mathrm{MAD}(t)\). The larger spread near onset and in the censored late tail motivates the input-dependent variance used in Stage~2.}
@@ -221,7 +252,7 @@ Systematic biases exist at both boundary ends: an early positive bias of \(\sim\
 
 These correlations suggest that the three SGQR parameters are not independent physical knobs, but rather a coupled 3D smooth surface with considerable soft redundancy. This is the price paid for introducing the differentiable sigmoid gate (in contrast to the rigid stage breakpoints of Hiroyasu--Arai), and it also explains why the gating parameters showed weak scaling relationships against operating conditions in the earlier regression: the data constrains the surface as a whole, rather than constraining each axis individually. Regarding downstream design, the surrogate model (Section~\ref{sec:mlp-curriculum-en}) is trained to reproduce the entire evaluation curve \(\hat S(\cdot)\) rather than the parameter triplet itself, so strong parameter coupling does not propagate into the input-output mapping of the network.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.96\linewidth]{images/fig_q1_identifiability.png}
 \caption{Per-fit identifiability diagnostics of the SGQR production model. Left: distributions of asymptotic standard errors for \(\log k_{1/4}\), \(\log t_0\), and \(\log s\) (truncated at the 99th percentile for readability). Right: median pairwise correlation matrix derived from \((J^TJ)^{-1}\); off-diagonal elements of \(\sim 0.56\) and \(\sim 0.76\) document the soft redundancy between the branch amplitude and the sigmoid gating.}
@@ -240,18 +271,18 @@ applied to \(t_0\), \(\log(1+\mathrm{RMSE})\), and \(\log(1+\mathrm{cost\_per\_p
 
 This post-fit shielding process introduces intentional engineering trade-offs, and its primary mechanism shifted alongside improvements in the upstream computer vision (CV) pipeline. In early processing, uneven illumination or inter-plume occlusion sometimes led the CV pipeline to mistake background noise for spray tips, generating physically impossible jumps that were subsequently truncated into severely shortened sequences by explicit upward-difference thresholds; the \(n \ge 10\) frame lower limit and \(t_0 < \SI{0.8}{ms}\) sanity gate were primarily designed to intercept these degenerate trajectories. Following CV enhancements, the vast majority of candidate sequences now pass the full post-fit shielding pipeline (per-nozzle survival rates are reported in Figure~\ref{fig:filter-survival-cdf-nozzle}). Flagged sequences are typically \emph{longer} trajectories whose \(t_0\), RMSE, or \(\mathrm{cost\_per\_point}\) exceed the three-sigma robust threshold within their group, rather than short noise-truncated sequences stemming from CV misidentification. As a result, the shielding logic now serves more as a fit-quality gate than a CV artifact cleaner.
 
-Therefore, post-fit shielding introduces selection bias along two dimensions. The first is optical quality bias: the surviving dataset favors well-illuminated, unoccluded, high-contrast plumes and does not represent true geometric asymmetry or late-time signal decay. The second is injection profile regularity bias: SGQR is structurally limited to monotonically increasing smooth penetration curves, while trajectories with non-monotonic behaviors (arising from bi-modal injection or spray re-acceleration) carry higher intra-group RMSE and are flagged by the robust z-score outlier gate. The per-nozzle flag rate quantifies the resulting coverage gap: on the CDF source, the flag rate for nozzle 3 is 11.9\%, roughly double that of nozzles 4 and 6 (both 5.9\%), which is consistent with the spray re-acceleration events observed for nozzle 3 in the Stage 3 diagnostics. Thus, Stage 1 and Stage 2 jointly inherit both biases: their training sets lean toward optically ideal plumes and trajectories whose injection profiles are sufficiently regular to be adequately represented by the monotonic SGQR form.
+Therefore, post-fit shielding introduces selection bias along two dimensions. The first is optical quality bias: the surviving dataset favors well-illuminated, unoccluded, high-contrast plumes and does not represent true geometric asymmetry or late-time signal decay. The second is injection profile regularity bias. SGQR is structurally restricted to strictly increasing curves with a single convex window followed by a concave tail (Section~\ref{sec:SGQR-shape-properties-en}). This restriction should be stated precisely. A spray re-acceleration event is a positive second derivative, not a negative first derivative, and a single early re-acceleration is representable by the gated form; the archive moreover contains no non-monotonic trajectory at all, so front retraction is not the operative exclusion mechanism. What SGQR cannot express is a \emph{second} convex window later in the trajectory, i.e.\ renewed advance after the quarter-root branch has taken over, as would arise under bi-modal injection. Among archived traces this pattern is rare (15 traces carry the plateau-then-advance shape flag). The robust z-score gate acts on \(t_0\), RMSE, and cost-per-point rather than on any shape statistic, so the per-nozzle flag rate should be read as a fit-quality outcome whose driver is not resolved here. On the CDF source the flag rate for nozzle 3 is 11.9\%, roughly double that of nozzles 4 and 6 (both 5.9\%); the trace shape metrics show no corresponding shape anomaly for nozzle 3, and the cause of its elevated flag rate is left open. Thus, Stage 1 and Stage 2 jointly inherit both biases: their training sets lean toward optically ideal plumes and toward trajectories that the SGQR form fits well.
 
 Figure~\ref{fig:filter-survival-cdf-nozzle} illustrates the SGQR post-fit-shielding survival rates for CDF penetration per nozzle, summarizing the total sequence counts, cleaned sequence counts, and passing ratios. The purpose of this plot is not to argue that the gate is unbiased, but to clarify the footprint of that bias. Upon regenerating the report against the recovered PC archive, the nine-nozzle campaign spans a CDF penetration survival band of 88.1\%--94.1\%. The recovered nozzle 0 archive contributed \(\num{15475}\) candidate CDF penetration sequences, of which \(\num{14274}\) passed post-fit shielding (92.2\%), making it part of the reported coverage. Because no nozzle comes close to being completely rejected or completely retained, Stage~2 can be interpreted as a clean-plume teacher over the recovered archive, while still inheriting the explicit spatial and late-time selection biases documented here.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.88\linewidth]{images/filter_survival_cdf_by_nozzle.png}
 \caption{CDF penetration SGQR post-fit-shielding survival rates regenerated from the recovered PC archive. The plot reports total candidate sequence counts, cleaned sequence counts, and passing ratios across all nine nozzle families, including nozzle 0.}
 \label{fig:filter-survival-cdf-nozzle}
 \end{figure}
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \input{../generated/current/data_attrition_tex.tex}
@@ -268,7 +299,7 @@ In the population terminology of Section~\ref{sec:three-derived-populations-en},
 
 Before the engineered feature architecture was finalized, an early nine-feature MLP trained using direct pressure and diameter inputs revealed a structural problem. Nozzle diameter exists at only six levels in the dataset, and these are not uniformly available across all pressure combinations: all six diameter levels appear exclusively within the family \((P_{\mathrm{inj}}=\SI{2000}{bar},\;P_{\mathrm{cb}}=4,\;P_{\mathrm{ch}}\in\{5,10,15\}\,\si{bar})\), whereas injection pressure has only four levels. Figure~\ref{fig:sparse-support-topology} makes this discretely sampled grid explicit: most cells in the (chamber pressure, injection pressure, diameter) grid contain zero or one observation, and full six-diameter coverage exists only along a single pressure family.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.96\linewidth]{images/fig_sparse_support_topology.png}
 \caption{Support topology of the training matrix. The left panel counts injection-pressure levels over the \((P_{\mathrm{ch}},P_{\mathrm{cb}})\) plane; the middle and right panels count nozzle-diameter levels over \((P_{\mathrm{ch}},P_{\mathrm{inj}})\) at \(P_{\mathrm{cb}}=\SI{1}{bar}\) and \(\SI{4}{bar}\). Most cells contain at most one diameter level, and all six levels occur only for \(P_{\mathrm{inj}}=\SI{2000}{bar}\), \(P_{\mathrm{cb}}=\SI{4}{bar}\), and \(P_{\mathrm{ch}}\in\{5,10,15\}\,\si{bar}\).}
@@ -277,7 +308,7 @@ Before the engineered feature architecture was finalized, an early nine-feature 
 
 Because a smooth MLP treats these as continuous inputs, it generates derivative structures along the diameter and pressure axes that the data does not constrain. Figure~\ref{fig:sparse-diameter-interpolants} shows the result of dense diameter sweeps at \(t=\SI{0.85}{ms}\): between adjacent observation levels, the predicted mean curve undergoes five to six gradient sign reversals per slice, and autodiff gradients peak at \(\sim\!\num{4e4}\) over a support span of about \(\SI{0.05}{mm}\), equating to a curvature norm on the order of \(10^7\). The same diagnostic on injection pressure showed non-monotonic, unsupported extrapolation over sparsely supported slices. The root issue is structural. A smooth MLP is asked to learn continuous laws from what is effectively a discrete grid, so adding regularization can only suppress the instability at the cost of useful capacity. Therefore, the revised architecture addresses the problem at the source.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.98\linewidth]{images/fig_sparse_diameter_interpolants.png}
 \caption{Dense diameter interpolation by the direct-feature MLP at \(t=\SI{0.85}{ms}\) for three operating conditions. The top row compares the predicted mean with the secant through the six observed diameter levels; the bottom compares the corresponding autodiff gradient with the secant slope. The unsupported sign reversals and gradient spikes show that continuous diameter dependence is not identified by the sparse support.}
@@ -309,7 +340,7 @@ Building on this, the final design adopted a seven-feature scaling-plus-residual
 \]
 where $A$ continues to absorb the dominant diameter and dimensional pressure dependencies, while $\log P_{\mathrm{inj}}$ and $\log P_{\mathrm{ch}}$ are fed in as separate inputs so the network can learn residual pressure structure beyond the fixed H--A exponents. Compared to the five-feature baseline, Stage 1 test MAE dropped from \SI{8.05}{mm} to \SI{2.91}{mm}, and Stage 2 test MAE dropped from \SI{9.28}{mm} to \SI{5.63}{mm}, confirming that the residual pressure features provided information obscured by the fixed H--A exponents. Figure~\ref{fig:mlp-architecture} summarizes the resulting network and the role of $A$ in the physical reconstruction.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.95\linewidth]{images/mlp_architecture_overview.png}
 \caption{Seven-feature amplitude-scaled MLP architecture. A three-layer \([512,512,128]\) Swish trunk with dropout rate 0.3 predicts \((\hat{\mu},\log\hat{\sigma}^{2})\). The fixed amplitude prior \(A=\Delta P^{0.5}\rho_a^{-0.25}d_n^{0.5}\) restores physical outputs through \(\mu_S=A\hat{\mu}\) and \(\sigma_S=A\hat{\sigma}\).}
@@ -352,7 +383,7 @@ Ordinary least squares regression
 \]
 is fitted independently in each \(\pm\SI{0.05}{ms}\) window, where $\Delta P = P_{\mathrm{inj}}-P_{\mathrm{ch}}$, and $P_{\mathrm{ch}}$ serves as a proportional proxy for ambient density $\rho_a$ (valid under ideal gas conditions at constant temperature). The point-level estimate is supplemented by a 500-replicate condition-cluster bootstrap so that the confidence interval does not treat temporally and plume-wise correlated points from the same operating condition as independent. Table~\ref{tab:loglog-regression-uncensored} reports the Level-3 censor-truncated results within the most informative mid-trajectory interval $t\in[0.30,\;0.70]\,\si{ms}$.
 
-\begin{table}[H]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -377,7 +408,7 @@ Across the high-support \SIrange{0.3}{0.7}{ms} interval, the pooled effective \(
 
 Figure~\ref{fig:time-windowed-exponents} places the censor-truncated result beside the censoring-inclusive all-observations protocol. Their early-to-mid estimates support the same archive-level conclusion, whereas their late-time paths diverge as the censoring rule changes the surviving condition population. Under the censor-truncated protocol, \(a_{\Delta P}\) reaches \(0.295\) at \SI{0.8}{ms} and \(0.234\) at \SI{0.9}{ms}; simultaneously, the number of represented conditions falls from 589 at \SI{0.3}{ms} to 236 at \SI{0.9}{ms}, and \(R^2\) falls from 0.355 to 0.092. The later values therefore indicate movement towards the H--A asymptote, but do not identify a precise or protocol-independent transition time.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.99\linewidth]{images/time_windowed_exponents_protocol_comparison.png}
 \caption{Time-resolved empirical pressure scaling in the Level-3 QC-gated archive, using $\pm\SI{0.05}{ms}$ windows at \SI{0.1}{ms} intervals. The censor-truncated Dataset~\#2 contains \num{540367} rows (\num{529876} with \(S>0\)); the censoring-inclusive source contains \num{689162} rows. Shading denotes 95\% condition-cluster bootstrap intervals. The right panel makes the declining late-time regression support explicit.}
@@ -391,7 +422,7 @@ Repeating the same censor-truncated analysis on the Level-2 archive changes the 
 \textbf{Family-Collapse Check.}
 Beyond the regression evidence above, the practical payoff of choosing $\Delta P^{0.5}$ over the classical $\Delta P^{0.25}$ can be seen directly in how well the corresponding $A$-scaled target collapses the population onto a single curve. Figure~\ref{fig:collapse-comparison} re-scales the representative SGQR trajectories used in Stage~1 training (Section~\ref{sec:mlp-curriculum-en}) by $A$ under each exponent choice: the spread across operating conditions, measured by the median post-\SI{0.5}{ms} ratio of scaled to physical standard deviation, drops from $0.408$ under $\Delta P^{0.25}$ to $0.062$ under the adopted $\Delta P^{0.50}$, a roughly $6.6\times$ tighter collapse, and a direct visual counterpart to the exponent evidence in Table~\ref{tab:loglog-regression-uncensored} and Figure~\ref{fig:time-windowed-exponents}.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{images/collapse_dp_exponent_comparison.png}
 \caption{Population collapse under the two candidate $\Delta P$ exponents for the \num{1800} representative Stage~1 SGQR trajectories. Panel (a) shows physical $S(t)$; panels (b) and (c) show trajectories divided by $A$ with exponents 0.25 and 0.50, respectively. The annotated post-\SI{0.5}{ms} spread ratios show the tighter collapse obtained with the adopted exponent 0.50.}
@@ -412,7 +443,7 @@ Across the nine variants, three design conclusions are stable. First, \(\alpha=0
 
 The production configuration (\(\alpha=0.5\), with log-pressure residuals and no independent diameter) was selected because it achieved the lowest unweighted five-fold mean LONO MAE, \SI{7.46}{mm}, not because it dominated every fold or minimized cross-fold dispersion. Its cross-fold standard deviation is \SI{6.52}{mm}, compared with \SI{6.08}{mm} for the pure-scaling \(\alpha=0.5\) variant. Nozzle~0 is the largest-error fold; although its recorded diameter, plume count, and umbrella angle match Nozzle~1, Chapter~5 identifies it as a factory-fresh reference injector outside the prototype design lineage, so the fold combines operating-condition extrapolation with an injector-population shift. Its larger group count affects the precision and composition of that fold estimate but does not give it additional weight in the equal-fold arithmetic mean. Every ablation cell uses seed~42, so sub-\SI{0.3}{mm} differences are treated as unresolved using the nearest available multi-seed variability estimate, not as a formal significance test.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \begin{tabular}{@{}rL{0.42\linewidth}rr@{}}
@@ -435,7 +466,7 @@ Rank & Variant & Mean MAE [mm] & Std MAE [mm] \\
 \label{tab:stage1-lono-ablation-summary}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -470,7 +501,7 @@ The ordering of the three stages is deliberate, not incidental, and follows a cu
 
 The MLP surrogate model is trained as a curriculum across three data populations rather than a single monolithic regression. Stage~1 learns a stable condition-level mean from the representative SGQR trajectories in Dataset~\#3. Stage~2 expands to the full post-fit-shielded SGQR archive and learns the heteroscedastic inter-plume spread, yielding the Stage~2 teacher. Stage~3 then reintroduces the Dataset~\#1 raw CDF observations where coverage is reliable, falling back to that teacher where FOV-cap hits and density-drop signal loss render direct raw supervision unsafe. Figure~\ref{fig:mlp-curriculum} summarizes the curriculum and the data population feeding each stage.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.92\linewidth]{images/mlp_training_curriculum.png}
 \caption{The three-stage training curriculum. Stage~1 uses representative SGQR trajectories, Stage~2 uses the full post-fit-shielded SGQR archive, and Stage~3 uses raw CDF points partitioned by coverage. Warm starts propagate weights and scaler states; the frozen Stage~2 teacher supplies distillation targets where direct raw supervision is unreliable.}
@@ -498,7 +529,7 @@ where $c_0=-2$ is the log-variance prior center: since Stage 1 trains on a singl
 
 This test MAE is not directly comparable to the Stage 3 results reported in Chapter 5: it is measured on a single curated representative trajectory per condition under the amplitude-scaled, shape-constrained objective, not the common fixed-table CDF protocol used downstream. Stage 1's contribution to the curriculum is accordingly the well-behaved warm-start checkpoint from which Stage 2 learns the conditional spread, not a stand-alone accuracy claim.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.85\linewidth]{images/stage1_loss_curves.png}
 \caption{Stage 1 training curves: total epoch loss, physical-space MAE, and the two shape-penalty terms ($d_1$ monotonicity and $d_2$ gated concavity) for the training, validation, and test splits. The shape penalties spike within the first $\sim$5 epochs and then decay steadily as the network reconciles accuracy with the physical constraints.}
@@ -539,7 +570,7 @@ The retained trajectories span the operating range covered by the production tra
 
 Training reuses Stage 1's feature mappings and scaler states. The input vector comprises normalized time coordinate, \(\theta_z\), \(N_{\mathrm{plume},z}\), \(\Delta t_{\mathrm{inj},z}\), \(P_{\mathrm{cb},z}\), \(\log P_{\mathrm{inj},z}\), and \(\log P_{\mathrm{ch},z}\) (seven features in total); the architecture remains a three-layer MLP of dimensions $[512,512,128]$, warm-started from the Stage 1 checkpoint. The Stage 2 run uses the AdamW optimizer with a learning rate of \(8\times10^{-4}\), decoupled weight decay coefficient of \(10^{-4}\), batch size of 96, gradient clipping norm of 1.0, log-variance bounds of \([-10,6]\), and early stopping with a patience of 35. Therefore, the only intentional modification in the data fitting term is the replacement of deterministic MSE with a Gaussian NLL and its learned variance output.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -559,7 +590,7 @@ Test, restored best checkpoint & 151 & 5{,}545{,}472 & -0.240 / -0.240 & \SI{5.6
 
 Table~\ref{tab:stage2-epoch-loss} shows a holdout test MAE of \SI{5.63}{mm}, close to the validation MAE. The Stage 2 test MAE is numerically higher than Stage 1's \SI{2.91}{mm}, but the two numbers are not directly comparable: Stage 1 trained on 1,800 representative trajectories (one per operating condition group), while Stage 2 trains on 49,908 trajectories spanning intra-group inter-plume variability. A broader, more diverse training population is an expected input, not a relaxed accuracy standard. The mean predicted standard deviation of \SI{7.61}{mm} remains larger than the point error scale. This is the desired behavior for this stage: the model does not force the mean function to explain all residual inter-plume variability, but instead allocates non-zero conditional uncertainty that the subsequent collision and distillation stages can exploit. The resulting checkpoint serves as the teacher model for the distillation stage.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.85\linewidth]{images/stage2_loss_curves.png}
 \caption{Stage 2 NLL training curves showing Gaussian NLL for training and validation per epoch. The best validation checkpoint is reached at Epoch 116; early stopping halts training at Epoch 151.}
@@ -569,7 +600,7 @@ Table~\ref{tab:stage2-epoch-loss} shows a holdout test MAE of \SI{5.63}{mm}, clo
 \subsubsection{Stage 3: Blending Direct Observations with Teacher Guidance}\label{sec:stage3-distillation-en}
 The NLL stage produces heteroscedastic predictions that closely track the fitted training targets, but the fitted curve is not equally faithful across the entire time axis. Near the start of injection, absolute penetration is small, so any timing offset, fit delay ambiguity, or smoothness prior yields a relatively large fractional error; the earliest portion of each predicted curve is shaped primarily by the fitted target prior rather than directly observed raw plume dynamics. Figure~\ref{fig:stage2-toy-inference-early-time} illustrates this in a representative toy inference sweep.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.82\linewidth]{images/stage2_toy_inference_2000bar_5bar.png}
 \caption{Toy inference of the Stage 2 NLL model for a representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) case. Predictions are generally smooth and well-behaved, but the earliest portion of the trajectory is still shaped predominantly by the fitted target prior, motivating subsequent distillation refinement.}
@@ -582,7 +613,7 @@ To refine early-time dynamics using raw CDF penetration observations while preve
 
 The 70\%/20\% coverage boundaries are conservative engineering rules rather than optimal values drawn from a full grid search. Archived single-seed five-fold LONO ablations provide only directional support for disabling the Stage~3 anchor and retaining mild KD guidance in the reliable interval; the differences are small relative to cross-fold dispersion (Appendix~\ref{app:evaluation-diagnostics}, Table~\ref{tab:stage3-ablation-ranking}). A systematic sensitivity analysis of the coverage boundaries and \(\sigma_{\mathrm{ref}}\) remains outside the current scope.
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \includegraphics[width=0.94\linewidth]{../generated/current/raw_coverage_heatmap.png}
 \caption{Generated raw CDF coverage heatmap used to audit the 70\%/20\% interval boundaries. Contours mark the thresholds distinguishing reliable from uncertain, and uncertain from teacher-only.}
@@ -591,7 +622,7 @@ The 70\%/20\% coverage boundaries are conservative engineering rules rather than
 
 Figure~\ref{fig:raw-uncertain-teacher-gaussian} demonstrates why this interval division motivates distillation over a single-source target. In the representative \(\SI{2000}{bar}\), \(\SI{5}{bar}\) case, the surviving CDF penetration points in the uncertain interval still carry useful local information, but they occupy a thinned and biased subset of the teacher's wider predictive distribution. Consequently, the teacher Gaussian acts as a stable continuation of the raw trend rather than an arbitrary replacement for measurement data.
 
-\begin{figure}[p]
+\begin{figure}[!htp]
 \centering
 \includegraphics[height=0.88\textheight,keepaspectratio]{images/raw_uncertain_vs_teacher_gaussian_2000bar_5bar.png}
 \caption{Uncertain-interval CDF observations and the Stage~2 teacher distribution for \(P_{\mathrm{inj}}=\SI{2000}{bar}\) and \(P_{\mathrm{ch}}=\SI{5}{bar}\). Black points are surviving raw observations, orange points are teacher samples, and the blue curve and band show the teacher mean and \(\pm1\sigma\). The thinned raw support motivates teacher guidance as coverage declines.}
@@ -644,7 +675,7 @@ The terms have distinct roles:
   \item $P_{d_1}=\operatorname{ReLU}(-\Delta\mu_S)^2$ and $P_{d_2}=\operatorname{ReLU}(+\Delta^2\mu_S)^2$ are physical-space monotonicity and post-transient concavity penalties, evaluated by first- and second-order finite differences.
 \end{itemize}
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -677,7 +708,7 @@ Stage 3 &
 
 These Stage~3 loss values cannot be directly compared to the Stage~2 scaled NLL. Stage~2 optimizes SGQR targets over the post-fit-shielded trajectory table, whereas Stage~3 blends raw CDF penetration likelihood, teacher-student KD MSE, onset supervision, and shape penalties over distinct raw/KD interval populations. Accordingly, the reproducibility pipeline exports the metrics for each stage with explicit target population labels, rather than collapsing all NLL-like figures onto a single leaderboard.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.92\linewidth]{images/distillation_loss_curves.png}
 \caption{Composite-loss convergence for the selected anchor-off Stage~3 run.}
@@ -730,7 +761,7 @@ The Naber--Siebers baseline employs the delayed square-root form $S_{\mathrm{NS}
 
 To make the physical baselines usable in probabilistic evaluations, their uncertainty is not assigned as an arbitrary constant. Post-fitting, the training/validation residuals are time-binned at $\SI{0.1}{ms}$ intervals, and the robust spread is estimated using $1.4826\,\mathrm{MAD}$, with a floor set at $\SI{0.5}{mm}$ to prevent unrealistically narrow bands in sparse early intervals. This $\sigma(t)$ allows the empirical laws to report $1\sigma$ and $2\sigma$ coverage and CRPS, while preserving their traditional penetration-related mean functions. The SVGP described in Section~\ref{sec:svgp-alternative-backbone-en} is evaluated on the exact same tables, but is construed as an alternative probabilistic surrogate backbone rather than a traditional physical baseline.
 
-\begin{table}[t]
+\begin{table}[H]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -802,7 +833,7 @@ p(x,y,t)=\mathcal{N}\!\Bigl((x,y);\,\mathbf{c}(t),\,\mathbf{R}(\theta_{\mathrm{t
 \]
 centered at $\mathbf{c}(t)=\mathbf{x}_{\mathrm{nozzle}}+\mathbf{R}(\theta_{\mathrm{tilt}})\,(\mu_{+}(t),0)^{\top}$, is evaluated on a regular canvas grid (default \(\SI{0.25}{mm/px}\), window \(125\times\SI{200}{mm}\), cylinder wall at \(x=\SI{120}{mm}\)) and renormalized per frame so that $\iint p\,\mathrm{d}A=1$. The student's scaled outputs are un-normalized into physical space via the empirically calibrated amplitude $A=\Delta P^{0.5}\cdot\rho_a^{-0.25}\cdot d_n^{0.5}$ introduced for the engineered feature architecture, ensuring $\mu$ and $\sigma_{\parallel}$ enter the PDF in millimeters.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.82\linewidth]{../generated/current/alpha_sensitivity_figure.png}
 \caption{Generated sensitivity sweep for the lateral Gaussian cone-width factor. The selected \(3\sigma\) interpretation is marked alongside adjacent \(\alpha\) values to display the dependence of screening probabilities on this modeling convention.}
@@ -813,7 +844,7 @@ centered at $\mathbf{c}(t)=\mathbf{x}_{\mathrm{nozzle}}+\mathbf{R}(\theta_{\math
 
 This parameterization also simplifies systematic parameter sweeps: altering a single scalar (e.g., bowl depth) continuously deforms the entire bowl profile, while the rest of the control point structure adapts via splines without requiring the re-solving of constraint equations. Figure~\ref{fig:hermite-crown} illustrates the baseline four-point crown with its tangent arrows (panel a) alongside a seven-level depth sweep (panel b), showcasing continuous, smooth deformation induced by changing one parameter. All three designs return a binary piston mask on the identical canvas grid as the spray density; recent default GUI artifacts use Design A, so the black crown shown in default screening images is not the Hermite swept profile.
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.96\linewidth]{images/hermite_crown_profile.png}
 \caption{Quintic Hermite piston crown parameterization. (a)~Baseline four-point profile; filled circles mark control points, and orange arrows display prescribed tangent vectors. (b)~Bowl depth sweep from \SI{6}{mm} to \SI{22}{mm}: altering a single scalar continuously deforms the entire bowl profile while preserving $C^{2}$ continuity across segment boundaries.}
@@ -836,7 +867,7 @@ where $\mathbf{1}_{\Omega_{\mathrm{piston}}(t)}$ is the binary indicator functio
 
 \textbf{Claimed Scope.} The rotating Gaussian envelope, analytical cone angle spreading, and slider-crank crown model are engineering simplifications, not resolved droplet-scale physics. This prototype is the probabilistic screening proxy argued for in the literature review; it is not a collision predictor validated against experimental high-speed cinematography or CFD impingement fields.
 
-\begin{table}[!htbp]
+\begin{table}[!ht]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
@@ -845,7 +876,7 @@ where $\mathbf{1}_{\Omega_{\mathrm{piston}}(t)}$ is the binary indicator functio
 \toprule
 Assumption & Where stated & What it covers & Failure mode / boundary \\
 \midrule
-SGQR reduced-order fitting target & SGQR functional form and fit quality; SGQR diagnostics (parameter identifiability); post-fit-shielding subsection & A smooth, differentiable compressor of noisy trajectories (three parameters: $\log k_{1/4}$, $\log t_0$, $\log s$) & A temporal parameterization, not a physical law: fit error is small (median RMSE $\approx$\,\SI{1.27}{mm}), but the three parameters are correlated ($\overline{\mathrm{corr}}(\log k_{1/4},\log s)\approx0.76$), soft redundancy, not to be read as independent physical knobs; structurally limited to monotonically increasing penetration curves, so non-monotonic trajectories (bi-modal injection, re-acceleration) are excluded alongside optically poor plumes, producing a selection bias (flag rate for Nozzle~3 is 11.9\%, roughly double that of Nozzles~4 and 6, both 5.9\%) \\
+SGQR reduced-order fitting target & SGQR functional form and fit quality; SGQR diagnostics (parameter identifiability); post-fit-shielding subsection & A smooth, differentiable compressor of noisy trajectories (three parameters: $\log k_{1/4}$, $\log t_0$, $\log s$) & A temporal parameterization, not a physical law: fit error is small (median RMSE $\approx$\,\SI{1.27}{mm}), but the three parameters are correlated ($\overline{\mathrm{corr}}(\log k_{1/4},\log s)\approx0.76$), soft redundancy, not to be read as independent physical knobs; structurally limited to strictly increasing curves with a single convex window followed by a concave tail, so a later second convex window (renewed advance under bi-modal injection) cannot be represented; exclusion is driven by fit-quality z-scores rather than shape, and the cause of the elevated Nozzle~3 flag rate (11.9\%, roughly double that of Nozzles~4 and 6, both 5.9\%) is not resolved \\
 \addlinespace
 Stage~2 teacher (Stage~3 KD) & Three derived data populations; Stage~2 training; Stage~3 distillation & Frozen heteroscedastic MLP trained on the post-fit-shielded SGQR archive and used to supply Stage~3 KD targets & The teacher continues the behavior of optically clean, monotonic plumes and does not debias systematic geometry-family differences; Stage~3 raw supervision can correct reliable observed intervals but cannot repair missing nozzle-family support \\
 \addlinespace

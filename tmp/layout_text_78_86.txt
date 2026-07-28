@@ -1,0 +1,287 @@
+          Gate                               Kept    Raw denominator   Kept / raw
+          Raw CDF plume trajectory          30,341            30,341     100.0%
+          Not spatially right-censored      19,917            30,341      65.6%
+          Pass basic fit sanity mask        26,385            30,341      87.0%
+          Pass far-penetration range mask   26,408            30,341      87.0%
+          Not a robust grouped outlier      24,320            30,341      80.2%
+          Pass combined fit filter          24,316            30,341      80.1%
+          Included in Stage-2 row table     23,795            30,341      78.4%
+
+Table 9: Trajectory attrition using a common raw trajectory denominator. This
+generated table avoids multiplying percentages measured on different populations;
+each gate is reported as an absolute count relative to the raw CDF penetration plume
+inventory.
+
+
+     Figure 23 illustrates the SGQR post-fit-shielding survival rates for CDF penetration
+per nozzle, summarizing the total sequence counts, cleaned sequence counts, and
+passing ratios. The purpose of this plot is not to argue that the gate is unbiased, but to
+clarify the footprint of that bias. Upon regenerating the report against the recovered
+PC archive, the nine-nozzle campaign spans a CDF penetration survival band of
+88.1%–94.1%. The recovered nozzle 0 archive contributed 15 475 candidate CDF
+penetration sequences, of which 14 274 passed post-fit shielding (92.2%), making it
+part of the reported coverage. Because no nozzle comes close to being completely
+rejected or completely retained, Stage 2 can be interpreted as a clean-plume teacher
+over the recovered archive, while still inheriting the explicit spatial and late-time
+selection biases documented here.
+     This trade-off is deliberate but bounded. By excluding ambiguous data, the pipeline
+provides Stage 2 with a clean teacher target that is less susceptible to optical vanishing
+effects, background reflections, and incorrect hydraulic delay alignment. That target is
+still conditioned on well-illuminated, unoccluded plumes. When Stage 3 relies on it,
+the output should therefore be interpreted as a clean-plume continuation rather than a
+debiased ensemble across all nozzle geometries.
+     In the population terminology of Section 4.2.2, the SGQR fits define Dataset
+#3. Stage 3 subsequently reintroduces Dataset #1 during reliable coverage intervals
+to recover raw early-time behavior without treating the right-censored tail as fully
+observed values.
+
+
+
+
+                                             78
+Figure 24: Support topology of the training matrix. The left panel counts injection-
+pressure levels over the (𝑃ch , 𝑃cb ) plane; the middle and right panels count nozzle-
+diameter levels over (𝑃ch , 𝑃inj ) at 𝑃cb = 1 bar and 4 bar. Most cells contain at most
+one diameter level, and all six levels occur only for 𝑃inj = 2000 bar, 𝑃cb = 4 bar, and
+𝑃ch ∈ {5, 10, 15} bar.
+
+
+4.4    Physics-Guided Feature Engineering
+Before the engineered feature architecture was finalized, an early nine-feature MLP
+trained using direct pressure and diameter inputs revealed a structural problem. Nozzle
+diameter exists at only six levels in the dataset, and these are not uniformly available
+across all pressure combinations: all six diameter levels appear exclusively within the
+family (𝑃inj = 2000 bar, 𝑃cb = 4, 𝑃ch ∈ {5, 10, 15} bar), whereas injection pressure
+has only four levels. Figure 24 makes this discretely sampled grid explicit: most
+cells in the (chamber pressure, injection pressure, diameter) grid contain zero or one
+observation, and full six-diameter coverage exists only along a single pressure family.
+    Because a smooth MLP treats these as continuous inputs, it generates derivative
+structures along the diameter and pressure axes that the data does not constrain.
+Figure 25 shows the result of dense diameter sweeps at 𝑡 = 0.85 ms: between adjacent
+observation levels, the predicted mean curve undergoes five to six gradient sign
+reversals per slice, and autodiff gradients peak at ∼ 4 × 104 over a support span of
+about 0.05 mm, equating to a curvature norm on the order of 107 . The same diagnostic
+on injection pressure showed non-monotonic, unsupported extrapolation over sparsely
+supported slices. The root issue is structural. A smooth MLP is asked to learn
+continuous laws from what is effectively a discrete grid, so adding regularization
+can only suppress the instability at the cost of useful capacity. Therefore, the revised
+architecture addresses the problem at the source.
+    The revised surrogate model first replaces the weakly supported pressure and
+diameter inputs with a single scaling group. The Hiroyasu–Arai post-breakup branch
+[13] provides the dimensional starting point:
+                                        (︃        )︃ 1/4
+                                       Δ𝑃
+                            𝑆(𝑡) ∝ 𝐾 𝑝                     𝑑𝑛1/2 𝑡 1/2 ,
+                                       𝜌𝑎
+
+
+
+
+                                             79
+Figure 25: Dense diameter interpolation by the direct-feature MLP at 𝑡 = 0.85 ms for
+three operating conditions. The top row compares the predicted mean with the secant
+through the six observed diameter levels; the bottom compares the corresponding
+autodiff gradient with the secant slope. The unsupported sign reversals and gradient
+spikes show that continuous diameter dependence is not identified by the sparse
+support.
+
+
+where the H–A exponent assigns Δ𝑃1/4 to the pressure ratio group. The SGQR scaling
+check above and the Dataset #2 verification below both show that the short-pilot training
+window is better collapsed by a stronger pressure exponent (validated out-of-sample
+by the LONO ablation in Section 4.4.2), so the operational amplitude divisor is
+
+                                 𝐴 = Δ𝑃0.5 · 𝜌𝑎−0.25 · 𝑑𝑛0.5 ,
+
+computed from the canonical feature table exported alongside the test matrix JSON
+file. This form should be read as an empirical short-window scaling choice, not a
+rejection of the Hiroyasu–Arai late-time asymptote. For nozzles 1 through 8, the
+chamber density is taken directly from the logged ambient gas density; for nozzle 0,
+where only ambient chamber pressure was logged, 𝜌𝑎 is reconstructed using a linear
+law 𝜌𝑎 = 5 kg/m3 × 𝑃ch /4.42 bar calibrated against the nozzle 1-8 data.
+     In the first design iteration, all four sparse inputs were fully merged into 𝐴, yielding
+a five-feature pure-scaling baseline
+
+                           [ 𝑡norm , 𝜃 tilt,𝑧 , 𝑛plumes,𝑧 , 𝑡𝑖,𝑧 , 𝑃cb,𝑧 ],
+
+
+
+
+                                                 80
+where the subscript 𝑧 indicates that a feature has been standardized by subtracting
+the training-set mean and dividing by the training-set standard deviation (z-score
+normalization), 𝑡 norm denotes time rescaled by a fixed min-max mapping from the
+[0, 5 ms] window to [0, 1], and both sets of scaler parameters are estimated from
+the training split only and held fixed for validation and test to prevent leakage. 𝐴
+was used solely as a target divisor and did not enter the network. The training target
+was reparameterized as amplitude-scaled penetration 𝑆(𝑡)       ˆ    = 𝑆(𝑡)/𝐴; the network
+predicted 𝜇ˆ and log 𝜎   2
+                       ˆ , and physical predictions were recovered during inference via
+𝜇 𝑆 = 𝐴 𝜇ˆ and 𝜎𝑆 = 𝐴 𝜎.  ˆ This baseline achieved a Stage 1 test MAE of 8.05 mm and
+a Stage 2 test MAE of 9.28 mm.
+    However, fully absorbing 𝑃inj and 𝑃ch into 𝐴 eliminated their independent ex-
+planatory power beyond what is captured by the fixed Δ𝑃0.5 exponent. Regressions
+also estimated non-zero chamber pressure coefficients at fixed Δ𝑃 (roughly −0.21 to
+−0.27 in the mid-injection window), meaning 𝑃inj and 𝑃ch carry independent structure
+that cannot fully collapse into Δ𝑃. The global Δ𝑃0.5 exponent is itself a mean-field
+approximation; when 𝑃inj and 𝑃ch are omitted, any local residual non-linearities in the
+condition space are left out of the network’s reach. Nozzle diameter 𝑑𝑛 , however, is a
+different case: it exists at only six discrete levels in the dataset and suffers from severe
+confounding in the condition matrix (Figure 24), making it an unreliable continuous
+input even if reintroduced. It was therefore retained inside 𝐴, letting the H–A prior
+carry its effect.
+    Building on this, the final design adopted a seven-feature scaling-plus-residual-
+pressure formulation
+
+               [ 𝑡norm , 𝜃 tilt,𝑧 , 𝑛plumes,𝑧 , 𝑡𝑖,𝑧 , 𝑃cb,𝑧 , log 𝑃inj,𝑧 , log 𝑃ch,𝑧 ],
+
+where 𝐴 continues to absorb the dominant diameter and dimensional pressure de-
+pendencies, while log 𝑃inj and log 𝑃ch are fed in as separate inputs so the network
+can learn residual pressure structure beyond the fixed H–A exponents. Compared to
+the five-feature baseline, Stage 1 test MAE dropped from 8.05 mm to 2.91 mm, and
+Stage 2 test MAE dropped from 9.28 mm to 5.63 mm, confirming that the residual
+pressure features provided information obscured by the fixed H–A exponents. Figure 26
+summarizes the resulting network and the role of 𝐴 in the physical reconstruction.
+    Before any optimization, a scaling validation routine tests the scaling hypothesis
+on the actual dataset: each trajectory is divided by its own 𝐴, and the linear regression
+𝑅 2 of 𝑆(𝑡)
+       ˆ against the sparse features is calculated. In the seven-feature production
+run, the sparse feature 𝑅 2 drops from 0.32 for the physical target 𝑆 to 0.016 for the
+               ˆ so the check passes. If the check fails, training aborts by default,
+scaled target 𝑆,
+making the physical prior falsifiable rather than merely asserted. The 0.016 reflects
+variance in 𝑆ˆ not explained by the sparse non-time features alone; it does not indicate
+that the full model has weak signal, since time itself is the dominant predictor of
+penetration magnitude.
+
+
+
+
+                                                 81
+Figure 26: Seven-feature amplitude-scaled MLP architecture.          A three-layer
+[512, 512, 128] Swish trunk with dropout rate 0.3 predicts ( 𝜇,    ˆ 2 ). The fixed
+                                                             ˆ log 𝜎
+                       0.5 −0.25 0.5
+amplitude prior 𝐴 = Δ𝑃 𝜌𝑎 𝑑𝑛 restores physical outputs through 𝜇 𝑆 = 𝐴 𝜇ˆ and
+𝜎𝑆 = 𝐴𝜎.ˆ
+
+
+    Stage 1 and Stage 2 also share a group-aware data split: each operating-condition
+group, defined jointly by nozzle identity, injection pressure, chamber pressure, and
+injection duration, is assigned as a whole to the training, validation, or test set to prevent
+leakage between curves that share the same operating point. Without this constraint, a
+random trajectory-level split would let the network interpolate between nearly identical
+samples drawn from the same operating condition seen during training; the holdout
+error would then reflect within-condition smoothness rather than generalization across
+the condition space. Therefore, group assignment is not a mere implementation detail
+but a structural constraint that ensures the reported test metrics measure interpolation
+across different operating conditions, not memorization within a condition. Stage
+2 warm-starts from Stage 1’s engineering run directory and reuses its scaler states,
+ensuring that variant selection and 𝐴 scaling remain consistent across the two stages.
+
+
+
+
+                                             82
+83
+4.4.1   Validating the Physics Scaling Formula Against Uncensored Observa-
+        tions
+
+The construction of Dataset #2 starts by unrolling the individual (𝑡, 𝑆) discrete
+observation points from the cleaned CDF wide-format sequence table. Even after
+excluding points from trajectories that reached the spatial FOV cap, the remaining
+discrete points exhibit condition-dependent late-time observability loss: although a
+spray plume can remain within the field of view, the Mie scattering signal may fall
+below the detection threshold because of droplet breakup, spatial dilution, and local
+drops in droplet number density. Some conditions enter this signal-loss regime at
+𝑡 < 0.5 ms, while others survive until significantly later. To address this, a point
+table generation tool was constructed (codebase identifiers listed in Appendix A) to
+determine condition-level truncation thresholds for each of the 592 operating condition
+groups using two statistical/optical metrics: (i) the smoothed trajectory count per
+bin drops below a fixed fraction of its intra-condition peak (density-drop signal-loss
+criterion), or (ii) the per-bin 𝑝 95 penetration reaches 95% of the estimated FOV cap
+(FOV-cap criterion). Figure 27 illustrates one representative example of each. The
+first bin satisfying either criterion, along with all subsequent observation points, is
+discarded, leaving 𝑁unc = 506 634 censor-truncated points for downstream log-log
+regression use.
+
+
+
+
+Figure 27: Representative per-condition truncation triggers. Top panels show
+trajectory counts; bottom panels show observations, CDF quantiles, the FOV threshold
+and cap, and the selected onset. Left: for Nozzle 1, 𝑝 95 reaches the approximately
+81 mm FOV threshold near 𝑡 = 1.0 ms. Right: for Nozzle 2, density-drop signal loss
+occurs while the maximum remains about 7 mm below that threshold. Post-onset
+quantiles become noisy, supporting their exclusion from direct supervision.
+
+    Per-Condition Temporal Balance. For any regression on time-indexed penetration
+observations, a direct concern is that trajectories surviving into late time bins represent
+a progressively self-selected subset of the population, potentially biasing the sample
+toward slow or wall-restricted plumes. Per-condition truncation mitigates this concern.
+Before truncation, the median coefficient of variation for the per-bin trajectory count
+across time is CVraw = 0.52, reflecting attrition as trajectories either hit the FOV cap or
+lose detectable Mie support. After truncating each condition at its selected threshold,
+the median intra-condition CV drops to 0.052 (interquartile range [0.033, 0.082]),
+and the median ratio of minimum to average bin count within a condition is 0.92.
+Within each surviving window, point counts   84 are thus approximately uniform in time:
+the depleted tails are removed rather than reweighted, ensuring each retained time bin
+contributes statistically comparable evidence to the downstream regression.
+                    𝑡 [ms]    𝑎 Δ𝑃     𝑏 𝑃ch    𝑐 𝑑𝑛     𝑅2        𝑁
+                     0.30    0.682   −0.232    6.015   0.351   72 547
+                     0.40    0.523   −0.247    4.461   0.392   63 414
+                     0.50    0.472   −0.229    3.064   0.398   56 117
+                     0.60    0.521   −0.189    2.178   0.418   46 466
+                     0.70    0.447   −0.153    1.693   0.354   38 291
+                  H–A Ref.    0.25    −0.25     0.50     —        —
+
+Table 10: Per-bin log-log regressions of CDF penetration against (Δ𝑃, 𝑃ch , 𝑑𝑛 ) on
+censor-truncated Dataset #2. Each row is an independent OLS regression over a
+±0.05 ms window; Hiroyasu–Arai post-breakup reference exponents are listed for
+comparison. The 𝑐 𝑑𝑛 column is unreliable because of the confounded diameter support
+described in the text.
+
+
+   Log-Log Scaling Regression. Ordinary least squares regression
+
+                 log 𝑆 = 𝑎 log Δ𝑃 + 𝑏 log 𝑃ch + 𝑐 log 𝑑𝑛 + constant
+
+
+
+
+                                         85
+Figure 28: Time-windowed OLS exponent estimates on the 506 634-point censor-
+truncated dataset, using ±0.05 ms windows at 0.1 ms intervals. Panels show the Δ𝑃,
+𝑃ch , and 𝑑𝑛 exponents; dashed lines mark the Bernoulli and Hiroyasu–Arai references,
+and shading denotes 95% confidence intervals. The 𝑑𝑛 series is shown only as a
+confounded diagnostic.
+
+
+
+
+Figure 29: Population collapse under the two candidate Δ𝑃 exponents for the 599
+representative Stage 1 SGQR trajectories. Panel (a) shows physical 𝑆(𝑡); panels (b)
+and (c) show trajectories divided by 𝐴 with exponents 0.25 and 0.50, respectively.
+The annotated post-0.5 ms spread ratios show the tighter collapse obtained with the
+adopted exponent 0.50.
+
+is fitted independently at each 0.1 ms bin, where Δ𝑃 = 𝑃inj − 𝑃ch , and 𝑃ch serves as a
+proportional proxy for ambient density 𝜌𝑎 (valid under ideal gas conditions at constant
+temperature). Table 10 reports results within the highly informative mid-trajectory
+window 𝑡 ∈ [0.30, 0.70] ms, where both point counts and signal strength are high.
+     The injection pressure exponent 𝑎 stabilizes around 0.47–0.52 in the 0.40–0.60 ms
+window, close to the Bernoulli value of 0.5 and the prior 𝑘 1/4 regression (𝑎 ≈ 0.52).
+The chamber pressure exponent 𝑏 stabilizes around −0.23 to −0.25, highly consistent
+with the Hiroyasu–Arai prediction of −0.25 and the 𝑘 1/4 estimate (𝑏 ≈ −0.23). Their
+agreement across the compressed 𝑘 1/4 parameters and the raw point observations
+provides corroborating evidence that the Δ𝑃0.5 · 𝜌𝑎−0.25 component of 𝐴 is not solely
+induced by the SGQR fit. Figure 28 displays the exponent evolution over the full time
+span.
+     Family-Collapse Check. Beyond the regression evidence above, the practical
+payoff of choosing Δ𝑃0.5 over the classical Δ𝑃0.25 can be seen directly in how well the
+corresponding 𝐴-scaled target collapses the population onto a single curve. Figure 29
+re-scales the representative SGQR trajectories used in Stage 1 training (Section 4.5)
+by 𝐴 under each exponent choice: the spread86 across operating conditions, measured
+by the median post-0.5 ms ratio of scaled to physical standard deviation, drops from
+0.378 under Δ𝑃0.25 to 0.057 under the adopted Δ𝑃0.50 , a roughly 6.6× tighter collapse,
+

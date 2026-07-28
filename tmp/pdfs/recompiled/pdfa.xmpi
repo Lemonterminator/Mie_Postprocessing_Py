@@ -1,0 +1,106 @@
+<?xpacket begin='' id='W5M0MpCehiHzreSzNTczkc9d' ?> 
+
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 4.0-c316 44.253921, Sun Oct 01 2006 17:14:39"> 
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"> 
+  <rdf:Description rdf:about="" 
+   xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" 
+   xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" 
+   xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#" 
+    > 
+   <pdfaExtension:schemas> 
+   <rdf:Bag> 
+     <rdf:li rdf:parseType="Resource"> 
+       <pdfaSchema:namespaceURI>http://ns.adobe.com/pdfx/1.3/</pdfaSchema:namespaceURI> 
+       <pdfaSchema:prefix>pdfx</pdfaSchema:prefix> 
+       <pdfaSchema:schema>PDF/X Schema</pdfaSchema:schema> 
+       <pdfaSchema:property><rdf:Seq> 
+          <rdf:li rdf:parseType="Resource"> 
+            <pdfaProperty:category>external</pdfaProperty:category> 
+            <pdfaProperty:description>URL to an online version or preprint</pdfaProperty:description> 
+            <pdfaProperty:name>AuthoritativeDomain</pdfaProperty:name> 
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType> 
+          </rdf:li></rdf:Seq> 
+       </pdfaSchema:property> 
+   </rdf:li> 
+   <rdf:li rdf:parseType="Resource"> 
+      <pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI> 
+      <pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix> 
+      <pdfaSchema:schema>PDF/UA ID Schema</pdfaSchema:schema> 
+      <pdfaSchema:property><rdf:Seq> 
+         <rdf:li rdf:parseType="Resource"> 
+            <pdfaProperty:category>internal</pdfaProperty:category> 
+            <pdfaProperty:description>Part of PDF/UA standard</pdfaProperty:description> 
+            <pdfaProperty:name>part</pdfaProperty:name> 
+            <pdfaProperty:valueType>Integer</pdfaProperty:valueType> 
+         </rdf:li></rdf:Seq> 
+      </pdfaSchema:property> 
+   </rdf:li> 
+   <rdf:li rdf:parseType="Resource"> 
+      <pdfaSchema:schema>PRISM metadata</pdfaSchema:schema> 
+      <pdfaSchema:namespaceURI>http://prismstandard.org/namespaces/basic/2.2/</pdfaSchema:namespaceURI> 
+      <pdfaSchema:prefix>prism</pdfaSchema:prefix> 
+      <pdfaSchema:property><rdf:Seq> 
+        <rdf:li rdf:parseType="Resource">
+            <pdfaProperty:name>aggregationType</pdfaProperty:name>
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType>
+            <pdfaProperty:category>external</pdfaProperty:category>
+            <pdfaProperty:description>The type of publication. If defined, must be one of book, catalog, feed, journal, magazine, manual, newsletter, pamphlet.</pdfaProperty:description>
+      </rdf:li> 
+   <rdf:li rdf:parseType="Resource">
+    <pdfaProperty:name>url</pdfaProperty:name>
+    <pdfaProperty:valueType>URL</pdfaProperty:valueType>
+    <pdfaProperty:category>external</pdfaProperty:category>
+    <pdfaProperty:description>URL for the article or unit of content</pdfaProperty:description>
+  </rdf:li> 
+      </rdf:Seq></pdfaSchema:property> 
+   </rdf:li> 
+   </rdf:Bag> 
+   </pdfaExtension:schemas> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/"> 
+   <pdf:Producer>pdfTeX</pdf:Producer> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"> 
+   <dc:format>application/pdf</dc:format> 
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">Data-Driven Penetration Prediction and Probabilistic Impingement Screening Based on Mie Scattering Imaging</rdf:li></rdf:Alt></dc:title>
+   <dc:creator><rdf:Seq><rdf:li>Linan Jiang</rdf:li></rdf:Seq></dc:creator>
+   <dc:language><rdf:Bag><rdf:li>en</rdf:li></rdf:Bag></dc:language>
+   <dc:rights><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></dc:rights>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">Pilot diesel injections in multi-fuel marine engines are short, highly transient events. If the liquid spray reaches the piston crown or cylinder wall before ignition develops, it can cause wall wetting, lubricant dilution, and poor mixture preparation. This thesis develops an engineering screening workflow that converts high-speed Mie-scattering spray videos into penetration measurements and trained surrogate models for early spray--wall impingement risk assessment. The data consist of room-temperature, non-reacting, top-view recordings from the Wärtsilä Optical Spray Combustion Chamber, covering multiple operating conditions and nozzle geometries. The workflow combines multi-hole video processing, plume-wise feature extraction, and a reduced-order trajectory fit that smooths noisy labels and mitigates the downward bias caused by right-censoring at the camera field-of-view limit. On these fitted targets, a neural network produced by three-stage curriculum training predicts the penetration mean together with a heteroscedastic uncertainty estimate, staged so that disappearance from the image window is not mistaken for physical saturation. On 540,367 points from 9 nozzle campaigns under an uncensored evaluation protocol, the final multilayer perceptron (MLP) model achieves a five-seed mean root mean squared error (RMSE) of 4.19 mm and mean absolute error (MAE) of 2.98 mm with conservative 1-sigma/2-sigma uncertainty coverage of 88.8%/99.0%, reducing RMSE by more than 54% relative to calibrated Hiroyasu--Arai and Naber--Siebers baselines. Post-training feature-wise linear modulation (FiLM) adaptation mainly improved probabilistic calibration scores relative to a controlled pooled baseline, in known-family adaptation experiments. A sparse variational Gaussian process (SVGP) alternative attains better point accuracy but markedly less conservative coverage; the two backbones represent different accuracy--coverage trade-offs. A simplified geometric projection finally maps the predicted penetration distribution onto probabilistic wall-impingement screening scores. The workflow is intended as an early-stage screening tool within its measured operating domain, ahead of---not in place of---computational fluid dynamics (CFD) simulation and engine testing.</rdf:li></rdf:Alt></dc:description>
+   <dc:subject><rdf:Bag><rdf:li>uncertainty quantification</rdf:li>
+     <rdf:li>surrogate modeling</rdf:li>
+     <rdf:li>Gaussian process</rdf:li>
+     <rdf:li>spray imaging</rdf:li>
+     <rdf:li>penetration</rdf:li>
+     <rdf:li>Mie scattering</rdf:li></rdf:Bag></dc:subject>
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:prism="http://prismstandard.org/namespaces/basic/2.2/"> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/"> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"> 
+   <pdfaid:part>2</pdfaid:part> 
+   <pdfaid:conformance>B</pdfaid:conformance> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"> 
+   <xmp:CreatorTool>LaTeX with hyperref</xmp:CreatorTool> 
+   <xmp:ModifyDate>2026-07-24T11:47:48+03:00</xmp:ModifyDate> 
+   <xmp:CreateDate>2026-07-24T11:47:48+03:00</xmp:CreateDate> 
+   <xmp:MetadataDate>2026-07-24T11:47:48+03:00</xmp:MetadataDate> 
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmpRights = "http://ns.adobe.com/xap/1.0/rights/"> 
+   <xmpRights:Marked>True</xmpRights:Marked>
+   <xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">© 2026. This work is licensed under a Creative Commons "Attribution-NonCommercial-ShareAlike 4.0 International" (BY-NC-SA 4.0) license.</rdf:li></rdf:Alt></xmpRights:UsageTerms>
+   <xmpRights:WebStatement>https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en</xmpRights:WebStatement>
+  </rdf:Description> 
+  <rdf:Description rdf:about="" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/"> 
+   <xmpMM:DocumentID>uuid:8BDBDAA2-CAA4-198E-197A-56ADEDF0B8FC</xmpMM:DocumentID> 
+   <xmpMM:InstanceID>uuid:FFFC0A21-9E1F-DDF0-7D1D-7BED1E12265B</xmpMM:InstanceID> 
+  </rdf:Description> 
+ </rdf:RDF> 
+</x:xmpmeta> 
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+                                                                                                                                
+<?xpacket end='w'?> 

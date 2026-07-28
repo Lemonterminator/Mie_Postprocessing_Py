@@ -122,7 +122,7 @@ Collectively, these studies show that compact regressors, multilayer feedforward
 
 How to build a \emph{reliable} data-driven system, by contrast, is precisely the question that large-scale machine-learning and foundation-model engineering has spent recent years standardizing. Surveys of that field document a recurring, stage-structured workflow rather than a single monolithic fit \cite{Zhao2023LLMSurvey,Bommasani2021FoundationModels}: reliability is engineered through data-centric curation and quality filtering \cite{Albalak2024DataSelection}, deliberate target- and distillation-label construction \cite{Xu2024LLMDistillation,Liu2024SyntheticData}, a staged pre-training--distillation--fine-tuning curriculum, held-out and calibration-aware evaluation \cite{Chang2024LLMEval}, and deployment-time transfer and adaptation through lightweight adapters \cite{Han2024PEFT}. The scale (web-scale corpora, billions of parameters) and the modality (natural-language text) are far removed from a diesel spray; what transfers is the engineering discipline---that the trained model is only one stage among several, and that data curation, target design, and calibration are first-class concerns rather than afterthoughts. The parallel drawn here is methodological, not a claim of equivalence in scale, data, or domain. Table~\ref{tab:workflow-mapping-en} places the two workflows side by side.
 
-\begin{table}[htbp]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \caption{The six-stage spray-surrogate workflow of this thesis set beside the documented large-scale machine-learning engineering workflow it adapts. The correspondence is methodological: the scale and modality differ, while the staged discipline is shared.}
@@ -154,6 +154,8 @@ Curriculum learning formalises the idea of first fitting an easier or more stabl
 For this thesis, the deterministic Stage~1 mean fit is a stabilising step: training a heteroscedastic Gaussian head from scratch can let the variance branch absorb mean errors, down-weight difficult samples, and slow or destabilise the mean fit, a failure mode documented in variance-network and \(\beta\)-NLL (negative log-likelihood, NLL) studies \cite{Detlefsen2019VarianceNetworks,Seitzer2022PitfallsHeteroscedastic}.
 Stage~1 therefore first anchors a representative conditional mean; Stage~2 then expands to the full filtered reduced-order fit archive and learns input-dependent spread; Stage~3 finally reintroduces raw cumulative distribution function (CDF) observations only where coverage makes direct supervision defensible.
 
+Monte Carlo dropout \cite{GalGhahramani2016Dropout} and deep ensembles \cite{LakshminarayananEnsembles2017} are the standard alternatives, but both target epistemic model uncertainty rather than the plume-to-plume and shot-to-shot variation that the screening scores consume, and neither is adopted here. Section~\ref{sec:surrogate-problem-framing-en} states the resulting scope of \(\sigma\); robustness to unseen geometry is probed instead by the leave-one-nozzle-out evaluation of Section~\ref{sec:stage1-lono-ablation}.
+
 \subsubsection{Right-Censoring: Why Existing Censored-Regression Tools Fall Short}
 
 Among the three, censoring-aware target construction is unavoidable due to the geometric constraints of the experimental data used in this thesis.
@@ -179,7 +181,7 @@ Some plumes have already crossed the upper boundary of the observation window, l
 other plumes remain entirely within the visible region.
 If interpreted purely based on surface image readings, the "terminal penetration" of the former is actually determined by the camera's field of view, not by the spray's physical processes.
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \includegraphics[width=0.9\linewidth]{../images/right_censoring_example.png}
 \caption{An example of right-censoring in spray images. Some spray plumes have crossed the upper boundary of the observation window, thus leaving only blurred annular edge traces near the upper limit; other spray plumes have not yet exceeded the observation boundary and remain fully displayed within the visible window.}
@@ -346,7 +348,7 @@ The intended engineering application context for this screening output encompass
 \end{itemize}
 In each case the surrogate replaces or reduces the number of physical spray-chamber experiments or full CFD runs required at the pre-screening stage, providing a fast probabilistic ranking that directs resource-intensive methods toward the most promising candidates.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{2pt}

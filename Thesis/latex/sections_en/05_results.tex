@@ -40,7 +40,7 @@ systematic error, and tail metrics such as P95 absolute error identify rare but
 large misses. Coverage, PIT reliability, ECE, CRPS, NLL, and sharpness describe
 the predicted distribution rather than only the predicted mean.
 
-\begin{table}[t]
+\begin{table}[H]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -85,7 +85,7 @@ as a supplementary check: it shows how the comparison behaves when
 right-censored regions are included, while the main fixed-table verdict
 deliberately remains the uncensored protocol.
 
-\begin{table}[t]
+\begin{table}[H]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -137,7 +137,7 @@ convenient screening surrogate. The residual-SVGP and residual-MLP extensions
 are analyzed in Section~\ref{sec:posthoc-residual-rewrite} as post-hoc
 adaptation evidence rather than as part of the deployed-surrogate verdict.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -160,7 +160,7 @@ Selected in-domain screening surrogate; final core metrics refer to the refreshe
 \label{tab:model-summary}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -178,7 +178,7 @@ Hiroyasu--Arai baseline & 10.192 & 7.727 & +2.084 & 0.632 & 0.919 & 5.499 \\
 \label{tab:primary-leaderboard-rewrite}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\linewidth]{images/eval_20260709/metric_bars_rmse_mae_p95.png}
 \caption{Fixed-table point-error diagnostic on the QC-gated uncensored CDF protocol. The generated figure shows the full refreshed roster, including post-hoc residual arms; the mainline verdict is isolated in Table~\ref{tab:primary-leaderboard-rewrite}.}
@@ -193,7 +193,7 @@ penetration uncertainty during screening. In contrast, the SVGP variants are
 sharper and more accurate but have lower empirical coverage, representing a
 different operating point in the accuracy--conservatism trade-off.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.86\linewidth]{images/eval_20260709/coverage_comparison.png}
 \caption{Empirical \(1\sigma\) and \(2\sigma\) coverage on the primary QC-gated uncensored CDF table. The production MLP is more conservative than the SVGP variants; lower-error residual arms are interpreted as post-hoc adaptation evidence rather than as the deployed-surrogate verdict.}
@@ -221,7 +221,7 @@ reduced-order continuation under extrapolative conditions, not as a direct
 frame-by-frame measurement score. The residual-SVGP results are analyzed with
 the other post-hoc models in Section~\ref{sec:posthoc-residual-rewrite}.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{5pt}
@@ -240,7 +240,7 @@ SGQR continuation grid & Single-output thesis SVGP & \textbf{9.680} & \textbf{6.
 \label{tab:secondary-protocols-rewrite}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.60\linewidth}
 \centering
@@ -287,7 +287,7 @@ remain far behind (\SI{11.187}{mm} and \SI{10.442}{mm} RMSE, corresponding to
 MLP reductions of 59.0\% and 56.1\%). The censoring-inclusive ordering is
 therefore the same as the primary uncensored verdict.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -305,7 +305,7 @@ SVGP, Stage~3 mode & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} &
 \label{tab:external-clean-headline}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.74\linewidth}
 \centering
@@ -322,7 +322,7 @@ SVGP, Stage~3 mode & \textbf{4.440} & \textbf{3.109} & -0.145 & \textbf{9.028} &
 \label{fig:full-clean-diagnostics}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.74\linewidth}
 \centering
@@ -363,7 +363,7 @@ conditions. Conversely, the MLP's conservative empirical coverage reflects a
 deliberately cautious predictive distribution under the measured protocol; it
 does not constitute a certified bound on false-negative rates.
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.74\linewidth}
 \centering
@@ -380,7 +380,7 @@ does not constitute a certified bound on false-negative rates.
 \label{fig:distributional-diagnostics-rewrite}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.86\linewidth]{images/eval_20260709/pit_histograms_grid.png}
 \caption{PIT histograms for the refreshed primary comparison. These histograms complement the reliability overlay by exposing model-wise deviations from a uniform predictive distribution.}
@@ -423,7 +423,7 @@ it provides conservative in-domain uncertainty estimates, exposes the
 auxiliary onset output required by the screening GUI, and supports affordable
 ablation of the training curriculum.
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.74\linewidth}
 \centering
@@ -442,7 +442,7 @@ ablation of the training curriculum.
 \label{fig:svgp-lono-comparison-zh}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{minipage}{0.82\linewidth}
 \centering
@@ -464,6 +464,11 @@ gives direct visual evidence. It is better interpreted as a cross-design-family 
 failure than as an ordinary fold. This boundary is scientifically useful: it
 states where the learned surrogate requires either additional family coverage,
 trunk-level adaptation, or retraining.
+
+% Without this barrier Figure~\ref{fig:injector-comparison-rewrite} drifts two
+% subsections forward and lands on top of the QC-gate itemize in 5.5.2, splitting
+% a list item across the figure.  Flush it before the subsection boundary instead.
+\FloatBarrier
 
 \subsubsection{Physical Failure-Mode Check: Nozzle 3}
 \label{sec:nozzle3-failure-rewrite}
@@ -489,7 +494,7 @@ the predictive uncertainty. These cases explain why some within-family
 conditions remain difficult even after the global LONO and fixed-table metrics
 look acceptable.
 
-\begin{figure}[p]
+\begin{figure}[!ht]
 \centering
 \begin{minipage}{0.24\linewidth}
 \centering
@@ -551,7 +556,7 @@ families:
   (thresholds in Table~\ref{tab:qc-lowpen-thresholds-rewrite}).
 \end{itemize}
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -573,7 +578,7 @@ Loose-mode criterion & Same, for groups with more traces and a lower fraction th
 \label{tab:qc-shape-thresholds-rewrite}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[H]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -641,7 +646,7 @@ is only about \SI{0.21}{mm}, far below the cross-fold standard deviation. This
 should be read as a mild selection preference, not as a sweeping architectural
 claim.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
@@ -662,7 +667,7 @@ Stage~3 anchor-off & 12.73 & 9.86 & Highest archived 2-sigma LONO coverage among
 \label{tab:curriculum-ablation-condensed}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \includegraphics[width=0.92\linewidth]{images/stage2_anchor_ablation.png}
 \caption{Archived Stage~2 anchor ablation. The \(\mu\)-anchor-only teacher is retained because it improves the difficult transfer cases without forcing early uncertainty to become overconfident.}
@@ -688,7 +693,7 @@ formulation, the supervision-regime and censoring-slice table, and the
 calibration-drift diagnostics) is preserved in
 Appendix~\ref{app:evaluation-diagnostics}.
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.74\linewidth}
 \centering
@@ -708,7 +713,7 @@ Appendix~\ref{app:evaluation-diagnostics}.
 \subsubsection{Post-Hoc Adaptation: Residual, FiLM, and SVGP Extensions}
 \label{sec:posthoc-residual-rewrite}
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.96\linewidth]{images/residual_family_head_20260608/Architecture.png}
 \caption{Three injector-family conditioning mechanisms in increasing adaptation depth (left to right): direct family heads, residual family heads, and residual-FiLM.}
@@ -731,7 +736,7 @@ increasing adaptation depth for injecting that channel into the MLP
   \item \textbf{Direct family heads:} replace the single mean head after the shared trunk with one head per family
   (\(\hat\mu = w_{\mu,f}^{\top} h(x)\)); the family ID only selects the output head and never enters the feature vector.
   \item \textbf{Residual family heads:} freeze the trunk and the shared mean head, then route the family ID to a
-  zero-initialized additive correction (\(\hat\mu = w_{\mu}^{\top} h(x) + \Delta_f(h(x))\)).
+  family-specific additive correction (\(\hat\mu = w_{\mu}^{\top} h(x) + \Delta_f(h(x))\)).
   \item \textbf{Residual-FiLM:} stack an identity-initialized last-block affine modulation
   (\(\tilde h = \gamma_f \odot h + \beta_f\)~\cite{Perez2018FiLM}) on the residual family head while retaining the
   \(\Delta_f\) branch.
@@ -774,7 +779,10 @@ Unlike the pooled baseline, which is initialized from the Stage~2 teacher,
 each subsequent level is initialized from its predecessor in a
 function-preserving way. The maximum output difference remains below
 \(10^{-6}\) after bridging, and the FiLM identity initialization preserves the
-function exactly. Each level introduces one new mechanism and distills from
+function exactly. Concretely, the direct \(\to\) residual bridge adopts one designated family
+\(f_0\)'s mean head as the frozen shared head (\(w_{\mu} := w_{\mu,f_0}\)) and initializes every
+other family's residual head to the difference (\(\Delta_f = (w_{\mu,f} - w_{\mu,f_0})^{\top} h(x)\)),
+preserving each family's prediction at step~0. Each level introduces one new mechanism and distills from
 its predecessor. The chain is single-seed and is evaluated on the same
 540{,}367-point QC-gated uncensored CDF fixed table as the primary comparison;
 for this controlled retraining lineage, the table includes training
@@ -784,7 +792,7 @@ generalization test. The controlled pooled baseline (\SI{4.192}{mm}) is
 consistent with the five-seed production mean (\SI{4.185}{mm}), indicating
 that the chain starts from a representative operating point.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -807,7 +815,7 @@ QC-retrained residual-SVGP (reference) & \textbf{3.848} & --- & --- & --- & --- 
 \label{tab:posthoc-residual-rewrite}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \begin{subfigure}[t]{0.74\linewidth}
 \centering
@@ -922,7 +930,7 @@ trunk-level features for an unseen design family that the shared surrogate
 never represented; the extrapolated SGQR region is likewise unaffected by any
 conditioning mechanism.
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=0.86\linewidth]{images/residual_family_head_20260608/lono_modified_only_rmse_by_fold.png}
 \caption{Archived residual-head LONO follow-up on modified-family nozzles. The residual adapter improves in-family folds but exposes its boundary on design-shifted cases.}
@@ -953,14 +961,14 @@ the geometry and kinematics changes the verdict: a wider bowl at the same
 piston at \SI{2250}{rpm} reduces the cumulative exposure to
 \SI{1.446}{ms} despite a high instantaneous opening.
 
-\begin{figure}[t]
+\begin{figure}[!htp]
 \centering
 \includegraphics[width=0.82\linewidth]{images/impingement_summary.png}
 \caption{Archived temporal summary of the wall-proximity screening prototype for Design~A. The output is a geometric screening score driven by the penetration distribution, not a measured liquid-wall-wetting probability.}
 \label{fig:screening-design-a-rewrite}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \begin{subfigure}[t]{0.49\linewidth}
 \centering
@@ -977,7 +985,7 @@ piston at \SI{2250}{rpm} reduces the cumulative exposure to
 \label{fig:screening-design-comparison-rewrite}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[!ht]
 \centering
 \includegraphics[width=\linewidth]{images/impingement_gui_montage.png}
 \caption{Spatial GUI snapshots underlying the Hermite-profile curve of Figure~\ref{fig:screening-design-comparison-rewrite} (RPM~2250), showing the rotating spray Gaussian (dashed/dotted \(1\sigma\)/\(2\sigma\) ellipses) advancing over the bowl lip. Left to right: \(t=0.51\), \(0.76\), \(1.02\), \(1.27\,\si{ms}\); over this interval the plotted spray center advances from \(\mu_{\mathrm{plot}}=\SI{34.9}{mm}\) to \SI{81.8}{mm} and the instantaneous piston-impact score rises from \(3.5\times10^{-13}\) to \(0.25\), making explicit the geometric mechanism behind the aggregate temporal curves.}
@@ -1010,7 +1018,7 @@ residual-adaptation diagnostics, together with the archived claims-to-evidence
 map of the earlier chapter organization, are collected in
 Appendix~\ref{app:evaluation-diagnostics}.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}

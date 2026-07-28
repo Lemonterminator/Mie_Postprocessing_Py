@@ -42,7 +42,7 @@ Nozzle~0 is a factory-fresh reference injector outside the prototype design line
 
 Table~\ref{tab:discussion-validated-results} consolidates the quantitative evidence and the boundary attached to each interpretation.
 
-\begin{table}[t]
+\begin{table}[!ht]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -140,7 +140,7 @@ The remaining boundaries fall into three categories: generalization and out-of-d
 
 	      The choice of MLP, however, is not based on point accuracy. It rests on three structural capabilities: (1)~a joint mean-and-uncertainty output head that directly supports the probabilistic screening interface; (2)~a knowledge distillation chain that mixes synthetic right-censored targets with raw observations during forward propagation; and (3)~a lightweight backbone that makes a full grid of 60+ ablations $\times$ LONO $\times$ multiple training seeds feasible. None of these capabilities can be replicated at low cost by random forests, gradient boosting, or NARX. Without any one of them, the design rationale for the screening interface does not hold.
 
-	\item This chapter's censoring rationale for the three-stage curriculum (Section~\ref{sec:mlp-curriculum-en}) is not confirmed by a controlled ablation that trains the surrogate end-to-end directly on the raw, censored Dataset~\#1 without the SGQR-fitted intermediate stages. The censoring audit of Section~\ref{sec:cdf-spatial-censoring-audit} motivates the expectation that such a single-stage baseline would exhibit saturation bias near the field-of-view boundary, but this expectation is not empirically demonstrated within the present computational budget and is left as future work.
+	\item This chapter's censoring rationale for the three-stage curriculum (Section~\ref{sec:mlp-curriculum-en}) is not confirmed by a controlled ablation that trains the surrogate end-to-end directly on the raw, censored Dataset~\#1 without the SGQR-fitted intermediate stages. The censoring audit of Section~\ref{sec:cdf-spatial-censoring-audit} motivates the expectation that such a single-stage baseline would exhibit saturation bias near the field-of-view boundary, but this expectation is not empirically confirmed here. The omission does not reflect computational cost, since the ablation itself would be inexpensive to run; rather, it reflects a scoping decision that a systematic single-stage-vs-curriculum comparison falls outside the intended boundary of this thesis, and it is left as future work.
 \end{itemize}
 
 \subsubsection*{MLP vs.\ SVGP: Accuracy Trade-off and Model Selection}

@@ -671,7 +671,7 @@ residual/FiLM/SVGP 事后适配研究检验的是一个明确的物理假设。�
 \begin{itemize}
   \item \textbf{Direct family head：}将共享主干后的单个均值头替换为每族一个
   （\(\hat\mu = w_{\mu,f}^{\top} h(x)\)）；family ID 只选择输出头，不进入特征向量。
-  \item \textbf{Residual family head：}冻结主干与共享均值头，将 family ID 路由至零初始化的加性修正
+  \item \textbf{Residual family head：}冻结主干与共享均值头，将 family ID 路由至族特定的加性修正
   （\(\hat\mu = w_{\mu}^{\top} h(x) + \Delta_f(h(x))\)）。
   \item \textbf{Residual-FiLM：}在 residual family head 上叠加恒等初始化的末块仿射调制
   （\(\tilde h = \gamma_f \odot h + \beta_f\)~\cite{Perez2018FiLM}），并保留 \(\Delta_f\) 分支。
@@ -704,7 +704,9 @@ direct family head \(\to\) residual \(\to\) FiLM。
 除 pooled baseline 由 Stage~2 教师初始化外，后续每一级均由上一级以
 function-preserving 方式初始化。桥接后的最大输出差保持在 \(10^{-6}\)
 以下，FiLM 恒等初始化则精确保持函数。每一级仅引入一个新机制，并以
-上一级作为蒸馏教师。受控链采用单种子，并使用与主表相同的 540{,}367
+上一级作为蒸馏教师。具体地，direct \(\to\) residual 桥接以某一指定族 \(f_0\) 的均值头作为冻结的共享头
+（\(w_{\mu} := w_{\mu,f_0}\)），并将其余各族的残差头初始化为两者之差
+（\(\Delta_f = (w_{\mu,f} - w_{\mu,f_0})^{\top} h(x)\)），使各族预测在 step~0 逐族保持。受控链采用单种子，并使用与主表相同的 540{,}367
 点 QC-gated 未删失 CDF 固定表进行评测；对于这条受控重训谱系，该表
 包含训练轨迹。因此，表~\ref{tab:posthoc-residual-rewrite} 是同一物理尺度
 上的受控架构比较，而不是独立泛化测试。受控 pooled baseline

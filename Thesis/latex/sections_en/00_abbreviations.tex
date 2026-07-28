@@ -1,6 +1,14 @@
 \mysection{List of Abbreviations}
 
-\begin{tabular}{@{}p{1.8cm} p{11.8cm}@{}}
+% Tightened locally so the whole list still fits on one page. longtable (rather
+% than tabular) is deliberate: if the list outgrows the page later it breaks
+% across pages instead of silently running off the bottom.
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.0}
+\setlength{\LTpre}{0pt}
+\setlength{\LTpost}{0pt}
+\begin{longtable}{@{}p{1.8cm} p{11.8cm}@{}}
 \multicolumn{2}{@{}l}{\textbf{Experiments and Physics}} \\[2pt]
 CFD   & Computational Fluid Dynamics \\
 DBI   & Diffuse Background Illumination \\
@@ -8,7 +16,7 @@ ECN   & Engine Combustion Network \\
 EOI   & End of Injection \\
 FOV   & Field of View \\
 OSCC  & Optical Spray Combustion Chamber \\
-SOI   & Start of Injection \\[10pt]
+SOI   & Start of Injection \\[2pt]
 \multicolumn{2}{@{}l}{\textbf{Image Processing and Computing}} \\[2pt]
 BW    & Binary (black-and-white thresholded) image \\
 CDF   & Cumulative Distribution Function \\
@@ -17,24 +25,28 @@ CUDA  & Compute Unified Device Architecture \\
 FFT   & Fast Fourier Transform \\
 FPS   & Frames Per Second \\
 GPU   & Graphics Processing Unit \\
-SIMT  & Single Instruction Multiple Thread \\[10pt]
+QC    & Quality Control \\
+SIMT  & Single Instruction Multiple Thread \\[2pt]
 \multicolumn{2}{@{}l}{\textbf{Machine Learning}} \\[2pt]
 ARD   & Automatic Relevance Determination \\
 FiLM  & Feature-wise Linear Modulation \\
 GP    & Gaussian Process \\
 KD    & Knowledge Distillation \\
+KL    & Kullback--Leibler (divergence) \\
 LONO  & Leave-One-Nozzle-Out \\
 MLP   & Multilayer Perceptron \\
 NLL   & Negative Log-Likelihood \\
 OOD   & Out-of-Distribution \\
 SGQR  & Sigmoid-Gated Quarter-Root \\
-SVGP  & Sparse Variational Gaussian Process \\[10pt]
+SVGP  & Sparse Variational Gaussian Process \\[2pt]
 \multicolumn{2}{@{}l}{\textbf{Statistics and Evaluation Metrics}} \\[2pt]
 CRPS  & Continuous Ranked Probability Score \\
 ECE   & Expected Calibration Error \\
+MAD   & Median Absolute Deviation \\
 MAE   & Mean Absolute Error \\
 MSE   & Mean Squared Error \\
 PIT   & Probability Integral Transform \\
 RMSE  & Root Mean Square Error \\
 SCR   & Spatial Censoring Rate \\
-\end{tabular}
+\end{longtable}
+\endgroup

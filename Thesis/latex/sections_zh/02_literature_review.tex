@@ -164,6 +164,8 @@ Zhang 等随后使用实验柴油喷雾贯穿距离数据构建 GA-BP 神经网�
 在本文中，确定性 Stage~1 均值预训练是关键稳定化步骤：若从零开始训练异方差高斯输出头，方差分支可能吸收均值误差、降低困难样本权重，并使均值拟合变慢或不稳定，这一失效模式已在方差网络和 \(\beta\)-NLL（负对数似然，NLL）相关研究中被记录 \cite{Detlefsen2019VarianceNetworks,Seitzer2022PitfallsHeteroscedastic}。
 因此，Stage~1 先锚定代表性条件均值；Stage~2 再扩展到完整过滤后的降阶拟合档案库并学习输入相关散布；Stage~3 最后只在覆盖率足以支撑直接监督的区间重新引入原始累积分布函数（CDF）观测。
 
+蒙特卡罗 dropout \cite{GalGhahramani2016Dropout} 与深度集成 \cite{LakshminarayananEnsembles2017} 是两条标准替代路线，但两者针对的都是认知（epistemic）模型不确定性，而非筛查评分真正消费的喷油束间与 shot-to-shot 离散度，因此本文均不采用。\(\sigma\) 由此确定的适用范围见第四章（\ref{sec:surrogate-problem-framing-en}~节）；对未见喷嘴几何的稳健性则由第四章（\ref{sec:stage1-lono-ablation}~节）的留一喷嘴族评估直接考察。
+
 \subsubsection{右删失：既有删失回归工具为何不够}
 
 三者之中，删失感知目标构造之所以不可回避，源于本文实验数据自身的几何约束。
