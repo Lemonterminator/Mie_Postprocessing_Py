@@ -9,7 +9,7 @@
   <meta property="og:type" content="article">
   <meta property="og:title" content="Calibration → Uncertainty → Risk: Metric Derivations">
   <meta property="og:description"
-    content="Every constant derived, every metric proved: RMSE, coverage, CRPS, PIT/ECE, heteroscedastic NLL — plus 9 interactive experiments. Part II carries the same mathematics into quant finance: VaR backtesting, Berkowitz, elicitability, QLIKE.">
+    content="Every constant derived, every metric proved: RMSE, coverage, CRPS, PIT/ECE, heteroscedastic NLL — plus 15 interactive experiments. Part II carries the same mathematics into quant finance: VaR backtesting, Berkowitz, elicitability, QLIKE.">
   <meta property="og:url"
     content="https://lemonterminator.github.io/Mie_Postprocessing_Py/Thesis/regression_eval_study/metrics_derivations_en.html">
   <meta property="og:image"
@@ -517,7 +517,7 @@
     Part II (§8 onward) carries the same mathematics into quantitative finance. By <b>Linan Jiang</b> · <a
       href="https://github.com/Lemonterminator">GitHub</a> · Educational material, not investment advice.<br>
     This document is self-contained and offline (the math typesetting engine is embedded; no network access is
-    required). It contains 9 interactive experiments (marked 🎛, pure JavaScript, likewise usable offline): drag the
+    required). It contains 15 interactive experiments (marked 🎛, pure JavaScript, likewise usable offline): drag the
     sliders to observe the causal chain from "distribution shape" to "metric value." Working through the derivations
     with pencil and paper is recommended; steps marked <span class="pencil">☞ pencil-and-paper checkpoint</span> are
     especially worth re-deriving by hand; subsections marked <span class="star">★</span> are advanced optional reading.
@@ -536,11 +536,20 @@
       <li><a href="#sec7">Constants quick-reference table and summary</a></li>
     </ol>
     <b>Part II — From Calibration to Risk</b>
+    <ul style="margin:.2em 0;padding-left:1.5em;list-style:none">
+      <li><a href="#sec7b">§7.5 Part II reader's guide: for readers with no finance background</a> (start here if finance is new to you)</li>
+    </ul>
     <ol start="8">
       <li><a href="#sec8">Backtest statistics: effective sample size, Sharpe standard error, multiple testing</a></li>
       <li><a href="#sec9">VaR exception tests: Kupiec, Christoffersen, the Basel traffic light</a></li>
       <li><a href="#sec10">Density-forecast evaluation: PIT in finance, from DGT to Berkowitz</a></li>
       <li><a href="#sec11">Quantiles, pinball loss, and elicitability: VaR and ES</a></li>
+    </ol>
+    <ul style="margin:.2em 0;padding-left:1.5em;list-style:none">
+      <li><a href="#sec11b">§11.5 Marginal calibration is not joint calibration: a closed-form counterexample</a> (the boundary before lifting to a vector-valued y)</li>
+      <li><a href="#sec11c">§11.6 The Rosenblatt transform: an honest multivariate PIT</a> (carrying §4's PIT into \(d\) dimensions)</li>
+    </ul>
+    <ol start="12">
       <li><a href="#sec12">Volatility forecasting: GARCH, QMLE, QLIKE, Student-t</a></li>
       <li><a href="#sec13">From checking coverage to guaranteeing it: split conformal prediction and CQR</a></li>
     </ol>
@@ -726,6 +735,236 @@
     delta-method regularity for dependence-adjusted standard errors; and an explicit joint null with cross-strategy
     dependence for multiple testing. <a href="#sec8">§8</a> states the corresponding conditions separately.</div>
 
+  <h3>0.4 Distribution functions, generalized inverses, and the empirical distribution</h3>
+  <p>This section settles once and for all the single object that recurs throughout the later chapters: the
+    <b>distribution function</b> and its <b>generalized inverse</b>. The P95 of Definition 1.1, the median set of
+    Theorem 1.2, the quantile-integral representation of <a href="#sec3">§3.6</a>, the reliability diagram and ECE of <a
+      href="#sec4">§4</a>, the pinball quantile convention of <a href="#sec11">§11</a>, and the conformal quantiles of <a
+      href="#sec13">§13</a> are all instances of the same definitions applied at different levels (population,
+    conditional, empirical). Definitions and three working lemmas are collected here; later chapters cite them without
+    reproving. <b>Environment numbering starts at 0.3</b> to avoid collision with the already-used equation tags (0.1)
+    and (0.2).</p>
+
+  <details class="recap" open>
+    <summary><span class="label">Refresher — continuity of measures and monotone functions (undergrad probability &amp;
+        real analysis)</span> <span class="hint">(collapse this if you still remember it)</span></summary>
+    <p><b>(R6) Monotonicity and sequential continuity of a measure.</b> If \(A\subseteq B\) then
+      \(\Prob(A)\le\Prob(B)\). If events increase, \(A_n\uparrow A:=\bigcup_n A_n\), then \(\Prob(A_n)\to\Prob(A)\)
+      (<b>continuity from below</b>); if they decrease, \(A_n\downarrow A:=\bigcap_n A_n\), then
+      \(\Prob(A_n)\to\Prob(A)\) (<b>continuity from above</b>; a probability measure is finite, so no extra integrability
+      condition is needed). <i>Every</i> topological property of a CDF below — right-continuity, existence of left
+      limits, the two end limits — follows from these two facts alone, with no density or continuity assumption.</p>
+    <p><b>(R7) One-sided limits of monotone functions.</b> A monotone bounded \(F:\mathbb{R}\to[0,1]\) has, at every
+      point, both a left limit \(F(m^-):=\lim_{t\uparrow m}F(t)\) and a right limit \(F(m^+)\) (not necessarily equal),
+      and it has at most countably many discontinuities. So "\(F(m^-)\) exists" is free — no extra hypothesis is
+      required — which is what lets Theorem 1.2 legitimately write \(F(m^-)\).</p>
+  </details>
+
+  <div class="defn"><span class="label">Definition 0.3 (distribution function).</span>
+    Let \(Y\) be a real-valued random variable on a probability space \((\Omega,\mathcal{F},\Prob)\) (i.e., a measurable
+    map \(Y:\Omega\to\mathbb{R}\)). Its <b>cumulative distribution function</b> (CDF) is
+    \[
+    F_Y(y)\;=\;\Prob(Y\le y),\qquad y\in\mathbb{R}.
+    \]
+    The subscript is dropped when unambiguous. The convention \(\le\) (rather than \(\lt\)) is what produces the
+    right-continuous version; see Lemma 0.4.
+  </div>
+
+  <div class="lem"><span class="label">Lemma 0.4 (four properties of a CDF, and atoms).</span>
+    Let \(F=F_Y\). Then
+    <ul style="list-style-type: none; padding-left: 1em; margin: 0.5em 0;">
+      <li>(a) \(F\) is nondecreasing;</li>
+      <li>(b) \(F\) is <b>right</b>-continuous: \(\lim_{t\downarrow y}F(t)=F(y)\);</li>
+      <li>(c) \(\lim_{y\to-\infty}F(y)=0\) and \(\lim_{y\to+\infty}F(y)=1\);</li>
+      <li>(d) \(F(y^-)=\Prob(Y\lt y)\), so the jump height is exactly the atom mass
+        \[
+        F(y)-F(y^-)=\Prob(Y=y).
+        \]
+      </li>
+    </ul>
+    Range \(\subseteq[0,1]\) follows from (a)+(c) and need not be assumed separately.
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    (a) If \(x\le y\) then \(\{Y\le x\}\subseteq\{Y\le y\}\), and (R6) monotonicity gives \(F(x)\le F(y)\).<br>
+    (b) Take any \(t_n\downarrow y\). Then \(\{Y\le t_n\}\downarrow\{Y\le y\}\) (the intersection is exactly \(\{Y\le
+    y\}\), because \(Y(\omega)\le t_n\) for every \(n\) is equivalent to \(Y(\omega)\le\inf_n t_n=y\)). Continuity from
+    above in (R6) gives \(F(t_n)\to F(y)\); the sequence was arbitrary, so the right limit exists and equals
+    \(F(y)\).<br>
+    (c) Take \(y_n\downarrow-\infty\): \(\{Y\le y_n\}\downarrow\varnothing\), hence \(F(y_n)\to0\). Take
+    \(y_n\uparrow+\infty\): \(\{Y\le y_n\}\uparrow\Omega\), hence \(F(y_n)\to1\).<br>
+    (d) Take \(t_n\uparrow y\) strictly. Then \(\{Y\le t_n\}\uparrow\{Y\lt y\}\), and continuity from below gives
+    \(F(t_n)\to\Prob(Y\lt y)\), i.e. \(F(y^-)=\Prob(Y\lt y)\). Subtracting gives the jump formula.<span
+      class="qed">∎</span>
+  </div>
+
+  <p><b>Why \(\lt\) will not do.</b> If one instead defines \(\widetilde F(y)=\Prob(Y\lt y)\), then \(\widetilde
+    F=F(\cdot^-)\), which is the <b>left</b>-continuous version. The two differ only at atoms, but the quantile
+    conventions of this book, the PIT statements of <a href="#sec4">§4</a>, and the VaR-exception definitions of <a
+      href="#sec9">§9</a> all rely on the right-continuous convention, so \(\le\) must be fixed throughout.</p>
+
+  <div class="defn"><span class="label">Definition 0.5 (generalized inverse / quantile function).</span>
+    For \(0\lt\tau\le 1\), define
+    \[
+    F^{-1}(\tau)\;=\;\inf\{x\in\mathbb{R}:F(x)\ge\tau\}.
+    \]
+    This is the book-wide quantile convention (written \(q_\tau\) in <a href="#sec11">§11</a>, and likewise in <a
+      href="#sec3">§3.6</a> and <a href="#sec9">§9</a>). When \(F\) is continuous and strictly increasing it reduces to
+    the ordinary inverse; in general it is <b>left</b>-continuous.
+  </div>
+
+  <div class="lem"><span class="label">Lemma 0.6 (Galois inequality and its corollaries).</span>
+    For \(0\lt\tau\le1\) and any \(x\in\mathbb{R}\),
+    \[
+    F^{-1}(\tau)\le x
+    \quad\Longleftrightarrow\quad
+    \tau\le F(x).
+    \]
+    Writing \(q_\tau:=F^{-1}(\tau)\), this yields:
+    <ul style="list-style-type: none; padding-left: 1em; margin: 0.5em 0;">
+      <li>(i) \(q_\tau\) is finite and the infimum is attained: \(F(q_\tau)\ge\tau\);</li>
+      <li>(ii) \(F(q_\tau^-)\le\tau\), hence \(F(q_\tau^-)\le\tau\le F(q_\tau)\);</li>
+      <li>(iii) (inverse-transform sampling / the CDF characterization theorem) if
+        \(U\sim\mathrm{Uniform}(0,1)\), then \(F^{-1}(U)\) has CDF exactly \(F\). Consequently any function satisfying
+        Lemma 0.4 (a)(b)(c) <i>is</i> the CDF of some real-valued random variable — those three properties are a
+        complete characterization.</li>
+    </ul>
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    Let \(A_\tau=\{u:F(u)\ge\tau\}\).<br>
+    (\(\Leftarrow\)) If \(\tau\le F(x)\) then \(x\in A_\tau\), so \(F^{-1}(\tau)=\inf A_\tau\le x\).<br>
+    (\(\Rightarrow\)) First show \(q_\tau\in A_\tau\). By Lemma 0.4(a), \(A_\tau\) is an up-set (\(u\in A_\tau\) and
+    \(u'\gt u\) imply \(u'\in A_\tau\)); by \(F\to1\) in (c), \(A_\tau\ne\varnothing\); by \(F\to0\), \(A_\tau\) is
+    bounded below, so \(q_\tau=\inf A_\tau\) is a finite real number. Take \(u_n\in A_\tau\) with \(u_n\downarrow
+    q_\tau\); right-continuity gives \(F(q_\tau)=\lim_n F(u_n)\ge\tau\), which is (i), and \(A_\tau=[q_\tau,\infty)\).
+    Then \(q_\tau\le x\) together with monotonicity gives \(F(x)\ge F(q_\tau)\ge\tau\).<br>
+    (ii) For any \(x\lt q_\tau\) we have \(x\notin A_\tau\), i.e. \(F(x)\lt\tau\); letting \(x\uparrow q_\tau\) gives
+    \(F(q_\tau^-)\le\tau\).<br>
+    (iii) The Galois inequality is the event identity \(\{F^{-1}(U)\le x\}=\{U\le F(x)\}\), so
+    \(\Prob\bigl(F^{-1}(U)\le x\bigr)=\Prob\bigl(U\le F(x)\bigr)=F(x)\) (the last step because \(F(x)\in[0,1]\)).<span
+      class="qed">∎</span>
+  </div>
+
+  <p><b>Where this lemma is used later.</b> At \(\tau=\tfrac12\), corollaries (i)(ii) give \(F(q^-)\le\tfrac12\le F(q)\)
+    directly — this is exactly the <b>existence step of Theorem 1.2</b>. At \(\tau=0.95\) it makes the P95 of Definition
+    1.1 well defined. Part (iii) is the construction used in reverse by Theorem 4.1 (PIT) in <a href="#sec4">§4</a>. For
+    general \(\tau\) it is the common foundation of the pinball loss in <a href="#sec11">§11</a> and the conformal
+    quantiles of <a href="#sec13">§13</a>.</p>
+
+  <div class="defn"><span class="label">Definition 0.7 (empirical distribution function).</span>
+    Given real numbers \(x_1,\ldots,x_N\) (<b>not</b> assumed distinct, and <b>not</b> assumed iid), define the
+    <b>empirical measure</b> and the <b>empirical distribution function</b>
+    \[
+    P_N=\frac1N\sum_{i=1}^N\delta_{x_i},
+    \qquad
+    F_N(t)=P_N\bigl((-\infty,t]\bigr)=\frac1N\sum_{i=1}^N\ind[x_i\le t],
+    \]
+    where \(\delta_{x}\) is the point mass at \(x\). Note that \(F_N\) is defined on <b>all of the real line</b>, not
+    only at the sample points.
+  </div>
+
+  <div class="lem"><span class="label">Lemma 0.8 (structure of the empirical CDF; the order-statistic dictionary).</span>
+    Let \(x_{(1)}\le\cdots\le x_{(N)}\) be the sorted sample. Then
+    <ul style="list-style-type: none; padding-left: 1em; margin: 0.5em 0;">
+      <li>(a) \(F_N\) satisfies Lemma 0.4 (a)(b)(c), so it is the CDF of \(P_N\); its range lies in
+        \(\{0,\tfrac1N,\ldots,1\}\) and it is a right-continuous step function. \(P_N\) is <b>always</b> a discrete
+        measure, regardless of whether the sampling distribution is continuous.</li>
+      <li>(b) \(F_N(t^-)=\dfrac{\#\{i:x_i\lt t\}}{N}\), with jump height \(F_N(a)-F_N(a^-)=\dfrac{\#\{i:x_i=a\}}{N}\).
+      </li>
+      <li>(c) For \(0\lt\tau\le1\),
+        \[
+        F_N^{-1}(\tau)=x_{(\lceil N\tau\rceil)} .
+        \]
+        If the sample values are distinct, additionally \(F_N\bigl(x_{(k)}\bigr)=\tfrac kN\) and
+        \(F_N\bigl(x_{(k)}^-\bigr)=\tfrac{k-1}N\).</li>
+      <li>(d) Hence the P95 of Definition 1.1 is the \(0.95\) generalized quantile of the absolute-residual sample:
+        \(\mathrm{P95}=|r|_{(\lceil 0.95N\rceil)}\).</li>
+    </ul>
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    (a) Each \(t\mapsto\ind[x_i\le t]\) is nondecreasing and right-continuous, and a finite nonnegative weighted sum
+    preserves both; \(F_N=0\) for \(t\lt x_{(1)}\) and \(F_N=1\) for \(t\ge x_{(N)}\), giving the end limits.<br>
+    (b) Take \(t_n\uparrow t\); then \(\ind[x_i\le t_n]\uparrow\ind[x_i\lt t]\) and one passes to the limit in a finite
+    sum (or simply apply Lemma 0.4(d) to the measure \(P_N\)).<br>
+    (c) Since \(\#\{i:x_i\le t\}\) is an integer,
+    \[
+    F_N(t)\ge\tau
+    \iff \#\{i:x_i\le t\}\ge N\tau
+    \iff \#\{i:x_i\le t\}\ge\lceil N\tau\rceil
+    \iff t\ge x_{(\lceil N\tau\rceil)},
+    \]
+    the last step using that "at least \(k\) sample points are \(\le t\)" is equivalent to "\(x_{(k)}\le t\)". Take the
+    infimum. The two formulas in the distinct-values case are read off from (b).<br>
+    (d) Apply (c) to the sample \(|r_1|,\ldots,|r_N|\) with \(\tau=0.95\).<span class="qed">∎</span>
+  </div>
+
+  <div class="worked"><span class="label">Numerical example — what \(F_N\) looks like (with ties).</span>
+    Sample \(\{1,3,3,7\}\) (\(N=4\), the value \(3\) occurring twice):
+    \[
+    F_N(t)=
+    \begin{cases}
+    0, & t\lt 1,\\[2pt]
+    \tfrac14, & 1\le t\lt 3,\\[2pt]
+    \tfrac34, & 3\le t\lt 7,\\[2pt]
+    1, & t\ge 7 .
+    \end{cases}
+    \]
+    At \(t=3\): \(F_N(3^-)=\tfrac14\), \(F_N(3)=\tfrac34\), a jump of \(\tfrac12=\tfrac{\#\{i:x_i=3\}}{4}\). Note that
+    <b>no \(m\) satisfies \(F_N(m)=\tfrac12\)</b> — the CDF steps straight across \(\tfrac12\). Yet the
+    generalized-median condition \(F_N(m^-)\le\tfrac12\le F_N(m)\) does hold at \(m=3\) (\(\tfrac14\le\tfrac12\le
+    \tfrac34\)), so \(M^*=\{3\}\) (<span class="pencil">☞ pencil-and-paper checkpoint</span>: evaluate
+    \(\sum_i|x_i-m|\) directly — it is \(2+0+0+4=6\) at \(m=3\), and \(6.2\) at both \(m=2.9\) and \(m=3.1\)).
+  </div>
+
+  <p><b>Finite samples always have atoms — this is not a technicality.</b> Even when the \(x_i\) are drawn from a
+    continuous population, for every finite \(N\) the function \(F_N\) is a step function and \(P_N\) is a discrete
+    measure. Simplified statements of the form "\(F(m)=\tfrac12\)" therefore <b>fail outright at the sample level</b>.
+    This is the common reason why three places in this book must use atom-tolerant formulations: Theorem 1.2 uses
+    \(F(m^-)\le\tfrac12\le F(m)\) rather than \(F(m)=\tfrac12\); the ECE and reliability diagram of <a
+      href="#sec4">§4</a> must fix endpoint and tie rules (a tie at the lower endpoint requires the left limit
+    \(\widehat R(\cdot^-)\)); and the VaR exceptions of <a href="#sec9">§9</a> must distinguish \(R_t\lt q_t\) from
+    \(R_t\le q_t\). Under an iid assumption Glivenko–Cantelli gives \(\sup_{m}|F_N(m)-F(m)|\to0\) almost surely, but
+    that is an \(N\to\infty\) statement and cannot be used to argue away the atoms of a finite sample.</p>
+
+
+  <div class="demo" id="demo10">
+    <div class="demo-title">🎛 Interactive experiment 10 | The empirical distribution, the generalized inverse, and the
+      Galois inequality: Definition 0.5, Lemma 0.6 and Lemma 0.8 checked side by side</div>
+    <p style="font-size:.93em;margin:.2em 0 .4em">On the left is the empirical CDF \(F_N\) of the sample (a
+      right-continuous staircase: <b>filled</b> dots are the values the function actually attains, <b>hollow</b> dots
+      are left limits); on the right is its generalized inverse \(\tau\mapsto F_N^{-1}(\tau)\) (a left-continuous
+      staircase). The <b>quantization step \(\Delta\)</b> manufactures ties: at \(\Delta=0\) the sample points are
+      distinct, while at \(\Delta&gt;0\) every point snaps to a grid and \(F_N\) immediately grows jumps of height
+      \(\#\{i:x_i=a\}/N\). Three statements are checked at every slider setting: the order-statistic dictionary
+      \(F_N^{-1}(\tau)=x_{(\lceil N\tau\rceil)}\) (Lemma 0.8(c)), the sandwich \(F_N(q_\tau^-)\le\tau\le
+      F_N(q_\tau)\) (Lemma 0.6(i)(ii)), and the Galois equivalence \(F_N^{-1}(\tau)\le x\iff\tau\le F_N(x)\) (Lemma
+      0.6). Everything is exact sorting and counting — no sampling noise.</p>
+    <div class="controls">
+      <label>sample size N <input type="range" id="d10n" min="4" max="80" step="1" value="12"> <span class="val"
+          id="d10nv"></span></label>
+      <label>quantization step Δ <input type="range" id="d10d" min="0" max="2" step="0.25" value="0.5"> <span class="val"
+          id="d10dv"></span></label>
+      <label>quantile level τ <input type="range" id="d10t" min="0.01" max="1" step="0.01" value="0.5"> <span class="val"
+          id="d10tv"></span></label>
+      <label>Galois probe x <input type="range" id="d10x" min="-6" max="6" step="0.1" value="0"> <span class="val"
+          id="d10xv"></span></label>
+      <span>Presets:
+        <button class="presetbtn" id="d10p1">Δ=0 (distinct)</button>
+        <button class="presetbtn" id="d10p2">Δ=1 (many ties)</button>
+        <button class="presetbtn" id="d10p3">τ=0.95 → P95</button>
+        <button class="presetbtn" id="d10p4">Small sample N=6</button></span>
+    </div>
+    <canvas id="d10c"></canvas>
+    <div class="readouts" id="d10r"></div>
+    <div class="trylist"><b>Try this:</b> (1) Push Δ from 0 up to 1: the staircase gets fewer and taller steps and the
+      largest atom mass rises — <b>a finite sample is always a discrete measure</b>, whether or not the population is
+      continuous. (2) Fix \(\Delta&gt;0\) and drag τ slowly across one of the jumps: \(q_\tau\) <b>stops moving</b>,
+      because the whole range \(\tau\in(F_N(a^-),F_N(a)]\) maps to the same \(x_{(k)}=a\). This is exactly why Theorem
+      1.2 has to be stated as \(F(m^-)\le\tfrac12\le F(m)\) and not as \(F(m)=\tfrac12\). (3) Drag the Galois probe x
+      across \(q_\tau\): the two booleans <b>always flip together</b> — that is Lemma 0.6, the common foundation of the
+      PIT in §4, the pinball loss in §11, and the conformal quantiles in §13. (4) Click "τ=0.95": the \(q_\tau\) you
+      read off is the P95 of Definition 1.1 (Lemma 0.8(d)).</div>
+  </div>
+
   <h2 id="sec1">§1 Point-error metrics: RMSE, MAE, Bias, P95</h2>
 
   <h3>1.1 Definitions</h3>
@@ -777,17 +1016,61 @@
       </p>
 
       <p style="margin-top: 1.2em;"><b>(ii) Proof of (ii):</b><br>
-        Let \(g(m)=\E|Y-m|\). Since \(\E|Y|\lt\infty\), the convex function \(g\) is finite everywhere on the real line.
-        We proceed with the derivation step-by-step:
+        Let \(g(m)=\E|Y-m|\). The entire proof uses only \(\E|Y|\lt\infty\): no density, no continuity of \(F\), and no
+        existence of an ordinary two-sided derivative is assumed. We proceed in six steps.
       </p>
 
       <div style="margin-left: 1em; margin-top: 0.8em;">
-        <p><b>Step 1. Define Difference Quotients and Bound Controls</b><br>
+        <p><b>Step 0. Four basic properties of the objective</b><br>
+          <i>Finite:</i> from \(|Y-m|\le|Y|+|m|\) we get \(g(m)\le\E|Y|+|m|\lt\infty\), so \(g\) is finite on the whole
+          real line.<br>
+          <i>Convex:</i> for each fixed \(y\), \(m\mapsto|y-m|\) is convex, and expectation is a nonnegative linear
+          operation, which preserves convexity.<br>
+          <i>Continuous:</i> a convex function that is finite everywhere on \(\mathbb{R}\) is continuous (in fact locally
+          Lipschitz).<br>
+          <i>Coercive:</i> the reverse triangle inequality \(|Y-m|\ge|m|-|Y|\) gives, on taking expectations,
+          \[
+          g(m)\ \ge\ |m|-\E|Y|\ \xrightarrow[\ |m|\to\infty\ ]{}\ +\infty .
+          \]
+          <b>Corollary (first route to existence):</b> continuous + coercive \(\Rightarrow\) the minimum is attained on
+          some compact interval, so \(\operatorname*{argmin}g\ne\varnothing\); moreover the minimizer set of a convex
+          function is convex, and it is closed because \(g\) is continuous and bounded because \(g\) is coercive. Hence
+          \(M^\ast\) is a <b>nonempty bounded closed interval</b>. This step involves no CDF at all; only after Step 3
+          are the interval endpoints identified as quantiles.<br>
+          <span class="pencil">☞ pencil-and-paper checkpoint</span>: existence cannot be skipped. A function that is
+          finite, continuous, convex, and bounded below need <i>not</i> attain its minimum — e.g. \(f(x)=e^{x}\) on
+          \(\mathbb{R}\) satisfies all four yet has \(\operatorname*{argmin}f=\varnothing\). What is missing there is
+          coercivity.
+        </p>
+
+        <p style="margin-top: 0.8em;"><b>Step 1. Difference quotients and a uniform bound (reverse triangle
+            inequality)</b><br>
           For \(h\gt 0\), define the right-sided and left-sided pointwise difference quotients respectively as:
           \[
           D_h^+(y) = \frac{|y-(m+h)|-|y-m|}{h}, \qquad D_h^-(y) = \frac{|y-m|-|y-(m-h)|}{h}.
           \]
-          By the triangle inequality, for any \(y\) and \(h\gt 0\), we have \(|D_h^\pm(y)|\le 1\).
+          <i>Where the bound comes from.</i> Put \(a=y-(m+h)\) and \(b=y-m\), so that \(a-b=-h\) and \(|a-b|=h\). The
+          triangle inequality gives \(|a|=|(a-b)+b|\le|a-b|+|b|\), i.e. \(|a|-|b|\le|a-b|\); swapping \(a,b\) gives
+          \(|b|-|a|\le|a-b|\). Combining the two yields the <b>reverse triangle inequality</b>
+          \[
+          \bigl|\,|a|-|b|\,\bigr|\le|a-b| = h
+          \quad\Longrightarrow\quad
+          |D_h^+(y)|\le 1 .
+          \]
+          For \(D_h^-\) take \(a=y-m\) and \(b=y-(m-h)\), again with \(|a-b|=h\), giving \(|D_h^-(y)|\le1\). Equivalently
+          in one sentence: \(m\mapsto|y-m|\) is \(1\)-Lipschitz, so moving the parameter by \(h\) changes the value by at
+          most \(h\).<br>
+          <span class="pencil">☞ pencil-and-paper checkpoint</span>: one can also verify this piecewise,
+          \[
+          D_h^+(y)=
+          \begin{cases}
+          +1, & y\le m,\\[2pt]
+          1-\dfrac{2(y-m)}{h}, & m\lt y\lt m+h,\\[4pt]
+          -1, & y\ge m+h,
+          \end{cases}
+          \]
+          where on the middle interval \(u=(y-m)/h\in(0,1)\) gives \(1-2u\in(-1,1)\). (Writing this bound as \(\ge1\)
+          would be an error: at \(y=m+\tfrac h2\) one gets \(D_h^+(y)=0\).)
         </p>
 
         <p style="margin-top: 0.8em;"><b>Step 2. Pointwise Limits and Dominated Convergence Theorem</b><br>
@@ -799,43 +1082,105 @@
           D_h^-(y) \longrightarrow \ind[y\lt m] - \ind[y\ge m].
           \]
           Note that at the atom \(y=m\), these two one-sided limits are \(+1\) and \(-1\) respectively.<br>
-          Since \(|D_h^\pm(y)|\le 1\) and \(1\) is an integrable constant, by the <b>Dominated Convergence Theorem
-            (DCT)</b>, we can take the limit inside the expectation to obtain the left and right one-sided derivatives
-          of \(g\):
+          Since \(|D_h^\pm(y)|\le 1\) (Step 1) and the constant \(1\) is integrable for a probability measure
+          (\(\E[1]=1\lt\infty\)), the <b>Dominated Convergence Theorem (DCT)</b> lets us take the limit inside the
+          expectation.<br>
+          <i>Technical remark (continuous parameter vs. sequence).</i> The DCT is stated for <b>sequences</b>, whereas
+          \(h\downarrow0\) is a continuous-parameter limit. The rigorous route is: take an arbitrary sequence
+          \(h_n\downarrow0\), so that the DCT gives \(\E[D_{h_n}^\pm]\to\E[\text{limit}]\); since the limiting value does
+          not depend on the chosen sequence, the continuous-parameter limit exists and equals it. (Alternative route:
+          convexity of \(g\) makes \(h\mapsto\bigl(g(m+h)-g(m)\bigr)/h\) nondecreasing in \(h\), so the limit as
+          \(h\downarrow0\) exists automatically and the DCT is only used to <i>identify</i> it.) Since
+          \(\E[D_h^+]=\bigl(g(m+h)-g(m)\bigr)/h\) and \(\E[D_h^-]=\bigl(g(m)-g(m-h)\bigr)/h\), we obtain the left and
+          right one-sided derivatives of \(g\):
           \[
           g'_-(m) = \E\bigl[\ind[Y\lt m]-\ind[Y\ge m]\bigr] = \Prob(Y\lt m)-\Prob(Y\ge m) = 2F(m^-)-1,
           \]
           \[
           g'_+(m) = \E\bigl[\ind[Y\le m]-\ind[Y\gt m]\bigr] = \Prob(Y\le m)-\Prob(Y\gt m) = 2F(m)-1.
           \]
+          Both use Lemma 0.4(d) (\(F(m^-)=\Prob(Y\lt m)\)). Incidentally, \(F(m^-)\le F(m)\) immediately gives
+          \(g'_-(m)\le g'_+(m)\), consistent with the general fact about one-sided derivatives of convex functions.
         </p>
 
-        <p style="margin-top: 0.8em;"><b>Step 3. Prove the Generalized-Median Set is Nonempty</b><br>
-          Define the set \(A = \{x \in \mathbb{R} : F(x)\ge 1/2\}\). Due to the limit properties of the CDF (\(F(x)\to
-          0\) as \(x\to -\infty\), and \(F(x)\to 1\) as \(x\to +\infty\)), \(A\) is nonempty and bounded below, so its
-          infimum \(q=\inf A\) exists as a finite real number.<br>
-          By the right-continuity of \(F\), we have \(F(q)\ge 1/2\). For any \(x\lt q\), the definition of the infimum
-          implies \(F(x)\lt 1/2\), and taking the limit \(x\uparrow q\) yields the left limit \(F(q^-)\le 1/2\). Thus,
-          \(q\) satisfies:
+        <p style="margin-top: 0.8em;"><b>Step 3. The Generalized-Median Set is Nonempty</b><br>
+          Take \(q:=F^{-1}(\tfrac12)=\inf\{x:F(x)\ge\tfrac12\}\) (Definition 0.5). Corollaries (i)(ii) of Lemma 0.6 at
+          \(\tau=\tfrac12\) give directly
           \[
           F(q^-)\le \frac{1}{2} \le F(q),
           \]
-          which shows that the generalized-median set is nonempty.
+          so the generalized-median set is nonempty.<br>
+          <i>The content of that argument, restated here so this proof is self-contained.</i> Let \(A=\{x:F(x)\ge
+          \tfrac12\}\). From \(F(x)\to1\) we get \(A\ne\varnothing\); from \(F(x)\to0\) there is \(x_0\) with
+          \(F(x_0)\lt\tfrac12\), and by monotonicity no \(x\le x_0\) lies in \(A\), so \(A\) is bounded below and
+          \(q=\inf A\) is a finite real number. Take \(u_n\in A\) with \(u_n\downarrow q\); <b>right-continuity</b> gives
+          \(F(q)=\lim_n F(u_n)\ge\tfrac12\). For any \(x\lt q\), the definition of the infimum gives
+          \(F(x)\lt\tfrac12\), and letting \(x\uparrow q\) gives \(F(q^-)\le\tfrac12\).<br>
+          <b>The two existence arguments answer different questions.</b> The coercivity argument of Step 0 only says
+          that a minimizer exists; the quantile argument here additionally <i>computes</i> it — the minimizer is the
+          \(\tfrac12\)-quantile. This is also the correct generalization of "a finite sorted array always has a middle
+          position" to an arbitrary population distribution: whether the support is uncountable (as for
+          \(\mathcal N(0,1)\)), countably infinite (as for a geometric distribution), or contains atoms, the cumulative
+          probability rising from \(0\) to \(1\) must cross \(\tfrac12\) somewhere.
         </p>
 
-        <p style="margin-top: 0.8em;"><b>Step 4. Optimality Condition</b><br>
-          Since \(g(m)\) is a finite convex function on \(\mathbb{R}\), a point \(m\) is a global minimizer <b>if and
-            only if</b> \(0\) belongs to the subdifferential interval \([g'_-(m), g'_+(m)]\) at \(m\), which is written
-          as:
-          \[
-          g'_-(m)\le 0 \le g'_+(m).
-          \]
-          Substituting the derivative formulas from Step 2, this condition is equivalent to:
+        <p style="margin-top: 0.8em;"><b>Step 4. Optimality Condition, necessary and sufficient (subdifferential)</b><br>
+          <i>Sufficiency.</i> Monotonicity of the difference quotients of a convex function gives the <b>support
+            inequalities</b>: for \(m'\gt m\), \(g(m')\ge g(m)+g'_+(m)(m'-m)\); for \(m'\lt m\), \(g(m')\ge
+          g(m)+g'_-(m)(m'-m)\). If \(g'_-(m)\le0\le g'_+(m)\), then the second term on the right is \(\ge0\) in the first
+          case (nonnegative times positive) and also \(\ge0\) in the second (nonpositive times negative), so in both
+          cases \(g(m')\ge g(m)\) and \(m\) is a <b>global</b> minimizer.<br>
+          <i>Necessity.</i> If \(m\) is a minimizer, then \(g(m+h)-g(m)\ge0\) for \(h\gt0\); dividing by \(h\) and
+          letting \(h\downarrow0\) gives \(g'_+(m)\ge0\). Likewise \(g(m-h)-g(m)\ge0\) gives \(g'_-(m)\le0\).<br>
+          Together: \(m\) is a minimizer \(\iff 0\in[g'_-(m),\,g'_+(m)]=\partial g(m)\). Substituting the formulas of
+          Step 2:
           \[
           2F(m^-)-1 \le 0 \le 2F(m)-1 \quad\Longleftrightarrow\quad F(m^-)\le \frac{1}{2} \le F(m).
           \]
-          This proof naturally covers distributions with atoms (jumps) and flat continuous plateaus without assuming the
-          existence of an ordinary two-sided derivative.
+          This is the characterization of \(M^\ast\), and it covers distributions with atoms (jumps) and with flat
+          plateaus without assuming that an ordinary two-sided derivative exists.
+        </p>
+
+        <p style="margin-top: 0.8em;"><b>Step 5. The structure of \(M^\ast\), and the real condition for
+            uniqueness</b><br>
+          By the corollary in Step 0, \(M^\ast\) is a nonempty bounded closed interval; the characterization in Step 4
+          identifies its endpoints:
+          \[
+          M^\ast=[\,q_-,\ q_+\,],\qquad
+          q_-=F^{-1}(\tfrac12)=\inf\{x:F(x)\ge\tfrac12\},\qquad
+          q_+=\sup\{x:F(x)\le\tfrac12\},
+          \]
+          and \(g\) is constant on \(M^\ast\). <b>Continuity does not imply uniqueness</b>: let \(Y\) have the density
+          placing half its mass uniformly on \([0,1]\) and half uniformly on \([2,3]\). Then \(F\) is continuous and
+          \(F(m)=\tfrac12\) for <i>every</i> \(m\in[1,2]\), so \(M^\ast=[1,2]\). The correct condition for uniqueness is
+          that \(F\) crosses level \(\tfrac12\) <b>strictly</b> increasingly (i.e., there is no zero-probability gap near
+          the median), not merely that \(F\) is continuous.
+        </p>
+
+        <p style="margin-top: 0.8em;"><b>Step 6. Special case: the empirical distribution — back to the sorted
+            array</b><br>
+          Apply the theorem to the empirical measure \(P_N\) (Lemma 0.8(a) guarantees \(F_N\) is a legitimate CDF). By
+          Lemma 0.8(b), the condition \(F_N(m^-)\le\tfrac12\le F_N(m)\) is equivalent to
+          \[
+          \#\{i:x_i\lt m\}\le \frac N2
+          \qquad\text{and}\qquad
+          \#\{i:x_i\le m\}\ge \frac N2,
+          \]
+          i.e. "at most half the points lie strictly to the left of \(m\), and at least half lie at or to the left of
+          \(m\)". Split by parity (<span class="pencil">☞ pencil-and-paper checkpoint</span>):
+          <br>
+          <i>\(N=2k+1\) (odd):</i> the two conditions become \(\#\{x_i\lt m\}\le k\) (i.e. \(m\le x_{(k+1)}\)) and
+          \(\#\{x_i\le m\}\ge k+1\) (i.e. \(x_{(k+1)}\le m\)), so \(M^\ast=\{x_{(k+1)}\}\), unique.<br>
+          <i>\(N=2k\) (even):</i> they become \(m\le x_{(k+1)}\) and \(x_{(k)}\le m\), so
+          \[
+          M^\ast=\bigl[x_{(k)},\,x_{(k+1)}\bigr].
+          \]
+          Hence the textbook rule "average the two middle values for an even sample" is a <b>convention that picks one
+            representative point out of a whole interval of minimizers</b>, not a conclusion of the theorem.<br>
+          <i>Numerical example.</i> For the sample \(\{1,3,8,10\}\) and any \(m\in[3,8]\),
+          \(\sum_i|x_i-m|=(m-1)+(m-3)+(8-m)+(10-m)=14\) (the \(m\)'s cancel exactly), while \(m=2.9\) or \(m=8.1\) gives
+          \(14.2\). So \(3,4,5.5,7,8\) are all minimizers; the conventional sample median \(5.5\) is merely the midpoint
+          of the interval.
         </p>
       </div>
     </div>
@@ -935,12 +1280,13 @@
       \]
     </p>
 
-    <table>
+    <table class="simple">
       <tr>
         <th>Quantity</th>
         <th>What it describes</th>
         <th>Zero-mean Gaussian reference</th>
         <th>Units</th>
+        <th>Deviation order</th>
         <th>Outlier sensitivity (qualitative)</th>
       </tr>
       <tr>
@@ -948,6 +1294,7 @@
         <td>Overall location or systematic offset of the residuals</td>
         <td>\(0\)</td>
         <td>Same as \(r\)</td>
+        <td>\(1\)</td>
         <td>High</td>
       </tr>
       <tr>
@@ -955,6 +1302,7 @@
         <td>Dispersion scale of the residuals around their mean</td>
         <td>Gaussian scale parameter</td>
         <td>Same as \(r\)</td>
+        <td>\(2\)</td>
         <td>High</td>
       </tr>
       <tr>
@@ -962,6 +1310,7 @@
         <td>Imbalance between third-order deviations on the positive and negative sides</td>
         <td>\(0\)</td>
         <td>Dimensionless</td>
+        <td>\(3\)</td>
         <td>Very high</td>
       </tr>
       <tr>
@@ -969,6 +1318,7 @@
         <td>Standardized fourth-order contribution of extreme observations to overall variation</td>
         <td>\(3\)</td>
         <td>Dimensionless</td>
+        <td>\(4\)</td>
         <td>Extremely high</td>
       </tr>
     </table>
@@ -1301,6 +1651,46 @@
     independent unit and use a matching trajectory/group bootstrap or a separately justified cluster/HAC estimator.
     Dispersion across training seeds on one fixed evaluation set measures sensitivity to training randomness; it is not
     the holdout sampling standard error of \(\widehat p_k\), and the two must be reported separately.</p>
+
+  <div class="demo" id="demo11">
+    <div class="demo-title">🎛 Interactive experiment 11 | Coverage sampling uncertainty belongs to the hit-indicator
+      process: why the residual effective sample size of §0.3 must not be substituted in</div>
+    <p style="font-size:.93em;margin:.2em 0 .4em">Let \(z_i\) be a weakly stationary Gaussian AR(1) with \(\mathcal
+      N(0,1)\) margins and \(\operatorname{Corr}(z_i,z_{i+\ell})=\phi^{\ell}\). Write \(H_i=\ind\{|z_i|\le k\}\) and
+      \(\widehat p_k=N^{-1}\sum_i H_i\). Everything is computed in closed form: \(\gamma_H(0)=p(1-p)\), while for
+      \(\ell\ge1\) the autocovariance \(\gamma_H(\ell)=\Prob(|Z_1|\le k,|Z_2|\le k)-p^2\) comes from the bivariate
+      normal rectangle probability at correlation \(\phi^{\ell}\) (evaluated by a one-dimensional conditional
+      integral). <b>The structural point: the rectangle event is invariant under \((z_1,z_2)\mapsto(z_1,-z_2)\), and
+      that map flips the sign of the correlation, so \(\gamma_H\) is an <u>even</u> function of \(\phi^\ell\)</b> —
+      negative residual autocorrelation inflates the coverage variance <b>just as much</b> as positive, even while it
+      makes the residual mean more precise.</p>
+    <div class="controls">
+      <label>residual AR(1) coefficient φ <input type="range" id="d11f" min="-0.95" max="0.95" step="0.05" value="0.8">
+        <span class="val" id="d11fv"></span></label>
+      <label>σ level k <input type="range" id="d11k" min="0.5" max="3" step="0.1" value="1"> <span class="val"
+          id="d11kv"></span></label>
+      <label>sample size N <input type="range" id="d11n" min="50" max="2000" step="50" value="500"> <span class="val"
+          id="d11nv"></span></label>
+      <span>Presets:
+        <button class="presetbtn" id="d11p1">φ=0 (iid)</button>
+        <button class="presetbtn" id="d11p2">φ=+0.8</button>
+        <button class="presetbtn" id="d11p3">φ=−0.8 (the trap)</button>
+        <button class="presetbtn" id="d11p4">k=2 (2σ level)</button></span>
+    </div>
+    <canvas id="d11c"></canvas>
+    <div class="readouts" id="d11r"></div>
+    <div class="trylist"><b>Try this:</b> (1) Click "φ=−0.8" (k=1, N=500): the residual \(D_N\approx0.112\), so the
+      <b>residual mean</b> has \(N_{\mathrm{eff}}\approx4460&gt;N\) — better than iid. But the hit process has
+      \(D_N^{H}\approx3.21\), and the true coverage standard error 0.0373 is 1.79 times the iid value 0.0208. Making
+      the mistake §2.3 warns about — substituting the residual \(N_{\mathrm{eff}}\) into the binomial formula — returns
+      0.0070, <b>understating the truth by a factor of 5.3</b>. (2) Now click "φ=+0.8": the coverage standard error is
+      <b>exactly the same</b> (evenness), but this time misusing the residual \(N_{\mathrm{eff}}\)
+      <b>overstates</b> it by a factor of 1.7. <b>One mistake, two opposite directions</b> — so it is not an error one
+      can dismiss as "conservative". (3) Return φ to 0: the three curves coincide and the binomial standard error is
+      recovered. <b>Conclusion:</b> eq. (0.2) is a variance-equivalent quantity derived for the <i>sample mean</i>, not
+      a general-purpose discount factor. Every statistic needs its own dependence law; coverage needs the long-run
+      covariance of the hit/influence process, or a trajectory/group-aware resampling scheme.</div>
+  </div>
 
   <h3>2.4 A working-model inversion: a descriptive scale-consistency check <span class="star">★</span></h3>
   <p>As a deliberately restricted working model, suppose \(Z\sim\mathcal N(0,\tau^2)\), where \(\tau=\)(actual
@@ -1677,7 +2067,7 @@
   <p><b>Interpretation:</b> (3.6) expresses CRPS as an integral over quantile-level pinball losses. Pointwise,
     \(2\rho_{1/2}(y-q_{1/2})=|y-q_{1/2}|\); however, the single level \(\tau=\tfrac12\) has measure zero in the CRPS
     integral. The P50 protocol is therefore a separate median-oriented diagnostic, not a separable CRPS component and
-    not a consequence of CRPS propriety.</p>
+    not a consequence of CRPS propriety. (<a href="#demo13">Interactive experiment 13</a> evaluates both sides of (3.6) along two independent routes and reconciles them live.)</p>
 
   <div class="recipe"><span class="label">Computation recipe.</span>
     <ol>
@@ -2044,6 +2434,48 @@
     pooled \(N\), sparse time windows, or material bias require their own independent-unit design and pinned ablation
     artifact. Held-out coverage/PIT checks assess consequences without pretending that the linear formula transfers
     unchanged.
+  </div>
+
+  <div class="demo" id="demo12">
+    <div class="demo-title">🎛 Interactive experiment 12 | The stationary point of the heteroscedastic NLL: how σ learns
+      the conditional variance "for free" — and how a biased mean gets absorbed into fake uncertainty</div>
+    <p style="font-size:.93em;margin:.2em 0 .4em">Fix one \(x\), with true conditional law \(Y\mid x\sim\mathcal
+      N(m,v_0)\) (taking \(m=0\), \(v_0=\sigma_0^2\)). The left panel is the contour surface of the conditional risk of
+      Theorem 5.1,
+      \(\mathcal R(\mu,\sigma)=\log\sigma+\dfrac{v_0+(\mu-m)^2}{2\sigma^2}\),
+      over the \((\mu,\sigma)\) plane; ★ marks the unique minimizer \((m,\sigma_0)\). The red curve is the
+      <b>best width at each \(\mu\)</b>, \(\sigma^\ast(\mu)=\sqrt{v_0+(\mu-m)^2}\): as soon as the mean head is off by
+      \(b\), the NLL-optimal variance becomes \(v_0+b^2\). The right panel is the one-dimensional slice at fixed
+      \(\mu\); the excess risk
+      \(\tfrac12\bigl[\tfrac{b^2}{\sigma^2}+\tfrac{v_0}{\sigma^2}-1-\log\tfrac{v_0}{\sigma^2}\bigr]\ge0\)
+      is precisely the \(a-1-\log a\ge 0\) of the proof. Everything is closed form.</p>
+    <div class="controls">
+      <label>mean-head offset b = μ−m <input type="range" id="d12b" min="-3" max="3" step="0.05" value="0"> <span
+          class="val" id="d12bv"></span></label>
+      <label>true conditional σ₀ <input type="range" id="d12s0" min="0.3" max="3" step="0.05" value="1"> <span
+          class="val" id="d12s0v"></span></label>
+      <label>candidate predicted σ <input type="range" id="d12s" min="0.2" max="4" step="0.05" value="1"> <span
+          class="val" id="d12sv"></span></label>
+      <span>Presets:
+        <button class="presetbtn" id="d12p1">Unbiased b=0 (set σ=σ₀)</button>
+        <button class="presetbtn" id="d12p2">Mean off by 1.5</button>
+        <button class="presetbtn" id="d12p3">Overconfident σ=½σ₀</button>
+        <button class="presetbtn" id="d12p4">Conservative σ=2σ₀</button></span>
+    </div>
+    <canvas id="d12c"></canvas>
+    <div class="readouts" id="d12r"></div>
+    <div class="trylist"><b>Try this:</b> (1) Move b away from 0: ★ does not budge (it is fixed by the true law alone),
+      but the entire red ridge lifts — <b>the NLL-optimal \(\sigma\) is always \(\ge\sigma_0\), with equality only when
+      the mean is unbiased</b>. That is the other face of "the variance head learns \(\sigma(x)\) for free": what it
+      learns is the <b>conditional variance plus the squared mean error</b>, so misspecification is booked as
+      "uncertainty". (2) This is also the mechanism behind the warning in §2: even at its own NLL optimum, a biased mean
+      makes the 1σ coverage of \([\mu\pm\sigma^\ast]\) <b>differ</b> from 0.683 (read the last chip; with b=1.5 and
+      σ₀=1 it is 0.6185). (3) Drag σ off the ridge: the excess risk is strictly positive, and "too narrow" is punished
+      far harder than "too wide" — as \(\sigma\to0\) the term \(v_0/\sigma^2\) <b>diverges linearly</b>, whereas as
+      \(\sigma\to\infty\) the growth is only \(\log\sigma\). (4) The excess risk depends only on \(b/\sigma\) and
+      \(v_0/\sigma^2\), never on \(m\); that is the pointwise Bregman form used in the proof of Theorem 5.1.
+      <b>Caveat:</b> this figure is a population function-space targeting statement; it does not guarantee that a
+      finite, clipped, jointly optimized network attains those functions.</div>
   </div>
 
   <h3>5.3 NLL is also a strictly proper scoring rule (log score)</h3>
@@ -2713,6 +3145,235 @@
     </tr>
   </table>
 
+  <h2 id="sec7b">§7.5 Part II reader's guide: for readers with no finance background</h2>
+
+  <p>Everything up to here needed only probability and statistics. Part II (§8–§13) uses the <b>same</b> mathematics, but
+    every chapter lands in a financial setting, and the vocabulary of those settings — returns, annualization, Sharpe,
+    VaR, ES, backtesting, Basel, GARCH — takes a little time to acquire intuition for. This section is that little time.
+    It contains <b>no new theorems</b>; it supplies only the minimum background needed to read Part II. Readers who
+    already have that background can skip straight to §8.</p>
+
+  <h3>7.5.1 What actually changes in Part II</h3>
+  <p>Part I's data was a batch of regression errors on spray images: each observation is an \((x,y)\) pair, the ordering
+    is irrelevant, and what matters is the center and spread of the error. Part II's data is one asset's daily returns:
+    each observation is a day, the ordering matters <b>enormously</b>, and what matters is the <b>left tail</b>. Beyond
+    that, the mathematics is identical. Each of the three differences generates a whole group of Part II chapters:</p>
+  <ol>
+    <li><b>Observations carry a time order.</b> \(T\) trading days are not \(T\) independent observations; if today is
+      volatile, tomorrow probably is too. → §8 (effective sample size and standard errors), §9.2 (do exceptions
+      cluster?), §10 (sequential PIT).</li>
+    <li><b>The tail matters, not the center.</b> Nobody goes bankrupt because a model's average error is slightly large;
+      bankruptcy comes from those few left-tail days. → §9 (exception tests for a one-sided quantile), §11 (how to score
+      a quantile and a tail mean), §12.4 (tail shape).</li>
+    <li><b>An outside body charges you capital based on your evaluation results.</b> A bank's market-risk capital is tied
+      directly to backtest outcomes. → §9.3 (the traffic light), §11.2 (why the regulator switched to ES).</li>
+  </ol>
+  <p>This also explains Part II's tone: when Part I says "failure to reject is not acceptance" it is academic caution;
+    when Part II says the same sentence, a capital requirement moves.</p>
+
+  <h3>7.5.2 The data: from prices to returns</h3>
+  <p>Finance almost never models the price \(P_t\) directly — prices are non-stationary, and their scales are not
+    comparable (a $5 drop on a $500 share is not the same event as a $5 drop on a $20 share). The standard first move is
+    to convert to <b>returns</b>:</p>
+  \[
+  R_t=\frac{P_t-P_{t-1}}{P_{t-1}}\quad(\text{simple return}),
+  \qquad
+  r_t=\ln\frac{P_t}{P_{t-1}}=\ln(1+R_t)\quad(\text{log return}).
+  \]
+  <p>The two nearly coincide when \(|R_t|\) is small (\(\ln(1+x)=x-x^2/2+\cdots\); at \(R_t=1\%\) they differ by 0.005
+    percentage points). Part II uses <b>log returns</b> throughout, for one very practical reason: they are <b>additive
+      across periods</b>, so the \(q\)-day cumulative return is just \(r_{t+1}+\cdots+r_{t+q}\), a plain sum. The
+    quantity §8.2 spends the whole section on, \(\Var\bigl(\sum_{t=1}^{q}r_t\bigr)\), is the variance of that sum; with
+    simple returns it would become a product, with no such clean formula.</p>
+  <p><b>The time scale.</b> A year minus weekends and holidays leaves about <b>252</b> trading days, and that is the only
+    source of the \(\sqrt{252}\) that appears throughout the book. A typical equity index has a daily return standard
+    deviation near 1%, so</p>
+  \[
+  \sigma_{\text{ann}}=\sigma_{\text{daily}}\sqrt{252}\approx 0.01\times 15.87=15.9\%,
+  \qquad
+  \mathrm{SR}_{\text{ann}}=\sqrt{252}\;\mathrm{SR}_{\text{daily}} .
+  \]
+  <p>(<span class="pencil">☞ pencil-and-paper checkpoint</span>: both conversions hold <b>only under iid</b>, because both
+    use "the variance of a sum is the sum of the variances." Write down \(\Var(r_1+r_2)=2\sigma^2(1+\rho_1)\) yourself and
+    you will see exactly where the \(\sqrt2\) breaks — §8.2's \(B_q\) is defined precisely to measure how badly that
+    assumption fails.)</p>
+
+  <h3>7.5.3 Three core quantities: return, volatility, value-at-risk</h3>
+  <p><b>Return and volatility.</b> Let \(r_t\) have mean \(\mu\) and standard deviation \(\sigma\). Finance calls
+    \(\sigma\) the <b>volatility</b> — it is Part I's standard deviation under a different name. The <b>risk-free
+      rate</b> is the near-certain return on something like a short-dated government bill; \(r_t\) net of it is called
+    the <b>excess return</b>, and that is what §8.1's Sharpe ratio uses.</p>
+  <p>The <b>Sharpe ratio</b> \(\mathrm{SR}=\mu/\sigma\) reads as "how much excess return you get per unit of volatility
+    borne." An annualized SR of 1.0 counts roughly as "good" in industry, 2.0 as "very good." §8.1 then proves something
+    deflating: getting an annualized SR of 1.0 to \(t=2\) takes about 1,010 trading days, i.e. four years.</p>
+  <p><b>Value-at-risk and expected shortfall.</b> Take the left-tail quantile \(q_\alpha\) of the return distribution
+    (\(\alpha\) small, say 1%); it is a negative number. What the industry reports is its negation:</p>
+  \[
+  \mathrm{VaR}_\alpha=-q_\alpha\;\gt\;0,
+  \qquad
+  \mathrm{ES}_\alpha=\frac1\alpha\int_0^\alpha F^{-1}(u)\dd u\;\lt\;q_\alpha\;\lt\;0 .
+  \]
+  <p>That minus sign is purely a reporting convention: it turns "a return of \(-2.3\%\)" into "a loss of \(2.3\%\)" so
+    that risk numbers come out positive. <b>In plain words, "the 1-day 99% VaR is $1M" means</b>: under the market
+    conditions the model assumes, on about 1 trading day in 100 the loss that day will exceed $1M. It is <b>not</b> a
+    worst case, and it is <b>not</b> "you can lose at most $1M" — once the threshold is breached, VaR says nothing at all
+    about how much is lost. <b>Expected shortfall (ES)</b> fills exactly that hole: it is the average over the days that
+    already breached. Note that this book defines \(\mathrm{ES}_\alpha\) on the <b>return scale</b>, so it is negative
+    with \(\mathrm{ES}_\alpha\lt q_\alpha\lt 0\) (that is how §11.2's conditions are written); the industry's "97.5% ES"
+    is instead quoted as a positive loss number, i.e. \(-\mathrm{ES}_{0.025}\). Check which side of the sign you are on
+    before reading any number.</p>
+  <p><b>A bridge for Part I readers.</b> \(\mathrm{VaR}\) is §1.5's P95 moved to the other tail and renamed; one
+    <b>exception</b> (also called a breach) is §2's coverage interval failing to contain the observation, made one-sided.
+    Part II introduces no new statistical object at all; it just moves Part I's objects into the left tail.</p>
+  <div class="worked"><span class="label">Numerical example (one number for every word above).</span>
+    An equity-index position is worth $100M, the estimated conditional standard deviation of the daily log return is
+    \(\sigma_t=1.2\%\), the conditional mean is set to 0, and the innovation is assumed Gaussian. The 1% quantile is
+    \(q_{0.01}=-2.326\times0.012=-0.02792\), so the <b>1-day 99% VaR</b> is \(0.02792\times10^{8}\approx\$2.79\)M. The
+    Gaussian \(\mathrm{ES}_{0.01}=-\varphi(z_{0.01})\sigma_t/0.01=-2.665\times0.012=-0.03198\), so ES is quoted as
+    \$3.20M — 15% above the VaR, because it averages beyond the threshold rather than reporting the threshold itself.
+    Swap in the unit-variance Student-t with \(\nu=5\) from §12.4's table: at the same \(\sigma_t\) the 1% quantile
+    becomes \(-2.606\times0.012=-0.03127\) and VaR rises to \$3.13M. <b>Same variance, same center, only a different tail
+      shape, and the capital number moves by 12%.</b> Incidentally, the annualized volatility is
+    \(0.012\times\sqrt{252}=19.0\%\).
+  </div>
+
+  <h3>7.5.4 Who computes these, and what happens when they are wrong</h3>
+  <p><b>The daily loop.</b> After each trading day's close, a bank or fund produces a next-day predictive distribution
+    for each portfolio and reports its \(\alpha\)-quantile. The next day the realized profit-and-loss arrives and one
+    comparison is made: was the threshold breached? If so, record an exception. Over a year this accumulates 250 zeros
+    and ones — exactly §9's \(I_t\).</p>
+  <p><b>The regulator's side.</b> The BCBS (Basel Committee on Banking Supervision) publishes international bank
+    supervisory standards, which national authorities then transpose into domestic rules; the standard itself is not
+    directly binding, the transposed rule is. A bank using an internal model for market-risk capital must show by
+    <b>backtesting</b> that the model is credible: for 250 trading days at 99% VaR, 0–4 exceptions is the green zone, 5–9
+    the yellow zone, 10 or more the red zone; yellow and red raise the supervisory add-on (i.e. raise the capital
+    requirement), and red can lead to the internal model not being accepted (§9.3 gives the exact citation). So §9's
+    hypothesis tests are not a classroom exercise but a determination with legal consequences — which is also why this
+    book keeps insisting that "failure to reject is not acceptance": landing in the green zone means only that you were
+    not caught, not that the model is right.</p>
+  <p>Basel's market-risk framework (FRTB, published 2016, revised 2019) replaced the internal-model measure of 99% VaR
+    with a <b>97.5% one-tailed ES</b> (MAR33.3, cited in §11.2). That single step turns §11 from a theoretical question
+    into a practical one: ES cannot be elicited on its own by any loss function, so scoring an ES forecast requires a
+    joint score for \((\mathrm{VaR},\mathrm{ES})\).</p>
+  <p><b>The buy side.</b> Hedge funds have no supervisory traffic light, but they have a different trap: try a thousand
+    strategies at once and report only the best one. §8.3 computes the price of doing that — among 1,000 strategies with
+    <b>no skill whatsoever</b>, the best one's \(t\) statistic has expectation 3.24. Part I readers will recognize the
+    structure: it is the same problem as multiple comparisons, and the same problem as reporting your best run on the
+    test set after tuning hyperparameters.</p>
+
+  <h3>7.5.5 Why volatility gets modeled separately</h3>
+  <p>One empirical fact carries all of §12: asset returns are nearly unpredictable in <b>level</b> (predictability there
+    would be free money and would be traded away at once) but highly predictable in <b>magnitude</b>. Quiet days follow
+    quiet days and wild days follow wild days — this is <b>volatility clustering</b>.</p>
+  <p>So finance's forecasting problem is almost always "predict \(\sigma_t\)" rather than "predict \(\mu_t\)." This is
+    the exact reverse of Part I, where the conditional mean was the object being learned and \(\hat\sigma\) came along
+    as a by-product (§5.2's stationarity analysis). Part II promotes \(\hat\sigma\) to the lead role. GARCH(1,1) (eq.
+    (12.1)) fits in one sentence: <b>today's variance = a constant + yesterday's squared surprise + yesterday's
+      variance</b>. The three weights \(\omega,a,b\) are fit from data, and the closer \(a+b\) is to 1 the longer the
+    memory (0.95–0.99 is typical for daily equities); RiskMetrics' EWMA is its boundary case at \(a+b=1\).</p>
+  <p>One last common misconception is worth dismantling in advance: <b>getting \(\sigma_t\) right is not the same as
+      getting the tail right</b>. Even with a perfectly correct conditional variance, Gaussian tails can still be too
+    thin; §12.4's table shows that the unit-variance Student-t with \(\nu=5\) has a 99.9% quantile about 48% above the
+    Gaussian one. That is why §9's exception tests and §10's PIT checks detect things that checking the variance alone
+    cannot.</p>
+
+  <h3>7.5.6 Chapter map and symbol cheat-sheet</h3>
+  <table class="simple">
+    <tr>
+      <th>Chapter</th>
+      <th>Finance setting</th>
+      <th>Grows out of</th>
+      <th>Question answered</th>
+    </tr>
+    <tr>
+      <td><a href="#sec8">§8</a></td>
+      <td>You are handed a strategy's daily profit-and-loss curve</td>
+      <td>§0.3 effective sample size</td>
+      <td>Is this Sharpe credible? How many days does it take to count?</td>
+    </tr>
+    <tr>
+      <td><a href="#sec9">§9</a></td>
+      <td>Report a VaR daily; the supervisor checks at year end</td>
+      <td>§2 coverage</td>
+      <td>Is the exception count right? Are the exceptions bunched up?</td>
+    </tr>
+    <tr>
+      <td><a href="#sec10">§10</a></td>
+      <td>You report a whole predictive distribution, not one quantile</td>
+      <td>§4 PIT and reliability</td>
+      <td>Is the shape right? Is structure left over in time?</td>
+    </tr>
+    <tr>
+      <td><a href="#sec11">§11</a></td>
+      <td>The regulator now wants ES; how do you score it?</td>
+      <td>§1.2 optimal actions, §3.6 quantile integral</td>
+      <td>Which quantities can a loss function elicit?</td>
+    </tr>
+    <tr>
+      <td><a href="#sec12">§12</a></td>
+      <td>How to forecast volatility and compare two forecasts</td>
+      <td>§5 NLL and Theorem 5.1</td>
+      <td>What do you score against when the truth is unobservable?</td>
+    </tr>
+    <tr>
+      <td><a href="#sec13">§13</a></td>
+      <td>You no longer want to assume the model is right</td>
+      <td>§2 coverage, §6 exchangeability</td>
+      <td>Can coverage be guaranteed without distributional assumptions?</td>
+    </tr>
+  </table>
+  <p>The table below translates symbols between the two parts. Every quantity in the left column was already defined in
+    Part I; Part II only renames it and changes the setting.</p>
+  <table class="simple">
+    <tr>
+      <th>Part I</th>
+      <th>Part II</th>
+      <th>Note</th>
+    </tr>
+    <tr>
+      <td>observation \(y\)</td>
+      <td>return \(r_t\)</td>
+      <td>Part II's \(r\) is a <b>return</b>, not a residual — the single easiest symbol to misread</td>
+    </tr>
+    <tr>
+      <td>prediction \(\hat y\)</td>
+      <td>conditional mean (often set to 0 at daily frequency)</td>
+      <td>the predictable part of a daily return is tiny; see §7.5.5</td>
+    </tr>
+    <tr>
+      <td>\(\hat\sigma(x)\)</td>
+      <td>\(\sigma_t\) or \(\sqrt{h_t}\)</td>
+      <td>§12's \(h_t\) is the conditional <b>variance</b>, not the standard deviation</td>
+    </tr>
+    <tr>
+      <td>standardized residual \(z\)</td>
+      <td>\(\varepsilon_t=r_t/\sigma_t\)</td>
+      <td>§12 calls it the innovation</td>
+    </tr>
+    <tr>
+      <td>coverage</td>
+      <td>\(1-\) exception rate</td>
+      <td>§2 is two-sided, §9 is one-sided</td>
+    </tr>
+    <tr>
+      <td>P95</td>
+      <td>\(\mathrm{VaR}\)</td>
+      <td>the same quantile, moved to the other tail</td>
+    </tr>
+    <tr>
+      <td>LONO folds</td>
+      <td>backtest windows</td>
+      <td>neither is exchangeable; see §13.1</td>
+    </tr>
+  </table>
+  <p>Two closing warnings about overloaded symbols. (i) \(\alpha\) is a <b>tail level</b> in §9 and §11 (0.01, 0.025) but
+    a <b>miscoverage rate</b> in §13 (\(\alpha=0.1\) means 90% coverage) — both are "small probabilities," but they index
+    different events. (ii) This book deliberately writes the GARCH coefficients as \(a,b\) rather than the customary
+    \(\alpha,\beta\), precisely so they do not collide with the tail level. (<span class="pencil">☞ pencil-and-paper
+      checkpoint</span>: turn to §9.1's numerical example and state what its \(\alpha=1\%\) means, then do the same for
+    §13.2's \(\alpha\); if those are one and the same thing in your head, the rest will be painful reading.)</p>
+
+
   <h2 id="sec8">§8 Backtest statistics: effective sample size, Sharpe standard error, and multiple testing</h2>
 
   <p><b>Part II begins here.</b> Each chapter starts from a result already proved in Part I and shows what quantitative
@@ -2720,6 +3381,15 @@
     observational units. Non-overlapping iid returns are independent; serial dependence or overlap changes
     statistic-specific long-run variances. Searching across strategies is a separate joint-null multiplicity problem,
     not a reduction of time-series effective sample size.</p>
+
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    An analyst is handed a strategy's daily profit-and-loss series and must answer two questions: is this Sharpe ratio
+    credible, and is it still credible if it was picked out of many candidate strategies? The first is a standard-error
+    problem (§8.1–§8.2), the second a multiplicity problem (§8.3), and in practice the two are constantly conflated. The
+    most common concrete error is annualizing an autocorrelated equity curve by \(\sqrt{252}\): illiquid assets and
+    smoothed net-asset-value series both carry positive autocorrelation, so the annualized Sharpe is systematically
+    overstated. If "return, annualization, excess return, Sharpe" are not yet solid, read §7.5.2–§7.5.3 first.
+  </div>
 
   <h3>8.1 The Sharpe ratio and its standard error</h3>
   <p>Let per-period (say daily) excess strategy returns \(r_1,\dots,r_T\) have mean \(\mu\) and standard deviation
@@ -2833,6 +3503,16 @@
   </div>
 
   <h2 id="sec9">§9 From coverage to VaR backtesting: Kupiec, Christoffersen, and the Basel traffic light</h2>
+
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    A bank's market-risk desk reports a next-day VaR after every close, records the next day whether it was breached, and
+    accumulates about 250 zeros and ones per year. The supervisor looks at two things — is the count right (Kupiec,
+    §9.1), and are the exceptions bunched together (Christoffersen, §9.2) — and then sorts the model into a green, yellow
+    or red zone by exception count (§9.3), which feeds straight into the capital requirement. An "exception" here is
+    §2's coverage failure made one-sided; the statistical content of the whole chapter is really just "count the ones in
+    a Bernoulli sequence" plus likelihood-ratio tests, and the hard part is keeping the statistical conclusion separate
+    from the supervisory classification. For the regulatory loop, see §7.5.4.
+  </div>
 
   <p>§2 counted how often central ±kσ intervals contain the observation. Value-at-Risk backtesting counts breaches of a
     <b>one-sided</b> conditional predictive quantile. Let \(\mathcal F_{t-1}\) be the declared full information set, let
@@ -2971,6 +3651,15 @@
 
   <h2 id="sec10">§10 Density-forecast evaluation: PIT in finance, from DGT to Berkowitz</h2>
 
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    §9 asks only whether one quantile was breached, which compresses an entire predictive distribution into a single 0/1.
+    But a bank actually reports the whole predictive distribution — pricing, stress testing and capital allocation all
+    consume it — so the <b>whole distribution</b> has to be checked too. That is density-forecast evaluation: feed each
+    day's realization into that day's forecast CDF and obtain a sequence of PIT values that ought to be iid uniform. A
+    wrong shape means the distribution is misspecified; leftover structure in time means missing conditional dynamics,
+    usually volatility. The chapter is §4's PIT histogram with a time axis added.
+  </div>
+
   <p>§4 evaluated a <i>marginal</i> PIT histogram. The sequential density-forecast framework of <a
       href="https://www.nber.org/papers/t0215">Diebold, Gunther &amp; Tay (1998)</a> separately checks uniformity and
     temporal independence. Marginal PIT uniformity alone does not imply the latter.</p>
@@ -3072,6 +3761,15 @@
   <h2 id="sec11">§11 Quantiles, pinball loss, and elicitability: pinball trains quantile targets; ES uses joint scoring
   </h2>
 
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    A very practical question: the supervisory internal-model approach now asks for a 97.5% one-tailed ES rather than a
+    99% VaR (§7.5.4), so how do you <b>test</b> an ES forecast, and how do you <b>train</b> a model to predict one?
+    "Elicitability" asks exactly this: is there a loss function whose expected minimizer is the quantity you want to
+    forecast? Quantiles have one (pinball loss, §11.1); ES alone does not, but \((\mathrm{VaR},\mathrm{ES})\) jointly
+    does (§11.2). This is the direct extension of Part I's Theorem 1.2 — the mean is elicited by squared loss, the
+    median by absolute loss — the same question, moved into the tail.
+  </div>
+
   <p>Under §3.6's finite-first-moment assumption and generalized-quantile convention
     \(F^{-1}(\tau)=\inf\{q:F(q)\ge\tau\}\), \(\mathrm{CRPS}(F,y)=2\int_0^1\rho_\tau\bigl(y-F^{-1}(\tau)\bigr)\dd\tau\):
     CRPS is <b>twice</b> the Lebesgue average of the pinball losses over \(0\lt \tau\lt 1\); endpoint choices are
@@ -3117,6 +3815,48 @@
     parametric distributional family for the loss identity, but they retain model-class, data, and optimization
     assumptions. Under §9's return convention they train \(q_\alpha\), while the reported loss VaR is \(-q_\alpha\).</p>
 
+  <div class="demo" id="demo13">
+    <div class="demo-title">🎛 Interactive experiment 13 | How the pinball loss elicits quantiles, and how CRPS is just
+      its integral: Theorem 11.1 and eq. (3.6) reconciled live</div>
+    <p style="font-size:.93em;margin:.2em 0 .4em">The predictive distribution is a two-component Gaussian mixture
+      \(F=w\,\mathcal N(-d,1)+(1-w)\,\mathcal N(d,1)\). The <b>left panel</b> draws the CDF \(F(q)\) (blue) and the
+      pinball risk \(L(q)=\E[\rho_\tau(Y-q)]=\tau(\E Y-q)+\E[(q-Y)^+]\) (red) on a common \(q\) axis: the trough of
+      \(L\) sits <b>exactly</b> where \(F\) crosses the level \(\tau\), because \(L'_\pm(q)=F(q^\mp)-\tau\) (the
+      one-sided derivative computation of Theorem 11.1). The <b>right panel</b> shades
+      \(\tau'\mapsto2\rho_{\tau'}(y-q_{\tau'})\): <b>the shaded area is the CRPS</b>, which is eq. (3.6). The last
+      three readouts compute the same number along <b>two independent routes</b> — the energy closed form
+      \(\E|X-y|-\tfrac12\E|X-X'|\) (available analytically for a Gaussian mixture) and the quantile integral
+      (substituting \(x=q_\tau\) and applying Simpson's rule split at the kink \(x=y\)) — and you can watch them agree
+      to order \(10^{-7}\).</p>
+    <div class="controls">
+      <label>quantile level τ <input type="range" id="d13t" min="0.02" max="0.98" step="0.01" value="0.5"> <span
+          class="val" id="d13tv"></span></label>
+      <label>mode separation d <input type="range" id="d13d" min="0" max="3.5" step="0.1" value="2"> <span class="val"
+          id="d13dv"></span></label>
+      <label>left-mode weight w <input type="range" id="d13w" min="0.05" max="0.95" step="0.05" value="0.5"> <span
+          class="val" id="d13wv"></span></label>
+      <label>observation y <input type="range" id="d13y" min="-6" max="6" step="0.1" value="1.5"> <span class="val"
+          id="d13yv"></span></label>
+      <span>Presets:
+        <button class="presetbtn" id="d13p1">τ=0.5 (median)</button>
+        <button class="presetbtn" id="d13p2">τ=0.95 (VaR level)</button>
+        <button class="presetbtn" id="d13p3">Unimodal d=0</button>
+        <button class="presetbtn" id="d13p4">Strongly bimodal d=3</button></span>
+    </div>
+    <canvas id="d13c"></canvas>
+    <div class="readouts" id="d13r"></div>
+    <div class="trylist"><b>Try this:</b> (1) Drag τ: the trough of the red curve and the crossing point of the blue CDF
+      <b>always move together</b> — that is the whole content of "the pinball loss elicits quantiles". (2) Raise d above
+      3: the middle of the CDF becomes nearly flat, so \(q_\tau\) <b>almost jumps</b> near \(\tau=0.5\), the right panel
+      develops a spike, and the trough of \(L\) on the left becomes a nearly flat interval. This visualizes "a flat
+      stretch of \(F\) ⟺ a jump of the quantile, a jump of \(F\) ⟺ a flat stretch of the quantile", and it is why
+      Theorem 11.1 must describe the minimizer as a <b>set</b> rather than a single point. (3) However you drag, the
+      "relative gap between the two routes" stays at order \(10^{-7}\): eq. (3.6) needs no differentiability of \(F\).
+      (4) Click "τ=0.5": \(2\rho_{1/2}(y-q_{1/2})=|y-q_{1/2}|\) (the last chip) — but this is a single slice of
+      <b>measure zero</b> inside the integral, so the P50 protocol is neither a separable component of CRPS nor a
+      corollary of its propriety.</div>
+  </div>
+
   <h3>11.2 Expected Shortfall is not elicitable alone — but (VaR, ES) jointly is <span class="star">★</span></h3>
   <p>For \(0\lt \alpha\lt 1\), an integrable lower tail, and generalized quantiles, define
     \(\mathrm{ES}_\alpha(F)=\alpha^{-1}\int_0^\alpha F^{-1}(u)\dd u\). Writing \(q_\alpha=F^{-1}(\alpha)\), the
@@ -3146,6 +3886,52 @@
     necessary. At atoms or nonunique quantiles, use an appropriate set-valued/selection convention rather than importing
     the strict claim above.</p>
 
+  <div class="demo" id="demo14">
+    <div class="demo-title">🎛 Interactive experiment 14 | Why ES is not elicitable alone and why (VaR, ES) is: the
+      convex-level-set test and the FZ0 score</div>
+    <p style="font-size:.93em;margin:.2em 0 .4em">A necessary condition for elicitability is <b>convex level sets</b>
+      (CxLS): if \(T(F_1)=T(F_2)\), then \(T(\lambda F_1+(1-\lambda)F_2)\) must equal that same value for every
+      \(\lambda\in[0,1]\). This experiment puts the condition directly to the test. Both pairs are built by an
+      <b>exact affine transformation</b> (\(q_\alpha\) and \(\mathrm{ES}_\alpha\) are both affine-equivariant under
+      \(Y\mapsto cY+s\), so the coefficients are available in closed form with no root-finding): <b>pair A</b> matches
+      only \(\mathrm{ES}_\alpha\) and deliberately leaves \(\mathrm{VaR}_\alpha\) different; <b>pair B</b> matches
+      both. The middle panel traces \(\mathrm{VaR}_\alpha\) (blue) and \(\mathrm{ES}_\alpha\) (red) of the mixture
+      along \(\lambda\), where <b>a flat line = a convex level set</b>. The right panel is the contour surface of the
+      expected FZ0 score (11.2) over \((v,e)\), with ★ at \((q_\alpha,\mathrm{ES}_\alpha)\). <b>Before reading the
+      plot, note that CxLS is a <i>conditional</i> statement</b>: a functional's deviation along \(\lambda\) is a
+      counterexample only if that functional <i>already agreed</i> at both endpoints. Pair A deliberately gives the two
+      laws different \(\mathrm{VaR}_\alpha\), so that pair <b>tests nothing at all</b> about VaR (the readout says
+      "n/a"); the convex level set of VaR is what pair B exhibits.</p>
+    <div class="controls">
+      <label>tail level α <input type="range" id="d14a" min="0.01" max="0.25" step="0.005" value="0.1"> <span class="val"
+          id="d14av"></span></label>
+      <label>mixture weight λ <input type="range" id="d14l" min="0" max="1" step="0.02" value="0.5"> <span class="val"
+          id="d14lv"></span></label>
+      <label>current pair: <span class="val" id="d14mv"></span></label>
+      <span>Presets:
+        <button class="presetbtn" id="d14p1">Pair A (ES matched only)</button>
+        <button class="presetbtn" id="d14p2">Pair B (VaR and ES both matched)</button>
+        <button class="presetbtn" id="d14p3">α = 2.5% (Basel MAR33.3)</button></span>
+    </div>
+    <canvas id="d14c"></canvas>
+    <div class="readouts" id="d14r"></div>
+    <div class="trylist"><b>Try this:</b> (1) Click "Pair A" and drag λ: the two endpoints have <b>exactly the same</b>
+      \(\mathrm{ES}_\alpha\), yet the whole interior bows away from it (the deepest deviation is about 0.115 at
+      α=10%) — the level set of \(\mathrm{ES}_\alpha\) is <b>not convex</b>, so by the Osband/Gneiting necessary
+      condition ES <b>cannot</b> be elicited alone by any loss function. (2) Click "Pair B": both curves become
+      <b>flat lines</b>. The reason fits on one line: once \(q_\alpha\) is pinned,
+      \(\alpha\,\mathrm{ES}_\alpha=\alpha q_\alpha-\E[(q_\alpha-r)^+]\) is <b>linear</b> in \(F\), so the <b>joint</b>
+      level set of \((\mathrm{VaR},\mathrm{ES})\) is convex — that is the structural reason joint elicitation can work
+      at all. (3) The ★ in the right panel sits at the minimum of the surface for every α and λ: at fixed \(e\lt0\),
+      \(\E[S]=h(v)/e+\ln(-e)-1\) where \(h(v)=v-\alpha^{-1}\E[(v-r)^+]\) is exactly the Rockafellar–Uryasev
+      functional, maximized at \(v=q_\alpha\) with maximum value \(\mathrm{ES}_\alpha\); substituting back leaves
+      \(\mathrm{ES}/e+\ln(-e)-1\) in the \(e\) direction, whose stationary point is precisely
+      \(e=\mathrm{ES}_\alpha\). <b>Scope reminder:</b> all of the above is a demonstration inside the sufficient
+      conditions stated in §11.2 (\(F\) absolutely continuous, crossing \(\alpha\) strictly at a unique
+      \(q_\alpha\lt0\), and \(\mathrm{ES}_\alpha\lt q_\alpha\lt 0\)); with atoms or non-unique quantiles an appropriate
+      set-valued/selection convention must be used instead.</div>
+  </div>
+
   <h3>11.3 Black-swan scoring: Property P5 in production</h3>
   <div class="worked"><span class="label">Worked example (one 10σ day in five years of scores).</span>
     Model \(\mathcal N(\mu,\sigma^2)\); realization \(10\sigma\) below \(\mu\). Per-observation scores are
@@ -3158,7 +3944,731 @@
     both according to the decision objective rather than assigning an unconditional train/evaluate rule.
   </div>
 
+  <h2 id="sec11b">§11.5 Marginal calibration is not joint calibration: a closed-form counterexample</h2>
+
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    Up to §11.2 every diagnostic in this book consumes one predictive distribution and one realization. But almost none
+    of the numbers a risk function actually reports are single-asset: regulatory capital is charged on the <b>portfolio</b>
+    ES, and desk limits are set on the <b>portfolio</b> VaR. A portfolio return \(w^\top r_t\) is a scalar functional of
+    a \(d\)-dimensional vector, and the law of a \(d\)-dimensional vector has a dependence structure as well as
+    marginals. This section pushes the question to the end: <b>if every single-name VaR backtest is green, how wrong can
+      the portfolio VaR be?</b> The answer is arbitrarily wrong — and not one of the tools in the preceding eleven
+    chapters will catch it.
+  </div>
+
+  <p>The purpose of this section is not to introduce a new method but to pin down a boundary. The point errors,
+    coverage, PIT, CRPS, and NLL of §1–§5, together with the Kupiec, Christoffersen, and Berkowitz tests of §9–§10, are
+    all defined on one scalar predictive distribution against one scalar realization. Once \(y\) becomes a vector these
+    tools can still be applied component by component — the problem is that they then fail <b>exactly</b>: not with
+    reduced power, but with an expected-score gap that is precisely zero. What follows proves this on a \(d=2\) example
+    in which every constant is closed-form, and measures how much each of four distinct diagnostic routes can see.</p>
+
+  <h3>11.5.1 The counterexample: both marginals exactly right, the joint law entirely wrong</h3>
+
+  <p>Fix \(d=2\). Let the true data-generating mechanism \(P\) be \(Y=(Y_1,Y_2)=(Z,Z)\) with \(Z\sim\mathcal
+    N(0,1)\): the two components are equal with probability 1, i.e. perfectly positively dependent (comonotone). There
+    is no covariate here, so the ideal forecast is the law of \(Y\) itself. Consider two candidate predictive
+    distributions:</p>
+  \[
+  A=\mathcal N\!\left(0,\ \Sigma_A\right),\quad
+  \Sigma_A=\begin{pmatrix}1&0\\0&1\end{pmatrix};
+  \qquad
+  B=P,\quad
+  \Sigma_B=\begin{pmatrix}1&1\\1&1\end{pmatrix}.
+  \tag{11.3}
+  \]
+  <p>The two covariance matrices have the <b>same diagonal</b> and differ only off it. \(A\) sets the dependence to
+    independence; \(B\) is the ideal forecast. The next four subsections ask, in turn, whether component-wise
+    diagnostics, scalar functionals, multivariate scoring rules, and joint coverage can separate \(A\) from \(B\).</p>
+
+  <div class="lem"><span class="label">Lemma 11.2 (the marginal blind spot).</span>
+    For \(j=1,2\), the \(j\)-th marginal of forecast \(A\), the \(j\)-th marginal of forecast \(B\), and the law of
+    \(Y_j\) under \(P\) are all three equal to \(\mathcal N(0,1)\). Hence for each fixed \(j\), any diagnostic that uses
+    only the \(j\)-th marginal predictive distribution and \(Y_j\) has the same distribution under \(A\) and under
+    \(B\), and takes exactly its perfectly calibrated value:
+    \[
+    u_j=\Phi(Y_j)\sim\mathrm{U}(0,1),\qquad
+    \E\bigl[\mathrm{CRPS}\bigr]=\frac1{\sqrt\pi},\qquad
+    \E\bigl[\mathrm{NLL}\bigr]=\frac{1+\ln 2\pi}{2},\qquad
+    \Prob\bigl(|Y_j|\le1\bigr)=2\Phi(1)-1 .
+    \tag{11.4}
+    \]
+    Numerically these are \(0.5641896\), \(1.4189385\), and \(0.6826895\); in addition \(\mathrm{RMSE}=1\),
+    \(\mathrm{Bias}=0\), \(\mathrm{MAE}=\sqrt{2/\pi}=0.7978846\), and \(\mathrm{P95}=1.9599640\).
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    Marginals of \(A\): the \(j\)-th coordinate of \(\mathcal N(0,I_2)\) is \(\mathcal N(0,1)\). Marginals of \(B=P\):
+    \(Y_j=Z\sim\mathcal N(0,1)\). And under \(P\), \(Y_j\sim\mathcal N(0,1)\). Every functional in (11.4) is a function
+    of the single pair (marginal predictive distribution, law of \(Y_j\)); since those coincide, the values coincide.
+    <br>Sources of the four numbers: PIT from Theorem 4.1; \(\E[\mathrm{CRPS}]\) from the Gaussian closed form (3.4),
+    which at \(\mu=0,\sigma=1\) reads \(\mathrm{CRPS}=y\bigl(2\Phi(y)-1\bigr)+2\varphi(y)-1/\sqrt\pi\), taken in
+    expectation over \(y\sim\mathcal N(0,1)\): Stein's identity \(\E[Zg(Z)]=\E[g'(Z)]\) with \(g=\Phi\) gives
+    \(\E\bigl[Z(2\Phi(Z)-1)\bigr]=2\E[\varphi(Z)]=1/\sqrt\pi\), while \(2\E[\varphi(Z)]=2\int\varphi^2=1/\sqrt\pi\), so
+    the two added and \(1/\sqrt\pi\) subtracted leave \(1/\sqrt\pi\); \(\E[\mathrm{NLL}]\) from the Gaussian NLL of
+    §5.1 at \(\sigma=1\) with \(\E[Z^2]=1\); coverage and P95 from §1.5. <span class="qed">∎</span>
+  </div>
+
+  <p>Read Lemma 11.2 operationally: under forecast \(A\), applying §4's PIT histogram, reliability diagram, and ECE
+    component by component, §9's Kupiec and Christoffersen tests component by component, and §10's Berkowitz test
+    component by component, none of them can reject. This is <b>not</b> a power failure — in the component-wise sense
+    the null is true, and every marginal of \(A\) is exactly correct. (<span class="pencil">☞ Pencil
+      checkpoint</span>: replace \(A\) by the bivariate standard Gaussian with any correlation \(\rho\) and Lemma 11.2
+    still holds, because the diagonal does not depend on \(\rho\); a whole family of wrong forecasts shares one set of
+    marginal readouts.)</p>
+
+  <h3>11.5.2 Functional amplification: the portfolio-level error grows like \(\sqrt d\)</h3>
+
+  <div class="lem"><span class="label">Lemma 11.3 (the amplification factor of a scalar functional).</span>
+    Extend the counterexample to general \(d\): the true mechanism is \(Y_j\equiv Z\) for \(j=1,\dots,d\) and the
+    forecast is \(\mathcal N(0,I_d)\). Let \(S_d=\sum_{j=1}^d Y_j\). Then \(S_d\) is \(\mathcal N(0,d^2)\) under the
+    true mechanism and \(\mathcal N(0,d)\) under the forecast, so for <b>every</b> level \(0\lt\alpha\lt1\),
+    \[
+    \frac{\mathrm{VaR}_\alpha^{\text{forecast}}}{\mathrm{VaR}_\alpha^{\text{true}}}
+    =\frac{\mathrm{ES}_\alpha^{\text{forecast}}}{\mathrm{ES}_\alpha^{\text{true}}}
+    =\frac{\sqrt d}{d}=\frac{1}{\sqrt d},
+    \tag{11.5}
+    \]
+    independently of \(\alpha\). The component-wise diagnostics do not change with \(d\) at all (Lemma 11.2 holds
+    verbatim for every \(d\)), while the portfolio-level understatement \(1-1/\sqrt d\) increases monotonically to 1.
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    Under the true mechanism \(S_d=dZ\sim\mathcal N(0,d^2)\). Under the forecast the \(d\) components are iid standard
+    Gaussian and their sum is \(\mathcal N(0,d)\). Both are zero-mean Gaussian; with §9's sign convention
+    \(\mathrm{VaR}_\alpha=-q_\alpha\) and \(q_\alpha=\sigma\,\Phi^{-1}(\alpha)\) for a zero-mean Gaussian, the ratio is
+    \(\sigma_{\text{forecast}}/\sigma_{\text{true}}=\sqrt d/d\), with \(\Phi^{-1}(\alpha)\) cancelling. Likewise for
+    \(\mathrm{ES}_\alpha\): it is positively homogeneous under \(Y\mapsto cY\) with \(c\gt0\) (the affine equivariance
+    used in experiment 14), so the same ratio holds. <span class="qed">∎</span>
+  </div>
+
+  <p>Equation (11.5) has a rather unkind corollary for §11.2: <b>joint elicitability of \((\mathrm{VaR},\mathrm{ES})\)
+      cannot repair this error at all</b>. What the Fissler–Ziegel FZ0 score strictly consistently elicits is a pair of
+    scalars, whereas what is wrong here is the <b>joint law</b> that produces those scalars; scoring two numbers that
+    are both wrong with a strictly consistent score will faithfully report only that the pair is mutually coherent.
+    Elicitability governs whether a loss function matches a target, not whether the target's inputs are right.</p>
+
+  <div class="worked"><span class="label">Worked example (ten single-name positions, every backtest green, portfolio VaR
+      understated by 68%).</span>
+    Reusing §7.5.3's setting: \(d=10\) positions, each worth $100M ($1B in total), each with the same conditional
+    standard deviation of the daily log return \(\sigma_t=1.2\%\), conditional mean 0, at level \(\alpha=99\%\), so
+    every position has the same 1% quantile \(q_{0.01}=-2.326\times0.012=-0.02792\) and the same 1-day 99% VaR of
+    $2.79M — the same figure printed in §7.5.3. If the ten daily returns are in fact comonotone (one shock drives every
+    position), the portfolio's 1-day 99% VaR is \(10\times0.02792\times10^{8}=\)$27.92M. If the risk system assumes the
+    ten positions are independent, what it reports is \(\sqrt{10}\times0.02792\times10^{8}=\)$8.83M. The shortfall of
+    $27.92M − $8.83M = $19.09M is \(1-1/\sqrt{10}=68.38\%\) of the true figure. And on the same sample the Kupiec,
+    Christoffersen, and Basel traffic-light tests for all ten single names <b>pass, all green</b> — Lemma 11.2
+    guarantees it. This is not a pathological construction: it is the textbook situation of correlations going to 1 in a
+    stress period while the risk system still uses calm-period correlations.
+  </div>
+
+  <h3>11.5.3 Multivariate scoring rules do see it — but the magnitudes differ by a structural level <span
+      class="star">★</span></h3>
+
+  <p>Separating \(A\) from \(B\) requires a score that consumes the whole vector. Two standard choices are the direct
+    lift of the energy representation (3.2) of Theorem 3.4, and a pairwise score designed for dependence structure: for
+    \(X,X'\overset{\mathrm{iid}}\sim F\) and \(y\in\mathbb R^d\),</p>
+  \[
+  \mathrm{ES}_1(F,y)=\E\|X-y\|-\tfrac12\,\E\|X-X'\| ,
+  \qquad
+  \mathrm{VS}_1(F,y)=\sum_{i\lt j}\Bigl(|y_i-y_j|-\E|X_i-X_j|\Bigr)^2 ,
+  \]
+  <p>called the energy score and the variogram score respectively. The former reduces exactly to CRPS at \(d=1\), i.e.
+    to (3.2); the latter ignores location and looks only at pairwise distances between components. The energy score at
+    \(\beta=1\) is strictly proper; the variogram score is proper but <b>not</b> strictly proper — it is invariant under
+    translation, hence entirely blind to Bias, and is a diagnostic for dependence structure rather than a standalone
+    training objective.</p>
+
+  <div class="thm"><span class="label">Theorem 11.4 (expected-score gaps along two routes, in closed form).</span>
+    In the setting of §11.5.1 (\(d=2\), true mechanism \(P\), forecasts \(A\) and \(B=P\)):
+    <br>(i) the expected gap for the energy score is
+    \[
+    \E_P\bigl[\mathrm{ES}_1(A,Y)\bigr]-\E_P\bigl[\mathrm{ES}_1(B,Y)\bigr]
+    =\sqrt{\frac2\pi}\Bigl(\sqrt3\,\mathcal E(\tfrac23)-1\Bigr)-\frac{\sqrt\pi}{2}
+    =0.0588180 ,
+    \tag{11.6}
+    \]
+    where \(\mathcal E(m)=\int_0^{\pi/2}\sqrt{1-m\sin^2\theta}\dd\theta\) is the complete elliptic integral of the
+    second kind and \(\mathcal E(2/3)=1.2611859\). The two levels themselves are \(0.8567025\) and
+    \(\sqrt{2/\pi}=0.7978846\), so the gap is only \(7.3717\%\) of the ideal value.
+    <br>(ii) for the variogram score the <b>realized</b> values already separate, with no randomness left:
+    \[
+    \mathrm{VS}_1(A,y)=\frac4\pi=1.2732395\ \ \text{for every }y\in\operatorname{supp}P,
+    \qquad
+    \mathrm{VS}_1(B,y)=0 .
+    \tag{11.7}
+    \]
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    <b>Step 1 (expected score of \(B\)):</b> since \(B=P\), the \(X,X',Y\) in the definition are iid \(\sim P\), so
+    \(\E\|X-Y\|=\E\|X-X'\|\) and the difference leaves \(\tfrac12\E\|X-X'\|\). On \(P\) we have
+    \(X-X'=(Z-Z')(1,1)^\top\), hence \(\|X-X'\|=\sqrt2\,|Z-Z'|\); and \(Z-Z'\sim\mathcal N(0,2)\) gives
+    \(\E|Z-Z'|=\sqrt2\cdot\sqrt{2/\pi}=2/\sqrt\pi\). Therefore
+    \(\E_P[\mathrm{ES}_1(B,Y)]=\tfrac12\sqrt2\cdot2/\sqrt\pi=\sqrt{2/\pi}=0.7978846\).
+    <br><b>Step 2 (the self-dispersion term of \(A\)):</b> \(X-X'\sim\mathcal N(0,2I_2)\), so
+    \(\|X-X'\|=\sqrt2\,\chi_2\), and \(\E[\chi_2]=\sqrt2\,\Gamma(3/2)/\Gamma(1)=\sqrt{\pi/2}\), whence
+    \(\E\|X-X'\|=\sqrt\pi\) with half-value \(\sqrt\pi/2=0.8862269\).
+    <br><b>Step 3 (the cross term of \(A\)):</b> put \(W=X-Y\) with \(X\sim\mathcal N(0,I_2)\) independent of
+    \(Y=(Z,Z)\). Then \(W\sim\mathcal N(0,\,I_2+\mathbf 1\mathbf 1^\top)\), and the covariance matrix
+    \(\begin{pmatrix}2&1\\1&2\end{pmatrix}\) has eigenvalues 3 and 1. In the eigenbasis write \(W=(\sqrt3\,U,\ V)\) with
+    \(U,V\) iid \(\mathcal N(0,1)\); in polar coordinates \(U=R\cos\theta\), \(V=R\sin\theta\), the radius
+    \(R\sim\chi_2\) is independent of \(\theta\sim\mathrm{U}[0,2\pi)\) and \(\|W\|^2=3U^2+V^2=R^2(1+2\cos^2\theta)\).
+    Independence splits the expectation:
+    \[
+    \E\|W\|=\E[R]\cdot\frac1{2\pi}\int_0^{2\pi}\!\!\sqrt{1+2\cos^2\theta}\dd\theta
+    =\sqrt{\frac\pi2}\cdot\frac2\pi\int_0^{\pi/2}\!\!\sqrt{3-2\sin^2\theta}\dd\theta
+    =\sqrt{\frac2\pi}\,\sqrt3\,\mathcal E(\tfrac23)=1.7429295 .
+    \]
+    Step 3 minus Step 2 gives \(\E_P[\mathrm{ES}_1(A,Y)]=0.8567025\), and subtracting Step 1 gives (11.6).
+    <br><b>Step 4 (the variogram score):</b> under the true mechanism \(|Y_1-Y_2|=0\) almost surely. Under \(A\),
+    \(X_1-X_2\sim\mathcal N(0,2)\), so \(\E|X_1-X_2|=2/\sqrt\pi\) and
+    \(\mathrm{VS}_1(A,y)=(0-2/\sqrt\pi)^2=4/\pi\) — an expression free of \(y\), i.e. the realized value is itself a
+    constant with zero variance. Under \(B\), \(X_1-X_2=0\) almost surely, so \(\E|X_1-X_2|=0\) and
+    \(\mathrm{VS}_1(B,y)=0\). <span class="qed">∎</span>
+  </div>
+
+  <p>The <b>magnitudes</b> along the two routes differ by a structural level, and the difference is clearest per
+    observation. Write \(D(z)=\mathrm{ES}_1\bigl(A,(z,z)\bigr)-\mathrm{ES}_1\bigl(B,(z,z)\bigr)\) for the realized gap
+    on a single observation. Integrating over \(Z\sim\mathcal N(0,1)\) gives \(\E[D]=0.0588180\) (consistent with
+    (11.6)) and standard deviation \(0.0167015\), so the signal-to-noise ratio of one observation is \(3.5217\). But
+    \(D\) is <b>not everywhere positive</b>: it is positive for \(|z|\lt 4.033615\) and negative beyond
+    (\(D(6)=-0.029208\)), so the probability that a single observation ranks the wrong \(A\) ahead of the ideal \(B\) is
+    \(\Prob(|Z|\gt4.033615)=5.493\times10^{-5}\), about once in every 18,206 observations. Strict propriety orders
+    <b>expectations</b> only, not per-observation realizations — the same mechanism as the black-swan discussion in
+    §11.3. The variogram score has no such issue: by (11.7) the realized gap is always \(4/\pi\) with zero variance, so
+    a single observation suffices and cannot mislead. (<span class="pencil">☞ Pencil checkpoint</span>: replace \(A\) by
+    the bivariate standard Gaussian with correlation \(\rho\); then \(X_1-X_2\sim\mathcal N(0,2-2\rho)\), so
+    \(\E|X_1-X_2|=2\sqrt{(1-\rho)/\pi}\) and \(\mathrm{VS}_1(A,y)=4(1-\rho)/\pi\): at \(\rho=0\) this recovers
+    \(4/\pi\) and at \(\rho=1\) it vanishes. One line shows that the variogram score measures the dependence gap
+    itself.)</p>
+
+  <p><b>Scope limitation.</b> The above is closed form at \(d=2\), where \(B\) happens to be degenerate on the
+    diagonal — a special case that particularly favours the variogram score. For general \(d\), summing all
+    \(\binom d2\) pairs with unit weights, (11.7) gives \(\mathrm{VS}_1(A,y)=\binom d2\cdot4/\pi\) (\(57.2958\) at
+    \(d=10\), \(1559.7184\) at \(d=50\)); this section does not compute the energy-score gap at general \(d\) and proves
+    no general comparison. For the literature on the energy score's lower sensitivity to misspecified dependence, and
+    on the variogram score having been designed for it, see <a
+      href="https://doi.org/10.1016/j.ijforecast.2012.11.004">Pinson and Tastu (2013)</a> and <a
+      href="https://doi.org/10.1175/MWR-D-14-00269.1">Scheuerer and Hamill (2015, §2, printed pp. 1329–1331)</a>.</p>
+
+  <div class="demo" id="demo15">
+    <div class="demo-title">🎛 Interactive experiment 15 | The marginal readouts stay green and motionless while the
+      joint structure collapses: §11.5.3's pencil checkpoint turned into a slider</div>
+    <p style="font-size:.93em;margin:.2em 0 .4em">The true mechanism is fixed at the \(d\)-dimensional comonotone
+      \(Y_j\equiv Z\) (the setting of Lemma 11.3); the forecast is fixed at the equicorrelated Gaussian
+      \(\mathcal N(0,\Sigma_\rho)\) with \(\Sigma_\rho=(1-\rho)I_d+\rho\mathbf 1\mathbf 1^\top\). <b>The diagonal is
+        always 1, independently of \(\rho\)</b> — that one line is the entire content of Lemma 11.2, and it is where the
+      <b>flat green line</b> in the left panel comes from: drag as you like, and the component-wise PIT, CRPS, NLL, 1σ
+      coverage, and single-name VaR all stay pinned at their perfectly calibrated values. Meanwhile three joint
+      quantities collapse in closed form: the variogram score per pair \(4(1-\rho)/\pi\) (§11.5.3's pencil checkpoint),
+      the portfolio VaR ratio \(\sqrt{(1+(d-1)\rho)/d}\) (whose \(\rho=0\) special case is Lemma 11.3's \(1/\sqrt d\)),
+      and the probability that two positions are both negative on the same day, \(\tfrac14+\arcsin\rho/(2\pi)\)
+      (Sheppard's orthant formula; the true value is \(\tfrac12\)). <b>The right panel</b> draws the bivariate marginal
+      of any two components — equicorrelation makes it exactly the \((1,\rho)\) bivariate standard Gaussian for every
+      \(d\): the two faint dashed lines are the ±1σ bands of the two marginals (<b>never moving</b>), the ellipses are
+      the forecast's Mahalanobis radii 1 and 2.4477 (nominal 39.35% and 95%), and the heavy black diagonal is <b>the
+        entire support of the truth</b>, \(Y_i=Y_j\). Drag \(\rho\to1\) and the ellipse collapses onto that diagonal;
+      drag back to 0 and the projections do not budge.</p>
+    <div class="controls">
+      <label>forecast correlation ρ <input type="range" id="d15rho" min="-1" max="1" step="0.01" value="0"> <span
+          class="val" id="d15rhov"></span></label>
+      <label>dimension d <input type="range" id="d15d" min="2" max="50" step="1" value="10"> <span class="val"
+          id="d15dv"></span></label>
+      <span>Presets:
+        <button class="presetbtn" id="d15p1">ρ=0 (independent, i.e. forecast A)</button>
+        <button class="presetbtn" id="d15p2">ρ=1 (the ideal forecast)</button>
+        <button class="presetbtn" id="d15p3">d=2 (§11.5.3's closed form)</button>
+        <button class="presetbtn" id="d15p4">d=50</button></span>
+    </div>
+    <canvas id="d15c"></canvas>
+    <div class="readouts" id="d15r"></div>
+    <div class="trylist"><b>Try this:</b> (1) Drag slowly from ρ=1 down to 0: the green line <b>does not move at all</b>
+      while the other three fall away together. This is the whole of §11.5 in one picture — the error lives entirely off
+      the diagonal, and every component-wise diagnostic looks only at the diagonal. (2) Click "d=50" and watch the
+      portfolio VaR understatement: it is 85.86% at ρ=0 versus only 29.29% at d=2 — the marginal readouts are equally
+      invariant to \(d\), and the joint quantities are the only thing that degrades with it. (3) Drag ρ negative:
+      \(d=2\) goes all the way to \(-1\), but \(d=10\) is clamped at \(-1/9\), because an equicorrelation matrix is
+      positive definite only for \(\rho\gt-1/(d-1)\) (the eigenvalues of \(\Sigma_\rho\) are \(1+(d-1)\rho\) once and
+      \(1-\rho\) with multiplicity \(d-1\)); at that lower bound the portfolio variance is <b>exactly zero</b> and the
+      model reports VaR \(=0\). (4) Note that the understatement readout has <b>no α slider</b>: by Lemma 11.3 the ratio
+      \(\sqrt{(1+(d-1)\rho)/d}\) is independent of the level \(\alpha\), because both laws are exactly Gaussian and
+      \(\Phi^{-1}(\alpha)\) cancels. (5) At ρ=1 all three joint quantities land simultaneously (variogram score 0, ratio
+      1, both-negative probability 0.5) — but that says only that the forecast is correct <b>here</b>, and is not a
+      convergence statement of any generality.</div>
+  </div>
+
+  <h3>11.5.4 Joint coverage also sees it — but there is a blind level</h3>
+
+  <div class="lem"><span class="label">Lemma 11.5 (existence of a coverage blind level).</span>
+    Let \(B_r=\{z\in\mathbb R^2:\|z\|\le r\}\). Under forecast \(A\) the <b>nominal</b> coverage of \(B_r\) is
+    \(1-e^{-r^2/2}\); under the true mechanism \(P\) its <b>actual</b> coverage is
+    \(\Prob(\sqrt2\,|Z|\le r)=\operatorname{erf}(r/2)\). As \(r\to0^+\) the former is smaller than the latter
+    (over-coverage), and as \(r\to\infty\) it is larger (under-coverage); by continuity there exists \(r^*\gt0\) at
+    which the two are equal. Numerically that positive root is unique:
+    \[
+    r^*=1.7529387,\qquad
+    1-e^{-(r^*)^2/2}=\operatorname{erf}(r^*/2)=0.7848451 .
+    \tag{11.8}
+    \]
+    Hence a joint-coverage audit run at a single level, if that level happens to be \(0.7848451\), is structurally
+    incapable of rejecting \(A\).
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    Nominal value: under \(A\), \(\|X\|^2\sim\chi^2_2\), and \(\chi^2_2\) is the exponential distribution with mean 2,
+    so \(\Prob(\chi^2_2\le r^2)=1-e^{-r^2/2}\). Actual value: \(\|Y\|=\sqrt2\,|Z|\), so
+    \(\Prob(\|Y\|\le r)=\Prob(|Z|\le r/\sqrt2)=\operatorname{erf}\bigl((r/\sqrt2)/\sqrt2\bigr)=\operatorname{erf}(r/2)\).
+    <br>Small \(r\): \(\operatorname{erf}(r/2)=r/\sqrt\pi+O(r^3)\) is first order while \(1-e^{-r^2/2}=r^2/2+O(r^4)\)
+    is second order, so the former is larger. Large \(r\): compare the two complements. From
+    \(\operatorname{erfc}(x)\sim e^{-x^2}/(x\sqrt\pi)\) we get \(\operatorname{erfc}(r/2)\sim
+    2e^{-r^2/4}/(r\sqrt\pi)\), and \(e^{-r^2/4}/e^{-r^2/2}=e^{r^2/4}\to\infty\), so for all sufficiently large \(r\)
+    we have \(\operatorname{erfc}(r/2)\gt e^{-r^2/2}\), i.e. the actual coverage is smaller. The two functions are
+    continuous with opposite signs at the two ends, so the intermediate value theorem gives existence of \(r^*\).
+    Uniqueness is verified numerically on \(r\in(0,200]\) by comparing \(\ln\operatorname{erfc}(r/2)\) against
+    \(-r^2/2\) in logs (subtracting directly suffers cancellation: for \(r\gtrsim11.6\) both coverages equal 1 in
+    double precision). This lemma uses existence only. <span class="qed">∎</span>
+  </div>
+
+  <table class="simple">
+    <tr>
+      <th>Radius \(r\)</th>
+      <th>Nominal coverage (forecast \(A\))</th>
+      <th>Actual coverage (mechanism \(P\))</th>
+      <th>Gap</th>
+    </tr>
+    <tr>
+      <td>\(1\) (the 1σ ball)</td>
+      <td>\(0.393469\)</td>
+      <td>\(0.520500\)</td>
+      <td>\(+0.127031\) (over-coverage)</td>
+    </tr>
+    <tr>
+      <td>\(1.752939\) (the blind level)</td>
+      <td>\(0.784845\)</td>
+      <td>\(0.784845\)</td>
+      <td>\(0\) (invisible)</td>
+    </tr>
+    <tr>
+      <td>\(2.447747\) (nominal 95%)</td>
+      <td>\(0.950000\)</td>
+      <td>\(0.916516\)</td>
+      <td>\(-0.033484\) (under-coverage)</td>
+    </tr>
+    <tr>
+      <td>\(3.034854\) (nominal 99%)</td>
+      <td>\(0.990000\)</td>
+      <td>\(0.968124\)</td>
+      <td>\(-0.021876\) (under-coverage)</td>
+    </tr>
+  </table>
+
+  <p>The gaps in the table are <b>not monotone</b>: one and the same wrong forecast over-covers in the middle,
+    under-covers in the tail, and passes through an invisible level in between. This, §2.5's warning about what
+    "conservative coverage" means, and §4.5's statement that the KS test can only be a sensitivity indicator are three
+    faces of one phenomenon: <b>a coverage readout at a single level is not a diagnostic but a slice</b>. Note in
+    passing that the nominal value \(0.393469\) in the 1σ row is no longer Part I's familiar \(0.6826895\) — that
+    constant is \(\Prob(\chi^2_1\le1)\), whereas this one is \(\Prob(\chi^2_2\le1)=1-e^{-1/2}\). "1σ covers 68.3%" is a
+    purely <b>one-dimensional</b> fact.</p>
+
+  <p><b>The four routes side by side.</b> The component-wise gap is <b>exactly zero</b> (Lemma 11.2); the scalar
+    functional's error grows like \(\sqrt d\) and joint elicitability cannot repair it (Lemma 11.3); multivariate
+    scoring rules do see it, but two proper scores can differ by a structural level in the magnitude of the gap
+    (Theorem 11.4); joint coverage sees it, yet there is a level at which it cannot (Lemma 11.5). The conclusion is not
+    that the tools of the preceding eleven chapters are wrong — they remain correct on their own marginal problems — but
+    that <b>their domain is the marginals</b>. Genuinely moving §2's coverage, §4's PIT, and §11's elicitability to a
+    vector-valued \(y\) needs not more tests but mathematical objects this book does not touch: multivariate ranks that
+    can handle the absence of a canonical total order on \(\mathbb R^d\) (the Rosenblatt transform, or the
+    center-outward ranks supplied by optimal transport), and the negative-definite kernel theory needed to prove strict
+    propriety of multivariate scoring rules. This section supplies none of those tools; its job is to pin down why they
+    are needed, using an example in which every constant can be checked by hand.</p>
+
+  <h2 id="sec11c">§11.6 The Rosenblatt transform: an honest multivariate PIT</h2>
+
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    §10's Berkowitz test is the standard risk-model validation routine: push each day's realized return through
+    that day's predictive CDF, collect the PIT values, and test whether they are iid uniform. The trouble is that the
+    routine consumes <b>one</b> number at a time. A real trading book has hundreds of risk factors, and what a
+    supervisor wants to see is the density forecast for the whole book, not each factor examined separately. This
+    section answers the question: <b>how do you carry PIT into \(d\) dimensions?</b> The answer is the Rosenblatt
+    transform — cheap, and needing nothing but conditional CDFs — but its price and its blind spots have to be stated
+    first, or carrying it over buys nothing.
+  </div>
+
+  <p>§11.5 closed by naming three pieces of machinery this book does not cover, and the Rosenblatt transform is the
+    cheapest of them: it needs no new analytic tools, only a chain of conditional CDFs, and it carries §4's PIT theorem
+    and §10's Berkowitz test to a vector-valued \(y\) untouched. This section delivers it, and at the same time makes
+    plain something easy to misread: <b>switching to Rosenblatt does not automatically solve §11.5's problem</b>. On
+    that counterexample the "uniform" half of the theorem holds <b>exactly</b>, and only the "independent" half fails;
+    anyone reading only the first half gets precisely the same all-green readouts as in Lemma 11.2.</p>
+
+  <h3>11.6.1 The definition, the theorem, and a continuity hypothesis that cannot be dropped</h3>
+
+  <div class="defn"><span class="label">Definition 11.6 (the Rosenblatt transform).</span>
+    Let the predictive distribution \(\hat F\) be a probability measure on \(\mathbb R^d\), write \(\hat F_1\) for its
+    first marginal CDF and \(\hat F_{j\mid 1:j-1}(\cdot\mid y_1,\dots,y_{j-1})\) for its subsequent conditional CDFs
+    (\(j=2,\dots,d\)). For an observation \(y\in\mathbb R^d\) define
+    \[
+    u_1=\hat F_1(y_1),
+    \qquad
+    u_j=\hat F_{j\mid 1:j-1}\bigl(y_j\mid y_1,\dots,y_{j-1}\bigr),\quad j=2,\dots,d,
+    \tag{11.9}
+    \]
+    and write \(z_j=\Phi^{-1}(u_j)\). The map \(y\mapsto u=(u_1,\dots,u_d)\) is the Rosenblatt transform (for the
+    coordinate order \(1,2,\dots,d\)); \(z\) is the Rosenblatt residual. At \(d=1\), (11.9) is exactly §4.1's PIT. For
+    any permutation \(\pi\) of \(\{1,\dots,d\}\), <b>the Rosenblatt transform in order \(\pi\)</b> means (11.9) applied
+    to the relabelled vector \((y_{\pi(1)},\dots,y_{\pi(d)})\) under the correspondingly relabelled forecast, written
+    \(u^{(\pi)}\), \(z^{(\pi)}\); its \(j\)-th entry belongs to <b>the \(j\)-th position in the order</b>, not to
+    coordinate \(j\).
+  </div>
+
+  <div class="thm"><span class="label">Theorem 11.7 (iid uniformity of the Rosenblatt transform).</span>
+    Fix once and for all a jointly measurable version of the conditional CDFs (a regular conditional distribution,
+    which exists because \(\mathbb R^d\) is Polish), so that \(u\) really is a random vector. If \(Y\sim\hat F\) (i.e.
+    the forecast is correct) and, for every \(j\) and \(\hat F_{1:j-1}\)-almost every \(y_{1:j-1}\) (that is, almost
+    everywhere with respect to the law of \(Y_{1:j-1}\) under \(\hat F\); at \(j=1\) the tuple is empty and the
+    hypothesis reads "\(\hat F_1\) is continuous"), the conditional CDF \(\hat F_{j\mid 1:j-1}(\cdot\mid y_{1:j-1})\)
+    is continuous, then
+    \[
+    u_1,\dots,u_d\ \text{are iid }\mathrm U(0,1),
+    \qquad\text{that is,}\qquad
+    u\sim\mathrm U\bigl((0,1)^d\bigr);
+    \tag{11.10}
+    \]
+    equivalently, \(z_1,\dots,z_d\) are iid \(\mathcal N(0,1)\). <b>The reference measure cannot be replaced by
+      Lebesgue measure</b>: there are forecasts whose conditional CDFs are continuous at Lebesgue-almost every point
+    yet discontinuous on a set of \(\hat F\)-probability 1, and the conclusion then fails. That matters here
+    specifically, because §11.5–§11.6 deal throughout with truths and forecasts concentrated on Lebesgue-null sets (the
+    comonotone \(Y=Z\mathbf 1\), the degenerate forecast \(B\)). <a
+      href="https://doi.org/10.1214/aoms/1177729394">Rosenblatt (1952, printed pp. 470–472)</a> proves the
+    transformation for an <b>absolutely continuous</b> \(\hat F\); the form stated here asks only for continuity of
+    each conditional CDF, which is strictly weaker (a purely singular forecast such as a Cantor-type law satisfies it
+    and has no density), and the proof below is unchanged.
+  </div>
+  <div class="proof"><span class="label">Proof (induction on \(d\)).</span>
+    At \(d=1\) this is the scalar PIT of Theorem 4.1. Suppose the conclusion holds for \(d-1\); the inductive
+    hypothesis is applied to the marginal \(\hat F_{1:d-1}\), whose conditional CDFs are exactly the
+    \(\hat F_{j\mid 1:j-1}\) with \(j\le d-1\) and which, the forecast being correct, correctly forecasts
+    \(Y_{1:d-1}\). Condition on \(Y_{1:d-1}=y_{1:d-1}\): by hypothesis \(\hat F_{d\mid 1:d-1}(\cdot\mid y_{1:d-1})\)
+    is a continuous CDF and the conditional law of \(Y_d\) <i>is</i> that CDF, so Theorem 4.1 again gives
+    \(u_d\mid Y_{1:d-1}=y_{1:d-1}\sim\mathrm U(0,1)\). The key point is that this conditional law equals <b>the same</b>
+    \(\mathrm U(0,1)\) for \(\hat F\)-almost every \(y_{1:d-1}\), hence equals \(\mathrm U(0,1)\) almost surely as a
+    regular conditional distribution: so \(u_d\) is independent of \(Y_{1:d-1}\) and \(u_d\sim\mathrm U(0,1)\). Since
+    \(u_{1:d-1}\) is a measurable function of \(Y_{1:d-1}\), \(u_d\) is independent of \(u_{1:d-1}\) as well;
+    combining with the inductive hypothesis \(u_{1:d-1}\sim\mathrm U((0,1)^{d-1})\) gives (11.10). (<span
+      class="pencil">☞ Pencil checkpoint</span>: this proof uses <b>no</b> density for \(\hat F\) and assumes no
+    independence among \(\hat F\)'s coordinates; beyond that it uses only "the conditional law is correct", "the
+    conditional CDF is continuous", and the existence of the jointly measurable version above.) <span
+      class="qed">∎</span>
+  </div>
+
+  <p><b>Continuity cannot be dropped, and §11.5's ideal forecast is exactly what violates it.</b> The forecast \(B\)
+    of §11.5 (two components equal with probability 1) fails Theorem 11.7's <b>continuity</b> hypothesis: the
+    conditional law of \(Y_2\) given \(Y_1=y_1\) is the point mass at \(y_1\), so
+    \(\hat F_{2\mid 1}(t\mid y_1)=\ind[t\ge y_1]\) is itself a step function. Substituting the truth \(Y=(Z,Z)\) gives
+    \(u_2=1\) almost surely (with the right-continuous convention \(\hat F(t\mid y_1)=\Prob(Y_2\le t\mid y_1)\); the
+    left-limit convention gives \(u_2=0\), equally degenerate. A randomized PIT that spreads the jump does restore
+    uniformity, but that is a different transform from Definition 11.6). Note that \(u_1=\Phi(Z)\) is still exactly
+    uniform, so the failure is confined to \(j\ge2\); and \(z_2=\Phi^{-1}(1)=+\infty\), i.e. the residual of Definition
+    11.6 does not exist in \(\mathbb R^d\) at all — which is the immediate reason \(B\) is unusable. What follows
+    instead uses the equicorrelated family \(\Sigma_\rho\) of interactive experiment 15 restricted to the
+    <b>positive-definite range</b> \(-1/(d-1)\lt\rho\lt1\) (the eigenvalues of \(\Sigma_\rho\) are \(1+(d-1)\rho\) once
+    and \(1-\rho\) with multiplicity \(d-1\)). That path <b>starts</b> at §11.5's forecast \(A\) (\(\rho=0\)) and only
+    <i>approaches</i> the ideal forecast as \(\rho\to1\), never containing it; and continuity fails at <b>both</b>
+    ends — at \(\rho=1\) as above, and at \(\rho=-1/(d-1)\), where the portfolio variance vanishes and the last
+    conditional law likewise collapses to a point mass. As for Theorem 11.7's other hypothesis (that the forecast is
+    correct), it fails at <b>every</b> point of this path — that is the entire content of Lemma 11.9; \(B\) is in fact
+    the one forecast here that satisfies it.</p>
+
+  <h3>11.6.2 Under a Gaussian forecast it is the inverse Cholesky — plus one order invariant</h3>
+
+  <div class="lem"><span class="label">Lemma 11.8 (inverse-Cholesky representation and an order invariant).</span>
+    Let \(\hat F=\mathcal N(0,\Sigma)\) with \(\Sigma\) positive definite, and take the lower Cholesky factorization
+    \(\Sigma=LL^\top\) (\(L_{jj}\gt0\)). Then for <b>every</b> \(y\in\mathbb R^d\) the residual of Definition 11.6 is
+    exactly
+    \[
+    z=L^{-1}y .
+    \tag{11.11}
+    \]
+    Moreover, for any coordinate order \(\pi\) (permutation matrix \(P_\pi\), with the convention
+    \((P_\pi y)_j=y_{\pi(j)}\)),
+    \[
+    \bigl\|z^{(\pi)}\bigr\|^2=y^\top\Sigma^{-1}y
+    \qquad\text{is the same for every }\pi .
+    \tag{11.12}
+    \]
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    <b>(11.11):</b> write \(X=L\varepsilon\) with the components of \(\varepsilon\) iid \(\mathcal N(0,1)\); then
+    \(X\sim\mathcal N(0,\Sigma)\), and since \(L\) is lower triangular \(X_j=\sum_{i\le j}L_{ji}\varepsilon_i\), so
+    \(\varepsilon_j=\bigl(X_j-\sum_{i\lt j}L_{ji}\varepsilon_i\bigr)/L_{jj}\). By the triangular structure
+    \(\varepsilon_{1:j-1}\) is an invertible linear function of \(X_{1:j-1}\), so
+    \(m_j:=\sum_{i\lt j}L_{ji}\varepsilon_i\) is a linear function of \(X_{1:j-1}\); and
+    \(\varepsilon_j\sim\mathcal N(0,1)\) is independent of \(X_{1:j-1}\). Hence the conditional law of \(X_j\) given
+    \(X_{1:j-1}\) is <b>exactly</b> \(\mathcal N(m_j,L_{jj}^2)\), so
+    \(u_j=\hat F_{j\mid 1:j-1}(y_j\mid y_{1:j-1})=\Phi\bigl((y_j-m_j)/L_{jj}\bigr)\), and applying \(\Phi^{-1}\) gives
+    \(z_j=(y_j-m_j)/L_{jj}=\varepsilon_j\). (What lets \(\Phi^{-1}\) undo the conditional CDF is the
+    <b>Gaussianity</b> of the conditional law, not merely its first two moments; this is also where the normalization
+    \(L_{jj}\gt0\) is used — it is what makes \(L_{jj}\), rather than \(-L_{jj}\), the conditional standard deviation,
+    and with a signed triangular factor (11.11) holds only up to per-coordinate sign flips. And since \(m_j\) is an
+    explicit linear function of \(y_{1:j-1}\) and the conditional standard deviation is the constant \(L_{jj}\), the
+    identity holds for every \(y\), not merely \(\hat F\)-almost surely.)
+    <br><b>(11.12):</b> applying (11.11) to the forecast \(\mathcal N(0,P_\pi\Sigma P_\pi^\top)\) (again positive
+    definite) gives \(z^{(\pi)}=L_\pi^{-1}P_\pi y\) where \(P_\pi\Sigma P_\pi^\top=L_\pi L_\pi^\top\). Hence
+    \(\|z^{(\pi)}\|^2=y^\top P_\pi^\top\bigl(L_\pi L_\pi^\top\bigr)^{-1}P_\pi y=y^\top
+    P_\pi^\top\bigl(P_\pi\Sigma P_\pi^\top\bigr)^{-1}P_\pi y=y^\top\Sigma^{-1}y\), the last step using
+    \(P_\pi^{-1}=P_\pi^\top\). Unlike (11.11), (11.12) uses \(L_\pi\) only through \(L_\pi L_\pi^\top\) and so is
+    completely insensitive to the sign convention. (<span class="pencil">☞ Pencil checkpoint</span>: at \(d=1\),
+    (11.11) reads \(z=y/\sigma\); and (11.12) says the overall Mahalanobis statistic is completely insensitive to the
+    order — which becomes a double-edged sword in §11.6.4.) <span class="qed">∎</span>
+  </div>
+
+  <h3>11.6.3 Substituting §11.5's counterexample: uniformity holds exactly, independence fails maximally</h3>
+
+  <div class="lem"><span class="label">Lemma 11.9 (Rosenblatt residuals of an equicorrelated forecast against a comonotone truth).</span>
+    Let \(d\ge2\). Let the truth be the \(d\)-dimensional comonotone \(Y=Z\mathbf 1\) with \(Z\sim\mathcal N(0,1)\),
+    and the forecast the equicorrelated Gaussian \(\mathcal N(0,\Sigma_\rho)\) with
+    \(\Sigma_\rho=(1-\rho)I_d+\rho\mathbf 1\mathbf 1^\top\) and \(-1/(d-1)\lt\rho\lt1\). Then
+    \[
+    z_j=c_j\,Z,\qquad
+    c_1=1,\quad
+    c_j=\sqrt{\frac{1-\rho}{\bigl(1+(j-2)\rho\bigr)\bigl(1+(j-1)\rho\bigr)}}\ \ (j\ge2),
+    \qquad
+    \sum_{j=1}^{d}c_j^{2}=\mathbf 1^\top\Sigma_\rho^{-1}\mathbf 1=\frac{d}{1+(d-1)\rho} .
+    \tag{11.13}
+    \]
+    In particular \(c_j=1\) for every \(j\) <b>if and only if</b> \(\rho=0\).
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    By Lemma 11.8, \(z=L^{-1}Y=Z\,L^{-1}\mathbf 1\), so \(c=L^{-1}\mathbf 1\), independent of the realized value of
+    \(Z\). The conditional moments of the equicorrelated family follow directly from the block inverse: given
+    \(k=j-1\ge1\) known coordinates,
+    \[
+    \E\bigl[X_j\mid X_{1:k}\bigr]=\frac{\rho}{1+(k-1)\rho}\sum_{i\le k}X_i,
+    \qquad
+    \Var\bigl(X_j\mid X_{1:k}\bigr)=1-\frac{k\rho^2}{1+(k-1)\rho}=\frac{(1-\rho)(1+k\rho)}{1+(k-1)\rho}
+    \]
+    (the second factorization follows by expanding \((1-\rho)(1+k\rho)=1+(k-1)\rho-k\rho^2\); on the stated \(\rho\)
+    range \(1+(k-1)\rho\ge 1-(k-1)/(d-1)\gt0\), so nothing is singular). Substituting \(X_i=Z\) for \(i\le k\) gives
+    conditional mean \(k\rho Z/\bigl(1+(k-1)\rho\bigr)\), so the numerator is
+    \(Z\bigl[1-k\rho/(1+(k-1)\rho)\bigr]=Z(1-\rho)/\bigl(1+(k-1)\rho\bigr)\); dividing by the conditional standard
+    deviation and simplifying gives \(c_j\).
+    <br>For the sum of squares, telescope: when \(\rho\ne0\),
+    \(\frac{1-\rho}{(1+(k-1)\rho)(1+k\rho)}=\frac{1-\rho}{\rho}\Bigl[\frac1{1+(k-1)\rho}-\frac1{1+k\rho}\Bigr]\), and
+    summing over \(k=1,\dots,d-1\) gives \((1-\rho)(d-1)/\bigl(1+(d-1)\rho\bigr)\); adding \(c_1^2=1\) yields
+    \(\bigl[1+(d-1)\rho+(d-1)-(d-1)\rho\bigr]/\bigl(1+(d-1)\rho\bigr)=d/\bigl(1+(d-1)\rho\bigr)\); at \(\rho=0\) every
+    term equals 1 and the sum is \(d\) directly. That \(\mathbf 1^\top\Sigma_\rho^{-1}\mathbf 1\) equals the same value
+    follows from \(\Sigma_\rho\mathbf 1=\bigl(1+(d-1)\rho\bigr)\mathbf 1\). Finally
+    \(c_2=\sqrt{(1-\rho)/(1+\rho)}=1\) only at \(\rho=0\) — a step that needs \(d\ge2\) (at \(d=1\),
+    \(\Sigma_\rho=[1]\) identically and \(\rho\) is not identified). <span class="qed">∎</span>
+  </div>
+
+  <p>Take \(\rho=0\), i.e. §11.5's forecast \(A\). Then \(c_j=1\) for every \(j\), so <b>every</b> \(z_j\) is exactly
+    \(\mathcal N(0,1)\) and every \(u_j\) is exactly \(\mathrm U(0,1)\). Suppose further that the truth supplies
+    replications \(Y^{(t)}=Z_t\mathbf 1\) that are iid over time. Then applying §4's PIT histogram, reliability diagram
+    and ECE, and §10's Berkowitz test, <b>coordinate by coordinate</b> to the output of the Rosenblatt transform still
+    leaves every readout green — exactly as in Lemma 11.2. (The iid-over-time hypothesis is load-bearing: Berkowitz
+    also reads a serial-correlation term, and serial dependence in \(Z_t\) would be caught — but that is a different
+    misspecification from the one under study.) What actually fails is <b>independence across coordinates</b>, and it
+    fails for <b>every</b> \(\rho\) in the family, not just at \(\rho=0\): since \(z_j=c_j Z\) with every \(c_j\gt0\),
+  </p>
+  \[
+  \mathrm{corr}(z_i,z_j)=1\quad(i\ne j),
+  \qquad\text{and for any }n\ge2\text{ replications the sample correlation matrix is the all-ones matrix, of rank }1 .
+  \]
+  <p>Putting the qualifiers in the right places matters. \(\rho=0\) is the <b>only</b> parameter value in this family
+    at which the Rosenblatt residuals are correctly scaled, \(c_j=1\) for every \(j\); and because \(z_j=c_jZ\) is
+    Gaussian, "\(u_j\) is exactly uniform" and "\(\Var(z_j)=1\)" are <b>one and the same</b> condition \(c_j=1\), not
+    two independent confirmations. The <b>ordinary</b> marginal PIT \(\hat F_j(y_j)\), by contrast, is exactly uniform
+    for <b>every</b> \(\rho\) in the family (the diagonal of \(\Sigma_\rho\) is 1 throughout), so per-coordinate
+    marginal calibration is blind across the whole family. For \(\rho\ne0\) we have \(c_2\ne1\) and Berkowitz's
+    variance term does see it: \(d=4,\ \rho=-0.3\) gives \(c=(1,\,1.362770,\,2.154729,\,5.700877)\), where the
+    residuals are not merely wrong but <b>blow up</b> (\(\sum c_j^2=40\)), while \(d=10,\ \rho=0.9\) gives
+    \(c_2=0.229416\) and \(c_{10}=0.036608\), squashing them instead. <b>So the contribution of the Rosenblatt
+      transform is not "the per-coordinate readouts catch it" but "it reduces multivariate calibration to a known
+      scalar null"</b>: is \(z\) iid \(\mathcal N(0,1)\)? That null has several separable directions — each
+    coordinate's own marginal, correlation across coordinates, serial correlation across time, and the overall
+    \(\sum_j z_j^2\) — and §11.5's counterexample leaves no trace at all in the per-coordinate marginals. This is the
+    same structure as §9.2 splitting the Christoffersen test into unconditional coverage and independence: once you
+    split, you have to use the right piece. (<span class="pencil">☞ Pencil checkpoint</span>: at \(d=2,\ \rho=0.5\),
+    \(c=(1,\sqrt{1/3})=(1,\,0.577350)\), so \(\sum c_j^2=4/3\), matching (11.13)'s \(d/(1+(d-1)\rho)=2/1.5=4/3\).)</p>
+
+  <h3>11.6.4 Order dependence: \(d!\) transforms</h3>
+
+  <div class="lem"><span class="label">Lemma 11.10 (order dependence, with a closed-form example).</span>
+    \(d\) coordinates admit \(d!\) orders, each giving a Rosenblatt transform; <b>whenever the conditional CDFs of that
+      order satisfy Theorem 11.7's continuity hypothesis</b>, that order yields iid \(\mathrm U(0,1)^d\) when the
+    forecast is correct. (Under a nondegenerate Gaussian forecast every order satisfies it; but the continuity
+    hypothesis is itself <b>order-dependent</b>, and in general can hold for \((1,2)\) and fail for \((2,1)\).) Under a
+    misspecified forecast these transforms generally have different laws. Take \(d=3\), the comonotone truth
+    \(Y=Z\mathbf 1\), and an AR(1) correlation matrix \(\Sigma_{ij}=\varphi^{|i-j|}\) (\(0\lt\varphi\lt1\)) as the
+    forecast. Then \(z^{(\pi)}=Z\,c^{(\pi)}\) with
+    \[
+    c^{(1,2,3)}=\Bigl(1,\ \sqrt{\tfrac{1-\varphi}{1+\varphi}},\ \sqrt{\tfrac{1-\varphi}{1+\varphi}}\Bigr),
+    \qquad
+    c^{(1,3,2)}=\Bigl(1,\ \sqrt{\tfrac{1-\varphi^2}{1+\varphi^2}},\
+    \tfrac{(1-\varphi)^{3/2}}{\sqrt{(1+\varphi^2)(1+\varphi)}}\Bigr),
+    \]
+    which differ (by Definition 11.6's convention the second entry of \(c^{(1,3,2)}\) belongs to \(X_3\) and the third
+    to \(X_2\)); whereas by (11.12) both have \(\sum_j c_j^2=\mathbf 1^\top\Sigma^{-1}\mathbf
+    1=(3-\varphi)/(1+\varphi)\). The 6 orders in fact produce only <b>two</b> distinct \(c\): the two orders that put
+    \(X_2\) last give the latter, and the remaining four give the former.
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    AR(1) is Markov, so in order \((1,2,3)\) we have \(X_2\mid X_1\sim\mathcal N(\varphi X_1,\,1-\varphi^2)\) and
+    \(X_3\mid X_1,X_2\sim\mathcal N(\varphi X_2,\,1-\varphi^2)\); substituting \(X_i=Z\) gives two identical
+    coefficients \((1-\varphi)/\sqrt{1-\varphi^2}=\sqrt{(1-\varphi)/(1+\varphi)}\).
+    <br>Order \((1,3,2)\): first \(\mathrm{corr}(X_1,X_3)=\varphi^2\) gives \(X_3\mid X_1\sim\mathcal N(\varphi^2
+    X_1,\,1-\varphi^4)\), with coefficient
+    \((1-\varphi^2)/\sqrt{1-\varphi^4}=\sqrt{(1-\varphi^2)/(1+\varphi^2)}\); then for \(X_2\mid X_1,X_3\), the
+    symmetry of AR(1) gives conditional mean \(\varphi(X_1+X_3)/(1+\varphi^2)\) and conditional variance
+    \((1-\varphi^2)/(1+\varphi^2)\), so substituting \(X_1=X_3=Z\) gives the coefficient
+    \(\bigl[1-2\varphi/(1+\varphi^2)\bigr]\big/\sqrt{(1-\varphi^2)/(1+\varphi^2)}
+    =\bigl[(1-\varphi)^2/(1+\varphi^2)\bigr]\big/\sqrt{(1-\varphi^2)/(1+\varphi^2)}
+    =(1-\varphi)^{3/2}\big/\sqrt{(1+\varphi^2)(1+\varphi)}\).
+    <br>For the sum of squares: the inverse of an AR(1) correlation matrix is tridiagonal, and the three row sums of
+    \((1-\varphi^2)\Sigma^{-1}\) are \(1-\varphi\), \((1-\varphi)^2\), \(1-\varphi\), totalling
+    \((1-\varphi)(3-\varphi)\); dividing by \(1-\varphi^2=(1-\varphi)(1+\varphi)\) gives \((3-\varphi)/(1+\varphi)\),
+    consistent with (11.12) (\(\Sigma^{-1}\) is symmetric, so row and column sums agree).
+    <br>Finally, the count. <b>At \(d=3\) and with unit diagonal</b>, \(c\) depends on the order only through which
+    coordinate comes last: \(c_1=1\) always; the first two positions of an order are exactly the complement of the last
+    coordinate, and both \(c_2=\sqrt{(1-\Sigma_{\pi(1)\pi(2)})/(1+\Sigma_{\pi(1)\pi(2)})}\) and \(c_3\) (conditioning
+    on the other two jointly) are symmetric in that pair. So there are at most <b>three</b> distinct \(c\), one per
+    choice of last coordinate. The classes \(\{\text{last}=1\}\) and \(\{\text{last}=3\}\) then <b>coincide</b> because
+    the AR(1) matrix is invariant under the reversal \(i\mapsto4-i\), which maps one class onto the other; hence two
+    distinct \(c\), four orders giving the former and two the latter. <b>Neither restriction can be dropped</b>: the
+    reversal symmetry is essential (for the Markov matrix \(\Sigma_{12}=a\), \(\Sigma_{23}=b\), \(\Sigma_{13}=ab\) with
+    \(a\ne b\), e.g. \((a,b)=(0.6,0.2)\), all three classes differ: \((1,0.5,0.8164966)\),
+    \((1,0.8864053,0.3618734)\), \((1,0.8164966,0.5)\)); and for \(d\ge4\) "which comes last" no longer determines
+    \(c\) at all (AR(1) at \(d=4\) already gives <b>five</b> distinct \(c\) among the 24 orders). <span
+      class="qed">∎</span>
+  </div>
+
+  <table class="simple">
+    <tr>
+      <th>\(\varphi\)</th>
+      <th>\((1,2,3)\)-type orders (4 of them)</th>
+      <th>\((1,3,2)\)-type orders (2 of them)</th>
+      <th>\(\sum_j c_j^2\) (the same for both)</th>
+    </tr>
+    <tr>
+      <td>\(0.5\)</td>
+      <td>\((1,\ 0.5773503,\ 0.5773503)\)</td>
+      <td>\((1,\ 0.7745967,\ 0.2581989)\)</td>
+      <td>\(5/3=1.6666667\)</td>
+    </tr>
+    <tr>
+      <td>\(0.8\)</td>
+      <td>\((1,\ 0.3333333,\ 0.3333333)\)</td>
+      <td>\((1,\ 0.4685213,\ 0.0520579)\)</td>
+      <td>\(11/9=1.2222222\)</td>
+    </tr>
+  </table>
+
+  <p>The right-hand column is (11.12) in the flesh: <b>under a Gaussian forecast</b> the overall Mahalanobis statistic
+    is completely insensitive to the order. This is a double-edged sword, and both edges need stating precisely. <b>The
+      good edge</b>: any overall goodness-of-fit test that uses only \(\sum_j z_j^2\) need not answer for the
+    arbitrariness of the order, because it cannot see the order — but this edge disappears together with the Gaussian
+    assumption, since (11.12)'s hypothesis is \(\hat F=\mathcal N(0,\Sigma)\) and for a non-Gaussian forecast
+    \(\sum_j z_j^2\) is itself order dependent (a Clayton copula with \(\theta=2\) at \((u,v)=(0.30,0.80)\) gives
+    \(2.9419\) in one order and \(5.4731\) in the other, a factor of 1.86). <b>The bad edge</b>: the information the
+    order brings in can only be recovered from coordinate-wise readouts, and Lemma 11.9 has already shown that on the
+    \(\rho=0\) counterexample those readouts are all green. <b>This does not mean \(\sum_j z_j^2\) is blind</b> — quite
+    the opposite. By (11.13) at \(\rho=0\) we have \(c_j\equiv1\), so</p>
+  \[
+  \sum_{j=1}^{d}z_j^2=\Bigl(\sum_j c_j^2\Bigr)Z^2=d\,Z^2,
+  \qquad
+  \E\Bigl[\sum_j z_j^2\Bigr]=d\ \ \text{(correct)},
+  \qquad
+  \Var\Bigl[\sum_j z_j^2\Bigr]=2d^2\ \ \text{rather than }2d .
+  \]
+  <p>The mean is exactly right and the dispersion is off by a factor of \(d\): testing \(\sum_j z_j^2\) as a
+    \(\chi^2_d\) two-sided goodness-of-fit statistic at nominal level \(2\%\) rejects on a <b>single observation</b>
+    with probability \(34.2\%\) at \(d=5\) and \(51.5\%\) at \(d=10\), so power goes to 1 over a sample. The correct
+    statement is therefore: \(\sum_j z_j^2\) does see this misspecification; what it cannot see is the <b>order</b>,
+    and it cannot <b>localize</b> the failure to a coordinate — while the coordinate-wise readouts that could localize
+    it are, here, all green. The Rosenblatt transform supplies a usable reduction; the price is that you must read both
+    the dispersion and the coordinate-wise readouts, because their blind spots differ.</p>
+
+  <h3>11.6.5 The exact link to portfolio VaR, and what this section does not provide</h3>
+
+  <div class="lem"><span class="label">Lemma 11.11 (Cauchy–Schwarz: the portfolio ratio and the residual scales).</span>
+    Keep the truth \(Y=Z\mathbf 1\) of Lemma 11.9, with forecast \(\mathcal N(0,\Sigma)\) where \(\Sigma\) is a
+    positive definite <b>correlation</b> matrix (unit diagonal, so every marginal of the forecast is exactly correct as
+    in Lemma 11.2) that need not be equicorrelated. Let \(r=\sqrt{\mathbf 1^\top\Sigma\mathbf 1}\big/d\) be the
+    portfolio VaR ratio (model ÷ true) of §11.5.2's equation (11.5), and let \(S=\mathbf 1^\top\Sigma^{-1}\mathbf 1\).
+    Then
+    \[
+    \bigl(\mathbf 1^\top\Sigma\mathbf 1\bigr)\bigl(\mathbf 1^\top\Sigma^{-1}\mathbf 1\bigr)\ \ge\ d^2,
+    \qquad\text{equivalently}\qquad
+    r\ \ge\ \frac{1}{\sqrt S},
+    \tag{11.14}
+    \]
+    with equality <b>if and only if</b> \(\mathbf 1\) is an eigenvector of \(\Sigma\), i.e. iff \(\Sigma\) has constant
+    row sums. More strongly, for <b>any</b> weight vector \(w\) with \(w^\top\mathbf 1\ne0\),
+    \[
+    r_w:=\frac{\sqrt{w^\top\Sigma w}}{\lvert w^\top\mathbf 1\rvert}\ \ge\ \frac{1}{\sqrt S},
+    \qquad\text{with equality if and only if }w\propto\Sigma^{-1}\mathbf 1 .
+    \tag{11.15}
+    \]
+    Moreover \(r\lt1\) strictly: within this class the portfolio VaR is always understated.
+  </div>
+  <div class="proof"><span class="label">Proof.</span>
+    First, \(S\) really is the sum of squared residual scales: by Lemma 11.8, \(z=L^{-1}Y=Z\,c\) with
+    \(c=L^{-1}\mathbf 1\), so \(\sum_j c_j^2=\mathbf 1^\top(LL^\top)^{-1}\mathbf 1=\mathbf 1^\top\Sigma^{-1}\mathbf
+    1=S\), and by (11.12) this value does not depend on the coordinate order.
+    <br><b>(11.14):</b> put \(a=\Sigma^{1/2}\mathbf 1\) and \(b=\Sigma^{-1/2}\mathbf 1\). Then
+    \(\mathbf 1^\top\Sigma\mathbf 1=\|a\|^2\), \(S=\|b\|^2\), and \(a^\top b=d\). Cauchy–Schwarz gives
+    \(d^2=(a^\top b)^2\le\|a\|^2\|b\|^2\), with equality if and only if \(a,b\) are linearly dependent; since
+    \(a^\top b=d\gt0\) the constant is necessarily \(\lambda=d/\|b\|^2\gt0\), and
+    \(\Sigma^{1/2}\mathbf 1=\lambda\Sigma^{-1/2}\mathbf 1\) is equivalent (multiply on the left by \(\Sigma^{1/2}\)) to
+    \(\Sigma\mathbf 1=\lambda\mathbf 1\). Conversely \(\Sigma\mathbf 1=\lambda\mathbf 1\) gives
+    \(\Sigma^{-1}\mathbf 1=\lambda^{-1}\mathbf 1\) and the product is \((\lambda d)(d/\lambda)=d^2\).
+    <br><b>(11.15):</b> \(r_w\) is invariant under rescaling \(w\), so normalize \(w^\top\mathbf 1=1\); then
+    \(\min\{w^\top\Sigma w:w^\top\mathbf 1=1\}=1/S\), attained at \(w=\Sigma^{-1}\mathbf 1/S\) (the Lagrange condition
+    is \(\Sigma w\propto\mathbf 1\)), so \(r_w^2\ge1/S\). Taking \(w=\mathbf 1/d\) recovers (11.14).
+    <br><b>\(r\lt1\):</b> put \(v=\mathbf 1/\sqrt d\), so \(\mathbf 1^\top\Sigma\mathbf 1=d\,v^\top\Sigma v\le
+    d\,\lambda_{\max}\); and from \(\operatorname{tr}\Sigma=d\) with \(\lambda_{\min}\gt0\) we get
+    \(\lambda_{\max}\le d-(d-1)\lambda_{\min}\lt d\). Hence \(r^2\le\lambda_{\max}/d\lt1\). <span class="qed">∎</span>
+  </div>
+
+  <p>Take care not to read (11.14) as an equivalence. It is a <b>one-sided inequality</b>: the portfolio
+    understatement and the sum of squared residual scales carry the same information only in the equality case
+    (\(\Sigma\) with constant row sums); in general they are two different numbers. Since
+    \(\mathbf 1^\top\Sigma\mathbf 1=d+\sum_{i\ne j}\rho_{ij}\) depends only on the <b>total</b> pairwise correlation,
+    \(r\) is unchanged along a whole family of \(\Sigma\) on which \(S\) varies by a factor of two or more: at
+    \(d=10\), taking \(\rho_{1j}=-0.3\) and \(\rho_{ij}=0.5\) otherwise gives \(r=0.6371813\) and \(S=4.630072\), while
+    the equicorrelated \(\rho=0.34\) gives <b>the same</b> \(r=0.6371813\) but \(S=2.463054\) — identical \(36.28\%\)
+    understatement, \(S\) off by a factor \(1.880\). The equality class is also far larger than the equicorrelated
+    family: any \(\Sigma\) with constant row sums qualifies, for instance the two-block \(d=10\) matrix (within-block
+    \(0.9\), between-block \(0.2\)), which is not equicorrelated yet gives \(r=1/\sqrt S=0.748331\) exactly. It is
+    (11.15) that is the genuinely usable statement: \(1/\sqrt S\) is a lower bound on the portfolio VaR ratio for
+    <b>every</b> portfolio, attained by the minimum-variance one \(w\propto\Sigma^{-1}\mathbf 1\) — and only there is
+    "without specifying any weights first" a proved claim. Get the direction right too: <b>large</b> \(S\) (residuals
+    blowing up) goes with <b>severe</b> understatement, small \(S\) (residuals squashed) with mild.</p>
+
+  <p><b>What this section does not provide</b> (please do not extend it). (i) Theorem 11.7 is a
+    <b>distributional</b> statement, not a test: no finite-sample distribution, critical value, or power calculation is
+    given here, and feeding \(z\) into §10's Berkowitz likelihood ratio merely moves the problem into a known family —
+    it is not a theorem of this section. (ii) Lemmas 11.8–11.11 are all computed under a <b>Gaussian forecast</b>; in
+    particular the order invariant (11.12) <b>does not survive</b> dropping Gaussianity (the Clayton example above).
+    For non-Gaussian forecasts the conditional CDFs generally have no closed form, the Rosenblatt transform must be
+    obtained by numerical integration or simulation, and that error propagates into the test — none of which is
+    analysed here. (iii) The arbitrariness of the coordinate order is only <b>described</b>, not <b>resolved</b>; the
+    common remedies (averaging over all orders, or selecting one by some criterion) each change the null distribution,
+    and this section endorses neither. (iv) The other two pieces of machinery named at the end of §11.5 — the
+    center-outward ranks supplied by optimal transport, and the negative-definite kernel theory behind strict propriety
+    of multivariate scoring rules — remain outside this book. The value of the Rosenblatt transform is precisely that
+    it does <b>not</b> need them; the price is exactly the humanly chosen coordinate order in (iii), and those two
+    pieces of machinery are what were developed to remove that dependence.</p>
+
   <h2 id="sec12">§12 From NLL to volatility forecasting: GARCH, QMLE, and QLIKE</h2>
+
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    §9 through §11 all assume you already hold a predictive distribution. Where does it come from? At daily frequency the
+    answer is almost always: set the conditional mean to 0, spend all the effort on the conditional variance
+    \(\sigma_t^2\), and multiply by an assumed innovation distribution. GARCH is the standard recursion that produces
+    \(\sigma_t^2\) (§12.1), QMLE is how it is estimated (§12.2), and QLIKE is the standard loss for comparing two
+    volatility forecasts (§12.3). The difficulty in this chapter is not financial but statistical: <b>the truth
+      \(\sigma_t^2\) is never observable</b>, so scoring must be done against a noisy proxy (squared returns or a
+    realized variance), which forces the loss function to be proxy-robust. For volatility clustering, see §7.5.5.
+  </div>
 
   <p>Part I's punchline for training was Theorem 5.1: the heteroscedastic Gaussian NLL has its stationary point at the
     conditional mean and conditional variance. Volatility modeling is that theorem run as an industry.</p>
@@ -3322,6 +4832,16 @@
     risk-neutral survival/intensity and a recovery specification, so a risk-premium adjustment is required. One
     censoring mechanism, but distinct inferential and pricing targets.</div>
   <h2 id="sec13">§13 From checking coverage to guaranteeing it: split conformal prediction and CQR</h2>
+
+  <div class="finance"><span class="label">🧭 The finance setting for this chapter.</span>
+    The previous twelve chapters all <b>check</b> whether a model is right, and every guarantee in them presupposes
+    correct specification. In practice that premise almost never holds, and risk management has a name for the fact:
+    <b>model risk</b>. Split conformal prediction takes a different route: it ignores whether the model is right and uses
+    one independently held-out calibration set to inflate the prediction interval to a "guaranteed" width. The price is
+    that the guarantee holds only <b>marginally</b>, and that the data must be exchangeable — on a time series that is a
+    substantive restriction, not a technicality. Put differently, this chapter does not repair the model; it concedes
+    that the model will be wrong and widens the interval to pay for it.
+  </div>
 
   <p>Every guarantee so far was conditional on a model being right. §2 <i>measured</i> coverage and Lemma 2.2's nominal
     68.3%/95.4% assumed the Gaussian; §4 and §10 diagnosed miscalibration but did not repair it; Theorem 5.1 and §12's
@@ -4225,6 +5745,586 @@
           }
         });
 
+        /* ============ shared helpers for demos 10-14 ============ */
+        function simpson(f, a, b, n) { if (n % 2) n++; var h = (b - a) / n, s = f(a) + f(b), i; for (i = 1; i < n; i++) { s += f(a + i * h) * (i % 2 ? 4 : 2); } return s * h / 3; }
+        /* P(|Z1|<=k,|Z2|<=k) for a standard bivariate normal of correlation rho */
+        function rectProb(k, rho) { if (rho > 0.999999) rho = 0.999999; if (rho < -0.999999) rho = -0.999999; var sd = Math.sqrt(1 - rho * rho); return simpson(function (u) { return phi(u) * (Phi((k - rho * u) / sd) - Phi((-k - rho * u) / sd)); }, -k, k, 240); }
+        /* Gaussian mixture { w:[..], m:[..], s:[..] } */
+        function mixCdf(M, x) { var t = 0, i; for (i = 0; i < M.w.length; i++) { t += M.w[i] * Phi((x - M.m[i]) / M.s[i]); } return t; }
+        function mixPdf(M, x) { var t = 0, i; for (i = 0; i < M.w.length; i++) { t += M.w[i] * phi((x - M.m[i]) / M.s[i]) / M.s[i]; } return t; }
+        function mixMean(M) { var t = 0, i; for (i = 0; i < M.w.length; i++) { t += M.w[i] * M.m[i]; } return t; }
+        function mixQ(M, tau) { var lo = -200, hi = 200, i, mid; for (i = 0; i < 80; i++) { mid = 0.5 * (lo + hi); if (mixCdf(M, mid) < tau) lo = mid; else hi = mid; } return 0.5 * (lo + hi); }
+        function mixEplus(M, v) { var t = 0, i, z; for (i = 0; i < M.w.length; i++) { z = (v - M.m[i]) / M.s[i]; t += M.w[i] * ((v - M.m[i]) * Phi(z) + M.s[i] * phi(z)); } return t; }
+        function mixPinRisk(M, q, tau) { return tau * (mixMean(M) - q) + mixEplus(M, q); }
+        function eAbsN(mu, sg) { var z = mu / sg; return mu * (2 * Phi(z) - 1) + 2 * sg * phi(z); }
+        /* CRPS, energy form  E|X-y| - (1/2)E|X-X'|  -- closed form for a Gaussian mixture */
+        function mixCrps(M, y) { var t1 = 0, t2 = 0, i, j, n = M.w.length; for (i = 0; i < n; i++) { t1 += M.w[i] * eAbsN(M.m[i] - y, M.s[i]); } for (i = 0; i < n; i++) { for (j = 0; j < n; j++) { t2 += M.w[i] * M.w[j] * eAbsN(M.m[i] - M.m[j], Math.sqrt(M.s[i] * M.s[i] + M.s[j] * M.s[j])); } } return t1 - 0.5 * t2; }
+        /* 2*int_0^1 rho_tau(y-q_tau) dtau, by substituting x=q_tau (dtau=f dx) and splitting at the kink x=y */
+        function mixCrpsPin(M, y) { var lo = 1e9, hi = -1e9, i; for (i = 0; i < M.w.length; i++) { lo = Math.min(lo, M.m[i] - 9 * M.s[i]); hi = Math.max(hi, M.m[i] + 9 * M.s[i]); } lo = Math.min(lo, y - 1e-9); hi = Math.max(hi, y + 1e-9); var L = simpson(function (x) { return mixCdf(M, x) * (y - x) * mixPdf(M, x); }, lo, y, 400); var R = simpson(function (x) { return (1 - mixCdf(M, x)) * (x - y) * mixPdf(M, x); }, y, hi, 400); return 2 * (L + R); }
+        function mixVaR(M, a) { return mixQ(M, a); }
+        function mixES(M, a) { var q = mixQ(M, a); return q - mixEplus(M, q) / a; }
+        function mixAffine(M, c, s) { var o = { w: M.w.slice(), m: [], s: [] }, i; for (i = 0; i < M.m.length; i++) { o.m.push(c * M.m[i] + s); o.s.push(c * M.s[i]); } return o; }
+        function mixBlend(A, B, lam) { var o = { w: [], m: [], s: [] }, i; for (i = 0; i < A.w.length; i++) { o.w.push(lam * A.w[i]); o.m.push(A.m[i]); o.s.push(A.s[i]); } for (i = 0; i < B.w.length; i++) { o.w.push((1 - lam) * B.w[i]); o.m.push(B.m[i]); o.s.push(B.s[i]); } return o; }
+        /* FZ0 expected score (11.2); admissible region e <= v < 0 */
+        function fz0Risk(M, v, e, a) { return -mixEplus(M, v) / (a * e) + v / e + Math.log(-e) - 1; }
+        /* generic heat map: darker = LOWER value */
+        function heatMap(x, P, nx, ny, f) {
+          var i, j, v, vals = [], lo = 1e30, hi = -1e30;
+          for (j = 0; j < ny; j++) { vals.push([]); for (i = 0; i < nx; i++) { v = f(i, j); vals[j].push(v); if (isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } } }
+          var cw = (P.R - P.L) / nx, ch = (P.B - P.T) / ny, t, r, g, b;
+          for (j = 0; j < ny; j++) {
+            for (i = 0; i < nx; i++) {
+              v = vals[j][i];
+              if (!isFinite(v)) { x.fillStyle = '#eeeeee'; }
+              else { t = Math.pow((hi - v) / Math.max(hi - lo, 1e-12), 1.7); r = Math.round(255 - 232 * t); g = Math.round(255 - 190 * t); b = Math.round(255 - 133 * t); x.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')'; }
+              x.fillRect(P.L + i * cw, P.B - (j + 1) * ch, cw + 0.8, ch + 0.8);
+            }
+          }
+          return { lo: lo, hi: hi };
+        }
+        /* fmt that never prints a signed zero */
+        function fmtz(v, d) { var t = fmt(v, d); return /^-0(\.0*)?$/.test(t) ? t.slice(1) : t; }
+        function dot(x, cx, cy, rr, fill, stroke) { x.beginPath(); x.arc(cx, cy, rr, 0, 6.283185307179586); if (fill) { x.fillStyle = fill; x.fill(); } if (stroke) { x.strokeStyle = stroke; x.lineWidth = 1.3; x.stroke(); } }
+        function star(x, cx, cy, rr) { var i, a, px, py; x.beginPath(); for (i = 0; i < 10; i++) { a = -1.5707963267948966 + i * 0.6283185307179586; var rad = (i % 2 ? rr * 0.45 : rr); px = cx + rad * Math.cos(a); py = cy + rad * Math.sin(a); if (i === 0) x.moveTo(px, py); else x.lineTo(px, py); } x.closePath(); x.fillStyle = '#d02020'; x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 1; x.stroke(); }
+
+        /* ---------------- Demo 10 ---------------- */
+        function initD10() {
+          if (!el('d10c')) return;
+          function upd() {
+            var N = +el('d10n').value, dq = +el('d10d').value, tau = +el('d10t').value, xp = +el('d10x').value, i, j;
+            el('d10nv').textContent = String(N);
+            el('d10dv').textContent = (dq === 0 ? '0 (all distinct)' : fmt(dq, 2));
+            el('d10tv').textContent = fmt(tau, 2);
+            el('d10xv').textContent = fmt(xp, 1);
+            var r = mulberry32(20260729), xs = [], v;
+            for (i = 0; i < N; i++) { v = 2.0 * gauss(r); if (dq > 0) { v = Math.round(v / dq) * dq; } xs.push(v); }
+            xs.sort(function (a, b) { return a - b; });
+            function cnt(t) { var c = 0, u; for (u = 0; u < N; u++) { if (xs[u] <= t) c++; } return c; }
+            function cntS(t) { var c = 0, u; for (u = 0; u < N; u++) { if (xs[u] < t) c++; } return c; }
+            var kIdx = Math.min(Math.max(Math.ceil(N * tau - 1e-12), 1), N), q = xs[kIdx - 1];
+            /* distinct values + atom masses */
+            var vals = [], cts = [];
+            for (i = 0; i < N; i++) { if (i > 0 && xs[i] === xs[i - 1]) { cts[cts.length - 1]++; } else { vals.push(xs[i]); cts.push(1); } }
+            var maxAtom = 0; for (i = 0; i < cts.length; i++) { if (cts[i] > maxAtom) maxAtom = cts[i]; }
+            var lhs = (q <= xp), rhs = (tau <= cnt(xp) / N + 1e-9);
+            var W = 820, H = 300, x = ctx2('d10c', W, H); x.clearRect(0, 0, W, H); x.font = '11px sans-serif';
+            /* the axis follows the data, but always keeps the Galois probe in view */
+            var lo0 = Math.min(xs[0], xp), hi0 = Math.max(xs[N - 1], xp);
+            var pad = Math.max((hi0 - lo0) * 0.08, 0.3);
+            var xlo = lo0 - pad, xhi = hi0 + pad;
+            /* ---- panel A: empirical CDF ---- */
+            var PA = { L: 46, R: 468, T: 30, B: H - 44 };
+            function XA(t) { return PA.L + (t - xlo) / (xhi - xlo) * (PA.R - PA.L); }
+            function YA(u) { return PA.B - u * (PA.B - PA.T); }
+            x.strokeStyle = '#3a6ea5'; x.lineWidth = 2;
+            x.beginPath(); x.moveTo(XA(xlo), YA(0)); x.lineTo(XA(vals[0]), YA(0)); x.stroke();
+            var cum = 0;
+            for (i = 0; i < vals.length; i++) {
+              var prev = cum / N; cum += cts[i]; var cur = cum / N;
+              x.beginPath(); x.moveTo(XA(vals[i]), YA(prev)); x.lineTo(XA(vals[i]), YA(cur)); x.stroke();
+              var xr = (i + 1 < vals.length) ? vals[i + 1] : xhi;
+              x.beginPath(); x.moveTo(XA(vals[i]), YA(cur)); x.lineTo(XA(xr), YA(cur)); x.stroke();
+            }
+            /* right-continuity dots: filled = value taken, hollow = left limit */
+            cum = 0;
+            for (i = 0; i < vals.length && vals.length <= 46; i++) {
+              var pv = cum / N; cum += cts[i];
+              dot(x, XA(vals[i]), YA(cum / N), 2.6, '#3a6ea5', null);
+              dot(x, XA(vals[i]), YA(pv), 2.6, '#fff', '#3a6ea5');
+            }
+            /* sample rug */
+            x.strokeStyle = '#888'; x.lineWidth = 1;
+            for (i = 0; i < N; i++) { x.beginPath(); x.moveTo(XA(xs[i]), PA.B); x.lineTo(XA(xs[i]), PA.B + 6); x.stroke(); }
+            x.strokeStyle = '#b04040'; x.setLineDash([5, 4]); x.lineWidth = 1.3;
+            x.beginPath(); x.moveTo(PA.L, YA(tau)); x.lineTo(PA.R, YA(tau)); x.stroke(); x.setLineDash([]);
+            x.fillStyle = '#b04040'; x.fillText('τ = ' + fmt(tau, 2), PA.L + 4, YA(tau) - 4);
+            vline(x, XA(q), PA.T, PA.B, '#b04040', false, 'q_τ', 12);
+            vline(x, XA(xp), PA.T, PA.B, '#2e8b57', true, 'x = ' + fmt(xp, 1), 26);
+            box(x, PA, '(a) Empirical CDF F_N (filled = value attained, hollow = left limit)');
+            x.fillStyle = '#333';
+            var span = xhi - xlo, stepT = Math.pow(10, Math.floor(Math.log(span / 5) / Math.LN10));
+            while (span / stepT > 9) { stepT *= 2; }
+            var decT = stepT < 1 ? 1 : 0;
+            for (var tv = Math.ceil(xlo / stepT) * stepT; tv <= xhi; tv += stepT) { x.fillText(fmt(tv, decT), XA(tv) - 7, PA.B + 20); }
+            x.fillText('0', PA.L - 12, YA(0) + 4); x.fillText('1', PA.L - 12, YA(1) + 4);
+            x.fillText('sample value x (ticks = sample points)', (PA.L + PA.R) / 2 - 30, PA.B + 34);
+            /* ---- panel B: quantile function ---- */
+            var PB = { L: 522, R: 806, T: 30, B: H - 44 };
+            function XB(t) { return PB.L + t * (PB.R - PB.L); }
+            function YB(t) { return PB.B - (t - xlo) / (xhi - xlo) * (PB.B - PB.T); }
+            x.strokeStyle = '#14507a'; x.lineWidth = 2;
+            for (i = 1; i <= N; i++) {
+              var t0 = (i - 1) / N, t1 = i / N;
+              x.beginPath(); x.moveTo(XB(t0), YB(xs[i - 1])); x.lineTo(XB(t1), YB(xs[i - 1])); x.stroke();
+              if (i < N) { x.beginPath(); x.moveTo(XB(t1), YB(xs[i - 1])); x.lineTo(XB(t1), YB(xs[i])); x.stroke(); }
+            }
+            if (N <= 46) { for (i = 1; i <= N; i++) { dot(x, XB(i / N), YB(xs[i - 1]), 2.4, '#14507a', null); dot(x, XB((i - 1) / N), YB(xs[i - 1]), 2.4, '#fff', '#14507a'); } }
+            x.strokeStyle = '#b04040'; x.setLineDash([5, 4]); x.lineWidth = 1.3;
+            x.beginPath(); x.moveTo(XB(tau), PB.T); x.lineTo(XB(tau), PB.B); x.stroke();
+            x.beginPath(); x.moveTo(PB.L, YB(q)); x.lineTo(PB.R, YB(q)); x.stroke(); x.setLineDash([]);
+            dot(x, XB(tau), YB(q), 4, '#b04040', '#fff');
+            box(x, PB, '(b) Generalized inverse τ ↦ F_N⁻¹(τ)');
+            x.fillStyle = '#333'; x.fillText('0', PB.L - 3, PB.B + 16); x.fillText('0.5', XB(0.5) - 8, PB.B + 16); x.fillText('1', PB.R - 3, PB.B + 16);
+            x.fillText('τ', (PB.L + PB.R) / 2, PB.B + 32);
+            chips('d10r', [
+              ['sample size N', String(N) + (dq > 0 ? '' : ''), vals.length + ' distinct values'],
+              ['largest atom mass', fmt(maxAtom / N, 3), 'max #{xᵢ=a}/N'],
+              ['⌈Nτ⌉', String(kIdx), 'Lemma 0.8(c)'],
+              ['q_τ = F_N⁻¹(τ) = x₍⌈Nτ⌉₎', fmt(q, 3), 'Definition 0.5'],
+              ['F_N(q⁻) ≤ τ ≤ F_N(q)', fmt(cntS(q) / N, 3) + ' ≤ ' + fmt(tau, 2) + ' ≤ ' + fmt(cnt(q) / N, 3) + ' ✓', 'Lemma 0.6(i)(ii)'],
+              ['Galois: q_τ≤x / τ≤F_N(x)', (lhs ? 'true' : 'false') + ' / ' + (rhs ? 'true' : 'false') + (lhs === rhs ? ' ✓' : ' ✗'), 'Lemma 0.6 (must always agree)']
+            ]);
+          }
+          var ids = ['d10n', 'd10d', 'd10t', 'd10x'], i;
+          for (i = 0; i < ids.length; i++) { el(ids[i]).addEventListener('input', upd); }
+          el('d10p1').addEventListener('click', function () { el('d10d').value = 0; upd(); });
+          el('d10p2').addEventListener('click', function () { el('d10d').value = 1; upd(); });
+          el('d10p3').addEventListener('click', function () { el('d10t').value = 0.95; upd(); });
+          el('d10p4').addEventListener('click', function () { el('d10n').value = 6; el('d10d').value = 1; upd(); });
+          upd();
+        }
+
+        /* ---------------- Demo 11 ---------------- */
+        function initD11() {
+          if (!el('d11c')) return;
+          function upd() {
+            var ph = +el('d11f').value, k = +el('d11k').value, N = +el('d11n').value, l, i;
+            el('d11fv').textContent = fmt(ph, 2); el('d11kv').textContent = fmt(k, 1); el('d11nv').textContent = String(N);
+            var p = 2 * Phi(k) - 1, g0 = p * (1 - p), Dh = 1, Dr = 1, pl, g;
+            var Lmax = Math.min(N - 1, 400), rhoH = [], rhoR = [];
+            for (l = 1; l <= Lmax; l++) {
+              pl = Math.pow(ph, l);
+              g = (Math.abs(pl) < 1e-6) ? 0 : (rectProb(k, pl) - p * p);
+              if (l <= 16) { rhoH.push(g / g0); rhoR.push(pl); }
+              Dh += 2 * (1 - l / N) * g / g0;
+              Dr += 2 * (1 - l / N) * pl;
+              if (Math.abs(pl) < 1e-8 && l > 16) break;
+            }
+            var seIid = Math.sqrt(g0 / N), seDep = Math.sqrt(Math.max(g0 * Dh / N, 0));
+            var NeffRes = N / Dr, NeffHit = N / Dh, seWrong = Math.sqrt(g0 / Math.max(NeffRes, 1e-9));
+            var W = 820, H = 300, x = ctx2('d11c', W, H); x.clearRect(0, 0, W, H); x.font = '11px sans-serif';
+            /* ---- panel A: autocorrelations ---- */
+            var PA = { L: 44, R: 282, T: 32, B: H - 44 }, nL = rhoR.length;
+            function YA(v) { return (PA.T + PA.B) / 2 - v * (PA.B - PA.T) / 2 * 0.92; }
+            x.strokeStyle = '#bbb'; x.beginPath(); x.moveTo(PA.L, YA(0)); x.lineTo(PA.R, YA(0)); x.stroke();
+            for (i = 0; i < nL; i++) {
+              var xx = PA.L + (i + 0.65) / (nL + 0.6) * (PA.R - PA.L);
+              x.strokeStyle = '#3a6ea5'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(xx - 2.2, YA(0)); x.lineTo(xx - 2.2, YA(rhoR[i])); x.stroke();
+              x.strokeStyle = '#b04040'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(xx + 2.2, YA(0)); x.lineTo(xx + 2.2, YA(rhoH[i])); x.stroke();
+            }
+            x.lineWidth = 1; box(x, PA, '(a) Autocorrelation: residuals vs hit indicators');
+            x.fillStyle = '#3a6ea5'; x.fillText('residual ρ_ℓ = φ^ℓ', PA.L + 6, PA.T + 14);
+            x.fillStyle = '#b04040'; x.fillText('hit ρ_H(ℓ) (always ≥ 0)', PA.L + 6, PA.T + 28);
+            x.fillStyle = '#333'; x.fillText('+1', PA.L - 18, YA(1) + 4); x.fillText('0', PA.L - 12, YA(0) + 4); x.fillText('−1', PA.L - 18, YA(-1) + 4);
+            x.fillText('lag ℓ = 1 … 16', (PA.L + PA.R) / 2 - 24, PA.B + 20);
+            /* ---- panel B: sampling distribution of p-hat ---- */
+            var PB = { L: 320, R: 558, T: 32, B: H - 44 };
+            var sMax = Math.max(seIid, seDep, seWrong), plo = p - 3.6 * sMax, phi2 = p + 3.6 * sMax;
+            function XB(v) { return PB.L + (v - plo) / (phi2 - plo) * (PB.R - PB.L); }
+            var dMax = 1 / (2.5066282746310002 * Math.min(seIid, seDep, seWrong));
+            function YBv(d) { return PB.B - Math.min(d / dMax, 1) * (PB.B - PB.T) * 0.94; }
+            function curveN(sd, color, dash, lw) {
+              x.strokeStyle = color; x.lineWidth = lw; if (dash) x.setLineDash(dash); x.beginPath();
+              for (var px = PB.L; px <= PB.R; px += 2) { var v = plo + (px - PB.L) / (PB.R - PB.L) * (phi2 - plo); var d = phi((v - p) / sd) / sd; if (px === PB.L) x.moveTo(px, YBv(d)); else x.lineTo(px, YBv(d)); }
+              x.stroke(); x.setLineDash([]);
+            }
+            curveN(seWrong, '#7a5ea8', [2, 3], 1.6);
+            curveN(seIid, '#888888', [6, 4], 1.6);
+            curveN(seDep, '#b04040', null, 2.4);
+            vline(x, XB(p), PB.T, PB.B, '#333', true, '', 0);
+            x.lineWidth = 1; box(x, PB, '(b) Sampling distribution of p̂');
+            x.fillStyle = '#b04040'; x.fillText('hit process (correct)', PB.L + 6, PB.T + 14);
+            x.fillStyle = '#888888'; x.fillText('iid binomial', PB.L + 6, PB.T + 28);
+            x.fillStyle = '#7a5ea8'; x.fillText('residual N_eff (wrong)', PB.L + 6, PB.T + 42);
+            x.fillStyle = '#333'; x.fillText(fmt(p, 3), XB(p) - 12, PB.B + 16);
+            x.fillText('p̂', (PB.L + PB.R) / 2 - 12, PB.B + 32);
+            /* ---- panel C: effective sample sizes ---- */
+            var PC = { L: 600, R: 806, T: 32, B: H - 44 };
+            var top = Math.max(NeffRes, NeffHit, N) * 1.12;
+            function YC(v) { return PC.B - v / top * (PC.B - PC.T); }
+            var bw = 46, c1 = PC.L + 0.3 * (PC.R - PC.L) - bw / 2, c2 = PC.L + 0.72 * (PC.R - PC.L) - bw / 2;
+            x.fillStyle = '#7a5ea8'; x.fillRect(c1, YC(NeffRes), bw, PC.B - YC(NeffRes));
+            x.fillStyle = '#b04040'; x.fillRect(c2, YC(NeffHit), bw, PC.B - YC(NeffHit));
+            x.strokeStyle = '#333'; x.setLineDash([4, 4]); x.beginPath(); x.moveTo(PC.L, YC(N)); x.lineTo(PC.R, YC(N)); x.stroke(); x.setLineDash([]);
+            x.fillStyle = '#333'; x.fillText('N = ' + N, PC.R - 46, YC(N) - 4);
+            x.fillText(String(Math.round(NeffRes)), c1 + 6, YC(NeffRes) - 4);
+            x.fillText(String(Math.round(NeffHit)), c2 + 6, YC(NeffHit) - 4);
+            x.fillStyle = '#7a5ea8'; x.fillText('residual mean', c1 - 6, PC.B + 16);
+            x.fillStyle = '#b04040'; x.fillText('hit process', c2 - 6, PC.B + 16);
+            x.fillStyle = '#333'; box(x, PC, '(c) Effective sample size');
+            chips('d11r', [
+              ['nominal p_k', fmt(p, 4), '2Φ(k)−1'],
+              ['SE (iid binomial)', fmt(seIid, 5), '√(p(1−p)/N)'],
+              ['SE (hit process, correct)', fmt(seDep, 5), '×' + fmt(seDep / seIid, 2) + '× iid'],
+              ['SE (residual N_eff misused)', fmt(seWrong, 5), (Math.abs(seWrong / seDep - 1) < 5e-3 ? 'agrees with the correct value' : (seWrong < seDep ? 'understates by ' : 'overstates by ') + fmt(Math.max(seDep / seWrong, seWrong / seDep), 2) + '×')],
+              ['residual D_N → N_eff', fmt(Dr, 3) + '  →  ' + String(Math.round(NeffRes)), 'eq. (0.2): sample mean only'],
+              ['hit D_N^H → N_eff', fmt(Dh, 3) + '  →  ' + String(Math.round(NeffHit)), '§2.3: coverage needs this one']
+            ]);
+          }
+          var ids = ['d11f', 'd11k', 'd11n'], i;
+          for (i = 0; i < ids.length; i++) { el(ids[i]).addEventListener('input', upd); }
+          function preset(f, k, n) { el('d11f').value = f; el('d11k').value = k; el('d11n').value = n; upd(); }
+          el('d11p1').addEventListener('click', function () { preset(0, 1, 500); });
+          el('d11p2').addEventListener('click', function () { preset(0.8, 1, 500); });
+          el('d11p3').addEventListener('click', function () { preset(-0.8, 1, 500); });
+          el('d11p4').addEventListener('click', function () { preset(0.8, 2, 500); });
+          upd();
+        }
+
+        /* ---------------- Demo 12 ---------------- */
+        function initD12() {
+          if (!el('d12c')) return;
+          var M0 = 0;                              /* true conditional mean, fixed at 0 w.l.o.g. */
+          function risk(mu, sg, v0) { return Math.log(sg) + (v0 + (mu - M0) * (mu - M0)) / (2 * sg * sg); }
+          function upd() {
+            var b = +el('d12b').value, s0 = +el('d12s0').value, sg = +el('d12s').value, i, j;
+            el('d12bv').textContent = fmt(b, 2); el('d12s0v').textContent = fmt(s0, 2); el('d12sv').textContent = fmt(sg, 2);
+            var v0 = s0 * s0, mu = M0 + b;
+            var sStar = Math.sqrt(v0 + b * b), vStar = v0 + b * b;
+            var R = risk(mu, sg, v0), Rmin = Math.log(s0) + 0.5;
+            var excess = 0.5 * (b * b / (sg * sg) + v0 / (sg * sg) - 1 - Math.log(v0 / (sg * sg)));
+            var cov1 = Phi((b + sStar) / s0) - Phi((b - sStar) / s0);
+            var W = 820, H = 310, x = ctx2('d12c', W, H); x.clearRect(0, 0, W, H); x.font = '11px sans-serif';
+            var mlo = -3.6, mhi = 3.6, slo = 0.2, shi = 4.3;
+            /* ---- panel A: risk landscape ---- */
+            var PA = { L: 52, R: 420, T: 34, B: H - 48 }, nx = 74, ny = 56;
+            function XA(v) { return PA.L + (v - mlo) / (mhi - mlo) * (PA.R - PA.L); }
+            function YA(v) { return PA.B - (v - slo) / (shi - slo) * (PA.B - PA.T); }
+            heatMap(x, PA, nx, ny, function (i2, j2) {
+              var mv = mlo + (i2 + 0.5) / nx * (mhi - mlo), sv = slo + (j2 + 0.5) / ny * (shi - slo);
+              return Math.min(risk(mv, sv, v0), Rmin + 6);
+            });
+            x.strokeStyle = '#b04040'; x.lineWidth = 2.2; x.beginPath();
+            for (var px = PA.L; px <= PA.R; px += 2) {
+              var mv2 = mlo + (px - PA.L) / (PA.R - PA.L) * (mhi - mlo), rs = Math.sqrt(v0 + mv2 * mv2);
+              if (rs > shi) { x.stroke(); x.beginPath(); continue; }
+              if (px === PA.L) x.moveTo(px, YA(rs)); else x.lineTo(px, YA(rs));
+            }
+            x.stroke(); x.lineWidth = 1;
+            star(x, XA(M0), YA(s0), 7);
+            dot(x, XA(mu), YA(Math.min(sg, shi)), 4.6, '#111', '#fff');
+            box(x, PA, '(a) Conditional risk R(μ,σ) (darker = lower) ★ = unique minimizer');
+            x.fillStyle = '#b04040'; x.fillText('σ*(μ) = √(v₀+(μ−m)²)', PA.L + 8, PA.T + 14);
+            x.fillStyle = '#333';
+            for (var tv = -3; tv <= 3; tv += 1) { x.fillText(String(tv), XA(tv) - 3, PA.B + 15); }
+            for (var sv2 = 1; sv2 <= 4; sv2 += 1) { x.fillText(String(sv2), PA.L - 14, YA(sv2) + 4); }
+            x.fillText('μ', (PA.L + PA.R) / 2, PA.B + 30); x.save(); x.translate(PA.L - 30, (PA.T + PA.B) / 2); x.rotate(-1.5707963267948966); x.fillText('σ', 0, 0); x.restore();
+            /* ---- panel B: 1-D slice ---- */
+            var PB = { L: 474, R: 806, T: 34, B: H - 48 };
+            var rlo = 1e30, rhi = -1e30, n2 = 260, arr = [];
+            for (i = 0; i < n2; i++) { var s2 = slo + (shi - slo) * i / (n2 - 1); var rv = risk(mu, s2, v0); arr.push(rv); if (rv < rlo) rlo = rv; if (rv > rhi) rhi = rv; }
+            rhi = Math.min(rhi, rlo + 4.2);
+            function XB(v) { return PB.L + (v - slo) / (shi - slo) * (PB.R - PB.L); }
+            function YB(v) { return PB.B - (Math.min(v, rhi) - rlo) / Math.max(rhi - rlo, 1e-9) * (PB.B - PB.T) * 0.94 - 5; }
+            x.strokeStyle = '#14507a'; x.lineWidth = 2.4; x.beginPath();
+            for (i = 0; i < n2; i++) { var sx = slo + (shi - slo) * i / (n2 - 1); if (i === 0) x.moveTo(XB(sx), YB(arr[i])); else x.lineTo(XB(sx), YB(arr[i])); }
+            x.stroke(); x.lineWidth = 1;
+            vline(x, XB(Math.min(sStar, shi)), PB.T, PB.B, '#b04040', false, 'σ*', 12);
+            vline(x, XB(Math.min(sg, shi)), PB.T, PB.B, '#111', true, 'σ = ' + fmt(sg, 2), 26);
+            if (Math.abs(b) < 1e-9) { x.strokeStyle = '#5a8a5a'; x.setLineDash([4, 4]); x.beginPath(); x.moveTo(PB.L, YB(Rmin)); x.lineTo(PB.R, YB(Rmin)); x.stroke(); x.setLineDash([]); }
+            box(x, PB, '(b) One-dimensional slice at fixed μ');
+            x.fillStyle = '#333';
+            for (var tv2 = 1; tv2 <= 4; tv2++) { x.fillText(String(tv2), XB(tv2) - 3, PB.B + 15); }
+            x.fillText('σ', (PB.L + PB.R) / 2, PB.B + 30);
+            chips('d12r', [
+              ['conditional risk R(μ,σ)', fmt(R, 4), 'Theorem 5.1'],
+              ['global minimum R*', fmt(Rmin, 4), '½log v₀ + ½ (at μ=m, σ=σ₀)'],
+              ['excess risk', fmt(excess, 4), '½[b²/σ² + v₀/σ² − 1 − log(v₀/σ²)] ≥ 0'],
+              ['σ*(μ): best width at this μ', fmt(sStar, 4), 'the bias is absorbed by σ'],
+              ['absorbed variance v* = v₀+b²', fmt(vStar, 4), fmt(v0, 3) + ' + ' + fmt(b * b, 3)],
+              ['1σ coverage at that optimum', fmt(cov1, 4), 'nominal 0.683 (§2)']
+            ]);
+          }
+          var ids = ['d12b', 'd12s0', 'd12s'], i;
+          for (i = 0; i < ids.length; i++) { el(ids[i]).addEventListener('input', upd); }
+          el('d12p1').addEventListener('click', function () { el('d12b').value = 0; el('d12s').value = el('d12s0').value; upd(); });
+          el('d12p2').addEventListener('click', function () { el('d12b').value = 1.5; el('d12s0').value = 1; el('d12s').value = Math.sqrt(1 + 2.25).toFixed(2); upd(); });
+          el('d12p3').addEventListener('click', function () { el('d12s').value = (0.5 * (+el('d12s0').value)).toFixed(2); upd(); });
+          el('d12p4').addEventListener('click', function () { el('d12s').value = Math.min(2 * (+el('d12s0').value), 4).toFixed(2); upd(); });
+          upd();
+        }
+
+        /* ---------------- Demo 13 ---------------- */
+        function initD13() {
+          if (!el('d13c')) return;
+          function upd() {
+            var tau = +el('d13t').value, d = +el('d13d').value, w = +el('d13w').value, y = +el('d13y').value, i;
+            el('d13tv').textContent = fmt(tau, 2); el('d13dv').textContent = fmt(d, 1);
+            el('d13wv').textContent = Math.round(w * 100) + '%'; el('d13yv').textContent = fmt(y, 1);
+            var M = { w: [w, 1 - w], m: [-d, d], s: [1, 1] };
+            var qt = mixQ(M, tau), Fq = mixCdf(M, qt), Lmin = mixPinRisk(M, qt, tau);
+            var crpsE = mixCrps(M, y), crpsP = mixCrpsPin(M, y);
+            var med = mixQ(M, 0.5);
+            var W = 820, H = 310, x = ctx2('d13c', W, H); x.clearRect(0, 0, W, H); x.font = '11px sans-serif';
+            var qlo = -Math.max(d + 4.2, 5.2), qhi = Math.max(d + 4.2, 5.2);
+            /* ---- panel A: CDF and pinball risk ---- */
+            var PA = { L: 50, R: 420, T: 34, B: H - 48 };
+            function XA(v) { return PA.L + (v - qlo) / (qhi - qlo) * (PA.R - PA.L); }
+            function YAf(u) { return PA.B - u * (PA.B - PA.T); }
+            var Llo = 1e30, Lhi = -1e30, nL = 300, La = [];
+            for (i = 0; i < nL; i++) { var qv = qlo + (qhi - qlo) * i / (nL - 1); var lv = mixPinRisk(M, qv, tau); La.push(lv); if (lv < Llo) Llo = lv; if (lv > Lhi) Lhi = lv; }
+            function YAl(v) { return PA.B - (v - Llo) / Math.max(Lhi - Llo, 1e-9) * (PA.B - PA.T) * 0.9 - 6; }
+            x.strokeStyle = '#3a6ea5'; x.lineWidth = 2.2; x.beginPath();
+            for (var px = PA.L; px <= PA.R; px += 2) { var vv = qlo + (px - PA.L) / (PA.R - PA.L) * (qhi - qlo); if (px === PA.L) x.moveTo(px, YAf(mixCdf(M, vv))); else x.lineTo(px, YAf(mixCdf(M, vv))); }
+            x.stroke();
+            x.strokeStyle = '#b04040'; x.lineWidth = 2.2; x.beginPath();
+            for (i = 0; i < nL; i++) { var qx = qlo + (qhi - qlo) * i / (nL - 1); if (i === 0) x.moveTo(XA(qx), YAl(La[i])); else x.lineTo(XA(qx), YAl(La[i])); }
+            x.stroke(); x.lineWidth = 1;
+            x.strokeStyle = '#3a6ea5'; x.setLineDash([4, 4]); x.beginPath(); x.moveTo(PA.L, YAf(tau)); x.lineTo(PA.R, YAf(tau)); x.stroke(); x.setLineDash([]);
+            vline(x, XA(qt), PA.T, PA.B, '#333', false, '', 0);
+            dot(x, XA(qt), YAf(Fq), 4, '#3a6ea5', '#fff');
+            dot(x, XA(qt), YAl(Lmin), 4, '#b04040', '#fff');
+            box(x, PA, '(a) CDF F(q) and pinball risk L(q): the trough ⟺ F crosses τ');
+            x.fillStyle = '#3a6ea5'; x.fillText('F(q) (left axis 0…1)', PA.L + 8, PA.T + 14);
+            x.fillStyle = '#b04040'; x.fillText('L(q) = E[ρ_τ(Y−q)]', PA.L + 8, PA.T + 28);
+            x.fillStyle = '#333'; x.fillText('q_τ = ' + fmtz(qt, 3), XA(qt) + 5, PA.B - 6);
+            x.fillText('q', (PA.L + PA.R) / 2, PA.B + 30);
+            for (var tv = -6; tv <= 6; tv += 3) { if (tv >= qlo && tv <= qhi) x.fillText(String(tv), XA(tv) - 5, PA.B + 15); }
+            /* ---- panel B: the pinball integrand, shaded ---- */
+            var PB = { L: 474, R: 806, T: 34, B: H - 48 }, nT = 260, gv = [], gmax = 0;
+            for (i = 0; i < nT; i++) {
+              var tt = (i + 0.5) / nT, qq = mixQ(M, tt), uu = y - qq;
+              var val = 2 * uu * (tt - (uu < 0 ? 1 : 0));
+              gv.push(val); if (val > gmax) gmax = val;
+            }
+            gmax = Math.max(gmax, 1e-9) * 1.14;
+            function XB(t) { return PB.L + t * (PB.R - PB.L); }
+            function YB(v) { return PB.B - v / gmax * (PB.B - PB.T); }
+            x.fillStyle = 'rgba(176,64,64,0.22)'; x.beginPath(); x.moveTo(XB(0), YB(0));
+            for (i = 0; i < nT; i++) { x.lineTo(XB((i + 0.5) / nT), YB(gv[i])); }
+            x.lineTo(XB(1), YB(0)); x.closePath(); x.fill();
+            x.strokeStyle = '#b04040'; x.lineWidth = 2; x.beginPath();
+            for (i = 0; i < nT; i++) { if (i === 0) x.moveTo(XB((i + 0.5) / nT), YB(gv[i])); else x.lineTo(XB((i + 0.5) / nT), YB(gv[i])); }
+            x.stroke(); x.lineWidth = 1;
+            vline(x, XB(tau), PB.T, PB.B, '#333', true, 'τ', 12);
+            box(x, PB, '(b) τ′ ↦ 2ρ_τ′(y − q_τ′): shaded area = CRPS');
+            x.fillStyle = '#333'; x.fillText('0', PB.L - 3, PB.B + 16); x.fillText('0.5', XB(0.5) - 8, PB.B + 16); x.fillText('1', PB.R - 3, PB.B + 16);
+            x.fillText('τ', (PB.L + PB.R) / 2, PB.B + 32);
+            x.fillText('shaded area = ' + fmt(crpsP, 4), PB.L + 8, PB.T + 14);
+            var relDiff = Math.abs(crpsE - crpsP) / Math.max(crpsE, 1e-12);
+            chips('d13r', [
+              ['q_τ = F⁻¹(τ)', fmtz(qt, 4), 'Theorem 11.1'],
+              ['F(q_τ)', fmt(Fq, 6), 'τ = ' + fmt(tau, 2) + ' ✓'],
+              ['minimal pinball risk L(q_τ)', fmt(Lmin, 4), 'τ(EY−q) + E[(q−Y)⁺]'],
+              ['CRPS (energy closed form)', fmt(crpsE, 6), 'E|X−y| − ½E|X−X′|'],
+              ['2∫₀¹ρ_τ(y−q_τ)dτ (numeric)', fmt(crpsP, 6), 'eq. (3.6)'],
+              ['relative gap between the two routes', relDiff.toExponential(1), 'eq. (3.6) checked live'],
+              ['2ρ_½(y−q_½) = |y−median|', fmt(Math.abs(y - med), 4), 'a single slice of measure zero']
+            ]);
+          }
+          var ids = ['d13t', 'd13d', 'd13w', 'd13y'], i;
+          for (i = 0; i < ids.length; i++) { el(ids[i]).addEventListener('input', upd); }
+          el('d13p1').addEventListener('click', function () { el('d13t').value = 0.5; upd(); });
+          el('d13p2').addEventListener('click', function () { el('d13t').value = 0.95; upd(); });
+          el('d13p3').addEventListener('click', function () { el('d13d').value = 0; upd(); });
+          el('d13p4').addEventListener('click', function () { el('d13d').value = 3; el('d13w').value = 0.5; upd(); });
+          upd();
+        }
+
+        /* ---------------- Demo 14 ---------------- */
+        function initD14() {
+          if (!el('d14c')) return;
+          var G1 = { w: [0.5, 0.5], m: [-3.0, 1.0], s: [1.0, 1.0] };
+          var BASE = { w: [0.5, 0.5], m: [-1.0, 1.0], s: [3.0, 0.5] };
+          var mode = 'A';
+          function buildPair(a) {
+            var q1 = mixVaR(G1, a), e1 = mixES(G1, a), qb = mixVaR(BASE, a), eb = mixES(BASE, a), c, s;
+            if (mode === 'B') { c = (q1 - e1) / (qb - eb); s = q1 - c * qb; } else { c = 1; s = e1 - eb; }
+            return { G2: mixAffine(BASE, c, s), q1: q1, e1: e1 };
+          }
+          function upd() {
+            var a = +el('d14a').value, lam = +el('d14l').value, i, j;
+            el('d14av').textContent = fmt(100 * a, 1) + '%'; el('d14lv').textContent = fmt(lam, 2);
+            el('d14mv').textContent = (mode === 'A' ? 'A: ES matched only' : 'B: VaR and ES both matched');
+            var P = buildPair(a), G2 = P.G2;
+            var q2 = mixVaR(G2, a), e2 = mixES(G2, a);
+            var M = mixBlend(G1, G2, lam), qM = mixVaR(M, a), eM = mixES(M, a);
+            var W = 820, H = 320, x = ctx2('d14c', W, H); x.clearRect(0, 0, W, H); x.font = '11px sans-serif';
+            var xlo = 1e9, xhi = -1e9;
+            for (i = 0; i < G1.m.length; i++) { xlo = Math.min(xlo, G1.m[i] - 3.6 * G1.s[i]); xhi = Math.max(xhi, G1.m[i] + 3.6 * G1.s[i]); }
+            for (i = 0; i < G2.m.length; i++) { xlo = Math.min(xlo, G2.m[i] - 3.6 * G2.s[i]); xhi = Math.max(xhi, G2.m[i] + 3.6 * G2.s[i]); }
+            /* ---- panel A: the two laws and their mixture ---- */
+            var PA = { L: 44, R: 284, T: 36, B: H - 46 }, dmax = 0;
+            for (var px = PA.L; px <= PA.R; px += 2) { var vv = xlo + (px - PA.L) / (PA.R - PA.L) * (xhi - xlo); dmax = Math.max(dmax, mixPdf(G1, vv), mixPdf(G2, vv), mixPdf(M, vv)); }
+            dmax *= 1.16;
+            function XA(v) { return PA.L + (v - xlo) / (xhi - xlo) * (PA.R - PA.L); }
+            function YA(dv) { return PA.B - dv / dmax * (PA.B - PA.T); }
+            function pdfCurve(D, color, lw, dash) { x.strokeStyle = color; x.lineWidth = lw; if (dash) x.setLineDash(dash); x.beginPath(); for (var px2 = PA.L; px2 <= PA.R; px2 += 2) { var v2 = xlo + (px2 - PA.L) / (PA.R - PA.L) * (xhi - xlo); if (px2 === PA.L) x.moveTo(px2, YA(mixPdf(D, v2))); else x.lineTo(px2, YA(mixPdf(D, v2))); } x.stroke(); x.setLineDash([]); }
+            pdfCurve(G1, '#3a6ea5', 1.5, [5, 4]);
+            pdfCurve(G2, '#4a8a4a', 1.5, [5, 4]);
+            pdfCurve(M, '#222222', 2.2, null);
+            vline(x, XA(qM), PA.T, PA.B, '#b04040', false, 'VaR', 12);
+            vline(x, XA(eM), PA.T, PA.B, '#7a5ea8', false, 'ES', 26);
+            x.lineWidth = 1; box(x, PA, '(a) The two laws and their mixture');
+            x.fillStyle = '#3a6ea5'; x.fillText('G₁', PA.L + 8, PA.T + 14);
+            x.fillStyle = '#4a8a4a'; x.fillText('G₂', PA.L + 32, PA.T + 14);
+            x.fillStyle = '#222'; x.fillText('λG₁+(1−λ)G₂', PA.L + 58, PA.T + 14);
+            x.fillStyle = '#333'; x.fillText('r', (PA.L + PA.R) / 2, PA.B + 26);
+            /* ---- panel B: CxLS test along the mixture ---- */
+            var PB = { L: 322, R: 562, T: 36, B: H - 46 }, nl = 41, qs = [], es = [];
+            for (i = 0; i < nl; i++) { var lv = i / (nl - 1); var Mi = mixBlend(G1, G2, lv); qs.push(mixVaR(Mi, a)); es.push(mixES(Mi, a)); }
+            var vlo = 1e9, vhi = -1e9;
+            for (i = 0; i < nl; i++) { vlo = Math.min(vlo, qs[i], es[i]); vhi = Math.max(vhi, qs[i], es[i]); }
+            var pad = Math.max((vhi - vlo) * 0.35, 0.25); vlo -= pad; vhi += pad;
+            function XB(t) { return PB.L + t * (PB.R - PB.L); }
+            function YB(v) { return PB.B - (v - vlo) / (vhi - vlo) * (PB.B - PB.T); }
+            x.strokeStyle = '#ccc'; x.setLineDash([3, 3]);
+            x.beginPath(); x.moveTo(PB.L, YB(P.e1)); x.lineTo(PB.R, YB(P.e1)); x.stroke();
+            x.beginPath(); x.moveTo(PB.L, YB(P.q1)); x.lineTo(PB.R, YB(P.q1)); x.stroke(); x.setLineDash([]);
+            function lineOf(arr, color) { x.strokeStyle = color; x.lineWidth = 2.4; x.beginPath(); for (var u = 0; u < nl; u++) { if (u === 0) x.moveTo(XB(u / (nl - 1)), YB(arr[u])); else x.lineTo(XB(u / (nl - 1)), YB(arr[u])); } x.stroke(); }
+            lineOf(qs, '#3a6ea5'); lineOf(es, '#b04040'); x.lineWidth = 1;
+            vline(x, XB(lam), PB.T, PB.B, '#333', true, '', 0);
+            dot(x, XB(lam), YB(qM), 3.6, '#3a6ea5', '#fff');
+            dot(x, XB(lam), YB(eM), 3.6, '#b04040', '#fff');
+            box(x, PB, '(b) VaRₐ and ESₐ along λ: a flat line = convex level set');
+            x.fillStyle = '#3a6ea5'; x.fillText('VaRₐ', PB.L + 8, PB.T + 14);
+            x.fillStyle = '#b04040'; x.fillText('ESₐ', PB.L + 48, PB.T + 14);
+            x.fillStyle = '#333'; x.fillText('0', PB.L - 3, PB.B + 16); x.fillText('1', PB.R - 3, PB.B + 16);
+            x.fillText('λ', (PB.L + PB.R) / 2, PB.B + 30);
+            /* ---- panel C: FZ0 expected score ---- */
+            var PC = { L: 604, R: 806, T: 36, B: H - 46 }, nvx = 44, nvy = 44;
+            var rad = Math.max(0.55, 0.42 * Math.abs(qM - eM));
+            var vLo = qM - rad, vHi = Math.min(qM + rad, -1e-4), eLo = eM - rad, eHi = eM + rad;
+            heatMap(x, PC, nvx, nvy, function (i2, j2) {
+              var vv = vLo + (i2 + 0.5) / nvx * (vHi - vLo), ee = eLo + (j2 + 0.5) / nvy * (eHi - eLo);
+              if (!(ee <= vv && vv < 0)) return NaN;
+              return fz0Risk(M, vv, ee, a);
+            });
+            function XC(v) { return PC.L + (v - vLo) / (vHi - vLo) * (PC.R - PC.L); }
+            function YC(v) { return PC.B - (v - eLo) / (eHi - eLo) * (PC.B - PC.T); }
+            star(x, XC(qM), YC(eM), 7);
+            box(x, PC, '(c) FZ0 expected score');
+            x.fillStyle = '#333'; x.fillText('v', (PC.L + PC.R) / 2, PC.B + 26);
+            x.save(); x.translate(PC.L - 26, (PC.T + PC.B) / 2); x.rotate(-1.5707963267948966); x.fillText('e', 0, 0); x.restore();
+            x.fillText('darker = lower score', PC.L + 4, PC.T + 14);
+            var devES = 0, devQ = 0;
+            for (i = 0; i < nl; i++) { devES = Math.max(devES, Math.abs(es[i] - P.e1)); devQ = Math.max(devQ, Math.abs(qs[i] - P.q1)); }
+            /* CxLS is a CONDITIONAL statement: a deviation along lambda only refutes convexity
+               of the level set when the functional already agrees at BOTH endpoints. Pair A leaves
+               VaR deliberately unmatched, so for VaR the hypothesis is vacuous and no verdict applies. */
+            var varMatched = Math.abs(q2 - P.q1) < 1e-6;
+            chips('d14r', [
+              ['VaRₐ(G₂) − VaRₐ(G₁)', fmtz(q2 - P.q1, 4) + (varMatched ? ' ✓' : ''), varMatched ? 'endpoints match on VaR' : 'endpoints deliberately differ on VaR'],
+              ['ESₐ(G₂) − ESₐ(G₁)', fmtz(e2 - P.e1, 6) + ' ✓', 'both pairs match ES'],
+              ['mixture VaRₐ / ESₐ', fmt(qM, 4) + ' / ' + fmt(eM, 4), 'at the current λ'],
+              ['max deviation of ESₐ along λ', fmt(devES, 4) + (devES > 1e-3 ? ' ✗' : ' ✓'), (devES > 1e-3 ? 'CxLS fails ⟹ not elicitable alone' : 'CxLS holds')],
+              ['max deviation of VaRₐ along λ', varMatched ? (fmt(devQ, 6) + ' ✓') : 'n/a', varMatched ? 'CxLS holds' : 'endpoints not matched ⟹ CxLS hypothesis vacuous, nothing is tested'],
+              ['minimizer of FZ0 (11.2)', '(' + fmt(qM, 3) + ', ' + fmt(eM, 3) + ')', '= (VaRₐ, ESₐ)']
+            ]);
+          }
+          el('d14a').addEventListener('input', upd);
+          el('d14l').addEventListener('input', upd);
+          el('d14p1').addEventListener('click', function () { mode = 'A'; upd(); });
+          el('d14p2').addEventListener('click', function () { mode = 'B'; upd(); });
+          el('d14p3').addEventListener('click', function () { el('d14a').value = 0.025; upd(); });
+          upd();
+        }
+
+        /* ---------------- Demo 15 ---------------- */
+        function initD15() {
+          if (!el('d15c')) return;
+          var Q99 = 0.02792;        /* §7.5.3: 2.326 x 1.2%, per unit notional */
+          var R95 = 2.4477468;      /* sqrt(chi2_{2,0.95}) = sqrt(-2 ln 0.05) */
+          function sep(v, dg) { var s = Number(v).toFixed(dg); var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return p.join('.'); }
+          function upd() {
+            var d = Math.round(+el('d15d').value), rho = +el('d15rho').value;
+            var rmin = -1 / (d - 1), clamped = false;
+            if (rho < rmin) { rho = rmin; clamped = true; }
+            el('d15dv').textContent = 'd = ' + d;
+            el('d15rhov').textContent = fmt(rho, 2) + (clamped ? ' (clamped to the bound)' : '');
+            var npair = d * (d - 1) / 2;
+            /* the three closed forms; the truth is comonotone so |Y_i - Y_j| = 0 a.s. */
+            function vs1(r) { return 4 * (1 - r) / Math.PI; }
+            function ratio(r) { return Math.sqrt(Math.max(1 + (d - 1) * r, 0) / d); }
+            function bothNeg(r) { return 0.25 + Math.asin(Math.max(-1, Math.min(1, r))) / (2 * Math.PI); }
+            var W = 820, H = 350, x = ctx2('d15c', W, H); x.clearRect(0, 0, W, H); x.font = '11px sans-serif';
+            /* ---- panel (a): everything as a function of rho ---- */
+            var PA = { L: 54, R: 436, T: 34, B: 300 }, k, t;
+            function XA(r) { return PA.L + (r - rmin) / (1 - rmin) * (PA.R - PA.L); }
+            function YA(v) { return PA.B - v / 1.1 * (PA.B - PA.T); }
+            x.strokeStyle = '#eee'; x.lineWidth = 1;
+            for (k = 0; k <= 4; k++) { var gy = YA(k * 0.25); x.beginPath(); x.moveTo(PA.L, gy); x.lineTo(PA.R, gy); x.stroke(); }
+            function curve(f, color, lw, dash) {
+              x.strokeStyle = color; x.lineWidth = lw; if (dash) x.setLineDash(dash); x.beginPath();
+              for (k = 0; k <= 160; k++) { var rr = rmin + k / 160 * (1 - rmin); if (k === 0) x.moveTo(XA(rr), YA(f(rr))); else x.lineTo(XA(rr), YA(f(rr))); }
+              x.stroke(); x.setLineDash([]);
+            }
+            var vsMax = vs1(rmin);
+            curve(function () { return 1; }, '#2f8f4f', 3.0, null);            /* every marginal readout */
+            curve(ratio, '#3a6ea5', 2.4, null);                                /* portfolio VaR ratio */
+            curve(function (r) { return bothNeg(r) / 0.5; }, '#7a5ea8', 2.0, null);
+            curve(function (r) { return vs1(r) / vsMax; }, '#b04040', 2.0, [5, 4]);
+            if (rho > rmin + 1e-12) vline(x, XA(0), PA.T, PA.B, '#bbb', true, '', 0);
+            vline(x, XA(rho), PA.T, PA.B, '#333', false, '', 0);
+            dot(x, XA(rho), YA(1), 3.4, '#2f8f4f', '#fff');
+            dot(x, XA(rho), YA(ratio(rho)), 3.4, '#3a6ea5', '#fff');
+            dot(x, XA(rho), YA(bothNeg(rho) / 0.5), 3.4, '#7a5ea8', '#fff');
+            dot(x, XA(rho), YA(vs1(rho) / vsMax), 3.4, '#b04040', '#fff');
+            box(x, PA, '(a) every readout swept over ρ (each divided by its own correct value or maximum)');
+            x.fillStyle = '#2f8f4f'; x.fillText('all marginals (≡1)', PA.L + 6, PA.T + 14);
+            x.fillStyle = '#3a6ea5'; x.fillText('portfolio VaR', PA.L + 6, PA.T + 28);
+            x.fillStyle = '#7a5ea8'; x.fillText('both negative', PA.L + 88, PA.T + 28);
+            x.fillStyle = '#b04040'; x.fillText('VS₁ (dashed)', PA.L + 168, PA.T + 28);
+            x.fillStyle = '#333';
+            x.fillText('1.0', PA.L - 24, YA(1) + 4); x.fillText('0.5', PA.L - 24, YA(0.5) + 4); x.fillText('0', PA.L - 12, YA(0) + 4);
+            x.fillText(fmt(rmin, 2), PA.L - 8, PA.B + 16); x.fillText('0', XA(0) - 3, PA.B + 16); x.fillText('1', PA.R - 3, PA.B + 16);
+            x.fillText('ρ', (PA.L + PA.R) / 2, PA.B + 32);
+            /* ---- panel (b): the bivariate marginal of any two components ---- */
+            var PB = { L: 520, R: 790, T: 30, B: 300 }, LIM = 3.4;
+            function XB(v) { return PB.L + (v + LIM) / (2 * LIM) * (PB.R - PB.L); }
+            function YB(v) { return PB.B - (v + LIM) / (2 * LIM) * (PB.B - PB.T); }
+            x.fillStyle = 'rgba(122,94,168,0.10)'; x.fillRect(PB.L, YB(0), XB(0) - PB.L, PB.B - YB(0));
+            x.strokeStyle = '#eee'; x.lineWidth = 1;
+            x.beginPath(); x.moveTo(PB.L, YB(0)); x.lineTo(PB.R, YB(0)); x.stroke();
+            x.beginPath(); x.moveTo(XB(0), PB.T); x.lineTo(XB(0), PB.B); x.stroke();
+            x.strokeStyle = '#cbb'; x.setLineDash([3, 3]);                     /* the two marginal +-1sigma bands */
+            for (k = -1; k <= 1; k += 2) {
+              x.beginPath(); x.moveTo(XB(k), PB.T); x.lineTo(XB(k), PB.B); x.stroke();
+              x.beginPath(); x.moveTo(PB.L, YB(k)); x.lineTo(PB.R, YB(k)); x.stroke();
+            }
+            x.setLineDash([]);
+            function ellipse(r, color, lw, dash) {
+              var a = Math.sqrt(Math.max(1 + rho, 0)), b = Math.sqrt(Math.max(1 - rho, 0));
+              x.strokeStyle = color; x.lineWidth = lw; if (dash) x.setLineDash(dash); x.beginPath();
+              for (var m = 0; m <= 160; m++) {
+                t = m / 160 * 2 * Math.PI;
+                var u = r * a * Math.cos(t) / Math.SQRT2, v = r * b * Math.sin(t) / Math.SQRT2;
+                if (m === 0) x.moveTo(XB(u + v), YB(u - v)); else x.lineTo(XB(u + v), YB(u - v));
+              }
+              x.closePath(); x.stroke(); x.setLineDash([]);
+            }
+            x.strokeStyle = '#111'; x.lineWidth = 3.2;                          /* the truth: the whole diagonal */
+            x.beginPath(); x.moveTo(XB(-LIM), YB(-LIM)); x.lineTo(XB(LIM), YB(LIM)); x.stroke();
+            ellipse(R95, '#3a6ea5', 1.6, [5, 4]);
+            ellipse(1, '#3a6ea5', 2.2, null);
+            x.lineWidth = 1; box(x, PB, '(b) bivariate marginal of any two components');
+            x.fillStyle = '#7a5ea8'; x.fillText('both-negative quadrant ' + fmt(bothNeg(rho), 4), PB.L + 6, PB.B - 8);
+            x.fillStyle = '#111'; x.fillText('truth: Y_i = Y_j', XB(0.4), YB(2.6));
+            x.fillStyle = '#3a6ea5'; x.fillText('forecast r=1 / 2.45', PB.L + 6, PB.T + 14);
+            x.fillStyle = '#333'; x.fillText('X_i', (PB.L + PB.R) / 2, PB.B + 18);
+            x.save(); x.translate(PB.L - 16, (PB.T + PB.B) / 2); x.rotate(-1.5707963267948966); x.fillText('X_j', 0, 0); x.restore();
+            /* ---- readouts ---- */
+            var truM = d * Q99 * 100, modM = Math.sqrt(Math.max(d * (1 + (d - 1) * rho), 0)) * Q99 * 100;
+            chips('d15r', [
+              ['marginal PIT / CRPS / NLL / 1σ coverage', 'U(0,1) / 0.5641896 / 1.4189385 / 0.6826895', 'exactly invariant to ρ and d (Lemma 11.2)'],
+              ['single-name 1-day 99% VaR', '$' + fmt(Q99 * 100, 2) + 'M', 'identical for every position, all backtests green'],
+              ['VS₁ (per pair)', fmt(vs1(rho), 6), '= 4(1−ρ)/π; true value 0'],
+              ['VS₁ (' + npair + ' pairs in total)', sep(npair * vs1(rho), 4), '= C(d,2)·4(1−ρ)/π'],
+              ['portfolio VaR: model / true', '$' + sep(modM, 2) + 'M / $' + sep(truM, 2) + 'M', 'the truth is comonotone'],
+              ['portfolio VaR understatement', fmt(100 * (1 - ratio(rho)), 2) + '%', '= 1 − √((1+(d−1)ρ)/d), independent of α'],
+              ['both negative same day: model / true', fmt(bothNeg(rho), 4) + ' / 0.5000', '= ¼ + arcsin ρ/(2π)'],
+              ['positive-definiteness bound ρ_min of Σ_ρ', fmt(rmin, 4), clamped ? 'ρ clamped here; portfolio variance is 0' : '= −1/(d−1)']
+            ]);
+          }
+          el('d15rho').addEventListener('input', upd);
+          el('d15d').addEventListener('input', upd);
+          el('d15p1').addEventListener('click', function () { el('d15rho').value = 0; upd(); });
+          el('d15p2').addEventListener('click', function () { el('d15rho').value = 1; upd(); });
+          el('d15p3').addEventListener('click', function () { el('d15d').value = 2; upd(); });
+          el('d15p4').addEventListener('click', function () { el('d15d').value = 50; upd(); });
+          upd();
+        }
+
         function boot() {
           try { initD1(); } catch (e) { console.error('demo1', e); }
           try { initD2(); } catch (e) { console.error('demo2', e); }
@@ -4235,6 +6335,12 @@
           try { initD7(); } catch (e) { console.error('demo7', e); }
           try { initD8(); } catch (e) { console.error('demo8', e); }
           try { initD9(); } catch (e) { console.error('demo9', e); }
+          try { initD10(); } catch (e) { console.error('demo10', e); }
+          try { initD11(); } catch (e) { console.error('demo11', e); }
+          try { initD12(); } catch (e) { console.error('demo12', e); }
+          try { initD13(); } catch (e) { console.error('demo13', e); }
+          try { initD14(); } catch (e) { console.error('demo14', e); }
+          try { initD15(); } catch (e) { console.error('demo15', e); }
 
           if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
             window.MathJax.startup.promise.then(function () {

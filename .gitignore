@@ -159,3 +159,5 @@ _minted-*/
 /Thesis/regression_eval_study/audit/
 /Thesis/latex/AI_feedback/
 .vs/
+# Local byte-level backups of the derivations textbook (72 MB of near-duplicates)
+/Thesis/regression_eval_study/*.bak_*
