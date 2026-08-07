@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # CPU version: one-click execution service
+  # CPU 版本：一键运行服务
+  mie-postprocessing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mie-postprocessing:latest
+    container_name: mie_postprocessing_app
+    volumes:
+      # Mount host input data directory (contains .cine video files)
+      # 挂载宿主机输入数据目录（放置 .cine 视频文件）
+      - ./data/input:/app/data/input
+      # Mount host output directory (stores CSV and AVI preview results)
+      # 挂载宿主机输出目录（存放 CSV, AVI 预览结果）
+      - ./data/output:/app/data/output
+      # Mount experiment matrix configuration directory
+      # 挂载试验配置目录
+      - ./test_matrix_json:/app/test_matrix_json
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MPLBACKEND=Agg
+      - MIE_PARENT_FOLDER=/app/data/input
+      - MIE_EXPERIMENT_CONFIG=/app/test_matrix_json/Nozzle1.json
+      - MIE_RESULTS_BASE_DIR=/app/data/output
+    command: python mie_multi_hole.py
+
+  # GPU version: NVIDIA CUDA accelerated service
+  # GPU 版本：NVIDIA CUDA 加速服务
+  mie-postprocessing-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    image: mie-postprocessing:gpu
+    container_name: mie_postprocessing_gpu_app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+      - ./test_matrix_json:/app/test_matrix_json
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MPLBACKEND=Agg
+      - MIE_PARENT_FOLDER=/app/data/input
+      - MIE_EXPERIMENT_CONFIG=/app/test_matrix_json/Nozzle1.json
+      - MIE_RESULTS_BASE_DIR=/app/data/output
+    command: python mie_multi_hole.py
